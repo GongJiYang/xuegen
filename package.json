@@ -1,0 +1,25 @@
+{
+  "name": "@gongjiyang/xuegen",
+  "version": "0.1.0",
+  "description": "Xuegen (学根): a terminal learning agent for understanding, practice, and transfer.",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "xuegen": "bin/xuegen.mjs"
+  },
+  "files": ["bin/", "defaults/", "instructions.md", "skills/"],
+  "scripts": {
+    "start": "node bin/xuegen.mjs"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GongJiYang/xuegen.git"
+  }
+}
