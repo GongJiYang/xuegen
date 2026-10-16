@@ -19,9 +19,10 @@ if (args[0] === "--help" || args[0] === "-h") {
   xuegen -c                      继续当前目录的最近会话
   xuegen -r                      选择历史会话
   xuegen -p "解释这个概念"         非交互输出
+  xuegen mcp list                检查论文与网页工具连接
   xuegen --runtime-help          查看底层运行时的完整选项
 
-会话内：/login 登录，/model 选择模型，/new 新主题，/quit 退出。
+会话内：/login 登录，/model 选择模型，/mcp 查看工具，/new 新主题，/quit 退出。
 个人配置与会话：~/.xuegen/，可用 XUEGEN_HOME 指定另一目录。
 项目更新：在源码目录运行 git pull --ff-only，再运行 npm ci --ignore-scripts。
 底层运行时：@earendil-works/pi-coding-agent。`);
@@ -41,6 +42,7 @@ if (args[0] === "--help" || args[0] === "-h") {
 
   // Set isolation before importing the runtime: it captures paths at module load.
   process.env.PI_CODING_AGENT_DIR = stateDir;
+  process.env.XUEGEN_HOME = stateDir;
   delete process.env.PI_CODING_AGENT_SESSION_DIR;
   delete process.env.PI_PACKAGE_DIR;
   process.env.PI_CODING_AGENT = "true";
@@ -48,10 +50,12 @@ if (args[0] === "--help" || args[0] === "-h") {
   process.title = "xuegen";
 
   const { main } = await import("@earendil-works/pi-coding-agent");
-  const subcommands = new Set(["install", "remove", "uninstall", "list", "config", "auth"]);
+  const subcommands = new Set(["install", "remove", "uninstall", "list", "config", "auth", "mcp"]);
   const sessionArgs = [
     "--no-approve",
     "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
+    "-e", "builtin:mcp",
+    "-e", "builtin:tool-search",
     "--skill", join(root, "skills"),
     "--append-system-prompt", join(root, "instructions.md"),
     ...args,
