@@ -11,6 +11,8 @@
 - Keep course selection per conversation; preserve manual edits and avoid duplicate closing records when nothing changed.
 - Route Wiki queries through a read-only workflow without updating pages or logs.
 - Normalize and export `XUEGEN_HOME` so tool-side Wiki lookup matches the runtime profile, including relative paths.
+- Render dated course PNG snapshots with weekly goals, overall milestones, learning evidence, and next steps using local Chrome without new dependencies.
+- Preserve Markdown as the source of truth; reject invalid completion flags and avoid overwriting existing snapshots.
 
 ## 0.1.0
 
