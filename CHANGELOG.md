@@ -16,6 +16,8 @@
 - Move course state to `wiki/courses/<slug>.md` and keep it read-only (0444 with a 0555 directory) so it can only change through the unlock-edit-relock workflow.
 - Generate a `wiki/courses.md` dashboard from the per-course state files, and add a read-only `course-board` skill that displays courses and verifies locks and dashboard consistency.
 - Support checking off and reverting activities at the end of a day, keeping an audit line instead of deleting the earlier checkmark.
+- Render a self-contained read-only `wiki/courses.html` board from the same course Markdown: no server, scripts, CDN, or edit controls; opens offline and follows the system light/dark theme.
+- Define the standard plan output (position, next step, week, today, milestones, full plan, records) in `skills/course/PLAN-STANDARD.md`, illustrated with the mech-interp course.
 
 ## 0.1.0
 
