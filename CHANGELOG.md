@@ -13,6 +13,9 @@
 - Normalize and export `XUEGEN_HOME` so tool-side Wiki lookup matches the runtime profile, including relative paths.
 - Render dated course PNG snapshots with weekly goals, overall milestones, learning evidence, and next steps using local Chrome without new dependencies.
 - Preserve Markdown as the source of truth; reject invalid completion flags and avoid overwriting existing snapshots.
+- Move course state to `wiki/courses/<slug>.md` and keep it read-only (0444 with a 0555 directory) so it can only change through the unlock-edit-relock workflow.
+- Generate a `wiki/courses.md` dashboard from the per-course state files, and add a read-only `course-board` skill that displays courses and verifies locks and dashboard consistency.
+- Support checking off and reverting activities at the end of a day, keeping an audit line instead of deleting the earlier checkmark.
 
 ## 0.1.0
 
