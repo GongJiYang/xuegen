@@ -4,7 +4,8 @@
 
 - Add the `article` skill for abstracting learning material into precise knowledge hierarchies without drafting prose.
 - Default new profiles, and profiles without an explicit `tuiMode`, to Pi's regular terminal mode so the input editor follows terminal scrollback instead of staying in the fullscreen dock.
-
+- Apply retrieval-first, chunking, transfer, spacing, and interleaving guidance by learning depth without adding a review database.
+- Document raw Markdown copying with `/copy` and strengthen course-board verification reporting.
 - Enable native MCP and deferred tool discovery in the isolated Xuegen profile.
 - Forward `xuegen mcp` management commands and document pinned arXiv/PDF and Fetch installations.
 - Store Python MCP environments in `mcp-tools/` to avoid the runtime's legacy `tools/` migration warning.

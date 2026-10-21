@@ -44,6 +44,7 @@ xuegen
 | 选择模型 | 会话内 `/model` |
 | 显式使用教学技能 | 会话内 `/skill:teach` |
 | 抽象文章知识架构 | 会话内 `/skill:article` |
+| 复制最近回答的原始 Markdown | 会话内 `/copy` 或 `Ctrl+X`；不要用终端鼠标框选表格 |
 | 保存笔记 | 直接要求“把关键推导、错题和待核实问题保存到 notes/主题.md” |
 | 整理到 Wiki / 制作闪卡 | 直接提出要求，或 `/skill:wiki-save 本次需要整理的内容` |
 | 绑定教材 / 安排计划 / 查看进度 | 直接提出要求，或 `/skill:course 本次课程操作` |
@@ -177,7 +178,7 @@ Xuegen 的默认教学和会话存储不依赖 Wiki。Wiki 只是按需启用的
 
 ### 论文与网页阅读
 
-Xuegen 默认启用原生 MCP 接入。安装 [uv](https://docs.astral.sh/uv/) 后，可把以下两个服务及其 Python 依赖安装到个人目录的 `mcp-tools/` 中。`tools/` 是运行时保留的旧版自定义工具目录，用它存放 Python 环境会触发迁移警告。
+Xuegen 默认启用原生 MCP 接入。安装 [uv](https://docs.astral.sh/uv/) 后，可把本地论文和网页读取服务及其 Python 依赖安装到个人目录的 `mcp-tools/` 中；Tavily 使用远程 MCP，不需要本地 Python 环境。`tools/` 是运行时保留的旧版自定义工具目录，用它存放 Python 环境会触发迁移警告。
 
 ```bash
 export XUEGEN_HOME="${XUEGEN_HOME:-$HOME/.xuegen}"
@@ -189,13 +190,14 @@ UV_TOOL_DIR="$XUEGEN_HOME/mcp-tools" UV_TOOL_BIN_DIR="$XUEGEN_HOME/bin" \
 xuegen mcp add arxiv --exposure deferred -- \
   "$XUEGEN_HOME/bin/arxiv-mcp-server" --storage-path "$XUEGEN_HOME/papers"
 xuegen mcp add fetch --exposure direct -- "$XUEGEN_HOME/bin/mcp-server-fetch"
+xuegen mcp add tavily --exposure deferred --url https://mcp.tavily.com/mcp/
 xuegen mcp list
 ```
 
 - [arxiv-mcp-server](https://github.com/blazickjp/arxiv-mcp-server)：检索、下载论文，按章节阅读 Markdown 和作者的 LaTeX，导出引用。`[pdf]` 提供 PDF 转换；这是 PyPI 包。未安装 `[pro]` 时，语义索引不可用，可在 `mcp.json` 的 `arxiv.toolExposure` 中将 `semantic_search` 和 `reindex` 设为 `"hidden"`。
+- [Tavily MCP](https://docs.tavily.com/documentation/mcp)：按需搜索、抽取、爬取和多来源研究。使用远程 MCP，通常需要 `xuegen mcp login tavily` 完成登录；设为 `deferred`，避免搜索工具常驻上下文。
 - [Fetch MCP](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch)：按 URL 读取官方文档及其他公开网页，可分段获取长页面。
-
-arXiv 工具通过 `tool_search` 按需发现，Fetch 直接提供给模型。基础功能无需额外 API key。配置保存在 `$XUEGEN_HOME/mcp.json`，不会写进应用源码；已有同名服务时，`mcp add` 会替换该条配置。
+- arXiv 工具通过 `tool_search` 按需发现，Fetch 直接提供给模型；Tavily 也只在需要搜索时发现。基础功能无需把 API key 写进应用源码。配置保存在 `$XUEGEN_HOME/mcp.json`；已有同名服务时，`mcp add` 会替换该条配置。
 
 重新启动 Xuegen 后可直接提出阅读目标，例如：
 
