@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { constants, copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { constants, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +38,12 @@ if (args[0] === "--help" || args[0] === "-h") {
     copyFileSync(join(root, "defaults/settings.json"), join(stateDir, "settings.json"), constants.COPYFILE_EXCL);
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
+  }
+
+  const settingsPath = join(stateDir, "settings.json");
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  if (settings.tuiMode === undefined) {
+    writeFileSync(settingsPath, `${JSON.stringify({ ...settings, tuiMode: "regular" }, null, 2)}\n`);
   }
 
   // Set isolation before importing the runtime: it captures paths at module load.
