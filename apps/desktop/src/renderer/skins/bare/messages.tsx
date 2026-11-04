@@ -1,0 +1,329 @@
+/**
+ * Bare skin message-level slots: the thread and its parts, the composer, the
+ * model picker, the notices, and the (batch-3) board/notes placeholders — all as
+ * plain semantic HTML. The reference skin: no styles, no motion.
+ */
+
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { TEACHING_STYLE_LABELS } from "@shared/protocol.js";
+import type {
+  AssistantMessageProps,
+  ComposerProps,
+  ExerciseProps,
+  ModelPickerProps,
+  NoticeProps,
+  ThreadProps,
+  ThinkingProps,
+  ToolActivityProps,
+  UserMessageProps,
+} from "../contract.js";
+import { strings } from "../../core/strings.js";
+import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
+import { thinkingFor } from "../../core/chat/thinking.js";
+import { SlashMenu } from "./panels-more.js";
+
+/** Ignore a second send click this soon after the first (double-click guard). */
+const SEND_DEBOUNCE_MS = 600;
+
+export function Thread({ messages, thinking, noModels, modelsReason, renderMessage }: ThreadProps) {
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const { atBottom, scrollToBottom } = useFollowBottom(paneRef);
+  if (messages.length === 0) {
+    return (
+      <div data-slot="thread" role="log">
+        <p>{noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}</p>
+      </div>
+    );
+  }
+  return (
+    <div data-slot="thread" role="log" ref={paneRef}>
+      {messages.map((message, index) => (
+        <div key={message.id} data-message-id={message.id}>
+          {renderMessage(message, thinkingFor(messages, index, thinking))}
+        </div>
+      ))}
+      {!atBottom && (
+        <button type="button" onClick={scrollToBottom}>
+          {strings.chat.backToLatest}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function UserMessage({ message, body, styleTag }: UserMessageProps) {
+  return (
+    <article data-role="user">
+      {styleTag && <span data-slot="style-tag">[{styleTag}]</span>}
+      <p>{body || message.markdown}</p>
+    </article>
+  );
+}
+
+export function AssistantMessage({
+  message,
+  thinking,
+  onCopy,
+  copied,
+  onRetry,
+  nodes,
+  streaming,
+  renderContent,
+  renderToolCall,
+}: AssistantMessageProps) {
+  return (
+    <article data-role="assistant">
+      {message.toolCalls.map((call) => (
+        <div key={call.toolCallId}>{renderToolCall(call)}</div>
+      ))}
+      {nodes.map((node, index) => (
+        <div key={index}>{renderContent(node, streaming)}</div>
+      ))}
+      {thinking && <Thinking label={strings.chat.thinking} />}
+      {message.errorMessage && <p role="alert">{message.errorMessage}</p>}
+      <button type="button" onClick={onCopy}>
+        {copied ? strings.chat.copied : strings.chat.copy}
+      </button>
+      {(message.errorMessage || !message.streaming) && (
+        <button type="button" onClick={onRetry}>
+          {strings.chat.retry}
+        </button>
+      )}
+    </article>
+  );
+}
+
+export function Thinking({ label }: ThinkingProps) {
+  return (
+    <p data-slot="thinking" role="status">
+      {label}
+    </p>
+  );
+}
+
+export function ToolActivity({ call }: ToolActivityProps) {
+  return (
+    <details data-slot="tool">
+      <summary>
+        {call.toolName} — {strings.tool[statusKey(call.status)]}
+      </summary>
+      {call.argsSummary && (
+        <div>
+          <h4>{strings.tool.arguments}</h4>
+          <pre>{call.argsSummary}</pre>
+        </div>
+      )}
+      {call.resultText && (
+        <div>
+          <h4>{call.status === "error" ? strings.tool.error : strings.tool.result}</h4>
+          <pre>{call.resultText}</pre>
+        </div>
+      )}
+    </details>
+  );
+}
+
+/** Map a tool status to its strings key. */
+function statusKey(status: ToolActivityProps["call"]["status"]): "statusRunning" | "statusSuccess" | "statusError" {
+  switch (status) {
+    case "running":
+      return "statusRunning";
+    case "error":
+      return "statusError";
+    default:
+      return "statusSuccess";
+  }
+}
+
+export function Exercise({ title, nodes, renderContent, onAnswer, onHint, onSkip }: ExerciseProps) {
+  return (
+    <section data-slot="exercise">
+      <h3>{title || strings.content.exerciseTitle}</h3>
+      {nodes.map((node, index) => (
+        <div key={index}>{renderContent(node)}</div>
+      ))}
+      <div data-slot="exercise-actions">
+        <button type="button" onClick={onSkip}>
+          {strings.content.exerciseSkip}
+        </button>
+        <button type="button" onClick={onHint}>
+          {strings.content.exerciseHint}
+        </button>
+        <button type="button" onClick={onAnswer}>
+          {strings.content.exerciseAnswer}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function Composer({
+  streaming,
+  disabled,
+  onSend,
+  onStop,
+  style,
+  onStyle,
+  commandsOpen,
+  commandGroups,
+  commands,
+  selectedCommand,
+  onSelectCommand,
+  onRunCommand,
+  onCloseCommands,
+  onInput,
+  answering,
+  focusRequest,
+}: ComposerProps) {
+  const [value, setValue] = useState("");
+  const lastSendAt = useRef(0);
+  const fieldRef = useRef<HTMLTextAreaElement | null>(null);
+  const hasText = value.trim().length > 0;
+
+  useEffect(() => {
+    if (focusRequest > 0) fieldRef.current?.focus();
+  }, [focusRequest]);
+
+  function submit(): void {
+    const text = value.trim();
+    if (!text) return;
+    const now = Date.now();
+    if (now - lastSendAt.current < SEND_DEBOUNCE_MS) return;
+    lastSendAt.current = now;
+    onSend(text);
+    setValue("");
+    onInput("");
+  }
+
+  function runCommand(command: (typeof commands)[number]): void {
+    if (command.command.startsWith("/skill:")) {
+      setValue(`${command.command} `);
+      onInput(`${command.command} `);
+      return;
+    }
+    setValue("");
+    onInput("");
+    onRunCommand(command);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (commandsOpen) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        onSelectCommand((selectedCommand + 1) % Math.max(1, commands.length));
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        onSelectCommand((selectedCommand - 1 + commands.length) % Math.max(1, commands.length));
+        return;
+      }
+      if (event.key === "Enter" && commands[selectedCommand]) {
+        event.preventDefault();
+        runCommand(commands[selectedCommand]!);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseCommands();
+        return;
+      }
+    }
+    if (event.key === "Escape" && streaming && !hasText) {
+      event.preventDefault();
+      onStop();
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      if (hasText) submit();
+    }
+  }
+
+  const showStop = streaming && !hasText;
+
+  return (
+    <div data-slot="composer">
+      <div data-slot="composer-style">
+        <span>{strings.input.styleLabel}</span>
+        {TEACHING_STYLE_LABELS.map((entry) => (
+          <label key={entry.id}>
+            <input
+              type="radio"
+              name="session-style"
+              checked={style === entry.id}
+              onChange={() => onStyle(entry.id)}
+            />
+            {entry.label}
+          </label>
+        ))}
+      </div>
+      {commandsOpen && (
+        <SlashMenu
+          groups={commandGroups}
+          commands={commands}
+          selected={selectedCommand}
+          onSelect={onSelectCommand}
+          onRun={runCommand}
+        />
+      )}
+      {answering !== null && <div data-slot="composer-answering">{strings.content.answering(answering)}</div>}
+      <textarea
+        ref={fieldRef}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => {
+          setValue(event.target.value);
+          onInput(event.target.value);
+        }}
+        onKeyDown={onKeyDown}
+        placeholder={disabled ? strings.input.placeholderDisabled : strings.input.placeholder}
+        aria-label={strings.input.placeholder}
+      />
+      {showStop ? (
+        <button type="button" onClick={onStop}>
+          {strings.input.stop}
+        </button>
+      ) : (
+        <button type="button" onClick={submit} disabled={disabled || !hasText}>
+          {strings.input.send}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function ModelPicker({ models, current, onSelect, disabled }: ModelPickerProps) {
+  const value = current ? `${current.provider}::${current.id}` : "";
+  return (
+    <select
+      aria-label={strings.topBar.modelTitle}
+      value={value}
+      disabled={disabled || models.length === 0}
+      onChange={(event) => {
+        const [provider, id] = event.target.value.split("::");
+        if (provider && id) onSelect(provider, id);
+      }}
+    >
+      <option value="">{models.length === 0 ? strings.topBar.modelEmpty : strings.topBar.modelPlaceholder}</option>
+      {models.map((model) => (
+        <option key={`${model.provider}::${model.id}`} value={`${model.provider}::${model.id}`}>
+          {model.name} ({model.provider})
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function Notice({ notice, onDismiss }: NoticeProps) {
+  return (
+    <span data-slot="notice" data-tone={notice.tone} role={notice.tone === "error" ? "alert" : "status"}>
+      {notice.text}
+      {onDismiss && (
+        <button type="button" onClick={onDismiss} aria-label={strings.chat.dismiss}>
+          ×
+        </button>
+      )}
+    </span>
+  );
+}

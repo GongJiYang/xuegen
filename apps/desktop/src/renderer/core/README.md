@@ -1,0 +1,21 @@
+# core — 皮肤无关的逻辑层
+
+core 决定「是什么」：对话状态、设置、文案、内容解析、动效意图、看板视图模型。它不含任何样式，也不 import 任何皮肤。
+
+- `chat/`
+  - `chat-reducer.ts`：纯函数 reducer（`ChatState` 单一真相）+ `isThinking`；`commands` 事件在此保存，供 `/` 菜单。
+  - `thinking.ts`：`thinkingFor(messages, index, thinking)` —— 每个索引是否显示「正在思考」：只有最后一条 assistant 且仍为 `thinking` 时为 `true`，两条皮肤都用它逐条判定。
+  - `use-follow-bottom.ts`：`useFollowBottom(paneRef)` —— 聊天框跟随：用户停在底部附近（≤48px）时内容增长（流式、工具行展开）滚到底；往上滚后暂停，暴露 `atBottom` 与 `scrollToBottom` 供皮肤画「回到最新」。
+  - `view-models.ts`：`ChatState` → 提示列表（NoticeItem）与可用性判断的纯函数。
+  - `useChat.ts`：命令式外壳，订阅 preload 事件并 `useReducer`；控制器位于皮肤之上，切换皮肤不重建。
+  - `message-renderer.tsx`：唯一知道「一条消息如何映射到插槽」的地方；内容分类一次后交给皮肤的 `ContentRenderers`，`question` callout 路由到 `Exercise` 插槽；用户消息把 `[风格：X]` 前缀拆成 `styleTag` + `body`。
+  - `style-prefix.ts`：`withStylePrefix`、`splitStyleTag`、`styleLabel` 纯函数。
+  - `style.ts`：`resolveStyle` —— 当前风格（课程 `courseStyles` → 会话 `sessionStyle` → 大白话）。
+- `board/`：课程 / 阅读 / 卡片 / 日历 / 技能的视图模型与控制器，`AsyncState` 三态建模（见该目录 README）。
+- `commands/`：`/` 菜单的命令表、过滤、分组与选择（见该目录 README）。
+- `today.ts`：`resumePoint`（接着上次）、`resumePrompt`、`studyPrompt` 纯函数。
+- `content/`：`nodes.ts` 定义内容节点类型；`parse-content.ts` 是纯分类管线（代码块、Mermaid、公式、表格、callout），流式不完整 Markdown 不抛错。
+- `motion/`：`MotionIntent`、`MotionPreset`、`MotionHandle`、`useMotion`、减少动效判断；不依赖动画库。
+- `settings/`：`use-settings.ts` 经 `client.ts` 读写设置；`apply` 用数据通道返回的设置对象同步本地状态；`step-body-scale.ts` 是 ⌘+ / ⌘- / ⌘0 的纯函数档位步进（按皮肤声明的档位）。
+- `client.ts`：`window.xuegen` 的唯一入口，组件不直接访问。
+- `strings.ts`：全部界面文案，皮肤共享。

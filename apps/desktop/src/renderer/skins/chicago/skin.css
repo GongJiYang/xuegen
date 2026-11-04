@@ -1,0 +1,1690 @@
+/*
+ * Chicago skin stylesheet.
+ *
+ * Every selector is scoped under `[data-skin="chicago"]` so two skins can never
+ * collide; the scope is written by hand (the design's own selectors are the
+ * ground truth, so a PostCSS prefix pass would only obscure the diff). Colours
+ * come exclusively from the CSS custom properties the palette sets on `<html>`
+ * (`--ink`, `--paper`, `--desktop`, `--dither-25`, `--stripes`, `--btn`,
+ * `--btn-down`, `--ring`) — nothing here may name a third colour, use opacity,
+ * or use a shadow beyond the design's single 1px solid offset.
+ *
+ * Ported from `design/chicago/index.html`; the pixel details are the spec.
+ */
+
+/* Fonts are bundled with the skin and load only when it is selected. */
+@font-face {
+  font-family: "ChicagoFLF";
+  src: url("./assets/ChicagoFLF.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "Fusion12Diagram";
+  src: url("./assets/fusion-12-diagram.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "Fusion12Mono";
+  src: url("./assets/fusion-12-mono.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "Fusion12";
+  src: url("./assets/fusion-12.woff2") format("woff2");
+  font-display: block;
+}
+
+[data-skin="chicago"] {
+  --font-chrome: "ChicagoFLF", "Fusion12", monospace;
+  --font-body: "Fusion12", monospace;
+  --font-code: "Fusion12Diagram", "Fusion12Mono", monospace;
+  --chrome-size: 12px;
+  --body-size: 12px;
+  --body-lh: 20px;
+  --ink: #000;
+  --paper: #fff;
+}
+
+[data-skin="chicago"].chicago-big,
+[data-skin="chicago"] .chicago-big {
+  --body-size: 24px;
+  --body-lh: 40px;
+}
+
+/* The neutral baseline in `index.css` sets `body { color: #000 }`; re-assert the
+   palette ink here so a non-white palette (cream, amber) never inherits pure
+   black text from the reset. */
+[data-skin="chicago"],
+[data-skin="chicago"] body,
+[data-skin="chicago"] #root {
+  height: 100%;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Anti-flash: until the pixel fonts are ready (see the Shell effect), show the
+   paper colour only — no text in a fallback font. `html` keeps the palette
+   background so a dark palette never flashes white. */
+[data-skin="chicago"].chicago-loading body,
+[data-skin="chicago"] .chicago-loading body {
+  visibility: hidden;
+}
+
+[data-skin="chicago"] .chicago-root {
+  color: var(--ink);
+}
+
+[data-skin="chicago"] * {
+  box-sizing: border-box;
+}
+
+/* Native form controls would otherwise paint grey (UA default); reset them to
+   the two palette colours. `.chicago-btn` is more specific and re-adds its
+   pixel border-image on top. */
+[data-skin="chicago"] button,
+[data-skin="chicago"] input,
+[data-skin="chicago"] select,
+[data-skin="chicago"] textarea {
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  border: 0;
+}
+
+[data-skin="chicago"] .chicago-notice-dismiss {
+  cursor: default;
+  padding: 0 4px;
+}
+
+[data-skin="chicago"] {
+  color: var(--ink);
+  font: var(--chrome-size) / 16px var(--font-chrome);
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+  overflow: hidden;
+  user-select: none;
+}
+
+[data-skin="chicago"] .chicago-root {
+  position: fixed;
+  inset: 0;
+  background: var(--desktop);
+  image-rendering: pixelated;
+}
+
+[data-skin="chicago"][data-agent-status="starting"] .chicago-root,
+[data-skin="chicago"] .chicago-root[data-agent-status="starting"] {
+  cursor: wait;
+}
+
+/* ── menu bar ─────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-menubar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-menubar-items {
+  display: flex;
+  align-items: stretch;
+}
+
+[data-skin="chicago"] .chicago-m {
+  position: relative;
+  padding: 2px 10px 0;
+}
+
+[data-skin="chicago"] .chicago-m-logo {
+  font-weight: bold;
+  padding: 2px 12px 0 14px;
+}
+
+[data-skin="chicago"] .chicago-m .chicago-t {
+  display: block;
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-m.chicago-open > .chicago-t {
+  background: var(--ink);
+  color: var(--paper);
+  margin: -2px -10px 0;
+  padding: 2px 10px 0;
+  height: 19px;
+}
+
+[data-skin="chicago"] .chicago-spacer {
+  flex: 1;
+}
+
+[data-skin="chicago"] .chicago-clock {
+  padding: 2px 12px 0;
+}
+
+[data-skin="chicago"] .chicago-dropdown {
+  display: none;
+  position: absolute;
+  top: 19px;
+  left: 0;
+  min-width: 190px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  padding: 1px 0;
+  color: var(--ink);
+  white-space: nowrap;
+  z-index: 60;
+}
+
+[data-skin="chicago"] .chicago-m.chicago-open > .chicago-dropdown {
+  display: block;
+}
+
+[data-skin="chicago"] .chicago-dropdown .chicago-i {
+  padding: 2px 16px 2px 20px;
+  position: relative;
+  height: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-dropdown .chicago-i:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+[data-skin="chicago"] .chicago-dropdown .chicago-i.chicago-off {
+  opacity: 1;
+  background: var(--dither-25);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-skin="chicago"] .chicago-dropdown .chicago-i.chicago-checked::before {
+  content: "✓";
+  position: absolute;
+  left: 6px;
+}
+
+[data-skin="chicago"] .chicago-sep {
+  border-top: 1px dotted var(--ink);
+  margin: 3px 0;
+}
+
+/* ── desktop & windows ────────────────────────────────────── */
+[data-skin="chicago"] .chicago-desk {
+  position: absolute;
+  inset: 21px 0 0 0;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 64fr 36fr;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+}
+
+[data-skin="chicago"] .chicago-chat {
+  grid-row: 1 / span 2;
+  overflow: hidden;
+}
+
+/* The conversation body scrolls. In the real window the body is the Thread pane;
+   in the gallery the Shell's child is the gallery `<main>`, so target the window's
+   body child generically instead of naming the pane. `min-height: 0` lets a flex
+   child shrink below its content so `overflow-y: auto` actually takes effect. */
+[data-skin="chicago"] .chicago-chat > .chicago-pane,
+[data-skin="chicago"] .chicago-chat > main[data-slot="gallery"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* In the gallery the chat body is nested further down, so each sample Thread pane
+   is bounded to the viewport and scrolls on its own; the gallery body scrolls
+   between sections. This mirrors the real window, where the pane is the scroll
+   region, so the samples beyond the fold stay reachable. */
+[data-skin="chicago"] .chicago-chat main[data-slot="gallery"] .chicago-pane.chicago-body {
+  max-height: calc(100vh - 180px);
+}
+
+[data-skin="chicago"] .chicago-desk.chicago-focus {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-skin="chicago"] .chicago-desk.chicago-focus .chicago-side {
+  display: none;
+}
+
+[data-skin="chicago"] .chicago-desk.chicago-focus .chicago-chat {
+  width: 100%;
+  max-width: 720px;
+}
+
+[data-skin="chicago"] .chicago-win {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+[data-skin="chicago"] .chicago-hidden {
+  display: none;
+}
+
+[data-skin="chicago"] .chicago-tb {
+  flex: none;
+  height: 19px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--ink);
+  background: repeating-linear-gradient(var(--ink) 0 1px, var(--paper) 1px 2px) 0 4px / 100% 11px no-repeat;
+  background-origin: content-box;
+  padding: 0 2px;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-title {
+  background: var(--paper);
+  padding: 0 6px;
+  height: 19px;
+  line-height: 19px;
+  max-width: 70%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-box {
+  position: absolute;
+  top: 3px;
+  width: 13px;
+  height: 13px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--paper);
+  cursor: default;
+  padding: 0;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-box-close {
+  left: 8px;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-box-zoom {
+  right: 8px;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-box-zoom::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-box:active {
+  background: var(--ink);
+}
+
+[data-skin="chicago"] .chicago-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-skin="chicago"] .chicago-pane::-webkit-scrollbar {
+  width: 16px;
+}
+
+[data-skin="chicago"] .chicago-pane::-webkit-scrollbar-track {
+  background: var(--dither-25);
+  border-left: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-pane::-webkit-scrollbar-thumb {
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-right: 0;
+}
+
+/* ── chat window ──────────────────────────────────────────── */
+/* The conversation body (the Thread's scroll pane) carries its own inset, so it
+   is correct wherever the Thread is mounted — the real window or the gallery,
+   whose pane's parent is not `.chicago-chat`. Side-window panes have their own
+   padding below and are not `.chicago-body`. */
+[data-skin="chicago"] .chicago-pane.chicago-body {
+  padding: 16px 24px 24px;
+}
+
+/* The reading column is centred in the chat window and grows with it up to a
+   comfortable measure (B1): a wide window no longer leaves the text hugging the
+   left with a big blank on the right. */
+[data-skin="chicago"] .chicago-thread {
+  max-width: 720px;
+  margin-inline: auto;
+  font: var(--body-size) / var(--body-lh) var(--font-body);
+}
+
+/* "回到最新": floats in the pane's bottom-right while the reader is scrolled up.
+   Sticky (not fixed) so it stays within the scroll container as content moves. */
+[data-skin="chicago"] .chicago-back-to-latest {
+  position: sticky;
+  bottom: 8px;
+  display: block;
+  margin-left: auto;
+  width: fit-content;
+  padding: 4px 10px;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--body-size) / 1 var(--font-body);
+  cursor: pointer;
+}
+
+[data-skin="chicago"] .chicago-back-to-latest:hover {
+  background: var(--dither-25);
+}
+
+[data-skin="chicago"] .chicago-thread > * + * {
+  margin-top: var(--body-lh);
+}
+
+[data-skin="chicago"] .chicago-you {
+  margin-left: auto;
+  width: fit-content;
+  max-width: 82%;
+  border: 1px solid var(--ink);
+  padding: 18px 10px 8px;
+  position: relative;
+  white-space: pre-wrap;
+}
+
+[data-skin="chicago"] .chicago-you::before {
+  content: "你";
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  font: 12px / 12px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-answer h2 {
+  font: calc(var(--body-size) * 2) / calc(var(--body-lh) * 2) var(--font-body);
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-answer h3 {
+  font: var(--body-size) / var(--body-lh) var(--font-chrome);
+  margin: var(--body-lh) 0 0;
+  border-bottom: 1px solid var(--ink);
+  width: fit-content;
+}
+
+[data-skin="chicago"] .chicago-answer p {
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-answer > * + * {
+  margin-top: calc(var(--body-lh) / 2);
+}
+
+[data-skin="chicago"] .chicago-answer h3 + * {
+  margin-top: calc(var(--body-lh) / 2);
+}
+
+[data-skin="chicago"] .chicago-answer ul,
+[data-skin="chicago"] .chicago-answer ol {
+  margin: 0;
+  padding-left: 24px;
+}
+
+[data-skin="chicago"] .chicago-answer a {
+  color: var(--ink);
+}
+
+[data-skin="chicago"] .chicago-answer code {
+  font-family: var(--font-code);
+}
+
+[data-skin="chicago"] .chicago-answer table {
+  border-collapse: collapse;
+}
+
+[data-skin="chicago"] .chicago-answer th,
+[data-skin="chicago"] .chicago-answer td {
+  border: 1px solid var(--ink);
+  padding: 0 8px;
+  text-align: left;
+  font-weight: normal;
+  vertical-align: top;
+}
+
+[data-skin="chicago"] .chicago-answer th {
+  border-bottom-width: 3px;
+  font-family: var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-answer pre.code-block {
+  margin: 0;
+  border: 1px solid var(--ink);
+  padding: 3px;
+}
+
+[data-skin="chicago"] .chicago-answer pre.code-block code {
+  display: block;
+  border: 2px solid var(--ink);
+  padding: 6px 10px;
+  font: var(--body-size) / var(--body-lh) var(--font-code);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Terminal diagrams: no frame; Fusion12Diagram strokes overshoot 2px so rows join. */
+[data-skin="chicago"] .chicago-answer pre.diagram {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-answer pre.diagram code {
+  display: block;
+  border: 0;
+  padding: 0;
+  font: var(--body-size) / calc(var(--body-size) * 4 / 3) var(--font-code);
+  white-space: pre;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+[data-skin="chicago"] .chicago-answer .math {
+  font-size: calc(var(--body-size) * 1.15);
+}
+
+[data-skin="chicago"] .chicago-answer .katex-display {
+  margin: 0;
+  text-align: left;
+}
+
+[data-skin="chicago"] .chicago-answer .katex-display > .katex {
+  text-align: left;
+}
+
+[data-skin="chicago"] .chicago-answer .katex {
+  -webkit-font-smoothing: none;
+}
+
+[data-skin="chicago"] .chicago-callout {
+  border: 1px solid var(--ink);
+  padding: 4px 8px;
+}
+
+[data-skin="chicago"] .chicago-callout-head {
+  font: 12px / 16px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-caret {
+  display: inline-block;
+  width: calc(var(--body-size) / 2);
+  height: var(--body-size);
+  background: var(--ink);
+  vertical-align: calc(var(--body-size) * -0.15);
+  animation: chicago-blink 1060ms steps(1) infinite;
+}
+
+[data-skin="chicago"] .chicago-empty {
+  font: var(--body-size) / var(--body-lh) var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-answer-foot {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+}
+
+/* ── tool activity ────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-tool {
+  font: 12px / 20px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-tool summary {
+  list-style: none;
+  cursor: default;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+[data-skin="chicago"] .chicago-tool summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-skin="chicago"] .chicago-tri {
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+
+[data-skin="chicago"] .chicago-tool[open] .chicago-tri {
+  transform: rotate(90deg);
+}
+
+[data-skin="chicago"] .chicago-tool .chicago-rows {
+  margin: 4px 0 0 18px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-tool .chicago-rows div {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 8px;
+  gap: 16px;
+}
+
+[data-skin="chicago"] .chicago-tool .chicago-rows div + div {
+  border-top: 1px dotted var(--ink);
+}
+
+/* ── dialogs (exercise + alert) ───────────────────────────── */
+[data-skin="chicago"] .chicago-dialog {
+  border: 1px solid var(--ink);
+  padding: 2px;
+  max-width: 560px;
+}
+
+[data-skin="chicago"] .chicago-dialog-inner {
+  border: 3px solid var(--ink);
+  padding: 12px 16px 14px;
+}
+
+[data-skin="chicago"] .chicago-dialog-head {
+  font: 12px / 16px var(--font-chrome);
+  margin-bottom: 8px;
+}
+
+[data-skin="chicago"] .chicago-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+  align-items: center;
+}
+
+[data-skin="chicago"] .chicago-btn {
+  font: 12px / 14px var(--font-chrome);
+  color: var(--ink);
+  background: none;
+  border: 3px solid transparent;
+  border-image: var(--btn) 3 fill / 3px stretch;
+  padding: 0 12px;
+  min-width: 58px;
+  cursor: default;
+  image-rendering: pixelated;
+  /* Never break a label; a narrow window wraps the whole group instead. */
+  white-space: nowrap;
+  flex: none;
+}
+
+[data-skin="chicago"] .chicago-btn:active,
+[data-skin="chicago"] .chicago-btn.chicago-pressed {
+  border-image: var(--btn-down) 3 fill / 3px stretch;
+  color: var(--paper);
+}
+
+/* A disabled action stays on the 1-bit palette (no UA grey text). */
+[data-skin="chicago"] .chicago-btn:disabled {
+  background: var(--dither-25);
+  color: var(--ink);
+  cursor: default;
+}
+
+/*
+ * The stop button is a plain button (no default-button ring), so it never reads
+ * as the primary action the way the framed 发送 button does.
+ */
+[data-skin="chicago"] .chicago-stop {
+  border: 1px solid var(--ink);
+  border-image: none;
+  background: none;
+  align-self: flex-end;
+}
+
+[data-skin="chicago"] .chicago-def {
+  border: 5px solid transparent;
+  border-image: var(--ring) 5 / 5px stretch;
+  display: inline-flex;
+  image-rendering: pixelated;
+  flex: none;
+}
+
+/* ── thinking ─────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-thinking {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 12px / 16px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-pole {
+  width: 160px;
+  height: 12px;
+  border: 1px solid var(--ink);
+  background: var(--stripes);
+  animation: chicago-pole 960ms steps(8) infinite;
+}
+
+/* ── composer ─────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-composer {
+  flex: none;
+  border-top: 1px solid var(--ink);
+  padding: 10px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+[data-skin="chicago"] .chicago-composer textarea {
+  flex: 1;
+  resize: none;
+  height: 46px;
+  border: 1px solid var(--ink);
+  outline: 1px solid var(--ink);
+  outline-offset: -3px;
+  padding: 6px 8px;
+  font: 12px / 16px var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: none;
+}
+
+[data-skin="chicago"] .chicago-composer textarea:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: -4px;
+}
+
+[data-skin="chicago"] .chicago-composer textarea::placeholder {
+  color: var(--ink);
+}
+
+[data-skin="chicago"] .chicago-model-select {
+  font: 12px / 16px var(--font-chrome);
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  /* The UA dropdown arrow antialiases to grey, breaking the strict two-colour
+     rule in a 1:1 screenshot; the design's model picker is a menubar menu, so
+     the flat control needs no native affordance. */
+  appearance: none;
+}
+
+/* A disabled control otherwise takes the UA's grey text colour and a 0.7
+   opacity, either of which is a third colour in a 1:1 screenshot. The design
+   shows a disabled item with the 25% dither screen instead, so keep it opaque
+   and `--ink` here. */
+[data-skin="chicago"] .chicago-model-select:disabled {
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+  background: var(--paper);
+  opacity: 1;
+}
+
+/* ── side windows ─────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-side .chicago-pane {
+  padding: 8px 12px 10px;
+}
+
+[data-skin="chicago"] .chicago-count {
+  display: flex;
+  justify-content: space-between;
+  height: 18px;
+  align-items: center;
+}
+
+[data-skin="chicago"] .chicago-count b {
+  font: 12px / 16px var(--font-chrome);
+}
+
+/* 今天计划 is a button (it toggles the plan list) but must read as a count row. */
+[data-skin="chicago"] .chicago-count-btn {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-count-btn:hover span,
+[data-skin="chicago"] .chicago-count-btn[aria-expanded="true"] span {
+  text-decoration: underline;
+}
+
+[data-skin="chicago"] .chicago-read-today {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 16px;
+}
+
+[data-skin="chicago"] .chicago-rule {
+  border-top: 1px solid var(--ink);
+  margin: 8px -12px;
+}
+
+[data-skin="chicago"] .chicago-course {
+  display: grid;
+  grid-template-columns: 1fr 96px 34px;
+  gap: 8px;
+  align-items: center;
+  height: 20px;
+}
+
+[data-skin="chicago"] .chicago-course .chicago-pct {
+  text-align: right;
+}
+
+[data-skin="chicago"] .chicago-bar {
+  height: 10px;
+  border: 1px solid var(--ink);
+  background: var(--dither-25);
+  position: relative;
+}
+
+[data-skin="chicago"] .chicago-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ink);
+  width: 0;
+}
+
+[data-skin="chicago"] .chicago-note {
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-hint {
+  border: 1px dotted var(--ink);
+  padding: 4px 8px;
+  margin-top: 8px;
+}
+
+/* ── overlays ─────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-zoomrect {
+  position: fixed;
+  border: 1px dashed var(--ink);
+  z-index: 90;
+  pointer-events: none;
+}
+
+[data-skin="chicago"] .chicago-scrim {
+  position: absolute;
+  inset: 21px 0 0 0;
+  z-index: 80;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 140px;
+}
+
+[data-skin="chicago"] .chicago-scrim.chicago-show {
+  display: flex;
+}
+
+[data-skin="chicago"] .chicago-alert {
+  width: 420px;
+  background: var(--paper);
+  max-width: none;
+}
+
+[data-skin="chicago"] .chicago-alert-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-alert-row svg {
+  flex: none;
+}
+
+[data-skin="chicago"] .chicago-modeless {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  z-index: 70;
+  width: 300px;
+  display: none;
+}
+
+[data-skin="chicago"] .chicago-modeless.chicago-show {
+  display: flex;
+}
+
+[data-skin="chicago"] .chicago-modeless .chicago-code {
+  margin: 8px 0;
+  border: 1px solid var(--ink);
+  padding: 4px 8px;
+  font: 12px / 16px var(--font-code);
+}
+
+[data-skin="chicago"] [data-appear-hidden] {
+  visibility: hidden;
+}
+
+/* Inline notice samples (gallery): an alert box in the flow, not a modal.
+   No scrim, so the sample behind it stays visible. */
+[data-skin="chicago"] .chicago-inline-alert {
+  display: inline-block;
+  max-width: 100%;
+}
+
+[data-skin="chicago"] .chicago-inline-alert .chicago-dialog {
+  width: 420px;
+  max-width: 100%;
+}
+
+[data-skin="chicago"] .chicago-inline-modeless {
+  display: inline-flex;
+  flex-direction: column;
+  width: 300px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  margin-top: 12px;
+}
+
+[data-skin="chicago"] .chicago-inline-modeless .chicago-pane {
+  padding: 8px 12px 10px;
+}
+
+/* ── mermaid ──────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-answer .mermaid-box,
+[data-skin="chicago"] .chicago-note .mermaid-box {
+  border: 1px solid var(--ink);
+  padding: 10px;
+  overflow-x: auto;
+}
+
+[data-skin="chicago"] .mermaid-box svg {
+  max-width: none !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg text,
+[data-skin="chicago"] .mermaid-box svg tspan,
+[data-skin="chicago"] .mermaid-box .nodeLabel {
+  font: 12px / 16px var(--font-body) !important;
+  fill: var(--ink) !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg * {
+  filter: none !important;
+  shape-rendering: crispEdges;
+}
+
+[data-skin="chicago"] .mermaid-box .nodeLabel,
+[data-skin="chicago"] .mermaid-box .nodeLabel * {
+  color: var(--ink) !important;
+  fill: var(--ink) !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg .node rect {
+  fill: var(--paper) !important;
+  stroke: var(--ink) !important;
+  stroke-width: 1px !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg .node rect.key {
+  fill: url(#chicago-d50) !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg .node rect.lblbg {
+  stroke: none !important;
+  fill: var(--paper) !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg .flowchart-link,
+[data-skin="chicago"] .mermaid-box svg path.relation {
+  stroke: var(--ink) !important;
+}
+
+[data-skin="chicago"] .mermaid-box svg marker path,
+[data-skin="chicago"] .mermaid-box svg .marker {
+  fill: var(--ink) !important;
+  stroke: var(--ink) !important;
+}
+
+[data-skin="chicago"] .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ══════════ F2: features layout (ported from design/chicago/features.html) ══════════ */
+
+/* The features desktop: chat | 今天 + tool window | icon dock. */
+[data-skin="chicago"] .chicago-desk-f {
+  grid-template-columns: 1fr 380px 64px;
+  grid-template-rows: auto 1fr;
+}
+
+[data-skin="chicago"] .chicago-desk-f > .chicago-chat {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+}
+
+[data-skin="chicago"] .chicago-desk-f > .chicago-today {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+[data-skin="chicago"] .chicago-desk-f > .chicago-tool {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+[data-skin="chicago"] .chicago-desk-f.chicago-focus {
+  grid-template-columns: 1fr;
+}
+
+[data-skin="chicago"] .chicago-desk-f.chicago-focus .chicago-icons {
+  display: none;
+}
+
+/* ── icon dock ─────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-icons {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+[data-skin="chicago"] .chicago-icon {
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-glyph {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  background-color: var(--paper);
+}
+
+[data-skin="chicago"] .chicago-ilabel {
+  background: var(--paper);
+  padding: 0 3px;
+  font: 12px / 14px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-icon.chicago-sel .chicago-glyph {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+[data-skin="chicago"] .chicago-icon.chicago-sel .chicago-ilabel {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── panel common ──────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-pane-inner {
+  padding: 8px 12px 10px;
+}
+
+[data-skin="chicago"] .chicago-pad {
+  padding: 4px 0;
+}
+
+[data-skin="chicago"] .chicago-small {
+  font: 12px / 16px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-meta,
+[data-skin="chicago"] .chicago-it-meta {
+  display: flex;
+  justify-content: space-between;
+  font: 12px / 16px var(--font-chrome);
+  gap: 8px;
+}
+
+/* ── 今天 resume card ──────────────────────────────────────── */
+[data-skin="chicago"] .chicago-resume {
+  border: 1px solid var(--ink);
+  padding: 6px 8px;
+  margin-top: 8px;
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-resume-head {
+  font: 12px / 16px var(--font-chrome);
+  display: flex;
+  justify-content: space-between;
+}
+
+[data-skin="chicago"] .chicago-row-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  align-items: center;
+}
+
+/* ── inputs ────────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-field {
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: 12px / 16px var(--font-body);
+  padding: 3px 6px;
+  -webkit-font-smoothing: none;
+  outline: none;
+}
+
+[data-skin="chicago"] .chicago-field:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+
+[data-skin="chicago"] .chicago-field::placeholder {
+  color: var(--ink);
+}
+
+[data-skin="chicago"] .chicago-field.chicago-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-skin="chicago"] .chicago-field.chicago-block {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+
+
+[data-skin="chicago"] textarea.chicago-field {
+  resize: none;
+  width: 100%;
+  display: block;
+  margin-top: 6px;
+}
+
+[data-skin="chicago"] .chicago-select {
+  appearance: none;
+  min-width: 96px;
+}
+
+/* A narrow panel wraps a whole button/option group, never the words inside. */
+[data-skin="chicago"] .chicago-inrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+[data-skin="chicago"] .chicago-inrow.chicago-spread {
+  justify-content: space-between;
+}
+
+/* Let the explanatory line wrap while the button beside it keeps its width. */
+[data-skin="chicago"] .chicago-inrow > .chicago-pad {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A task's label wraps beside its checkbox instead of the row wrapping. */
+[data-skin="chicago"] .chicago-inrow > .chicago-task-label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+[data-skin="chicago"] .chicago-inbox {
+  border: 1px dotted var(--ink);
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+[data-skin="chicago"] .chicago-cap {
+  font: 12px / 16px var(--font-chrome);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+[data-skin="chicago"] .chicago-radio {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  gap: 10px;
+  font: 12px / 16px var(--font-chrome);
+  white-space: nowrap;
+}
+
+[data-skin="chicago"] .chicago-radio label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-radio input {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  margin: 0;
+  background: var(--paper);
+}
+
+[data-skin="chicago"] .chicago-radio input:checked {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--paper);
+}
+
+[data-skin="chicago"] .chicago-chk {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--ink);
+  margin: 0;
+  background: var(--paper);
+  flex: none;
+}
+
+[data-skin="chicago"] .chicago-chk:checked {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--paper);
+}
+
+/* ── lists ─────────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-list .chicago-it {
+  border-top: 1px dotted var(--ink);
+  padding: 6px 0;
+  display: grid;
+  gap: 2px;
+}
+
+[data-skin="chicago"] .chicago-list .chicago-it:first-child {
+  border-top: 0;
+}
+
+/* The due tag stays on one line; the title beside it may wrap. */
+[data-skin="chicago"] .chicago-tag {
+  border: 1px solid var(--ink);
+  padding: 0 4px;
+  font: 12px / 14px var(--font-chrome);
+  white-space: nowrap;
+  flex: none;
+}
+
+[data-skin="chicago"] .chicago-tag.chicago-solid {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+[data-skin="chicago"] .chicago-candidates {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-candidate {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 6px;
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-candidate:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── progress rows ─────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-crow {
+  border-top: 1px dotted var(--ink);
+  padding: 5px 0;
+}
+
+[data-skin="chicago"] .chicago-crow:first-child {
+  border-top: 0;
+}
+
+/* Row head: the drawn triangle and the course name share one line, so a long
+   title is clipped with an ellipsis instead of colliding with the bar. */
+[data-skin="chicago"] .chicago-crow-head {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-crow-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 12px / 20px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-crow-head::before {
+  content: "▸ ";
+}
+
+[data-skin="chicago"] .chicago-crow.chicago-open .chicago-crow-head::before {
+  content: "▾ ";
+}
+
+/* The bar and percentage share the second line. */
+[data-skin="chicago"] .chicago-crow-progress {
+  display: grid;
+  grid-template-columns: 1fr 34px;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+[data-skin="chicago"] .chicago-crow-progress .chicago-pct {
+  text-align: right;
+}
+
+[data-skin="chicago"] .chicago-detail {
+  margin: 6px 0 2px;
+}
+
+[data-skin="chicago"] .chicago-detail-line {
+  line-height: 18px;
+}
+
+[data-skin="chicago"] .chicago-next {
+  margin-top: 4px;
+}
+
+/* ── calendar ──────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-cal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font: 12px / 16px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--ink);
+  border-top: 1px solid var(--ink);
+}
+
+[data-skin="chicago"] .chicago-cal > div {
+  border-right: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  height: 44px;
+  padding: 2px 3px;
+  font: 12px / 14px var(--font-chrome);
+  position: relative;
+  cursor: default;
+  overflow: hidden;
+}
+
+[data-skin="chicago"] .chicago-cal > .chicago-wd {
+  height: 18px;
+  text-align: center;
+  background: var(--paper);
+}
+
+[data-skin="chicago"] .chicago-cal > .chicago-out {
+  background: var(--dither-25);
+  color: var(--ink);
+}
+
+[data-skin="chicago"] .chicago-cal > .chicago-out .chicago-d {
+  background: var(--paper);
+  padding: 0 2px;
+}
+
+[data-skin="chicago"] .chicago-cal > .chicago-sel {
+  outline: 2px solid var(--ink);
+  outline-offset: -3px;
+}
+
+[data-skin="chicago"] .chicago-cal > .chicago-today .chicago-d {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0 2px;
+}
+
+[data-skin="chicago"] .chicago-cal .chicago-marks {
+  position: absolute;
+  left: 3px;
+  bottom: 3px;
+  /* Draw the ● ◆ ▲ marks at the date number's size so they are legible
+     (Fusion12Diagram at 12px renders smaller than the chrome digits). */
+  /* Pixel glyphs only stay sharp at whole multiples of 12px: 24px = 2x. */
+  font: 24px / 24px "Fusion12Diagram", var(--font-body);
+  letter-spacing: 0;
+}
+
+[data-skin="chicago"] .chicago-cal .chicago-note-mark {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+}
+
+[data-skin="chicago"] .chicago-legend {
+  margin-top: 6px;
+}
+
+[data-skin="chicago"] .chicago-daybox {
+  border: 1px solid var(--ink);
+  padding: 6px 8px;
+  margin-top: 8px;
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-daybox-head {
+  font: 12px / 16px var(--font-chrome);
+  margin-bottom: 4px;
+}
+
+[data-skin="chicago"] .chicago-daybox-note {
+  white-space: pre-wrap;
+  border-top: 1px dotted var(--ink);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+/* ── skills ────────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-skill {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 8px;
+  align-items: start;
+  border-top: 1px dotted var(--ink);
+  padding: 6px 0;
+}
+
+[data-skin="chicago"] .chicago-skill:first-child {
+  border-top: 0;
+}
+
+[data-skin="chicago"] .chicago-skill-name {
+  font: 12px / 16px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-skill-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-skill-more {
+  border-bottom: 1px dotted var(--ink);
+}
+
+/* ── error detail ──────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-message-error {
+  border: 1px solid var(--ink);
+  padding: 4px 8px;
+}
+
+[data-skin="chicago"] .chicago-message-error p {
+  margin: 0;
+}
+
+/* A stopped answer is not a failure: a plain line, no framed alert box. */
+[data-skin="chicago"] .chicago-message-stopped {
+  font: 12px / 16px var(--font-chrome);
+}
+
+[data-skin="chicago"] .chicago-message-stopped p {
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-error-detail {
+  margin-top: 4px;
+  font: 12px / 16px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-error-detail summary {
+  list-style: none;
+  cursor: default;
+}
+
+/* Hide the UA disclosure marker so only the drawn triangle shows. */
+[data-skin="chicago"] .chicago-error-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-skin="chicago"] .chicago-error-detail summary::before {
+  content: "▸ ";
+}
+
+[data-skin="chicago"] .chicago-error-detail[open] summary::before {
+  content: "▾ ";
+}
+
+[data-skin="chicago"] .chicago-error-detail .chicago-code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 4px 0 0;
+}
+
+/* ── composer (features) ───────────────────────────────────── */
+[data-skin="chicago"] .chicago-composer-f {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  position: relative;
+}
+
+/* Centre the input row on the same axis as the reading column (B1). The bar and
+   the field row share the measure so the field lines up with the body text. */
+[data-skin="chicago"] .chicago-composer-f > .chicago-cbar,
+[data-skin="chicago"] .chicago-composer-f > .chicago-composer-row,
+[data-skin="chicago"] .chicago-composer-f > .chicago-cslash-hint {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+[data-skin="chicago"] .chicago-composer .chicago-cbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: 12px / 16px var(--font-chrome);
+}
+
+/* 「正在回答：第 N 题」: shown above the field after 「我来回答」. */
+[data-skin="chicago"] .chicago-answering {
+  font: 12px / 16px var(--font-chrome);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 2px 6px;
+  width: fit-content;
+}
+
+[data-skin="chicago"] .chicago-composer-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+[data-skin="chicago"] .chicago-composer-row textarea {
+  flex: 1;
+}
+
+/* ── slash menu ────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-slash {
+  position: absolute;
+  left: 12px;
+  bottom: 74px;
+  width: 360px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  display: none;
+  z-index: 60;
+  max-height: 330px;
+  overflow-y: auto;
+}
+
+[data-skin="chicago"] .chicago-slash.chicago-show {
+  display: block;
+}
+
+[data-skin="chicago"] .chicago-slash .chicago-grp {
+  font: 12px / 16px var(--font-chrome);
+  padding: 3px 8px;
+  border-bottom: 1px dotted var(--ink);
+}
+
+[data-skin="chicago"] .chicago-slash .chicago-c {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  padding: 2px 8px;
+  font: 12px / 18px var(--font-body);
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-slash .chicago-c b {
+  font: 12px / 18px var(--font-chrome);
+  font-weight: normal;
+}
+
+[data-skin="chicago"] .chicago-slash .chicago-c.chicago-hi {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── user message style tag ────────────────────────────────── */
+[data-skin="chicago"] .chicago-you .chicago-style-tag {
+  display: inline-block;
+  border: 1px solid var(--ink);
+  padding: 0 4px;
+  margin-right: 6px;
+  font: 12px / 14px var(--font-chrome);
+}
+
+/* ── day editor ────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-dlg-scrim {
+  padding-top: 120px;
+}
+
+[data-skin="chicago"] .chicago-dlg-scrim .chicago-dialog {
+  width: 420px;
+  background: var(--paper);
+  max-width: none;
+}
+
+[data-skin="chicago"] .chicago-day-text {
+  width: 100%;
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-day-path {
+  margin-top: 6px;
+}
+
+/* ── keyframes ────────────────────────────────────────────── */
+@keyframes chicago-pole {
+  to {
+    background-position: 16px 0;
+  }
+}
+
+@keyframes chicago-blink {
+  50% {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-skin="chicago"] .chicago-pole,
+  [data-skin="chicago"] .chicago-caret {
+    animation: none;
+  }
+}
+
+/* ── skill review dialog ──────────────────── */
+[data-skin="chicago"] .chicago-review-dlg {
+  width: min(680px, 90vw);
+}
+[data-skin="chicago"] .chicago-review-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  font: 12px / 18px var(--font-body);
+}
+[data-skin="chicago"] .chicago-review-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 6px 0;
+}
+[data-skin="chicago"] .chicago-review-meta dt {
+  font-family: var(--font-chrome);
+}
+[data-skin="chicago"] .chicago-review-meta dd {
+  margin: 0;
+  word-break: break-all;
+}
+[data-skin="chicago"] .chicago-review-warning {
+  border: 1px solid var(--ink);
+  padding: 4px 8px;
+  margin: 8px 0;
+}
+[data-skin="chicago"] .chicago-review-section {
+  font: 12px / 16px var(--font-chrome);
+  border-bottom: 1px solid var(--ink);
+  margin: 10px 0 4px;
+}
+[data-skin="chicago"] .chicago-review-files {
+  margin: 0;
+  padding-left: 16px;
+}
+[data-skin="chicago"] .chicago-review-md {
+  margin: 0;
+  border: 1px solid var(--ink);
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  font: 12px / 16px var(--font-code);
+}

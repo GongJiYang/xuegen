@@ -1,0 +1,124 @@
+/**
+ * Bare skin: every slot as plain semantic HTML.
+ *
+ * The reference skin. It exists so the contract test has a concrete, always
+ * available implementation and so an unknown or failed skin has somewhere to
+ * fall back to. It carries no stylesheet and no motion; the appearance menu is a
+ * `<select>` so the mandatory "switch skins" entry is present without design.
+ * The slots are split across `messages.tsx` (thread + composer + notices) and
+ * `panels.tsx` / `panels-more.tsx` (the F2 tool windows); this file holds the
+ * `Shell` and the module export.
+ */
+
+import type { ShellProps, SkinModule, SkinSlots } from "../contract.js";
+import { strings } from "../../core/strings.js";
+import { DEFAULT_BODY_SCALE_STEPS } from "../../core/settings/step-body-scale.js";
+import { BareContentNode } from "./content.js";
+import { ReadingPanel, TodayPanel, ToolDock } from "./panels.js";
+import { ProgressPanel } from "./progress-panel.js";
+import { BoardPanel, CalendarPanel, CardsPanel, DayEditor, NotesPanel, SkillsPanel, SlashMenu } from "./panels-more.js";
+import {
+  AssistantMessage,
+  Composer,
+  Exercise,
+  ModelPicker,
+  Notice,
+  Thread,
+  Thinking,
+  ToolActivity,
+  UserMessage,
+} from "./messages.js";
+
+function Shell({
+  children,
+  skins,
+  activeSkin,
+  onSelectSkin,
+  bodyScale,
+  onBodyScale,
+  agentStatus,
+  notices,
+  onDismissNotice,
+}: ShellProps) {
+  return (
+    <div data-slot="shell">
+      <header data-slot="menu">
+        <h1>
+          {strings.app.name} {strings.app.nameZh}
+        </h1>
+        <label>
+          <span>{strings.topBar.appearance}</span>
+          <select
+            aria-label={strings.topBar.appearanceTitle}
+            value={activeSkin}
+            onChange={(event) => onSelectSkin(event.target.value)}
+          >
+            {skins.map((skin) => (
+              <option key={skin.id} value={skin.id}>
+                {skin.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>{strings.topBar.bodyScale}</span>
+          <input
+            type="range"
+            min={0.75}
+            max={2}
+            step={0.05}
+            value={bodyScale}
+            onChange={(event) => onBodyScale(Number(event.target.value))}
+          />
+        </label>
+        <span data-slot="agent-status" role="status">
+          {agentStatus}
+        </span>
+      </header>
+
+      {notices.length > 0 && (
+        <ul data-slot="notices">
+          {notices.map((notice, index) => (
+            <li key={`${index}-${notice.text}`}>
+              <Notice notice={notice} onDismiss={() => onDismissNotice(index)} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+const bareSlots: SkinSlots = {
+  Shell,
+  Thread,
+  UserMessage,
+  AssistantMessage,
+  ToolActivity,
+  Thinking,
+  Exercise,
+  Composer,
+  ModelPicker,
+  Notice,
+  BoardPanel,
+  NotesPanel,
+  ToolDock,
+  TodayPanel,
+  ProgressPanel,
+  ReadingPanel,
+  CardsPanel,
+  CalendarPanel,
+  SkillsPanel,
+  DayEditor,
+  SlashMenu,
+};
+
+/** The bare skin module, consumed by the registry's named-export loader. */
+export const bareSkin: SkinModule = {
+  bodyScaleSteps: DEFAULT_BODY_SCALE_STEPS,
+  slots: bareSlots,
+  motion: { run: () => null },
+  content: { Node: BareContentNode },
+};

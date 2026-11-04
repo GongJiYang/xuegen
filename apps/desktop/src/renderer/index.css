@@ -1,0 +1,34 @@
+/*
+ * Global stylesheet: the smallest possible reset.
+ *
+ * core/ owns no styles and no framework. Every visual decision belongs to a skin,
+ * whose CSS is scoped under `[data-skin="<id>"]` so two skins can never collide.
+ * This file only removes the browser's default spacing and makes the root fill
+ * the window; skins opt into their own typography and colors.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+html {
+  /* Neutral baseline before a skin loads; `App` overrides this with the stored
+     window background so a dark palette never flashes white (see anti-flash). */
+  background: #fff;
+}
+
+body {
+  /* Inherit the html background (the skin / stored window colour) rather than
+     forcing white, so the first painted frame is already the right colour. */
+  background: inherit;
+  color: #000;
+}
