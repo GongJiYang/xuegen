@@ -17,7 +17,8 @@
 
 import { applyXuegenEnvironment, repoRoot } from "./environment.js";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { join } from "node:path";
+import { isOwnSessionFile } from "./session-file.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { CommandInfo, ModelInfo } from "../shared/protocol.js";
 
@@ -194,11 +195,4 @@ export function listCommands(session: AgentSession, disabledSkills: string[]): C
     .skills.filter((skill) => !disabled.has(skill.name))
     .map((skill) => ({ name: skill.name, description: skill.description ?? "", source: "skill" as const }))
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-}
-
-/** True for an existing session transcript inside this home's `sessions/` tree. */
-function isOwnSessionFile(home: string, file: string): boolean {
-  const root = `${resolve(home, "sessions")}${sep}`;
-  const full = resolve(file);
-  return full.startsWith(root) && full.endsWith(".jsonl") && existsSync(full);
 }

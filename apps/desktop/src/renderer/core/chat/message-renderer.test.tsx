@@ -8,11 +8,60 @@ import { describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { MessageRenderer } from "./message-renderer.js";
-import { bareSkin } from "../../skins/bare/index.js";
 import { strings } from "../strings.js";
 import type { ChatMessage } from "@shared/protocol.js";
+import type {
+  AssistantMessageProps,
+  ContentRenderers,
+  ExerciseProps,
+  SkinSlots,
+} from "../../skins/contract.js";
 
 afterEach(cleanup);
+
+/**
+ * A minimal in-test skin. Core must not import a real skin (eslint enforces the
+ * dependency direction), so this test double renders only what the routing
+ * assertions inspect.
+ */
+function FakeExercise({ title, nodes, renderContent, onAnswer, onHint, onSkip }: ExerciseProps) {
+  return (
+    <section>
+      <h3>{title || strings.content.exerciseTitle}</h3>
+      {nodes.map((node, index) => (
+        <div key={index}>{renderContent(node)}</div>
+      ))}
+      <button type="button" onClick={onSkip}>
+        {strings.content.exerciseSkip}
+      </button>
+      <button type="button" onClick={onHint}>
+        {strings.content.exerciseHint}
+      </button>
+      <button type="button" onClick={onAnswer}>
+        {strings.content.exerciseAnswer}
+      </button>
+    </section>
+  );
+}
+
+function FakeAssistant({ nodes, streaming, renderContent }: AssistantMessageProps) {
+  return (
+    <div>
+      {nodes.map((node, index) => (
+        <div key={index}>{renderContent(node, streaming)}</div>
+      ))}
+    </div>
+  );
+}
+
+const fakeSlots = {
+  Exercise: FakeExercise,
+  AssistantMessage: FakeAssistant,
+  UserMessage: () => null,
+  ToolActivity: () => null,
+} as unknown as SkinSlots;
+
+const fakeContent: ContentRenderers = { Node: () => null };
 
 function assistant(markdown: string): ChatMessage {
   return { id: "a1", role: "assistant", markdown, streaming: false, toolCalls: [] };
@@ -25,8 +74,8 @@ function renderMessage(markdown: string, handlers: {
 } = {}): void {
   render(
     <MessageRenderer
-      slots={bareSkin.slots}
-      content={bareSkin.content}
+      slots={fakeSlots}
+      content={fakeContent}
       message={assistant(markdown)}
       thinking={false}
       onRetry={() => undefined}

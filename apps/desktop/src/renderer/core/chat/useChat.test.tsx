@@ -94,3 +94,66 @@ describe("useChat prompt prefixing (B9)", () => {
     expect(send).toHaveBeenCalledWith({ type: "prompt", text: "把这次学到的内容起草成卡片" });
   });
 });
+
+describe("useChat openSession", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** Subscribe a listener and capture the `open-session` requestId. */
+  function setUp(): {
+    emit(event: AgentToHostMessage): void;
+    requestId(): string;
+  } {
+    const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    let listener: ((event: AgentToHostMessage) => void) | null = null;
+    vi.spyOn(client, "subscribe").mockImplementation((next) => {
+      listener = next;
+      return () => {
+        listener = null;
+      };
+    });
+    return {
+      emit: (event) => listener?.(event),
+      requestId: () => {
+        const call = send.mock.calls.find(([message]) => message.type === "open-session");
+        if (!call || call[0].type !== "open-session") throw new Error("no open-session sent");
+        return call[0].requestId;
+      },
+    };
+  }
+
+  it("resolves only for the matching requestId", async () => {
+    const bridge = setUp();
+    render(<ActionsHarness />);
+    const controller = captured;
+    if (!controller) throw new Error("controller not captured");
+
+    let promise: Promise<string | null> = Promise.resolve(null);
+    act(() => {
+      promise = controller.openSession("/home/sessions/course.jsonl");
+    });
+
+    let resolved: string | null | undefined;
+    void promise.then((value) => {
+      resolved = value;
+    });
+
+    act(() => {
+      bridge.emit({ type: "session-opened", requestId: "other-request", sessionFile: "/elsewhere.jsonl" });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(resolved).toBeUndefined();
+
+    act(() => {
+      bridge.emit({
+        type: "session-opened",
+        requestId: bridge.requestId(),
+        sessionFile: "/home/sessions/course.jsonl",
+      });
+    });
+    await expect(promise).resolves.toBe("/home/sessions/course.jsonl");
+  });
+});

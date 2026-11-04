@@ -7,6 +7,9 @@
 | `state.ts` | `AsyncState<T>`（loading / error / ready）与纯辅助（`valueOf`、`isEmptyList`、`errorState`）。 |
 | `use-resource.ts` | 通用加载原语 `useBoardResource`：加载、重载、写入后刷新，含竞态与卸载取消。 |
 | `use-courses.ts` | `courses.list`（只读进度）。 |
+| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习、新建与改计划、认领新课程。 |
+| `use-reload-on-answer.ts` | 流式 true → false 时刷新各面板（`useReloadOnAnswer`）。 |
+| `use-skills-panel.ts` | 技能面板的获取结果与待审阅状态（`useSkillsPanel`）。 |
 | `use-reading.ts` | `reading.today` / `reading.stats` / `reading.sources` + 加入、复习；`isWebUrl`、`clipPrompt` 纯函数。 |
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |
 | `use-calendar.ts` | `calendar.month` + 翻月、选日、写笔记；`monthGrid`、`shiftMonth`、`dayMarks`、`dayOf` 为纯函数。 |

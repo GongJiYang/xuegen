@@ -25,6 +25,6 @@
 
 ## 批次
 
-- **F1 数据层**（`batch-f1.md`）：skill 脚本补 `--json`、新 `calendar` 与 `flashcards` 脚本、`teach` 风格规则；主进程数据通道、AnkiConnect 只读客户端、agent 命令列表与技能开关。无 UI。
-- **F2 界面**（`batch-f2.md`）：契约新增插槽与视图模型；`bare` 与 `chicago` 实现；画廊样例。
+- **F1 数据层**（`docs/archive/desktop/batch-f1.md`）：skill 脚本补 `--json`、新 `calendar` 与 `flashcards` 脚本、`teach` 风格规则；主进程数据通道、AnkiConnect 只读客户端、agent 命令列表与技能开关。无 UI。
+- **F2 界面**（`docs/archive/desktop/batch-f2.md`）：契约新增插槽与视图模型；`bare` 与 `chicago` 实现；画廊样例。
 - **F3 端到端验收**（Claude）：库副本 + 临时 `XUEGEN_HOME`，在真实 Electron 窗口逐项走输入 → 输出。发现问题再出修复批，循环到全部通过。

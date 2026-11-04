@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // diagram-check.mjs 的测试：node:test + node:assert，无第三方依赖。
 // 正例 ≥ 5（中文方框、条形、盲文、树、双线表格），反例 ≥ 5；
-// 另有 docs/skills/fixtures-s-diagram/ 全部样例的内联副本（不依赖 docs 路径）；
+// 另有 docs/archive/skills/fixtures-s-diagram/ 全部样例的内联副本（不依赖 docs 路径）；
 // references/patterns.md 中所有 ```text 示例作为正例自动校验。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -112,7 +112,7 @@ test("反例：空输入", () => {
   assert.equal(r.code, 1);
 });
 
-// ---- docs/skills/fixtures-s-diagram 的内联副本 ----
+// ---- docs/archive/skills/fixtures-s-diagram 的内联副本 ----
 // 文件名 good-* / *-ok 应通过；其余应报错。断言同时校验报错要点。
 
 const FIXTURES = {

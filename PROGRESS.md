@@ -1,7 +1,7 @@
 # PROGRESS（更新于 2026-11-03 晚，最新提交 bfb1aad，分支 desktop，所有改动均未提交）
 
 ## ▶ 下一步（新会话直接从这里开始）
-HANDOFF-2026-11-04 的 T1–T4 已完成（2026-11-04 晚）：代码改由 opencode 写（`opencode run --pure -m deepseek/deepseek-flash --auto --dir <xuegen>`，不加 `cd`；日志 `/Users/gjy/pi-learning/opencode-*.log`；任务说明 `docs/desktop/batch-t1-t2.md`、`batch-t3-zoom.md`、`batch-t1-layout.md`）。T4 在真实 Electron（临时 XUEGEN_HOME + 库副本）走查全部通过：分课会话、切回恢复、重启恢复、新课程建课并归属、改计划、自动刷新面板、`/skill:` 显示、⌘=/⌘0 只改正文且菜单无缩放项。检查全绿：desktop 272 测试、根 104 测试。剩下：T5 回答用户的画图问题（不写代码）；用户决定是否提交。已知小事：开发模式热更新后助手回答暂时不显示（重启恢复，不影响正式使用）。
+`docs/archive/desktop/HANDOFF-2026-11-04.md` 的 T1–T4 已完成（2026-11-04 晚）：代码改由 opencode 写（`opencode run --pure -m deepseek/deepseek-flash --auto --dir <xuegen>`，不加 `cd`；日志 `/Users/gjy/pi-learning/opencode-*.log`；任务说明 `docs/archive/desktop/batch-t1-t2.md`、`docs/archive/desktop/batch-t3-zoom.md`、`docs/archive/desktop/batch-t1-layout.md`）。T4 在真实 Electron（临时 XUEGEN_HOME + 库副本）走查全部通过：分课会话、切回恢复、重启恢复、新课程建课并归属、改计划、自动刷新面板、`/skill:` 显示、⌘=/⌘0 只改正文且菜单无缩放项。检查全绿：desktop 272 测试、根 104 测试。剩下：T5 回答用户的画图问题（不写代码）；用户决定是否提交。已知小事：开发模式热更新后助手回答暂时不显示（重启恢复，不影响正式使用）。
 
 ## 当前位置
 UI-0 已完成并经 Claude 复验（typecheck/lint/73 测试/build/smoke 通过，grep 无残留）。Chicago 设计稿（`/Users/gjy/pi-learning/design/chicago/index.html`，仓库外）用户已确认，含 5 套两色护眼配色、防闪屏、终端字符图专用字体 `Fusion12Diagram`（生成脚本 `design/chicago/tools/make-diagram-font.py`）。
@@ -13,7 +13,7 @@ UI-0 已完成并经 Claude 复验（typecheck/lint/73 测试/build/smoke 通过
 | UI-0 皮肤架构 | cmd 完成，Claude 复验通过：core/chat、content、motion、settings，skins/contract+registry+bare，画廊 `?gallery&skin=`，`⌘⇧K` 切换 |
 | 画图 skill 调研 | 6 个仓库均 MIT；只吸收 show-dont-tell/box-diagram/codex-preview/tldr 的规则，不装 pretty-mermaid、glyphcss（中文对齐问题、依赖） |
 | Chicago 视觉设计稿 | 用户确认「就这一版」；字体 ChicagoFLF + Fusion Pixel 12px（比例/等宽），弃用 Monaco；像素圆角按钮；1 倍截图非黑白像素为 0 |
-| 皮肤架构与 Chicago 设计 | `docs/desktop/UI-ARCHITECTURE.md`、`skins/README.md`、`skins/chicago.md`、`batch-ui-0/1.md`；AGENTS.md §12/§13 改为皮肤与微交互规则 |
+| 皮肤架构与 Chicago 设计 | `docs/desktop/UI-ARCHITECTURE.md`、`docs/desktop/skins/README.md`、`docs/desktop/skins/chicago.md`、`docs/archive/desktop/batch-ui-0.md`、`docs/archive/desktop/batch-ui-1.md`；AGENTS.md §12/§13 改为皮肤与微交互规则 |
 | S1 skill 规范 | `docs/skills/AUTHORING.md`、`scripts/lint-skills.mjs`、`npm run lint:skills`；6 个 skill 0 错误 |
 | reading skill | `skills/reading/SKILL.md` + `reading-queue.mjs`（修 3 轮：引号、库布局、resume）；26 测试通过 |
 | 动效批 / 修复 B / 修复 A / 第 1 批 | 桌面版能对话；这些旧 UI 与动效将在 UI-0 中移除 |

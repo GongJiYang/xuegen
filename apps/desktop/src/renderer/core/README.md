@@ -16,6 +16,6 @@ core 决定「是什么」：对话状态、设置、文案、内容解析、动
 - `today.ts`：`resumePoint`（接着上次）、`resumePrompt`、`studyPrompt` 纯函数。
 - `content/`：`nodes.ts` 定义内容节点类型；`parse-content.ts` 是纯分类管线（代码块、Mermaid、公式、表格、callout），流式不完整 Markdown 不抛错。
 - `motion/`：`MotionIntent`、`MotionPreset`、`MotionHandle`、`useMotion`、减少动效判断；不依赖动画库。
-- `settings/`：`use-settings.ts` 经 `client.ts` 读写设置；`apply` 用数据通道返回的设置对象同步本地状态；`step-body-scale.ts` 是 ⌘+ / ⌘- / ⌘0 的纯函数档位步进（按皮肤声明的档位）。
+- `settings/`：`use-settings.ts` 经 `client.ts` 读写设置；`apply` 用数据通道返回的设置对象同步本地状态；`step-body-scale.ts` 是 ⌘+ / ⌘- / ⌘0 的纯函数档位步进（按皮肤声明的档位）；`use-body-scale-shortcuts.ts` 安装键盘监听。
 - `client.ts`：`window.xuegen` 的唯一入口，组件不直接访问。
 - `strings.ts`：全部界面文案，皮肤共享。

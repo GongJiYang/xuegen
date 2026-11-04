@@ -11,49 +11,34 @@
  * through the registered skins.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CourseSummary, ReadingDue, ReadingPriority, SkillReview } from "@shared/data-protocol.js";
-import type { AsyncState } from "./core/board/state.js";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CourseSummary, ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
 import type { TeachingStyle } from "@shared/protocol.js";
 import { useChat } from "./core/chat/useChat.js";
 import { MessageRenderer } from "./core/chat/message-renderer.js";
 import { useSettings } from "./core/settings/use-settings.js";
-import {
-  DEFAULT_BODY_SCALE_STEPS,
-  bodyScaleDirection,
-  stepBodyScale,
-} from "./core/settings/step-body-scale.js";
+import { useBodyScaleShortcuts } from "./core/settings/use-body-scale-shortcuts.js";
 import { useCourses } from "./core/board/use-courses.js";
+import { useActiveCourse, useCourseSessions } from "./core/board/use-course-sessions.js";
+import { useReloadOnAnswer } from "./core/board/use-reload-on-answer.js";
 import { useReading, clipPrompt } from "./core/board/use-reading.js";
 import { useCards, useAnki } from "./core/board/use-cards.js";
 import { useCalendar, monthGrid, shiftMonth, dateKey } from "./core/board/use-calendar.js";
 import { useSkills } from "./core/board/use-skills.js";
+import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
 import type { SlashCommand } from "./core/commands/commands.js";
 import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
 import { resolveStyle, styleWriteTarget } from "./core/chat/style.js";
 import { dayTitle } from "./core/format.js";
-import { findNewCourseSlug } from "./core/board/course-claim.js";
-import { editPlanPrompt, newCoursePrompt, type NewCourseRequest } from "./core/board/course-prompts.js";
 import { resumePoint, resumePrompt, studyPrompt, todayPlanItems } from "./core/today.js";
-import { SKINS, skinIds } from "./skins/registry.js";
+import { skinIds } from "./skins/registry.js";
+import { useSkinAppearance } from "./skins/use-appearance.js";
 import { useSkin } from "./skins/use-skin.js";
 import { Gallery } from "./gallery/Gallery.js";
 import type { ShellPanels, ShellProps, ToolId } from "./skins/contract.js";
 import { toolDescriptors } from "./skins/chicago/icons.js";
 import { strings } from "./core/strings.js";
-
-/** Shared empty options, so a skin without options keeps a stable reference. */
-const EMPTY_SKIN_OPTIONS: Record<string, string> = {};
-
-/** A 「新课程」 request waiting for the course file to appear in the list. */
-interface PendingNewCourse {
-  request: NewCourseRequest;
-  /** The fresh session the request was sent in, to remember for the new slug. */
-  sessionFile: string;
-  /** Course slugs before the request, so the new one can be told apart. */
-  before: string[];
-}
 
 /** The current month as `YYYY-MM`, for the calendar's initial view. */
 function currentMonth(): string {
@@ -78,8 +63,7 @@ export function App() {
   const anki = useAnki();
   const calendar = useCalendar(currentMonth());
   const skills = useSkills();
-  const [skillNotice, setSkillNotice] = useState<string | null>(null);
-  const [skillReview, setSkillReview] = useState<AsyncState<SkillReview> | null>(null);
+  const skillsPanel = useSkillsPanel(skills, apply);
 
   // The style for the whole session: the remembered per-course style when the
   // most-recent course is known, else the session default.
@@ -107,24 +91,21 @@ export function App() {
   // The course whose session is *running*, if any. The style is remembered per
   // course only once a session has actually started (继续学习 / 开始学习); before
   // that a style change belongs to the session default, not to whatever course
-  // 接着上次 happens to point at.
-  const [chosenCourse, setActiveCourse] = useState<string | null>(null);
-  // The session file currently open, reported by the agent; lets a relaunch that
-  // resumes a course's session know which course it is (style, window title).
-  const [openSessionFile, setOpenSessionFile] = useState<string | null>(null);
-  const activeCourse =
-    chosenCourse ??
-    Object.entries(settings.courseSessions).find(([, file]) => file === openSessionFile)?.[0] ??
-    null;
+  // 接着上次 happens to point at. The open file is reported by the agent and lets
+  // a relaunch that resumes a course's session know which course it is.
+  const { activeCourse, openSessionFile, setActiveCourse, setOpenSessionFile } =
+    useActiveCourse(settings);
   const style = resolveStyle(settings, activeCourse);
   const controller = useChat(style, settings.disabledSkills);
   if (controller.sessionFile !== openSessionFile) setOpenSessionFile(controller.sessionFile);
   const slash = useSlash(controller.commands, settings.disabledSkills);
-
-  // A 「新课程」 request still waiting for its course file, and the previous
-  // streaming flag so the board only reloads when an answer *ends*.
-  const pendingNewCourse = useRef<PendingNewCourse | null>(null);
-  const wasStreaming = useRef(controller.streaming);
+  const {
+    handleStartSession,
+    handleNewCourse,
+    handleEditPlan,
+    handleNewSession,
+    handleContinueSession,
+  } = useCourseSessions(controller, settings, update, courses, activeCourse, setActiveCourse);
 
   const [activeTool, setActiveTool] = useState<ToolId | null>("progress");
   const [focusMode, setFocusMode] = useState(false);
@@ -139,6 +120,7 @@ export function App() {
 
   const requestedSkin = querySkin ?? settings.skin;
   const { module: skin, loadedId, notice } = useSkin(requestedSkin);
+  const appearance = useSkinAppearance(settings, update, loadedId);
 
   useEffect(() => {
     if (settings.windowBackground) {
@@ -157,18 +139,14 @@ export function App() {
   }, [skin, loadedId, settings.bodyScale]);
 
   // Reload the board when an answer ends: 学根 may have written course progress,
-  // reading, cards, or calendar notes during the turn. The ref holds the previous
-  // flag, so the reload runs only on the true → false edge. The reloads only
-  // start an async load; nothing is set synchronously in this effect.
-  useEffect(() => {
-    const ended = wasStreaming.current && !controller.streaming;
-    wasStreaming.current = controller.streaming;
-    if (!ended) return;
+  // reading, cards, or calendar notes during the turn.
+  const reloadBoard = useCallback(() => {
     courses.reload();
     reading.reload();
     cards.reload();
     calendar.resource.reload();
-  }, [controller.streaming, courses, reading, cards, calendar.resource]);
+  }, [courses, reading, cards, calendar.resource]);
+  useReloadOnAnswer(controller.streaming, reloadBoard);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -185,25 +163,7 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [loadedId, update]);
 
-  // ⌘+ / ⌘= / ⌘- / ⌘0 (Ctrl on Windows/Linux) step the body text along the
-  // active skin's ladder. Not DEV-gated: this replaces the page zoom the app
-  // menu used to offer, and a fractional page zoom blurs the pixel fonts. A
-  // window-level listener also fires while a field is focused, and the ⌘/Ctrl
-  // combination does not type a character there.
-  useEffect(() => {
-    if (!skin) return;
-    const steps = skin.bodyScaleSteps ?? DEFAULT_BODY_SCALE_STEPS;
-    function onKeyDown(event: KeyboardEvent): void {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-      const direction = bodyScaleDirection(event.key);
-      if (!direction) return;
-      event.preventDefault();
-      const next = stepBodyScale(settings.bodyScale, direction, steps);
-      if (next !== settings.bodyScale) update({ bodyScale: next });
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [skin, settings.bodyScale, update]);
+  useBodyScaleShortcuts(skin, settings.bodyScale, update);
 
   const setCourseStyle = useCallback(
     (slug: string, next: TeachingStyle) => {
@@ -227,76 +187,6 @@ export function App() {
     [update, settings.courseStyles, activeCourse],
   );
 
-  /**
-   * Study a course in its own session, so courses never share one context.
-   * Already in that course's session: just send. Otherwise switch to the
-   * course's remembered session (or a fresh one), remember the file, then send.
-   */
-  const handleStartSession = useCallback(
-    (slug: string, text: string) => {
-      if (activeCourse === slug) {
-        controller.send(text);
-        return;
-      }
-      const known = settings.courseSessions[slug] ?? null;
-      setActiveCourse(slug);
-      void controller.openSession(known).then((opened) => {
-        if (opened && opened !== known) {
-          update({ courseSessions: { ...settings.courseSessions, [slug]: opened } });
-        }
-        controller.send(text);
-      });
-    },
-    [activeCourse, controller, settings.courseSessions, update],
-  );
-
-  /**
-   * Create a course in a fresh session. The course file only exists after 学根
-   * runs the `course` skill, so remember the current slugs and claim the first
-   * new one when the refreshed list arrives (see the effect below).
-   */
-  const handleNewCourse = useCallback(
-    (request: NewCourseRequest) => {
-      // Without a loaded list there is no "before" to compare with; claiming
-      // would mistake an existing course for the new one, so skip the claim.
-      const before =
-        courses.state.status === "ready" ? courses.state.value.map((course) => course.slug) : null;
-      setActiveCourse(null);
-      void controller.openSession(null).then((opened) => {
-        if (!opened) return;
-        if (before) pendingNewCourse.current = { request, sessionFile: opened, before };
-        controller.send(newCoursePrompt(request));
-      });
-    },
-    [courses.state, controller],
-  );
-
-  const handleEditPlan = useCallback(
-    (course: CourseSummary, change: string) => {
-      // A plan change belongs to the course's own session, like 开始学习.
-      handleStartSession(course.slug, editPlanPrompt(course.title, change));
-    },
-    [handleStartSession],
-  );
-
-  // Claim the course a 「新课程」 request created: the first slug that was not in
-  // the list before the request. The settings write goes through a microtask so
-  // this effect never sets state synchronously (the project lint rule).
-  useEffect(() => {
-    const pending = pendingNewCourse.current;
-    if (!pending || courses.state.status !== "ready") return;
-    const slug = findNewCourseSlug(pending.before, courses.state.value);
-    if (!slug) return;
-    pendingNewCourse.current = null;
-    void Promise.resolve().then(() => {
-      setActiveCourse(slug);
-      update({
-        courseSessions: { ...settings.courseSessions, [slug]: pending.sessionFile },
-        courseStyles: { ...settings.courseStyles, [slug]: pending.request.style },
-      });
-    });
-  }, [courses.state, settings.courseSessions, settings.courseStyles, update]);
-
   const handleStudy = useCallback(
     (course: CourseSummary) => handleStartSession(course.slug, studyPrompt(course)),
     [handleStartSession],
@@ -304,15 +194,6 @@ export function App() {
   const handleResume = useCallback(() => {
     if (resume) handleStartSession(resume.course.slug, resumePrompt(resume));
   }, [handleStartSession, resume]);
-
-  const handleNewSession = useCallback(() => {
-    setActiveCourse(null);
-    controller.newSession();
-  }, [controller]);
-  const handleContinueSession = useCallback(() => {
-    setActiveCourse(null);
-    controller.continueSession();
-  }, [controller]);
 
   const handleReadingAdd = useCallback(
     async (source: string, priority: ReadingPriority, due: ReadingDue) => {
@@ -342,28 +223,6 @@ export function App() {
       setAnswering((current) => (current === index ? null : current));
     },
     [controller],
-  );
-
-  const skinChoices = SKINS.map((entry) => ({ id: entry.id, name: entry.name }));
-
-  const activeSkinOptions = useMemo(
-    () => settings.skinOptions[loadedId] ?? EMPTY_SKIN_OPTIONS,
-    [settings.skinOptions, loadedId],
-  );
-
-  const handleSkinOption = useCallback(
-    (key: string, value: string) => {
-      update({ skinOptions: { ...settings.skinOptions, [loadedId]: { ...activeSkinOptions, [key]: value } } });
-    },
-    [update, settings.skinOptions, loadedId, activeSkinOptions],
-  );
-
-  const handleWindowBackground = useCallback(
-    (color: string) => {
-      if (color === settings.windowBackground) return;
-      update({ windowBackground: color });
-    },
-    [update, settings.windowBackground],
   );
 
   // Execute a `/` command by routing its pure effect to the right action.
@@ -411,14 +270,14 @@ export function App() {
       <Gallery
         slots={skin.slots}
         content={skin.content}
-        skinChoices={skinChoices}
+        skinChoices={appearance.skinChoices}
         activeSkin={loadedId}
-        onSelectSkin={(id) => update({ skin: id })}
+        onSelectSkin={appearance.onSelectSkin}
         bodyScale={settings.bodyScale}
-        onBodyScale={(value) => update({ bodyScale: value })}
-        skinOptions={activeSkinOptions}
-        onSkinOption={handleSkinOption}
-        onWindowBackground={handleWindowBackground}
+        onBodyScale={appearance.onBodyScale}
+        skinOptions={appearance.skinOptions}
+        onSkinOption={appearance.onSkinOption}
+        onWindowBackground={appearance.onWindowBackground}
       />
     );
   }
@@ -482,50 +341,7 @@ export function App() {
         setEditingDay({ date, text: day?.note ?? "" });
       },
     },
-    skills: {
-      skills: skills.resource.state,
-      onToggle: (name, enabled) => {
-        // The write returns the authoritative settings; apply them so the
-        // session's `disabledSkills` (and the `/` menu) update in step.
-        void skills.setEnabled(name, enabled).then((result) => {
-          if (result.ok) apply(result.data);
-        });
-      },
-      onFetch: (url) => {
-        setSkillNotice(null);
-        void skills.fetch(url).then((result) => {
-          setSkillNotice(
-            result.ok
-              ? strings.skills.fetched(result.data.skills.map((skill) => skill.name))
-              : strings.skills.fetchFailed(result.error),
-          );
-        });
-      },
-      fetchNotice: skillNotice,
-      review: skillReview,
-      onReview: (name) => {
-        setSkillReview({ status: "loading" });
-        void skills.review(name).then((result) =>
-          setSkillReview(
-            result.ok
-              ? { status: "ready", value: result.data }
-              : { status: "error", code: result.code, message: result.error },
-          ),
-        );
-      },
-      onCloseReview: () => setSkillReview(null),
-      onEnableReviewed: (name) => {
-        setSkillReview(null);
-        void skills.setEnabled(name, true).then((result) => {
-          if (result.ok) apply(result.data);
-          else setSkillNotice(strings.skills.fetchFailed(result.error));
-        });
-      },
-      onDiscardReviewed: (name) => {
-        setSkillReview(null);
-        void skills.discard(name);
-      },
-    },
+    skills: skillsPanel,
   };
 
   const shellProps: ShellProps = {
@@ -570,14 +386,14 @@ export function App() {
         />
       </>
     ),
-    skins: skinChoices,
+    skins: appearance.skinChoices,
     activeSkin: loadedId,
-    onSelectSkin: (id) => update({ skin: id }),
+    onSelectSkin: appearance.onSelectSkin,
     bodyScale: settings.bodyScale,
-    onBodyScale: (value) => update({ bodyScale: value }),
-    skinOptions: activeSkinOptions,
-    onSkinOption: handleSkinOption,
-    onWindowBackground: handleWindowBackground,
+    onBodyScale: appearance.onBodyScale,
+    skinOptions: appearance.skinOptions,
+    onSkinOption: appearance.onSkinOption,
+    onWindowBackground: appearance.onWindowBackground,
     models: controller.models,
     currentModel: controller.currentModel,
     onSelectModel: controller.setModel,

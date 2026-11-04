@@ -1,0 +1,31 @@
+# 文档索引
+
+长期维护的文档按主题保存在 `docs/` 下；一次性任务单（批次说明、修复单、交接单）统一放在 `docs/archive/`，只作历史记录，不再更新。
+
+| 路径 | 用途 |
+|---|---|
+| `ARCHITECTURE.md` | 全仓六层模型与需求分类卡：新需求先归类再实现。 |
+| `AGENTS.md` | 所有 agent 必读的仓库约定（分区规则、提交与凭据限制）。 |
+| `instructions.md` | 学根运行时的系统提示词（教学策略与记忆契约）。 |
+| `README.md` | 面向用户的安装、命令与使用说明。 |
+| `CHANGELOG.md` | 对外可见的行为变更记录。 |
+| `PROGRESS.md` | 当前进度、下一步与待用户处理事项。 |
+| `docs/desktop/ARCHITECTURE.md` | 桌面版设计边界（六层模型在桌面的落点）。 |
+| `docs/desktop/UI-ARCHITECTURE.md` | 可替换皮肤架构、契约、样式隔离与动效原则。 |
+| `docs/desktop/FEATURES.md` | 桌面版功能 × 输入 × 输出总表。 |
+| `docs/desktop/ROADMAP.md` | 桌面版批次路线图。 |
+| `docs/desktop/skins/README.md` | 皮肤登记表（id、版本、状态）。 |
+| `docs/desktop/skins/chicago.md` | Chicago 皮肤的视觉与交互规范。 |
+| `docs/platform/ROADMAP.md` | 平台能力（skill 仓库、RAG）路线。 |
+| `docs/skills/AUTHORING.md` | 学习 skill 的编写规范。 |
+
+## 归档
+
+`docs/archive/` 按原分区存放一次性任务单：
+
+- `docs/archive/desktop/`：桌面版批次、问题修复、交接单。
+- `docs/archive/reading/`：阅读批次任务单。
+- `docs/archive/skills/`：skill 批次任务单与样例 fixture。
+- `docs/archive/platform/`：平台批次任务单。
+
+新任务完成后把任务单移入对应归档目录，并在被引用处更新路径。

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Desktop (第 2 轮): 每门课使用独立会话（重启后可恢复，窗口标题显示课程名）；总进度新增「新课程」「改计划」；学根答完后自动刷新侧边面板；锁定页面缩放，⌘+/⌘-/⌘0 改为按皮肤档位放大正文；修复 `/skill:` 前缀与折回显示；新增 CI 与依赖方向 lint 规则。
 - Desktop (第 1 轮修复): 对话正文与输入区在窗口内居中；侧窗关闭后可从图标列（新增「今天」图标）、「学习」「显示 ▸ 显示全部侧窗」重新打开；模型菜单只列有凭据的模型、切换模型与思考强度写回默认并在菜单栏显示模型短名；`/` 菜单按完全匹配 > 前缀 > 包含 > 说明排序，新增 `/新会话`、`/继续会话`，未知斜杠命令不再发给模型；`teach` 用 `> [!question] 检查理解` callout 输出检验题，「我来回答 / 给点提示 / 跳过」在界面内可用；阅读「下次接着读」记录位置、「加入阅读」加「今天就读」勾选；日历详情显示课程名、日志去掉 `log` 前缀、标记放大；「今天」窗口以「今天计划」列出当天具体项；`/加入阅读` 聚焦输入框、`/制卡` 发送起草指令。
 - Add the opt-in `reading` skill for incremental reading: one Wiki state file per source in `wiki/reading/`, excerpts in `wiki/extracts/`, scheduling changed only through `reading-queue.mjs`, raw sources kept read-only, and cards made through the existing `wiki-save` rules (at most 10 per excerpt).
 

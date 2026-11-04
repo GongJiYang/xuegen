@@ -4,9 +4,9 @@
 
 | 批次 | 名称 | 交付 | 验收要点 | 状态 |
 |---|---|---|---|---|
-| 1 | 能对话 | Electron 骨架、agent 进程、流式对话、表格/公式/Mermaid 渲染、模型选择、继续会话 | typecheck + build 通过；smoke 确认 skills 与系统提示加载；CLI 不受影响 | 任务说明已写（`batch-1.md`），未开工 |
-| UI-0 | 皮肤架构 | core / 皮肤契约 / 登记表 / bare 参照皮肤 / 切换与持久化 / 画廊 / 契约测试；移除 Tailwind、shadcn、旧动效 | 见 `batch-ui-0.md` | 未开始 |
-| UI-1 | Chicago 皮肤 | 经典 Mac OS 黑白像素风（system.css），设计见 `skins/chicago.md` | 见 `batch-ui-1.md` | 未开始 |
+| 1 | 能对话 | Electron 骨架、agent 进程、流式对话、表格/公式/Mermaid 渲染、模型选择、继续会话 | typecheck + build 通过；smoke 确认 skills 与系统提示加载；CLI 不受影响 | 任务说明已写（`docs/archive/desktop/batch-1.md`），未开工 |
+| UI-0 | 皮肤架构 | core / 皮肤契约 / 登记表 / bare 参照皮肤 / 切换与持久化 / 画廊 / 契约测试；移除 Tailwind、shadcn、旧动效 | 见 `docs/archive/desktop/batch-ui-0.md` | 未开始 |
+| UI-1 | Chicago 皮肤 | 经典 Mac OS 黑白像素风（system.css），设计见 `skins/chicago.md` | 见 `docs/archive/desktop/batch-ui-1.md` | 未开始 |
 | 2 | 常驻看板 | 左侧课程看板：当前周、本周活动、总目标、下次起点；文件变化实时刷新；显示 `verify` 结果 | 与 `wiki/courses.html` 显示一致；看板无编辑入口；锁状态异常时明确提示 | 未开始 |
 | 3 | 笔记面板 | 右侧 CodeMirror 笔记，实时预览；打开/新建 `notes/` 文件；与 agent 写入冲突时提示 | 保存后 Obsidian 打开格式不变；冲突不静默覆盖 | 未开始 |
 | 2A | 卡片总览 | 左侧「学习看板」卡片标签页：按主题/牌组列出 `wiki/flashcards/`，每文件已同步（有 `<!--ID-->`）/未同步数量，卡片预览，在 Obsidian 中打开 | 计数与文件实际一致；只读 | 未开始 |
