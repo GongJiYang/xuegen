@@ -48,6 +48,7 @@ xuegen
 | 保存笔记 | 直接要求“把关键推导、错题和待核实问题保存到 notes/主题.md” |
 | 整理到 Wiki / 制作闪卡 | 直接提出要求，或 `/skill:wiki-save 本次需要整理的内容` |
 | 绑定教材 / 安排计划 / 查看进度 | 直接提出要求，或 `/skill:course 本次课程操作` |
+| 渐进阅读：入队 / 今天读什么 / 摘录 / 摘录制卡 | 直接提出要求，或 `/skill:reading 本次阅读操作` |
 | 检查 MCP 工具连接 | `xuegen mcp list` 或会话内 `/mcp` |
 | 查看帮助 | `xuegen --help` |
 | 查看底层运行时选项 | `xuegen --runtime-help` |
@@ -173,6 +174,8 @@ Xuegen 的默认教学和会话存储不依赖 Wiki。Wiki 只是按需启用的
 ## 增加能力
 
 新建 `skills/<技能名>/SKILL.md`，使用标准 frontmatter 声明 `name` 和 `description`。下次启动时会发现该 skill，模型按需读取，也可通过 `/skill:<技能名>` 调用。新增目录无需修改启动器。
+
+编写规范见 [`docs/skills/AUTHORING.md`](docs/skills/AUTHORING.md)：frontmatter 规则、正文职责与读写边界、脚本零依赖与测试、公开发布要求。新增或修改 skill 后运行 `npm run lint:skills` 检查，`npm test` 运行脚本测试。
 
 只有能力确实需要工具或交互界面时才增加扩展。可先用 `xuegen -e /absolute/path/to/extension.ts` 显式加载；确认有效后，再在启动器中加入明确的加载路径。自动扩展发现默认关闭，所以仅运行底层 `install` 命令不会自动启用扩展。
 

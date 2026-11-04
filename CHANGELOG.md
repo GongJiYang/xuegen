@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Desktop (第 1 轮修复): 对话正文与输入区在窗口内居中；侧窗关闭后可从图标列（新增「今天」图标）、「学习」「显示 ▸ 显示全部侧窗」重新打开；模型菜单只列有凭据的模型、切换模型与思考强度写回默认并在菜单栏显示模型短名；`/` 菜单按完全匹配 > 前缀 > 包含 > 说明排序，新增 `/新会话`、`/继续会话`，未知斜杠命令不再发给模型；`teach` 用 `> [!question] 检查理解` callout 输出检验题，「我来回答 / 给点提示 / 跳过」在界面内可用；阅读「下次接着读」记录位置、「加入阅读」加「今天就读」勾选；日历详情显示课程名、日志去掉 `log` 前缀、标记放大；「今天」窗口以「今天计划」列出当天具体项；`/加入阅读` 聚焦输入框、`/制卡` 发送起草指令。
+- Add the opt-in `reading` skill for incremental reading: one Wiki state file per source in `wiki/reading/`, excerpts in `wiki/extracts/`, scheduling changed only through `reading-queue.mjs`, raw sources kept read-only, and cards made through the existing `wiki-save` rules (at most 10 per excerpt).
+
 - Add the `article` skill for abstracting learning material into precise knowledge hierarchies without drafting prose.
 - Default new profiles, and profiles without an explicit `tuiMode`, to Pi's regular terminal mode so the input editor follows terminal scrollback instead of staying in the fullscreen dock.
 - Apply retrieval-first, chunking, transfer, spacing, and interleaving guidance by learning depth without adding a review database.
