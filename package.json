@@ -10,7 +10,9 @@
   },
   "files": ["bin/", "defaults/", "instructions.md", "skills/"],
   "scripts": {
-    "start": "node bin/xuegen.mjs"
+    "start": "node bin/xuegen.mjs",
+    "test": "node --test \"scripts/**/*.test.mjs\" \"skills/**/*.test.mjs\"",
+    "lint:skills": "node scripts/lint-skills.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

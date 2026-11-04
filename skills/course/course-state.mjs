@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // Xuegen 课程状态文件维护：只读锁、完整性校验、看板生成。
-// 无第三方依赖。用法：
+// 无第三方依赖。解析逻辑在共享的 course-parse.mjs，本脚本只管锁、校验与看板。
+// 用法：
 //   node course-state.mjs lock <file...>            设为只读 0444
 //   node course-state.mjs unlock <file...>          临时放开为 0644（写入前）
 //   node course-state.mjs verify <coursesDir> [看板文件]   校验锁、标记与必要段落；看板是否过期
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
-import { readFile, writeFile, readdir, stat, chmod } from "node:fs/promises";
-import { join, resolve, basename } from "node:path";
+//   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
+import { readFile, writeFile, stat, chmod } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
 
 const READONLY_MODE = 0o444;
 const WRITABLE_MODE = 0o644;
-const STATE_MARKER = "xuegen:course-state";
 const DASHBOARD_MARKER = "xuegen:courses-dashboard";
-const REQUIRED_SECTIONS = ["Overall Goals", "This Week", "Today", "Next Session", "Learning Record"];
 
 function fail(message) {
   process.stderr.write(`course-state: ${message}\n`);
@@ -25,84 +26,15 @@ function localDate() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function sectionLines(lines, heading) {
-  const start = lines.findIndex((line) => line.trim() === heading);
-  if (start === -1) return null;
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => /^##\s/.test(line));
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-function isTask(line) {
-  return /^- \[[ xX]\]/.test(line.trim());
-}
-
-function tasksOf(lines, heading) {
-  const body = sectionLines(lines, heading);
-  if (!body) return null;
-  return body
-    .filter(isTask)
-    .map((line) => ({ done: /^- \[[xX]\]/.test(line.trim()), label: taskLabel(line) }));
-}
-
-function taskLabel(line) {
-  let label = line.trim().replace(/^- \[[ xX]\]\s*/, "");
-  label = label.replace(/\*\*/g, "");
-  const cut = label.search(/[（(](完成条件|已完成|条件)/);
-  if (cut > 0) label = label.slice(0, cut);
-  label = label.trim();
-  return label.length > 80 ? `${label.slice(0, 77)}…` : label;
-}
-
-function firstLineAfter(lines, heading, { taskLines = false } = {}) {
-  const body = sectionLines(lines, heading);
-  if (!body) return null;
-  for (const line of body) {
-    const text = line.trim();
-    if (!text) continue;
-    if (!taskLines && isTask(line)) continue;
-    if (/^[#>|]/.test(text)) continue;
-    return text;
-  }
-  return null;
-}
-
-function keyFact(lines, name) {
-  const match = lines.find((line) => line.trim().startsWith(`- ${name}：`));
-  return match ? match.trim().slice(name.length + 3).trim() : null;
-}
-
-function lastRecordDate(lines) {
-  const body = sectionLines(lines, "## Learning Record");
-  if (!body) return null;
-  const dates = body
-    .map((line) => line.trim().match(/^###\s+(\d{4}-\d{2}-\d{2})-\d+/))
-    .filter(Boolean)
-    .map((match) => match[1]);
-  return dates.length ? dates[dates.length - 1] : null;
-}
-
-function parseCourse(text, slug) {
-  const lines = text.split("\n");
-  const titleLine = lines.find((line) => line.startsWith("# "));
-  const overall = tasksOf(lines, "## Overall Goals") ?? [];
-  const week = tasksOf(lines, "## This Week") ?? [];
-  return {
-    slug,
-    title: titleLine ? titleLine.slice(2).trim() : slug,
-    currentWeek: keyFact(lines, "当前周"),
-    weekLabel: firstLineAfter(lines, "## This Week"),
-    overall,
-    week,
-    lastRecord: lastRecordDate(lines),
-    next: firstLineAfter(lines, "## Next Session"),
-    marked: text.includes(STATE_MARKER),
-    sections: REQUIRED_SECTIONS.filter((name) => sectionLines(lines, `## ${name}`) === null),
-  };
-}
-
+/** 任务完成数展示为 `已核实/总数`。 */
 function progress(tasks) {
-  return `${tasks.filter((task) => task.done).length}/${tasks.length}`;
+  const { done, total } = progressOf(tasks);
+  return `${done}/${total}`;
+}
+
+/** 上次记录的展示文本：只用日期（保持看板与 dashboard 既有输出）。 */
+function lastRecordLabel(record) {
+  return record ? record.date : null;
 }
 
 function cell(text) {
@@ -117,7 +49,7 @@ function renderDashboard(courses, date) {
   body.push("|---|---|---|---|---|---|");
   for (const course of courses) {
     body.push(
-      `| [[courses/${course.slug}\\|${cell(course.title)}]] | ${cell(course.currentWeek)} | ${progress(course.week)} | ${progress(course.overall)} | ${cell(course.lastRecord ?? "未记录")} | ${cell(course.next)} |`,
+      `| [[courses/${course.slug}\\|${cell(course.title)}]] | ${cell(course.currentWeek)} | ${progress(course.week)} | ${progress(course.overall)} | ${cell(lastRecordLabel(course.lastRecord) ?? "未记录")} | ${cell(course.nextSession)} |`,
     );
   }
   body.push("");
@@ -155,16 +87,11 @@ function stripDate(text) {
     .join("\n");
 }
 
+/** 读取课程目录；没有状态文件时报错退出。 */
 async function loadCourses(dir) {
-  const entries = await readdir(dir);
-  const slugs = entries
-    .filter((name) => name.endsWith(".md") && !name.startsWith("."))
-    .map((name) => basename(name, ".md"))
-    .sort();
-  if (slugs.length === 0) fail(`no course state files in ${dir}`);
-  return Promise.all(
-    slugs.map(async (slug) => parseCourse(await readFile(join(dir, `${slug}.md`), "utf8"), slug)),
-  );
+  const courses = await listCourses(dir);
+  if (courses.length === 0) fail(`no course state files in ${dir}`);
+  return courses;
 }
 
 async function mode(file) {
@@ -194,7 +121,7 @@ async function verify(coursesDir, dashboardFile) {
     const fileMode = await mode(file);
     if (fileMode !== READONLY_MODE) problems.push(`${file} 权限为 ${fileMode.toString(8)}，应为 444（人为可写）`);
     if (!course.marked) problems.push(`${file} 缺少 ${STATE_MARKER} 标记`);
-    if (course.sections.length) problems.push(`${file} 缺少段落：${course.sections.join(", ")}`);
+    if (course.missingSections.length) problems.push(`${file} 缺少段落：${course.missingSections.join(", ")}`);
     if (!course.currentWeek) problems.push(`${file} Key Facts 缺少「- 当前周：」`);
   }
   if (dashboardFile) {
@@ -209,7 +136,7 @@ async function verify(coursesDir, dashboardFile) {
   }
   for (const course of courses) {
     process.stdout.write(
-      `${course.slug}: ${course.title}｜${course.currentWeek ?? "当前周？"}｜本周 ${progress(course.week)}｜总目标 ${progress(course.overall)}｜上次记录 ${course.lastRecord ?? "—"}\n`,
+      `${course.slug}: ${course.title}｜${course.currentWeek ?? "当前周？"}｜本周 ${progress(course.week)}｜总目标 ${progress(course.overall)}｜上次记录 ${lastRecordLabel(course.lastRecord) ?? "—"}\n`,
     );
   }
   if (problems.length) {
@@ -219,12 +146,34 @@ async function verify(coursesDir, dashboardFile) {
   process.stdout.write("verify: OK（只读锁、标记、段落一致性均通过）\n");
 }
 
+/** 列出课程：`--json` 输出数组，否则一行一门。 */
+async function listCommand(coursesDir, json) {
+  const courses = await listCourses(coursesDir);
+  const entries = courses.map(toListEntry);
+  if (json) {
+    process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);
+    return;
+  }
+  if (entries.length === 0) {
+    process.stdout.write("（无课程状态文件）\n");
+    return;
+  }
+  for (const entry of entries) {
+    process.stdout.write(
+      `${entry.slug}｜${entry.title}｜${entry.weekLabel ?? "本周未设定"}｜本周 ${entry.week.done}/${entry.week.total}｜总目标 ${entry.overall.done}/${entry.overall.total}｜上次记录 ${entry.lastRecord ? `${entry.lastRecord.date}-${entry.lastRecord.seq}` : "—"}\n`,
+    );
+  }
+}
+
 const [command, ...args] = process.argv.slice(2);
-if (!command) fail("用法：lock|unlock|verify|dashboard");
+if (!command) fail("用法：lock|unlock|verify|dashboard|list");
 
 if (command === "lock" || command === "unlock") {
   if (args.length === 0) fail(`${command} 需要文件参数`);
   await setMode(args, command === "lock" ? READONLY_MODE : WRITABLE_MODE);
+} else if (command === "list") {
+  if (args.length === 0) fail("list 需要 courses 目录");
+  await listCommand(resolve(args[0]), args.includes("--json"));
 } else if (command === "verify") {
   if (args.length === 0) fail("verify 需要 courses 目录");
   await verify(resolve(args[0]), args[1] ? resolve(args[1]) : null);

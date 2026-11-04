@@ -7,9 +7,10 @@ import { readdirSync, readFileSync, writeFileSync, chmodSync, statSync, existsSy
 import { join, dirname, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { parseCourse as parseCourseShared, findSection, STATE_MARKER } from "./course-parse.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const MARKER = "xuegen:course-state";
+const MARKER = STATE_MARKER;
 const TASK_RE = /^\s*[-*]\s+\[([ xX])\]\s+(.*)$/;
 const LIST_RE = /^(\s*)([-*]|\d+\.)\s+(.*)$/;
 
@@ -21,25 +22,9 @@ if (!coursesDir || !outFile) {
 
 /* ---------- Markdown 解析 ---------- */
 
-function splitSections(text) {
-  let title = "";
-  const sections = [];
-  let cur = null;
-  for (const line of text.split(/\r?\n/)) {
-    if (!title) {
-      const h1 = line.match(/^#\s+(.+?)\s*$/);
-      if (h1) { title = h1[1]; continue; }
-    }
-    const h2 = line.match(/^##\s+(.+?)\s*$/);
-    if (h2) { cur = { name: h2[1], lines: [] }; sections.push(cur); continue; }
-    if (cur) cur.lines.push(line);
-  }
-  return { title, sections };
-}
-
-function countTasks(lines) {
+function countTasks(section) {
   let done = 0, total = 0;
-  for (const line of lines) {
+  for (const line of section ? section.lines : []) {
     const m = line.match(TASK_RE);
     if (!m) continue;
     total++;
@@ -48,51 +33,28 @@ function countTasks(lines) {
   return { done, total };
 }
 
-function keyFact(lines, key) {
-  for (const line of lines) {
-    const m = line.match(/^\s*[-*]\s*([^：:]+)[：:]\s*(.*)$/);
-    if (m && m[1].trim() === key) return m[2].trim();
-  }
-  return "";
-}
-
-function parseRecords(lines) {
-  const records = [];
-  let cur = null;
-  for (const line of lines) {
-    const h3 = line.match(/^###\s+(.+?)\s*$/);
-    if (h3) { cur = { heading: h3[1], lines: [] }; records.push(cur); continue; }
-    if (cur) cur.lines.push(line);
-  }
-  return records;
-}
-
+/**
+ * 渲染所需的课程视图：在共享 parseCourse 的结构化结果上补齐渲染专用字段。
+ *
+ * 解析统一走 course-parse.mjs，避免看板与 dashboard 两套解析结果不一致。
+ */
 function parseCourse(text, file) {
-  const { title, sections } = splitSections(text);
-  const find = (name) => sections.find((s) => s.name === name || s.name.startsWith(name)) || { lines: [] };
-  const facts = find("Key Facts").lines;
-  const recordSection = find("Learning Record").lines;
-  const records = parseRecords(recordSection).map((r) => {
-    const date = (r.heading.match(/(\d{4}-\d{2}-\d{2})(?:-(\d+))?/) || ["", "", ""]);
-    return { ...r, date: date[1] || "", seq: date[2] || "" };
-  });
-  const week = keyFact(facts, "当前周");
-  const position = keyFact(facts, "当前位置") || keyFact(facts, "阅读位置");
-  const nextSession = (find("Next Session").lines.find((l) => l.trim()) || "").trim();
+  const parsed = parseCourseShared(text, basename(file, ".md"));
+  const section = (name) => findSection(parsed.sections, name);
   return {
     file,
-    slug: basename(file, ".md"),
-    title: title || basename(file, ".md"),
-    sections,
-    week,
-    position,
-    nextSession,
-    weekCount: countTasks(find("This Week").lines),
-    todayCount: countTasks(find("Today").lines),
-    overallCount: countTasks(find("Overall Goals").lines),
-    today: keyFact(find("Today").lines, "日期"),
-    records,
-    lastRecord: records.length ? records[records.length - 1] : null,
+    slug: parsed.slug,
+    title: parsed.title,
+    sections: parsed.sections,
+    week: parsed.currentWeek || "",
+    position: parsed.position || "",
+    nextSession: parsed.nextSession || "",
+    weekCount: countTasks(section("This Week")),
+    todayCount: countTasks(section("Today")),
+    overallCount: countTasks(section("Overall Goals")),
+    today: parsed.today || "",
+    records: parsed.records,
+    lastRecord: parsed.records.length ? parsed.records[parsed.records.length - 1] : null,
   };
 }
 
