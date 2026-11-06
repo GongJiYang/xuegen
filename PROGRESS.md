@@ -1,7 +1,10 @@
-# PROGRESS（更新于 2026-11-06 晚，分支 desktop；最后推送 2cb31f6，之后 PL-11/12/13 未提交）
+# PROGRESS（更新于 2026-11-06 晚，分支 desktop；v0.2.1 已发布，提交 750ddbb，desktop 与 main 已推送）
 
 ## ▶ 下一步（新会话直接从这里开始）
-v0.2.0 已发布（GitHub Release，提交 a58bbd3，tag v0.2.0），已装到 `/Applications/学根.app`，用户从 Dock 用它；开发模式窗口不再作为正式窗口。程序内更新已端到端验证（/tmp 旧版 0.1.0 → 检查 → 下载 → 替换 → 自动重开为 0.2.0）。以后改完、用户说「发版」时按 `docs/desktop/RELEASE.md`。
+v0.2.1 已发布（GitHub Release）。用户装的是 `/Applications/学根.app` v0.2.0，要在学根里点「学根 → 检查更新…」→「更新并重启」升到 v0.2.1（第一次由用户亲手更新；若出问题先看 `~/Library/Application Support/学根/updates/`）。
+**重要**：安装版的技能来自打包时的快照（`Resources/xuegen/skills`），改仓库里的 SKILL.md 不会自动进用户的学根，必须发新版本。每次发版各自需要用户明确同意（自动权限检查会拦未确认的推送/发布）。
+今天的变更：PL-14 周期视图「排课」按周期排；技能断口排查后统一修了 course/teach/cycle-plan/reading/wiki-save/calendar（辅助课不出题、周核实、总控简报列辅助、剪藏、起草卡片、概念页与资料记号）；模型改为 OpenDesign `deepseek-v4.1-flash-eco`（`~/.xuegen/models.json` provider `opendesign`，settings 默认已改；备份 `/tmp/*.bak-1106`）。库：C 语言（Effective C，周一三）与数据结构（Sedgewick，周二四）已按 C1 辅助规则重排为各 14 节、每节 ≤ 45 分钟、边读边讲，`cycle.mjs check` 通过；`concepts/c/` 里旧计划 D1 的 4 页概念页保留。
+未修：Chicago 菜单「继续学习」把按钮文字当提示词发出（用户用 Bear，低优先）。
 待办小项：应用图标（需 ≥512×512 图）；总进度辅助行显示短名「C / 数据结构」（设计稿是全名，待用户表态）；`progress-panel.tsx` 527 行待拆；讲解风格问题已诊断未修（见 PL-5/6 行）。
 注意：从工具里用 `( … &)` 启动的 Electron 可能随工具进程一起退出；需要长时间运行的用 `open -n <app> --env … --args …`。
 
