@@ -267,8 +267,8 @@ export function parseRoute(text, name = "cycles/route.md") {
 /**
  * 总进度顶部：{ date, route, cycle, courses }。
  * route（没有路线页时为 null）：{ start, end, bufferWeeks, weeksLeft, cycles: [{ id, start, end, main, aux, status }], recovery: [{ start, end }] }。
- * cycle（不在周期内时为 null）：{ cycle, title, start, end, week, weeks, daysLeft, next: { cycle, start } | null, subjects, auxSubjects }。
- * courses：本周期的每门课（loadCourses 的顺序）{ slug, subject, role, name, total, done, end, next: { id, date, content } | null }，只算新课次。
+ * cycle（不在周期内时为 null）：{ cycle, title, start, end, week, weeks, daysLeft, next: { cycle, start } | null, subjects, auxSubjects, subjectDays }。
+ * courses：本周期的每门课（loadCourses 的顺序）{ slug, subject, role, name, total, done, end, next: { id, date, content } | null, lessons: [{ id, date, content, done }] }，只算新课次。
  */
 export function planInfo(route, cycle, courses, date) {
   const routeInfo = route
@@ -296,6 +296,14 @@ export function planInfo(route, cycle, courses, date) {
     next: next ? { cycle: next.id, start: next.start } : null,
     subjects: cycle.subjects,
     auxSubjects: cycleAuxSubjects(cycle),
+    subjectDays: Object.fromEntries(
+      Object.keys(cycle.subjects).map((slug) => [
+        slug,
+        [1, 2, 3, 4, 5, 6, 0]
+          .filter((day) => cycle.template[day].subject === slug || cycle.template[day].aux === slug)
+          .map((day) => WEEKDAY_ZH[day]),
+      ]),
+    ),
   };
   const list = [...courses].map(([slug, info]) => {
     const lessons = info.rows.filter((row) => row.kind === "new");
@@ -310,6 +318,7 @@ export function planInfo(route, cycle, courses, date) {
       done: lessons.length - open.length,
       end: lessons.length > 0 ? lessons[lessons.length - 1].date : null,
       next: first ? { id: first.id, date: first.date, content: first.content } : null,
+      lessons: lessons.map((row) => ({ id: row.id, date: row.date, content: row.content, done: info.done.has(row.id) })),
     };
   });
   return { date, route: routeInfo, cycle: cycleInfo, courses: list };

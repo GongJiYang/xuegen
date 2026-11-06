@@ -41,6 +41,7 @@ import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
 import { resolveStyle, styleWriteTarget } from "./core/chat/style.js";
 import { dayTitle } from "./core/format.js";
 import { resumePoint, todayPlanItems } from "./core/today.js";
+import { useUpdate } from "./core/update/use-update.js";
 import { useSkinAppearance, useSkinCycleShortcut } from "./skins/use-appearance.js";
 import { useSkin } from "./skins/use-skin.js";
 import { Gallery } from "./gallery/Gallery.js";
@@ -136,6 +137,7 @@ export function App() {
   // The 「检查理解」 question being answered, plus a counter that asks the composer
   // to focus its field. Both are owned here so they survive a skin switch (B10).
   const [answering, setAnswering] = useState<number | null>(null);
+  const updateBar = useUpdate();
 
   const requestedSkin = querySkin ?? settings.skin;
   const { module: skin, loadedId, notice } = useSkin(requestedSkin);
@@ -290,7 +292,7 @@ export function App() {
     );
   }
 
-  const { Shell, Thread, Composer, DayEditor } = skin.slots;
+  const { Shell, Thread, Composer, DayEditor, UpdateBar } = skin.slots;
 
   const notices = notice ? [notice, ...controller.notices] : controller.notices;
 
@@ -345,6 +347,7 @@ export function App() {
     contextUsage: contextUsageView(controller.contextUsage, controller.compacting, controller.compact),
     children: (
       <>
+        <UpdateBar {...updateBar} />
         <Thread
           messages={controller.messages}
           thinking={controller.thinking}

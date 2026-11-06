@@ -40,6 +40,7 @@ import type { CourseMark } from "../../core/board/progress-groups.js";
 import { GroupedProgress, MARKS } from "./progress-groups.js";
 import { auxRows, courseCards, cycleView, routeView, type CourseCard } from "../../core/board/plan-view.js";
 import { CycleCard, RouteCard } from "./plan-top.js";
+import { PlanProgress } from "./plan-progress.js";
 
 /** Course rows open and close with one short tween. */
 const EXPAND: Transition = { type: "tween", duration: 0.18, ease: [0.22, 1, 0.36, 1] };
@@ -382,7 +383,8 @@ export function ProgressPanel({
   const ready = overview.status === "ready" ? overview.value : null;
   const route = ready ? routeView(ready, today) : null;
   const cycleTop = ready ? cycleView(ready, today) : null;
-  const cards = new Map((ready ? courseCards(ready, today) : []).map((card) => [card.slug, card]));
+  const cardList = ready ? courseCards(ready, today) : [];
+  const cards = new Map(cardList.map((card) => [card.slug, card]));
   const aux = ready ? auxRows(ready) : [];
   const mainSlugs = new Set(groups?.main.flatMap((group) => group.courses.map((item) => item.course.slug)) ?? []);
   const renderRow = (course: CourseSummary, mark: CourseMark | null, meta: string | null): ReactNode => (
@@ -428,6 +430,37 @@ export function ProgressPanel({
       }}
     />
   );
+  if (ready && cycleTop) {
+    return (
+      <section className="bear-progress is-plan is-p4" aria-label={strings.tools.progress}>
+        <PlanProgress
+          overview={ready}
+          route={route}
+          cycle={cycleTop}
+          cards={cardList}
+          aux={aux}
+          groups={groups}
+          courses={courses.value}
+          courseStyles={courseStyles}
+          startedToday={startedToday}
+          onCourseStyle={onCourseStyle}
+          onStudy={onStudy}
+          onEditPlan={onEditPlan}
+          onPlanMaterial={(title) => {
+            setDraft(title);
+            setCreating(true);
+          }}
+          renderCourse={(item) => renderRow(item.course, item.mark, strings.progress.lastSeen(item.course.lastRecord?.date ?? null))}
+          footer={
+            <>
+              {form}
+              {newCourseButton}
+            </>
+          }
+        />
+      </section>
+    );
+  }
   return (
     <section className={cycleTop ? "bear-progress is-plan" : "bear-progress"} aria-label={strings.tools.progress}>
       {cycleTop ? (

@@ -206,6 +206,20 @@ export const strings = {
     open: "总控 →",
     briefPrompt: "/skill:cycle-plan 给出今天的简报（按每日简报格式），只安排、不讲课。",
   },
+  update: {
+    available: (version: string, count: number): string => `学根 v${version} 可以更新${count > 0 ? ` · ${count} 项改进` : ""}`,
+    showNotes: "看看改了什么",
+    hideNotes: "收起",
+    later: "稍后",
+    install: "更新并重启",
+    downloading: (version: string): string => `正在下载 v${version}`,
+    ready: (version: string): string => `v${version} 已就绪，学根将关闭并重新打开（对话和进度都会保留）`,
+    restart: "立即重启",
+    checking: "正在检查更新…",
+    latest: (version: string): string => `已是最新版本 v${version}`,
+    unsupported: "开发模式不检查更新",
+    close: "关闭",
+  },
   plan: {
     routeLabel: "两年路线",
     routeEndLabel: "预计结束",
@@ -245,6 +259,15 @@ export const strings = {
     auxTitle: "辅助",
     auxNote: "只做了解 · 不考核 · 每次 ≤ 45 分钟",
     auxProgress: (done: number, total: number): string => `${done} / ${total} 节`,
+    cycleRange: (start: string, end: string, weekday: string, daysLeft: number): string =>
+      `${start} → ${end}（${weekday}）· 还剩 ${daysLeft} 天`,
+    days: (days: string[]): string => days.join(" · "),
+    allLessons: (total: number): string => `全部 ${total} 节 ›`,
+    fewerLessons: "收起",
+    finished: (count: number): string => `已学完 ${count}`,
+    finishedNote: (total: number): string => `${total} 节`,
+    materialsShort: (count: number, unplanned: number): string =>
+      `资料 ${count}${unplanned > 0 ? ` · ${unplanned} 未排课` : ""}`,
   },
   progress: {
     caption: "点课程名展开；勾选由学根在「今天学到这里」时按证据写入。",

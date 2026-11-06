@@ -14,6 +14,7 @@
  */
 
 import type { DataRequest, DataResultFor } from "./data-protocol.js";
+import type { UpdateStatus } from "./update.js";
 
 /** The Electron IPC channel name for agent traffic, shared by main and preload. */
 export const IPC_CHANNEL = "xuegen";
@@ -174,6 +175,8 @@ export type AgentToHostMessage =
   | { type: "agent-status"; status: AgentStatus }
   /** Commands the composer's `/` menu offers, sourced from the loaded skills. */
   | { type: "commands"; commands: CommandInfo[] }
+  /** Sent by the main process (not the agent): the in-app update's state changed. */
+  | { type: "update-status"; status: UpdateStatus }
   | { type: "fatal"; error: string }
   | { type: "error"; error: string };
 

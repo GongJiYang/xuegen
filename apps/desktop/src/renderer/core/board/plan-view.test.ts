@@ -14,6 +14,7 @@ import {
   legendNames,
   routeView,
   shortDay,
+  subjectDaysLine,
 } from "./plan-view.js";
 
 const OVERVIEW: CycleOverview = {
@@ -41,10 +42,11 @@ const OVERVIEW: CycleOverview = {
     next: { cycle: "C2", start: "2026-12-25" },
     subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
     auxSubjects: [],
+    subjectDays: { "discrete-math": ["周一", "周三"], "programming-paradigms": ["周二", "周四"] },
   },
   courses: [
-    { slug: "epp", subject: "discrete-math", role: "main", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章" } },
-    { slug: "ctm", subject: "programming-paradigms", role: "main", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "概念阶梯" } },
+    { slug: "epp", subject: "discrete-math", role: "main", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章" }, lessons: [{ id: "D1", date: "2026-11-06", content: "Ch1 全章", done: false }] },
+    { slug: "ctm", subject: "programming-paradigms", role: "main", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "概念阶梯" }, lessons: [] },
   ],
 };
 
@@ -104,6 +106,9 @@ describe("routeView", () => {
 describe("cycleView", () => {
   it("shows the cycle's dates, days left, next cycle and the planned aux subjects", () => {
     expect(cycleView(OVERVIEW, "2026-11-06")).toEqual({
+      id: "C1",
+      name: "离散数学 + 编程语言与编程范式",
+      range: "11-06 → 12-24（周四）· 还剩 48 天",
       title: "C1 · 离散数学 + 编程语言与编程范式",
       week: "第 1 / 7 周",
       start: "11-06 周五",
@@ -117,6 +122,7 @@ describe("cycleView", () => {
     const bare = { ...OVERVIEW, route: null, cycle: { ...OVERVIEW.cycle!, title: "", next: null } };
     const view = cycleView(bare, "2026-12-24");
     expect(view?.title).toBe("C1");
+    expect(view?.name).toBe("C1");
     expect(view?.sub).toBe("还剩 48 天");
     expect(view?.aux).toBeNull();
     expect(view?.percent).toBe(100);
@@ -130,6 +136,7 @@ describe("courseCards", () => {
     expect(epp).toEqual({
       slug: "epp",
       role: "main",
+      subject: "discrete-math",
       name: "离散",
       done: 0,
       total: 15,
@@ -137,6 +144,7 @@ describe("courseCards", () => {
       mark: "now",
       end: "结课 12-23",
       next: { when: "今天", text: "D1 Ch1 全章" },
+      lessons: [{ id: "D1", date: "11-06", content: "Ch1 全章", done: false }],
     });
     expect(ctm?.next?.when).toBe("11-10 周二");
     const late = courseCards(OVERVIEW, "2026-11-08")[0];
@@ -146,7 +154,7 @@ describe("courseCards", () => {
   it("marks a finished course done and copes with no schedule", () => {
     const finished = { ...OVERVIEW, courses: [{ ...OVERVIEW.courses[0]!, done: 15, next: null }] };
     expect(courseCards(finished, "2026-12-24")[0]).toMatchObject({ mark: "done", percent: 100, next: null });
-    const empty = { ...OVERVIEW, courses: [{ slug: "x", subject: "s", role: "main" as const, name: "x", total: 0, done: 0, end: null, next: null }] };
+    const empty = { ...OVERVIEW, courses: [{ slug: "x", subject: "s", role: "main" as const, name: "x", total: 0, done: 0, end: null, next: null, lessons: [] }] };
     expect(courseCards(empty, "2026-11-06")[0]).toMatchObject({ mark: "now", percent: 0, end: null, next: null });
   });
 });
@@ -205,7 +213,7 @@ describe("auxRows and hasAux", () => {
     const withAux: CycleOverview = {
       ...OVERVIEW,
       cycle: { ...OVERVIEW.cycle!, subjects: { ...OVERVIEW.cycle!.subjects, c: "C", ds: "数据结构" }, auxSubjects: ["c", "ds"] },
-      courses: [...OVERVIEW.courses, { slug: "effc", subject: "c", role: "aux" as const, name: "Effective C", total: 7, done: 1, end: "2026-12-23", next: null }],
+      courses: [...OVERVIEW.courses, { slug: "effc", subject: "c", role: "aux" as const, name: "Effective C", total: 7, done: 1, end: "2026-12-23", next: null, lessons: [] }],
     };
     expect(auxRows(withAux)).toEqual([
       { subject: "c", subjectName: "C", course: { slug: "effc", name: "Effective C", done: 1, total: 7 } },
@@ -218,5 +226,13 @@ describe("auxRows and hasAux", () => {
     expect(hasAux(MONTH)).toBe(false);
     expect(hasAux({ ...MONTH, days: { "2026-12-21": { cycle: "C1", week: 7, type: "深度", subject: "x", course: null, aux: "c", auxCourse: null } } })).toBe(true);
     expect(hasAux(null)).toBe(false);
+  });
+});
+
+describe("subjectDaysLine", () => {
+  it("joins the subject's days", () => {
+    expect(subjectDaysLine(OVERVIEW, "discrete-math")).toBe("周一 · 周三");
+    expect(subjectDaysLine(OVERVIEW, "nope")).toBe("");
+    expect(subjectDaysLine({ ...OVERVIEW, cycle: null }, "discrete-math")).toBe("");
   });
 });

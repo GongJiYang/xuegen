@@ -155,6 +155,9 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       // The new session's transcript arrives as its own `history` event;
       // `useChat.openSession` resolves its promise from this reply.
       return state;
+    case "update-status":
+      // The update bar listens to this itself (core/update/use-update).
+      return state;
     case "commands":
       // The agent lists `/skill:<name>` entries, filtered to enabled skills at
       // query time; the composer's `/` menu appends them to its built-ins.

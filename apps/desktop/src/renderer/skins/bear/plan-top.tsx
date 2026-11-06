@@ -70,3 +70,17 @@ export function CycleCard({ view }: { view: CycleView }) {
     </section>
   );
 }
+
+/** The cycle line of 总进度 v4: 「C1」 badge, name, week; the range and days left under it. */
+export function CycleLine({ view }: { view: CycleView }) {
+  return (
+    <section className="bear-p4-cycle">
+      <div className="bear-p4-cycle-row">
+        <span className="bear-p4-cid">{view.id}</span>
+        <span className="bear-p4-ctitle">{view.name}</span>
+        <span className="bear-pg-meta">{view.week}</span>
+      </div>
+      <div className="bear-p4-cycle-sub">{view.range}</div>
+    </section>
+  );
+}

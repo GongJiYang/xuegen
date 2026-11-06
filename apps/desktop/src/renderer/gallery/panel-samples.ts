@@ -56,7 +56,7 @@ export const SAMPLE_COURSES: CourseSummary[] = [
     title: "编程范式",
     weekLabel: "W1 核心思想",
     week: { done: 3, total: 5, tasks: [{ label: "说清声明式 vs 命令式", done: true }] },
-    overall: { done: 3, total: 6 },
+    overall: { done: 6, total: 6 },
     lastRecord: { date: "2026-11-03", seq: "01" },
     nextSession: "Erlang 进程模型",
     styleHint: null,
@@ -190,11 +190,12 @@ export const SAMPLE_OVERVIEW: CycleOverview = {
     next: { cycle: "C2", start: "2026-12-25" },
     subjects: { "discrete-math": "离散", "programming-paradigms": "范式", "c-systems-programming": "C", "data-structures": "数据结构" },
     auxSubjects: ["c-systems-programming", "data-structures"],
+    subjectDays: { "discrete-math": ["周一", "周三"], "programming-paradigms": ["周二", "周四"], "c-systems-programming": ["周一", "周三"], "data-structures": ["周二", "周四"] },
   },
   courses: [
-    { slug: "discrete-math-epp", subject: "discrete-math", role: "main", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章：变量、三类陈述、集合、关系与函数" } },
-    { slug: "ctm", subject: "programming-paradigms", role: "main", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "Ch1 概念阶梯 + Ch2 §2.2–2.3" } },
-    { slug: "effective-c", subject: "c-systems-programming", role: "aux", name: "Effective C", total: 7, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-09", content: "Ch1 起步" } },
+    { slug: "discrete-math-epp", subject: "discrete-math", role: "main", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章：变量、三类陈述、集合、关系与函数" }, lessons: [{ id: "D1", date: "2026-11-06", content: "Ch1 全章", done: false }, { id: "D2", date: "2026-11-09", content: "Ch2 真值表", done: false }, { id: "D3", date: "2026-11-11", content: "Ch2 有效论证", done: false }, { id: "D4", date: "2026-11-16", content: "Ch3 量词", done: false }] },
+    { slug: "ctm", subject: "programming-paradigms", role: "main", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "Ch1 概念阶梯 + Ch2 §2.2–2.3" }, lessons: [] },
+    { slug: "effective-c", subject: "c-systems-programming", role: "aux", name: "Effective C", total: 7, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-09", content: "Ch1 起步" }, lessons: [] },
   ],
 };
 
@@ -203,6 +204,18 @@ export const SAMPLE_SUBJECTS: SubjectsOverview = {
   date: "2026-11-06",
   cycle: { cycle: "C1", week: 1, weeks: 7, aux: "（空）；（空）——路线原定数据结构与算法、C 与系统编程" },
   subjects: [
+    {
+      slug: "discrete-math",
+      title: "离散数学",
+      layer: "A 数学与理论基础",
+      route: "C1 主项",
+      main: true,
+      courses: ["discrete-math-epp"],
+      materials: [
+        { type: "书籍", mark: "now", status: "学习中", role: "主线", title: "Discrete Mathematics and Its Applications", course: "discrete-math-epp" },
+        { type: "书籍", mark: "none", status: "未制定计划", role: "参考", title: "Concrete Mathematics", course: null },
+      ],
+    },
     {
       slug: "programming-paradigms",
       title: "编程语言与编程范式",

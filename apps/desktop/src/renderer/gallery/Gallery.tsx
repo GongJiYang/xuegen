@@ -185,6 +185,17 @@ export function Gallery({
         </section>
 
         <section>
+          <h2>UpdateBar</h2>
+          <slots.UpdateBar
+            status={{ kind: "available", current: "0.2.0", version: "0.3.0", notes: ["总进度第四版", "对话左侧钉板"] }}
+            dismissed={false}
+            onDownload={() => undefined}
+            onInstall={() => undefined}
+            onDismiss={() => undefined}
+          />
+        </section>
+
+        <section>
           <h2>错误 / 空对话 / 未登录</h2>
           <Message slots={slots} content={content} message={SAMPLE_ERROR_MESSAGE} />
           <slots.Thread

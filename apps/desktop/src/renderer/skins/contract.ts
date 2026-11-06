@@ -47,6 +47,7 @@ import type { Activity } from "../core/chat/activity.js";
 import type { PinBoard } from "../core/chat/pin-board.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
+import type { UpdateBarState } from "../core/update/use-update.js";
 
 /** How a skin draws a piece of classified content. */
 export interface ContentRenderers {
@@ -288,6 +289,9 @@ export interface ThinkingProps {
   /** Presentational only; the Shell/Thread decides when to mount it. */
   label: string;
 }
+
+/** The update bar above the transcript (design `?d=update`). Renders nothing when idle or dismissed. */
+export type UpdateBarProps = UpdateBarState;
 
 export interface ExerciseProps {
   /** The callout title, or empty to use the default label. */
@@ -614,6 +618,7 @@ export interface SkinSlots {
   AssistantMessage: ComponentType<AssistantMessageProps>;
   ToolActivity: ComponentType<ToolActivityProps>;
   Thinking: ComponentType<ThinkingProps>;
+  UpdateBar: ComponentType<UpdateBarProps>;
   Exercise: ComponentType<ExerciseProps>;
   Composer: ComponentType<ComposerProps>;
   ModelPicker: ComponentType<ModelPickerProps>;

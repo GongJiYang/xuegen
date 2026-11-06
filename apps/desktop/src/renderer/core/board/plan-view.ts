@@ -44,6 +44,12 @@ export interface RouteView {
 }
 
 export interface CycleView {
+  /** 「C1」. */
+  id: string;
+  /** The title without 「C1 · 」, or the id when there is no title. */
+  name: string;
+  /** 「11-06 → 12-24（周四）· 还剩 48 天」. */
+  range: string;
   /** 「C1 · 离散数学 + 编程语言与编程范式」. */
   title: string;
   /** 「第 1 / 7 周」. */
@@ -63,6 +69,7 @@ export interface CycleView {
 export interface CourseCard {
   slug: string;
   role: CourseRole;
+  subject: string;
   name: string;
   done: number;
   total: number;
@@ -73,6 +80,8 @@ export interface CourseCard {
   end: string | null;
   /** `when` is 「今天」 / 「11-10 周二」 / 「11-03 没学」; `text` is 「D1 Ch1 …」. */
   next: { when: string; text: string } | null;
+  /** Every lesson: id, 「11-06」, content, done. */
+  lessons: { id: string; date: string; content: string; done: boolean }[];
 }
 
 function isNow(start: string, end: string, today: string): boolean {
@@ -120,6 +129,9 @@ export function cycleView(overview: CycleOverview, today: string): CycleView | n
   const reached = Math.round(((daysBetween(cycle.start, today) + 1) / span) * 100);
   const row = overview.route?.cycles.find((item) => item.id === cycle.cycle);
   return {
+    id: cycle.cycle,
+    name: cycle.title || cycle.cycle,
+    range: strings.plan.cycleRange(cycle.start.slice(5), cycle.end.slice(5), shortDay(cycle.end).split(" ")[1] ?? "", cycle.daysLeft),
     title: cycle.title ? `${cycle.cycle} · ${cycle.title}` : cycle.cycle,
     week: strings.plan.week(cycle.week, cycle.weeks),
     start: shortDay(cycle.start),
@@ -145,6 +157,7 @@ export function courseCards(overview: CycleOverview, today: string): CourseCard[
     return {
       slug: course.slug,
       role: course.role,
+      subject: course.subject,
       name: course.name,
       done: course.done,
       total: course.total,
@@ -152,6 +165,7 @@ export function courseCards(overview: CycleOverview, today: string): CourseCard[
       mark,
       end: course.end ? strings.plan.courseEnd(course.end.slice(5)) : null,
       next: next ? { when, text: `${next.id} ${next.content}` } : null,
+      lessons: course.lessons.map((lesson) => ({ ...lesson, date: lesson.date.slice(5) })),
     };
   });
 }
@@ -236,4 +250,9 @@ export function auxRows(overview: CycleOverview): AuxRow[] {
 /** Whether the month has any auxiliary day (the legend then explains the second line). */
 export function hasAux(month: CycleMonth | null): boolean {
   return month ? Object.values(month.days).some((slot) => slot.aux !== null) : false;
+}
+
+/** 「周一 · 周三」 for a subject of the current cycle, or "". */
+export function subjectDaysLine(overview: CycleOverview, subject: string): string {
+  return strings.plan.days(overview.cycle?.subjectDays[subject] ?? []);
 }

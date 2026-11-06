@@ -1,6 +1,6 @@
 {
   "name": "xuegen-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Xuegen desktop shell: a sandboxed Electron window that streams a Xuegen agent session.",
   "private": true,
   "type": "module",
@@ -9,6 +9,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --config electron-builder.json",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -32,6 +33,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "4.7.0",
     "electron": "39.8.10",
+    "electron-builder": "26.0.12",
     "electron-vite": "2.3.0",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",

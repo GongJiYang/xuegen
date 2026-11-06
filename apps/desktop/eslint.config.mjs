@@ -35,7 +35,7 @@ function restricted(group, message, noAnimation = false) {
 
 export default tseslint.config(
   // Bundled third-party code (see its SOURCE.txt) is not ours to lint, like node_modules.
-  { ignores: ["out/**", "node_modules/**", "*.tsbuildinfo", "src/renderer/skins/bear/vendor/**/*.js"] },
+  { ignores: ["out/**", "dist/**", "node_modules/**", "*.tsbuildinfo", "src/renderer/skins/bear/vendor/**/*.js"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

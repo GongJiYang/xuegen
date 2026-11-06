@@ -33,6 +33,7 @@ import { CalendarPanel } from "./calendar-panel.js";
 import { SkillsPanel } from "./skills-panel.js";
 import { DayEditor } from "./day-editor.js";
 import { SlashMenu } from "./slash-menu.js";
+import { UpdateBar } from "./update-bar.js";
 import { BearContentNode } from "./content.js";
 import { bearMotion } from "./motion.js";
 import { BEAR_BODY_SCALE_STEPS } from "./body-scale.js";
@@ -44,6 +45,7 @@ const slots: SkinSlots = {
   AssistantMessage,
   ToolActivity,
   Thinking,
+  UpdateBar,
   Exercise,
   Composer,
   ModelPicker,

@@ -1,7 +1,14 @@
-# PROGRESS（更新于 2026-11-06，分支 desktop；BE-6～PL-7 已全部提交）
+# PROGRESS（更新于 2026-11-06 晚，分支 desktop；最后推送 2cb31f6，之后 PL-11/12/13 未提交）
 
 ## ▶ 下一步（新会话直接从这里开始）
-核对 BE-6 卡片面板：测试副本 Electron（端口 9460）打开抽屉「卡片」截图，对照 `/Users/gjy/pi-learning/design/animate/?d=cards`，通过后把 `docs/desktop/batch-bear-6.md` 移到 `docs/archive/desktop/`；然后做 Bear「技能」面板设计稿（Claude 做，`design/animate/` 新建 `?d=skills`）给用户确认。
+1. **审查 PL-13（程序内更新）**：Devin 已跑完，尚未审查。任务单 `docs/desktop/batch-plan-13.md`，报告在 `/Users/gjy/pi-learning/devin-plan-13.log` 结尾。按 xuegen-arch-gate 审查 `src/shared/update.ts`、`src/main/update.ts`、`main/index.ts`（菜单「检查更新…」、DATA_CHANNEL 拦截 update.*）、三皮肤 `update-bar.tsx`、App.tsx ≤ 450；重跑全部检查与 `npm run dist`；归档任务单。设计稿 `?d=update` 已获批。
+2. **发 v0.2.0**：用户问过「可以发版吗」，Claude 的回答是 PL-13 验收后发。发版前向用户报告审查结果并确认，然后按 `docs/desktop/RELEASE.md` 执行。
+3. **首次安装**：`dist/mac-arm64/学根.app` 拷到 `/Applications` 并清隔离属性；关掉开发模式正式窗口（端口 9470）前先问用户。之后发 v0.2.1 时让用户在学根里点「更新并重启」验证整条流程。
+4. 小项：总进度辅助行显示短名「C / 数据结构」（设计稿是全名，待用户表态）；`progress-panel.tsx` 527 行待拆；讲解风格问题已诊断未修（见 PL-5/6 行）。
+
+PL-12（已完成）：`electron-builder.json` + `npm run dist` → `dist/xuegen-<ver>-arm64-mac.zip`（未签名，约 129 MB）；打包后 `findRepoRoot` 读 `Resources/xuegen`，Claude 实测免环境变量可用。仓库已公开（desktop 与 main 同步推送）。
+
+旧的下一步：核对 BE-6 卡片面板：测试副本 Electron（端口 9460）打开抽屉「卡片」截图，对照 `/Users/gjy/pi-learning/design/animate/?d=cards`，通过后把 `docs/desktop/batch-bear-6.md` 移到 `docs/archive/desktop/`；然后做 Bear「技能」面板设计稿（Claude 做，`design/animate/` 新建 `?d=skills`）给用户确认。
 
 ## 当前位置
 学习周期 C1 已开跑（2026-11-06 ~ 12-24，周五至周四为一周；离散 D1 = 11-06，CTM D1 = 11-10）。桌面版周期视图、日历类型、总进度按科目分组、总控会话、对话里的活动头像都已完成并在测试副本验收。总进度/日历按设计稿 `?d=plan` 重做完成（PL-1/2），路线终止日期读库里新页 `wiki/cycles/route.md`。用户正式窗口（端口 9470）07:25 用旧代码启动，需重启才能用上 PL（改了主进程）。测试窗口（9460）可能还开着，下次用前先确认或关掉。
@@ -9,6 +16,7 @@
 ## 已完成（最近的在前）
 | 批次 | 结果 |
 |---|---|
+| PL-11 | 总进度第四版（`skins/bear/plan-progress.tsx` 独立组件，设计稿 `?d=progress4`），已学完的课收进科目底部；测试窗口截图核对通过。`progress-panel.tsx` 527 行待拆 |
 | PL-10 | 对话左侧钉板（今日要点 + 当前题目，窄时缩成按钮；Claude 补了公式渲染）；teach/course SKILL：开课先写概念页（一术语一页）+ 今日要点框，题目必须用 [!question]。真实窗口用伪造会话验收过宽屏状态 |
 | PL-8/9 | 每天「一个主项 + 一个辅助」：周模板第 4 列「辅助」（只能在深度日、≤45 分钟、不考核），课程 role main/aux；Bear 日历第二行、今天辅助行、总进度辅助区。库已改：c1.md 四列模板（周一三 C 与系统编程，周二四 数据结构与算法）、新建 `subjects/data-structures-algorithms.md`、subjects/index/log/AGENTS.md 同步；cycle-plan SKILL 同步。待用户：在总控登记 Effective C 并排课（周一三） |
 | PL-5/6 + course 技能 | 「正在思考」整次回答只画一行、去掉呼吸动画（未在真实回答里目测）；每门课每天第一次开课用新会话（离散课对不上号的原因：开课发进了 11-05 旧会话）。course SKILL 加「原书：带读/先读后讲/边读边讲」（阅读算在 90 分钟内）与「骨架：教材目录/自拟」。PL-7 已做：新课程表单去掉「每天时长」（学根按难度估每节时长，course SKILL 已写）、加「原书」三档。讲解风格问题已诊断未修（两处来源：desktop.json courseStyles vs 课程页「讲解风格」；Next Session 混入风格词；teach SKILL 无冲突规则、「延续」说法与每条带标签不符；「深度」与学习深度轴混淆） |

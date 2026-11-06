@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.2.0 — 2026-11-06
+
+- Desktop: packaged as 学根.app (`npm run dist`, unsigned zip; bundled skills found under `Resources/xuegen`). In-app update: the packaged app checks this repository's GitHub releases (quietly 8 s after start, or via 学根 → 检查更新…), shows an update bar (改进条目、稍后、更新并重启), downloads with progress, then swaps the app bundle and relaunches; only this repository's release assets are accepted.
+- Desktop (Bear): 总进度 v4 during a cycle — expected end above the 12×7 week grid, a 「C1」 cycle line with range and days left, one block per main subject (its days, cycle courses as compact cards with the next lesson on one line; expanded: next three lessons, all lessons, style pills, 改计划, 开始), materials and finished courses folded at the bottom of each subject, aux rows, and folded 路线外 / 已学专题. `cycle.mjs overview` adds each subject's days and every lesson of each course.
 - Desktop (Bear): a pin rail in the margin left of the chat shows the lesson's 今日要点 box (`> [!abstract]`) and the latest round of 检查理解 questions, with jump links back to the source message; when the margin is too narrow it folds into a 「要点 N · 题目 M」 chip. `teach`/`course`: each lesson first writes its core terms to `wiki/concepts/` (one page per term) and opens with the 今日要点 box; every question round uses `[!question]` callouts.
 - Study cycles: the weekly template takes an optional 辅助 column — each 深度 day pairs a main subject with an auxiliary one (next cycle's main subject; short, not assessed). `cycle.mjs` marks courses main/aux and checks aux courses against their own days. Bear: calendar cells show the aux line, the day detail and 今天 list the aux lesson, 明天 mentions it, and 总进度 has a 辅助 block (course progress or 排课).
 - Desktop: the 新课程 form drops 每天时长 (the `course` skill now estimates each lesson's length from the material's difficulty and length) and adds 原书 — 带读 / 先读后讲 / 边读边讲, with a one-line hint — carried into the create-course request.

@@ -39,6 +39,7 @@ import { isDataRequest, type DataResponse } from "../shared/data-protocol.js";
 import { findRepoRoot } from "../agent/environment.js";
 import { readSettings, writeSettings } from "./settings.js";
 import { handleDataRequest } from "./data/handler.js";
+import { createUpdater, type Updater } from "./update.js";
 
 /** A renderer settings request, validated at the boundary before it is applied. */
 type SettingsRequest = { action: "get" } | { action: "set"; patch: Partial<DesktopSettings> };
@@ -62,6 +63,7 @@ app.setName("学根");
 
 let mainWindow: BrowserWindow | null = null;
 let agentProcess: UtilityProcess | null = null;
+let updater: Updater | null = null;
 let restartCount = 0;
 /** Set on before-quit so an agent exit during shutdown is not treated as a crash. */
 let quitting = false;
@@ -187,7 +189,23 @@ function showAndFocus(): void {
  */
 function installApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [];
-  if (process.platform === "darwin") template.push({ role: "appMenu" });
+  if (process.platform === "darwin") {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { label: "检查更新…", click: () => void updater?.check(true) },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    });
+  }
   template.push({ role: "fileMenu" }, { role: "editMenu" }, { role: "windowMenu" });
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -268,9 +286,12 @@ app.whenReady().then(() => {
     app.dock?.setIcon(DEV_DOCK_ICON);
   }
 
+  updater = createUpdater((status) => sendToRenderer({ type: "update-status", status }));
   startAgentProcess();
   installApplicationMenu();
   createWindow();
+  // Packaged builds look for a newer release once, quietly, after start-up.
+  if (app.isPackaged) setTimeout(() => void updater?.check(false), 8000);
 
   ipcMain.on(IPC_CHANNEL, (_event, envelope: IpcEnvelope<HostToAgentMessage>) => {
     // The renderer is not fully trusted; validate before forwarding to the agent.
@@ -306,6 +327,9 @@ app.whenReady().then(() => {
       return { ok: false, code: "invalid-request", error: "请求格式非法。" };
     }
     try {
+      if (request.kind === "update.check" && updater) return { ok: true, data: await updater.check(true) };
+      if (request.kind === "update.download" && updater) return { ok: true, data: await updater.download() };
+      if (request.kind === "update.install" && updater) return { ok: true, data: await updater.install() };
       return await handleDataRequest(request);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

@@ -17,12 +17,21 @@ import { fileURLToPath } from "node:url";
  *
  * The main process passes it explicitly (`XUEGEN_REPO_ROOT`) because once this
  * module is bundled its file path no longer sits at the same depth as its source.
- * The fallback walks up from this file until it finds the root `package.json`,
- * which also covers the smoke script running from source.
+ * The fallbacks are the packaged app's `Resources/xuegen` (extra resources) and
+ * then walking up from this file until the root `package.json` is found, which
+ * also covers the smoke script running from source.
  */
 export function findRepoRoot(): string {
   const fromEnv = process.env.XUEGEN_REPO_ROOT;
   if (fromEnv && existsSync(join(fromEnv, "package.json"))) return resolve(fromEnv);
+
+  // Packaged app: the repository files ship as extra resources (electron-builder.json).
+  const resources = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  if (resources) {
+    const bundled = join(resources, "xuegen");
+    if (existsSync(join(bundled, "package.json")) && existsSync(join(bundled, "instructions.md")))
+      return bundled;
+  }
 
   let current = dirname(fileURLToPath(import.meta.url));
   const { root } = parse(current);

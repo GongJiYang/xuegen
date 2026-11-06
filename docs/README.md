@@ -14,6 +14,7 @@
 | `docs/desktop/UI-ARCHITECTURE.md` | 可替换皮肤架构、契约、样式隔离与动效原则。 |
 | `docs/desktop/FEATURES.md` | 桌面版功能 × 输入 × 输出总表。 |
 | `docs/desktop/ROADMAP.md` | 桌面版批次路线图。 |
+| `docs/desktop/RELEASE.md` | 发版步骤：打包、GitHub Release、程序内更新、首次安装。 |
 | `docs/desktop/skins/README.md` | 皮肤登记表（id、版本、状态）。 |
 | `docs/desktop/skins/chicago.md` | Chicago 皮肤的视觉与交互规范。 |
 | `docs/platform/ROADMAP.md` | 平台能力（skill 仓库、RAG）路线。 |

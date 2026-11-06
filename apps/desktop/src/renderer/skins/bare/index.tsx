@@ -20,6 +20,7 @@ import {
 } from "../../core/settings/body-font.js";
 import { BareContentNode } from "./content.js";
 import { ReadingPanel, TodayPanel, ToolDock } from "./panels.js";
+import { UpdateBar } from "./update-bar.js";
 import { ProgressPanel } from "./progress-panel.js";
 import { BoardPanel, CalendarPanel, CardsPanel, DayEditor, NotesPanel, SkillsPanel, SlashMenu } from "./panels-more.js";
 import {
@@ -133,6 +134,7 @@ const bareSlots: SkinSlots = {
   AssistantMessage,
   ToolActivity,
   Thinking,
+  UpdateBar,
   Exercise,
   Composer,
   ModelPicker,

@@ -1,0 +1,20 @@
+{
+  "appId": "com.gongjiyang.xuegen",
+  "productName": "学根",
+  "directories": { "output": "dist" },
+  "files": ["out/**", "package.json"],
+  "extraResources": [
+    { "from": "../../package.json", "to": "xuegen/package.json" },
+    { "from": "../../instructions.md", "to": "xuegen/instructions.md" },
+    { "from": "../../defaults", "to": "xuegen/defaults" },
+    { "from": "../../skills", "to": "xuegen/skills", "filter": ["**/*", "!**/*.test.mjs"] },
+    { "from": "../../scripts", "to": "xuegen/scripts", "filter": ["**/*", "!**/*.test.mjs"] }
+  ],
+  "mac": {
+    "target": [{ "target": "zip", "arch": ["arm64"] }],
+    "identity": null,
+    "category": "public.app-category.education",
+    "artifactName": "xuegen-${version}-${arch}-mac.${ext}"
+  },
+  "publish": null
+}

@@ -102,12 +102,12 @@ describe("Bear 总进度 panel", () => {
     render(<ProgressPanel {...baseProps({ groups: SAMPLE_GROUPS, overview: { status: "ready", value: SAMPLE_OVERVIEW } })} />);
     expect(screen.getByText("2028 年 7 月 20 日")).toBeTruthy();
     expect(screen.getByText(strings.plan.routeEndLabel)).toBeTruthy();
-    expect(screen.getByText("C1 · 离散数学 + 编程语言与编程范式")).toBeTruthy();
-    expect(screen.getByText("12-24 周四 结束")).toBeTruthy();
+    expect(screen.getByText("离散数学 + 编程语言与编程范式")).toBeTruthy();
+    expect(screen.getByText("11-06 → 12-24（周四）· 还剩 48 天")).toBeTruthy();
     expect(screen.queryByText(strings.progress.caption)).toBeNull();
     expect(screen.queryByText(strings.progress.cycleTop("C1", 1, 7))).toBeNull();
     expect(screen.getByText(strings.plan.courseEnd("12-24"))).toBeTruthy();
-    expect(screen.getByText(strings.plan.lessonTotal(14).trim())).toBeTruthy();
+    expect(screen.getByText("/14")).toBeTruthy();
     expect(screen.getByText(strings.plan.auxNote)).toBeTruthy();
     expect(screen.getByText("Effective C")).toBeTruthy();
     expect(screen.getByText(strings.plan.auxProgress(0, 7))).toBeTruthy();

@@ -12,6 +12,7 @@
  */
 
 import type { DesktopSettings } from "./protocol.js";
+import type { UpdateStatus } from "./update.js";
 
 /** Reading priority, mirroring `reading-queue.mjs`. */
 export type ReadingPriority = "high" | "medium" | "low";
@@ -200,6 +201,8 @@ export interface CycleCourseProgress {
   end: string | null;
   /** The first lesson not yet done (may be in the past). */
   next: { id: string; date: string; content: string } | null;
+  /** Every new lesson in schedule order, with whether it is done. */
+  lessons: { id: string; date: string; content: string; done: boolean }[];
 }
 
 /** The top of 总进度, from `cycle.mjs overview --json`. */
@@ -220,6 +223,8 @@ export interface CycleOverview {
     subjects: Record<string, string>;
     /** The auxiliary column's subjects, in template order. */
     auxSubjects: string[];
+    /** Subject slug → its days in the template (main or aux column), Monday first: 「周一」… */
+    subjectDays: Record<string, string[]>;
   } | null;
   courses: CycleCourseProgress[];
 }
@@ -314,7 +319,10 @@ export type DataRequest =
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
   | { kind: "skills.fetch"; url: string }
   | { kind: "skills.review"; name: string }
-  | { kind: "skills.discard"; name: string };
+  | { kind: "skills.discard"; name: string }
+  | { kind: "update.check" }
+  | { kind: "update.download" }
+  | { kind: "update.install" };
 
 /** The typed payload each request kind resolves to. */
 export interface DataResponseMap {
@@ -339,6 +347,9 @@ export interface DataResponseMap {
   "skills.fetch": { skills: { name: string; path: string }[] };
   "skills.review": SkillReview;
   "skills.discard": { name: string };
+  "update.check": UpdateStatus;
+  "update.download": UpdateStatus;
+  "update.install": UpdateStatus;
 }
 
 /**
@@ -451,6 +462,10 @@ export function isDataRequest(value: unknown): value is DataRequest {
     case "skills.review":
     case "skills.discard":
       return typeof value.name === "string" && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value.name);
+    case "update.check":
+    case "update.download":
+    case "update.install":
+      return true;
     default:
       return false;
   }

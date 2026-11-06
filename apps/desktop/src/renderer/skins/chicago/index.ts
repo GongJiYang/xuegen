@@ -33,6 +33,7 @@ import { CalendarPanel } from "./calendar-panel.js";
 import { SkillsPanel } from "./skills-panel.js";
 import { DayEditor } from "./day-editor.js";
 import { SlashMenu } from "./slash-menu.js";
+import { UpdateBar } from "./update-bar.js";
 import { ChicagoContentNode } from "./content.js";
 import { chicagoMotion } from "./motion.js";
 import { chicagoBodyScaleSteps } from "./body-scale.js";
@@ -44,6 +45,7 @@ const slots: SkinSlots = {
   AssistantMessage,
   ToolActivity,
   Thinking,
+  UpdateBar,
   Exercise,
   Composer,
   ModelPicker,

@@ -24,6 +24,9 @@ describe("isDataRequest", () => {
       { kind: "subjects.list", date: "2026-11-06" },
       { kind: "skills.setEnabled", name: "reading", enabled: false },
       { kind: "skills.fetch", url: "https://example.com/skill.git" },
+      { kind: "update.check" },
+      { kind: "update.download" },
+      { kind: "update.install" },
     ];
     for (const request of valid) {
       expect(isDataRequest(request)).toBe(true);

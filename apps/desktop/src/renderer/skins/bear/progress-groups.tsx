@@ -13,7 +13,7 @@ import { strings } from "../../core/strings.js";
 /** The state marks every Bear status line uses. */
 export const MARKS: Record<SubjectMaterial["mark"], string> = { now: "●", warn: "!", done: "✓", plan: "○", none: "◌" };
 
-function Section({
+export function Section({
   title,
   meta,
   warn,
@@ -46,7 +46,7 @@ function Section({
   );
 }
 
-function Materials({ group, onPlan }: { group: SubjectGroup; onPlan?: (title: string) => void }) {
+export function Materials({ group, onPlan }: { group: SubjectGroup; onPlan?: (title: string) => void }) {
   const [open, setOpen] = useState(false);
   if (group.materials.length === 0) return null;
   const types = [...new Set(group.materials.map((item) => item.type))];

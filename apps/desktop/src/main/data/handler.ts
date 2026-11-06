@@ -50,6 +50,10 @@ export async function handleDataRequest(request: DataRequest): Promise<DataRespo
         discardSkill(request.name);
         return { name: request.name };
       });
+    case "update.check":
+    case "update.download":
+    case "update.install":
+      return { ok: false, code: "unknown", error: "更新请求只能由主进程处理。" };
     default:
       return handleScriptRequest(request);
   }
@@ -59,7 +63,18 @@ export async function handleDataRequest(request: DataRequest): Promise<DataRespo
 async function handleScriptRequest(
   request: Exclude<
     DataRequest,
-    { kind: "anki.status" | "skills.list" | "skills.setEnabled" | "skills.fetch" | "skills.review" | "skills.discard" }
+    {
+      kind:
+        | "anki.status"
+        | "skills.list"
+        | "skills.setEnabled"
+        | "skills.fetch"
+        | "skills.review"
+        | "skills.discard"
+        | "update.check"
+        | "update.download"
+        | "update.install";
+    }
   >,
 ): Promise<DataResponse> {
   const vault = requireVault();

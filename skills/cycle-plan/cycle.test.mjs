@@ -353,6 +353,7 @@ test("planInfo gives the route, the cycle and each course's lesson counts", () =
     next: { cycle: "C2", start: "2026-12-25" },
     subjects: { x: "离散", y: "范式" },
     auxSubjects: [],
+    subjectDays: { x: ["周一", "周三"], y: ["周二", "周四"] },
   });
   assert.deepEqual(info.courses[0], {
     slug: "a",
@@ -363,6 +364,7 @@ test("planInfo gives the route, the cycle and each course's lesson counts", () =
     done: 1,
     end: aRows.filter((row) => row.kind === "new").at(-1).date,
     next: { id: "D2", date: "2026-11-09", content: "第 2 课" },
+    lessons: aRows.filter((row) => row.kind === "new").map((row) => ({ id: row.id, date: row.date, content: row.content, done: row.id === "D1" })),
   });
   assert.equal(info.courses[1].done, 0);
   assert.equal(info.courses[1].next.id, "D1");
