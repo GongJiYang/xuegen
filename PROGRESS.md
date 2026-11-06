@@ -1,7 +1,8 @@
 # PROGRESS（更新于 2026-11-06 晚，分支 desktop；v0.2.1 已发布，提交 750ddbb，desktop 与 main 已推送）
 
 ## ▶ 下一步（新会话直接从这里开始）
-v0.2.1 已发布（GitHub Release）。用户装的是 `/Applications/学根.app` v0.2.0，要在学根里点「学根 → 检查更新…」→「更新并重启」升到 v0.2.1（第一次由用户亲手更新；若出问题先看 `~/Library/Application Support/学根/updates/`）。
+v0.2.1 已发布，并由 Claude 直接装到 `/Applications/学根.app`（用户选的；旧版备份 `/tmp/学根-0.2.0.app.bak`）。
+**先做：修检查更新**。现在 `src/main/update.ts` 查的是 `api.github.com/.../releases/latest`，未登录每小时 60 次、按出口 IP 计，今天被测试用光导致用户点「检查更新」失败（403）。改成不走 API：请求 `https://github.com/GongJiYang/xuegen/releases/latest` 读 302 跳转里的 tag 得到版本号，安装包地址按 `releases/download/v<ver>/xuegen-<ver>-arm64-mac.zip` 拼出，更新说明另传一个 `notes.md` 附件（`RELEASE.md` 同步加这一步）；`shared/update.ts` 的纯函数与测试相应改。另外菜单「检查更新…」失败时要有可见提示（确认 403 时是否显示了 error 条）。改完发 v0.2.2（需用户同意），让用户从学根里亲手更新一次。
 **重要**：安装版的技能来自打包时的快照（`Resources/xuegen/skills`），改仓库里的 SKILL.md 不会自动进用户的学根，必须发新版本。每次发版各自需要用户明确同意（自动权限检查会拦未确认的推送/发布）。
 今天的变更：PL-14 周期视图「排课」按周期排；技能断口排查后统一修了 course/teach/cycle-plan/reading/wiki-save/calendar（辅助课不出题、周核实、总控简报列辅助、剪藏、起草卡片、概念页与资料记号）；模型改为 OpenDesign `deepseek-v4.1-flash-eco`（`~/.xuegen/models.json` provider `opendesign`，settings 默认已改；备份 `/tmp/*.bak-1106`）。库：C 语言（Effective C，周一三）与数据结构（Sedgewick，周二四）已按 C1 辅助规则重排为各 14 节、每节 ≤ 45 分钟、边读边讲，`cycle.mjs check` 通过；`concepts/c/` 里旧计划 D1 的 4 页概念页保留。
 未修：Chicago 菜单「继续学习」把按钮文字当提示词发出（用户用 Bear，低优先）。
