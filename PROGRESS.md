@@ -1,6 +1,8 @@
-# PROGRESS（更新于 2026-11-06 晚，分支 desktop；v0.2.1 已发布，提交 750ddbb，desktop 与 main 已推送）
+# PROGRESS（更新于 2026-11-06 晚，分支 desktop；v0.3.0 已发布，提交 403c24f，desktop 与 main 已推送）
 
 ## ▶ 下一步（新会话直接从这里开始）
+**v0.3.0（2026-11-06 22:10 发布）**：`/总结`（让学根按今日要点 + [!question] 格式总结，钉板才能显示）；Bear/Chicago 表格单元格走 Markdown（加粗/代码/公式）；技能：主项课必须读原书 =「讲后读（错开）」核心页（开课时定，读在另一门主项下一个上课日）+ 课程页 `## 原书通读`（每周六约 60 分钟、不受周期限制）。库里离散、CTM 两门课已按此改（备份 `/tmp/vault-backup-1106-reading/`）；离散 D1 核心页待 D2（11-09）开课时补定，D1+D2 都在 11-10 读。待用户从学根里「检查更新」装 v0.3.0，确认更新条与重启正常。
+检查更新的 API 限流问题**仍未修**（v0.3.0 没包含），下一版做。
 v0.2.1 已发布，并由 Claude 直接装到 `/Applications/学根.app`（用户选的；旧版备份 `/tmp/学根-0.2.0.app.bak`）。
 **先做：修检查更新**。现在 `src/main/update.ts` 查的是 `api.github.com/.../releases/latest`，未登录每小时 60 次、按出口 IP 计，今天被测试用光导致用户点「检查更新」失败（403）。改成不走 API：请求 `https://github.com/GongJiYang/xuegen/releases/latest` 读 302 跳转里的 tag 得到版本号，安装包地址按 `releases/download/v<ver>/xuegen-<ver>-arm64-mac.zip` 拼出，更新说明另传一个 `notes.md` 附件（`RELEASE.md` 同步加这一步）；`shared/update.ts` 的纯函数与测试相应改。另外菜单「检查更新…」失败时要有可见提示（确认 403 时是否显示了 error 条）。改完发 v0.2.2（需用户同意），让用户从学根里亲手更新一次。
 **重要**：安装版的技能来自打包时的快照（`Resources/xuegen/skills`），改仓库里的 SKILL.md 不会自动进用户的学根，必须发新版本。每次发版各自需要用户明确同意（自动权限检查会拦未确认的推送/发布）。
