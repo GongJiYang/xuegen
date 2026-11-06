@@ -18,6 +18,10 @@ describe("isDataRequest", () => {
       { kind: "cards.add", deck: "Math", front: "F", back: "B" },
       { kind: "calendar.month", month: "2026-10" },
       { kind: "calendar.write", date: "2026-10-22", text: "内容" },
+      { kind: "cycle.day", date: "2026-11-06" },
+      { kind: "cycle.month", month: "2026-11" },
+      { kind: "cycle.overview", date: "2026-11-06" },
+      { kind: "subjects.list", date: "2026-11-06" },
       { kind: "skills.setEnabled", name: "reading", enabled: false },
       { kind: "skills.fetch", url: "https://example.com/skill.git" },
     ];
@@ -44,6 +48,12 @@ describe("isDataRequest", () => {
       { kind: "cards.add", deck: "Math", front: "F" },
       { kind: "calendar.month", month: "2026-2" },
       { kind: "calendar.write", date: "2026-13-40", text: "x" },
+      { kind: "cycle.day", date: "11-06" },
+      { kind: "cycle.day" },
+      { kind: "cycle.overview", date: "2026-11" },
+      { kind: "cycle.month", month: "2026-13" },
+      { kind: "subjects.list" },
+      { kind: "subjects.list", date: "2026/11/06" },
       { kind: "skills.setEnabled", name: "reading", enabled: "yes" },
       { kind: "skills.fetch", url: 9 },
     ];

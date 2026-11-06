@@ -11,7 +11,7 @@ src/renderer/
 │   ├── board/               课程 / 阅读 / 卡片的视图模型（第 2 批起）
 │   ├── content/             Markdown 解析管线（remark/rehype 插件、callout 识别、代码块语言 → 内容类型）
 │   ├── motion/              动效意图 API（见第 4 节），减少动效判断
-│   ├── settings/            界面设置（当前皮肤、正文字号），经 preload 读写
+│   ├── settings/            界面设置（当前皮肤、正文字体与字号），经 preload 读写
 │   └── strings.ts           全部界面文案（皮肤共享，皮肤不得自带文案）
 ├── skins/
 │   ├── contract.ts          皮肤契约：类型定义（唯一真相源）
@@ -97,7 +97,7 @@ export interface MotionPreset {
 
 ## 5. 切换与持久化
 
-- 设置保存在 `~/.xuegen/desktop.json`（`{ "skin": "chicago", "bodyScale": 1 }`），由主进程读写，经 preload 暴露 `getSettings/setSettings`；渲染进程不直接访问文件。
+- 设置保存在 `~/.xuegen/desktop.json`（`{ "skin": "chicago", "bodyFont": "pixel", "bodyScale": 2 }`），由主进程读写，经 preload 暴露 `getSettings/setSettings`；渲染进程不直接访问文件。
 - 入口：每个皮肤的 Shell 必须提供「外观」菜单或等价入口，列出登记表中的全部皮肤。开发模式另有快捷键 `⌘⇧K` 循环切换。
 - 切换不重建 core 状态：`useChat` 等控制器位于皮肤之上，切换只替换呈现层。
 - 未知或加载失败的皮肤 id：回退到 `bare` 并显示提示，不白屏。

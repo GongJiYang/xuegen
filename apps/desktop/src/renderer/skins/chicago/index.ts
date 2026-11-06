@@ -12,6 +12,7 @@ import type { SkinModule, SkinSlots } from "../contract.js";
 import {
   AssistantMessage,
   BoardPanel,
+  CourseIntroCard,
   Exercise,
   ModelPicker,
   NotesPanel,
@@ -34,7 +35,7 @@ import { DayEditor } from "./day-editor.js";
 import { SlashMenu } from "./slash-menu.js";
 import { ChicagoContentNode } from "./content.js";
 import { chicagoMotion } from "./motion.js";
-import { CHICAGO_SCALES } from "./body-scale.js";
+import { chicagoBodyScaleSteps } from "./body-scale.js";
 
 const slots: SkinSlots = {
   Shell,
@@ -58,6 +59,7 @@ const slots: SkinSlots = {
   SkillsPanel,
   DayEditor,
   SlashMenu,
+  CourseIntroCard,
 };
 
 /** The Chicago skin, consumed by the registry's lazy loader. */
@@ -67,8 +69,9 @@ export const chicagoSkin: SkinModule = {
   // collapses into flat, run-together glyphs). Vite bundles both into the skin's
   // lazy CSS chunk.
   stylesheet: () => Promise.all([import("./skin.css"), import("katex/dist/katex.min.css")]),
-  // Whole multiples only: fractional page or text zoom blurs the pixel font.
-  bodyScaleSteps: CHICAGO_SCALES,
+  // The ladder depends on the body font: whole multiples for the pixel font,
+  // the 15–24px reading ladder for a smooth system font.
+  bodyScaleSteps: chicagoBodyScaleSteps,
   slots,
   motion: chicagoMotion,
   content: { Node: ChicagoContentNode },

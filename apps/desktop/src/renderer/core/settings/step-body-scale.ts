@@ -51,15 +51,16 @@ function orderedSteps(steps: readonly number[]): number[] {
  * Move `current` one step along the skin's ladder.
  *
  * `in` picks the next larger step (clamped at the top), `out` the next smaller
- * (clamped at the bottom), and `reset` the step nearest 1 (ties pick the
- * smaller). Values that are not on the ladder are treated by magnitude, so a
- * legacy fractional scale still steps to a real step. An empty ladder leaves the
- * value untouched.
+ * (clamped at the bottom), and `reset` the step nearest `resetTo` (ties pick the
+ * smaller; `resetTo` defaults to 1). Values that are not on the ladder are
+ * treated by magnitude, so a legacy fractional scale still steps to a real
+ * step. An empty ladder leaves the value untouched.
  */
 export function stepBodyScale(
   current: number,
   direction: BodyScaleDirection,
   skinSteps: readonly number[],
+  resetTo = 1,
 ): number {
   const steps = orderedSteps(skinSteps);
   const first = steps[0];
@@ -67,7 +68,9 @@ export function stepBodyScale(
   if (first === undefined || last === undefined) return current;
 
   if (direction === "reset") {
-    return steps.reduce((best, step) => (Math.abs(step - 1) < Math.abs(best - 1) ? step : best));
+    return steps.reduce((best, step) =>
+      Math.abs(step - resetTo) < Math.abs(best - resetTo) ? step : best,
+    );
   }
 
   if (direction === "in") {

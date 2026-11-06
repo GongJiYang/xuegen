@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   assertNever,
+  isBodyFont,
   isDesktopSettings,
   isHostToAgentMessage,
   isTeachingStyle,
+  normalizeCourseStartedOn,
   normalizeCourseStyles,
   normalizeDesktopSettings,
   normalizeDisabledSkills,
   normalizeSkinOptions,
+  BODY_FONTS,
   BODY_SCALE_MAX,
   BODY_SCALE_MIN,
   DEFAULT_DESKTOP_SETTINGS,
@@ -81,6 +84,21 @@ describe("normalizeDesktopSettings", () => {
     );
   });
 
+  it("defaults a missing or unknown bodyFont to pixel", () => {
+    expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1 }).bodyFont).toBe("pixel");
+    expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1, bodyFont: "comic" }).bodyFont).toBe(
+      "pixel",
+    );
+    expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1, bodyFont: "kai" }).bodyFont).toBe(
+      "kai",
+    );
+  });
+
+  it("recognizes only the four body fonts", () => {
+    for (const font of BODY_FONTS) expect(isBodyFont(font)).toBe(true);
+    for (const value of ["comic", "", null, 1]) expect(isBodyFont(value)).toBe(false);
+  });
+
   it("clamps bodyScale into the allowed range", () => {
     expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 0.1 }).bodyScale).toBe(BODY_SCALE_MIN);
     expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 99 }).bodyScale).toBe(BODY_SCALE_MAX);
@@ -112,6 +130,7 @@ describe("normalizeDesktopSettings", () => {
   it("normalizes disabledSkills, courseStyles and sessionStyle", () => {
     const normalized = normalizeDesktopSettings({
       skin: "bare",
+      bodyFont: "song",
       bodyScale: 1,
       disabledSkills: ["reading", "reading", 7, "  ", "calendar"],
       courseStyles: { ctm: "plain", bad: "loud", "": "deep" },
@@ -126,8 +145,38 @@ describe("normalizeDesktopSettings", () => {
     const normalized = normalizeDesktopSettings({ skin: "bare", bodyScale: 1 });
     expect(normalized.disabledSkills).toEqual([]);
     expect(normalized.courseStyles).toEqual({});
+    expect(normalized.courseStartedOn).toEqual({});
     expect(normalized.sessionStyle).toBe(DEFAULT_DESKTOP_SETTINGS.sessionStyle);
     expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1, sessionStyle: "loud" }).sessionStyle).toBe("plain");
+  });
+
+  it("keeps only real dates in courseStartedOn", () => {
+    const normalized = normalizeDesktopSettings({
+      skin: "bare",
+      bodyScale: 1,
+      courseStartedOn: {
+        ctm: "2026-11-04",
+        bad: "2026-13-40",
+        short: "2026-1-4",
+        empty: "",
+        "": "2026-11-04",
+        number: 20261104,
+      },
+    });
+    expect(normalized.courseStartedOn).toEqual({ ctm: "2026-11-04" });
+  });
+});
+
+describe("normalizeCourseStartedOn", () => {
+  it("returns empty for non-objects and rejects malformed days", () => {
+    expect(normalizeCourseStartedOn(null)).toEqual({});
+    expect(normalizeCourseStartedOn(["2026-11-04"])).toEqual({});
+    expect(normalizeCourseStartedOn({ ctm: "2024-02-30" })).toEqual({});
+    expect(normalizeCourseStartedOn({ ctm: "today" })).toEqual({});
+  });
+
+  it("accepts a leap day", () => {
+    expect(normalizeCourseStartedOn({ ctm: "2024-02-29" })).toEqual({ ctm: "2024-02-29" });
   });
 });
 

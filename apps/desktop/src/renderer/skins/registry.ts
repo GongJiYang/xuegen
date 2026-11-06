@@ -21,9 +21,16 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "chicago",
     name: "Chicago",
-    version: "1.6",
+    version: "1.9",
     description: "经典 Mac OS（System 6）黑白像素风；极简、专注阅读。",
     load: async () => (await import("./chicago/index.js")).chicagoSkin,
+  },
+  {
+    id: "bear",
+    name: "Bear",
+    version: "0.1",
+    description: "iA Writer / Bear：只有一栏正文，侧栏收进抽屉",
+    load: async () => (await import("./bear/index.js")).bearSkin,
   },
 ];
 

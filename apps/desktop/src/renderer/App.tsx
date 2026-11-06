@@ -12,18 +12,26 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CourseSummary, ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
+import type { ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
 import type { TeachingStyle } from "@shared/protocol.js";
 import { useChat } from "./core/chat/useChat.js";
 import { MessageRenderer } from "./core/chat/message-renderer.js";
 import { useSettings } from "./core/settings/use-settings.js";
 import { useBodyScaleShortcuts } from "./core/settings/use-body-scale-shortcuts.js";
+import { coerceBodyScaleForFont } from "./core/settings/body-font.js";
 import { useCourses } from "./core/board/use-courses.js";
 import { useActiveCourse, useCourseSessions } from "./core/board/use-course-sessions.js";
 import { useReloadOnAnswer } from "./core/board/use-reload-on-answer.js";
 import { useReading, clipPrompt } from "./core/board/use-reading.js";
 import { useCards, useAnki } from "./core/board/use-cards.js";
-import { useCalendar, monthGrid, shiftMonth, dateKey } from "./core/board/use-calendar.js";
+import { useCalendar, dateKey } from "./core/board/use-calendar.js";
+import { useCycle } from "./core/board/use-cycle.js";
+import { useSubjects } from "./core/board/use-subjects.js";
+import { useControlSession } from "./core/board/use-control-session.js";
+import { controlView } from "./core/board/bot-state.js";
+import { shellPanels } from "./core/board/shell-panels.js";
+import { contextUsageView } from "./core/chat/context-usage.js";
+import { turnActivity } from "./core/chat/activity.js";
 import { useSkills } from "./core/board/use-skills.js";
 import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
@@ -31,12 +39,11 @@ import type { SlashCommand } from "./core/commands/commands.js";
 import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
 import { resolveStyle, styleWriteTarget } from "./core/chat/style.js";
 import { dayTitle } from "./core/format.js";
-import { resumePoint, resumePrompt, studyPrompt, todayPlanItems } from "./core/today.js";
-import { skinIds } from "./skins/registry.js";
-import { useSkinAppearance } from "./skins/use-appearance.js";
+import { resumePoint, todayPlanItems } from "./core/today.js";
+import { useSkinAppearance, useSkinCycleShortcut } from "./skins/use-appearance.js";
 import { useSkin } from "./skins/use-skin.js";
 import { Gallery } from "./gallery/Gallery.js";
-import type { ShellPanels, ShellProps, ToolId } from "./skins/contract.js";
+import type { ShellProps, ToolId } from "./skins/contract.js";
 import { toolDescriptors } from "./skins/chicago/icons.js";
 import { strings } from "./core/strings.js";
 
@@ -62,6 +69,8 @@ export function App() {
   const cards = useCards();
   const anki = useAnki();
   const calendar = useCalendar(currentMonth());
+  const cycle = useCycle(dateKey(new Date()), dateKey(new Date(new Date().setHours(24, 0, 0, 0))), calendar.month);
+  const subjects = useSubjects(dateKey(new Date()));
   const skills = useSkills();
   const skillsPanel = useSkillsPanel(skills, apply);
 
@@ -81,18 +90,20 @@ export function App() {
         : {},
     [courses.state],
   );
-  const todayPlan = useMemo(() => {
-    const day =
-      calendar.resource.state.status === "ready"
-        ? calendar.resource.state.value.days[dateKey(new Date())]
-        : undefined;
-    return todayPlanItems(day, courseTitles);
+  // 今天 / 明天 from the calendar month already loaded. On a month's last day the
+  // next day is outside it, so 明天 reads empty until the calendar moves on.
+  const [todayPlan, tomorrowPlan] = useMemo(() => {
+    const days = calendar.resource.state.status === "ready" ? calendar.resource.state.value.days : {};
+    const today = new Date();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    return [todayPlanItems(days[dateKey(today)], courseTitles), todayPlanItems(days[dateKey(tomorrow)], courseTitles)];
   }, [calendar.resource.state, courseTitles]);
   // The course whose session is *running*, if any. The style is remembered per
   // course only once a session has actually started (继续学习 / 开始学习); before
   // that a style change belongs to the session default, not to whatever course
   // 接着上次 happens to point at. The open file is reported by the agent and lets
   // a relaunch that resumes a course's session know which course it is.
+  const [focusRequest, setFocusRequest] = useState(0);
   const { activeCourse, openSessionFile, setActiveCourse, setOpenSessionFile } =
     useActiveCourse(settings);
   const style = resolveStyle(settings, activeCourse);
@@ -100,12 +111,20 @@ export function App() {
   if (controller.sessionFile !== openSessionFile) setOpenSessionFile(controller.sessionFile);
   const slash = useSlash(controller.commands, settings.disabledSkills);
   const {
+    startedToday,
+    intro,
+    handleStudy,
+    handleResume,
     handleStartSession,
     handleNewCourse,
     handleEditPlan,
     handleNewSession,
     handleContinueSession,
-  } = useCourseSessions(controller, settings, update, courses, activeCourse, setActiveCourse);
+  } = useCourseSessions(controller, settings, update, courses, resume, activeCourse, setActiveCourse, () => setFocusRequest((value) => value + 1));
+  const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
+  const control = useControlSession(controller, settings, update, cycleId, setActiveCourse, () =>
+    setFocusRequest((value) => value + 1),
+  );
 
   const [activeTool, setActiveTool] = useState<ToolId | null>("progress");
   const [focusMode, setFocusMode] = useState(false);
@@ -116,7 +135,6 @@ export function App() {
   // The 「检查理解」 question being answered, plus a counter that asks the composer
   // to focus its field. Both are owned here so they survive a skin switch (B10).
   const [answering, setAnswering] = useState<number | null>(null);
-  const [focusRequest, setFocusRequest] = useState(0);
 
   const requestedSkin = querySkin ?? settings.skin;
   const { module: skin, loadedId, notice } = useSkin(requestedSkin);
@@ -131,12 +149,16 @@ export function App() {
   useEffect(() => {
     if (!skin) return;
     document.documentElement.dataset.skin = loadedId;
-    document.documentElement.dataset.bodyScale = String(settings.bodyScale);
+    document.documentElement.dataset.bodyFont = settings.bodyFont;
+    document.documentElement.dataset.bodyScale = String(
+      coerceBodyScaleForFont(settings.bodyScale, settings.bodyFont),
+    );
     return () => {
       delete document.documentElement.dataset.skin;
+      delete document.documentElement.dataset.bodyFont;
       delete document.documentElement.dataset.bodyScale;
     };
-  }, [skin, loadedId, settings.bodyScale]);
+  }, [skin, loadedId, settings.bodyFont, settings.bodyScale]);
 
   // Reload the board when an answer ends: 学根 may have written course progress,
   // reading, cards, or calendar notes during the turn.
@@ -145,25 +167,14 @@ export function App() {
     reading.reload();
     cards.reload();
     calendar.resource.reload();
-  }, [courses, reading, cards, calendar.resource]);
+    cycle.reload();
+    subjects.reload();
+  }, [courses, reading, cards, calendar.resource, cycle, subjects]);
   useReloadOnAnswer(controller.streaming, reloadBoard);
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const ids = skinIds();
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        const index = ids.indexOf(loadedId);
-        const next = ids[(index + 1) % ids.length];
-        if (next) update({ skin: next });
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [loadedId, update]);
+  useSkinCycleShortcut(loadedId, update);
 
-  useBodyScaleShortcuts(skin, settings.bodyScale, update);
+  useBodyScaleShortcuts(skin, settings.bodyFont, settings.bodyScale, update);
 
   const setCourseStyle = useCallback(
     (slug: string, next: TeachingStyle) => {
@@ -186,14 +197,6 @@ export function App() {
     },
     [update, settings.courseStyles, activeCourse],
   );
-
-  const handleStudy = useCallback(
-    (course: CourseSummary) => handleStartSession(course.slug, studyPrompt(course)),
-    [handleStartSession],
-  );
-  const handleResume = useCallback(() => {
-    if (resume) handleStartSession(resume.course.slug, resumePrompt(resume));
-  }, [handleStartSession, resume]);
 
   const handleReadingAdd = useCallback(
     async (source: string, priority: ReadingPriority, due: ReadingDue) => {
@@ -247,6 +250,8 @@ export function App() {
           return handleNewSession();
         case "continue-session":
           return handleContinueSession();
+        case "control":
+          return control.openControl();
         case "prompt":
           // A `/` command's own text is the whole instruction: send it without the
           // session style prefix (B9).
@@ -258,7 +263,7 @@ export function App() {
           return;
       }
     },
-    [slash, handleSelectStyle, handleResume, handleNewSession, handleContinueSession, controller],
+    [slash, handleSelectStyle, handleResume, handleNewSession, handleContinueSession, controller, control],
   );
 
   if (!skin) {
@@ -273,6 +278,8 @@ export function App() {
         skinChoices={appearance.skinChoices}
         activeSkin={loadedId}
         onSelectSkin={appearance.onSelectSkin}
+        bodyFont={settings.bodyFont}
+        onBodyFont={appearance.onBodyFont}
         bodyScale={settings.bodyScale}
         onBodyScale={appearance.onBodyScale}
         skinOptions={appearance.skinOptions}
@@ -286,66 +293,55 @@ export function App() {
 
   const notices = notice ? [notice, ...controller.notices] : controller.notices;
 
-  const panels: ShellPanels = {
-    today: {
-      todayPlan,
-      readingDue: reading.stats.state,
-      cards: cards.stats.state,
-      resume,
-      onResume: handleResume,
-      agentReady: controller.agentStatus === "ready" && !controller.disabled,
+  const panels = shellPanels({
+    courses,
+    reading,
+    cards,
+    anki,
+    calendar,
+    cycle,
+    subjects,
+    today: dateKey(new Date()),
+    skillsPanel,
+    todayPlan,
+    tomorrowPlan,
+    courseTitles,
+    courseStyles: settings.courseStyles,
+    startedToday,
+    resume,
+    agentReady: controller.agentStatus === "ready" && !controller.disabled,
+    focus: pendingFocus,
+    onFocusHandled: () => setPendingFocus(null),
+    onResume: handleResume,
+    onCourseStyle: setCourseStyle,
+    onStudy: handleStudy,
+    onNewCourse: handleNewCourse,
+    onEditPlan: handleEditPlan,
+    onReadingAdd: handleReadingAdd,
+    onReadingClip: handleReadingClip,
+    onDraftCards: () => controller.send(strings.cards.draft),
+    onEditDay: (date) => {
+      const day =
+        calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;
+      setEditingDay({ date, text: day?.note ?? "" });
     },
-    progress: {
-      courses: courses.state,
-      courseStyles: settings.courseStyles,
-      onCourseStyle: setCourseStyle,
-      onStudy: handleStudy,
-      onNewCourse: handleNewCourse,
-      onEditPlan: handleEditPlan,
-      sources: reading.sources.state,
+    onStudyCourse: (slug) => {
+      const course = courses.state.status === "ready" ? courses.state.value.find((item) => item.slug === slug) : undefined;
+      if (course) handleStudy(course);
     },
-    reading: {
-      queue: reading.queue.state,
-      sources: reading.sources.state,
-      onAdd: handleReadingAdd,
-      onClip: handleReadingClip,
-      onReview: (slug, outcome, position) => {
-        void reading.review(slug, outcome, position);
-      },
-      focus: pendingFocus ?? undefined,
-      onFocusHandled: () => setPendingFocus(null),
-    },
-    cards: {
-      cards: cards.stats.state,
-      anki: anki.state,
-      onAdd: (deck, front, back) => {
-        void cards.add(deck, front, back).then((result) => {
-          if (result.ok) anki.reload();
-        });
-      },
-      onRetryAnki: anki.reload,
-      onDraft: () => controller.send(strings.cards.draft),
-    },
-    calendar: {
-      month: calendar.resource.state,
-      monthKey: calendar.month,
-      onPrevMonth: () => calendar.setMonth(shiftMonth(calendar.month, -1)),
-      onNextMonth: () => calendar.setMonth(shiftMonth(calendar.month, 1)),
-      cells: monthGrid(calendar.month),
-      selected: calendar.selected,
-      onSelectDay: calendar.select,
-      courseTitles,
-      onEditDay: (date) => {
-        const day =
-          calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;
-        setEditingDay({ date, text: day?.note ?? "" });
-      },
-    },
-    skills: skillsPanel,
-  };
+    onVerifyCourse: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
+    onOpenControl: cycleId ? control.openControl : null,
+  });
 
   const shellProps: ShellProps = {
-    sessionTitle: activeCourse ? (courseTitles[activeCourse] ?? activeCourse) : null,
+    sessionTitle:
+      control.isControl && cycleId
+        ? strings.control.title(cycleId)
+        : activeCourse
+          ? (courseTitles[activeCourse] ?? activeCourse)
+          : null,
+    control: controlView(control.isControl, controller.streaming, controller.messages, cycle.today.state),
+    contextUsage: contextUsageView(controller.contextUsage, controller.compacting, controller.compact),
     children: (
       <>
         <Thread
@@ -353,6 +349,9 @@ export function App() {
           thinking={controller.thinking}
           noModels={controller.disabled}
           modelsReason={controller.modelsReason}
+          intro={intro}
+          systemNotes={controller.systemNotes}
+          activity={turnActivity(controller.messages, controller.streaming, controller.thinking)}
           renderMessage={(message, thinking) => (
             <MessageRenderer
               slots={skin.slots}
@@ -382,6 +381,7 @@ export function App() {
           onCloseCommands={slash.close}
           onInput={slash.update}
           answering={answering}
+          onCancelAnswer={() => setAnswering(null)}
           focusRequest={focusRequest}
         />
       </>
@@ -389,6 +389,8 @@ export function App() {
     skins: appearance.skinChoices,
     activeSkin: loadedId,
     onSelectSkin: appearance.onSelectSkin,
+    bodyFont: settings.bodyFont,
+    onBodyFont: appearance.onBodyFont,
     bodyScale: settings.bodyScale,
     onBodyScale: appearance.onBodyScale,
     skinOptions: appearance.skinOptions,

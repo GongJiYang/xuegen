@@ -21,6 +21,6 @@ describe("skin registry", () => {
   });
 
   it("registers chicago with the id used as the default", () => {
-    expect(SKINS.map((skin) => skin.id)).toEqual(["bare", "chicago"]);
+    expect(SKINS.map((skin) => skin.id)).toEqual(["bare", "chicago", "bear"]);
   });
 });

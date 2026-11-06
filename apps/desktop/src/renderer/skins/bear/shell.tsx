@@ -1,0 +1,291 @@
+/**
+ * Bear Shell: a title bar, one centred column of reading, and a right drawer.
+ *
+ * The grid is three rows — title bar / conversation / composer — with the
+ * column capped at 34em (bear.md §4). The title bar carries the session title
+ * on the left and, on the right, the context-usage popover, the 学习 button
+ * that opens the drawer, and the 「⋯」 menu; in focus mode only 「⋯」 remains.
+ * Notices line up at the top of the column, one per line.
+ *
+ * The drawer (a Radix dialog that slides in from the right (180ms tween)) holds the tool tabs:
+ * 今天 plus the five tools, switched through core's `onOpenTool`. When
+ * `activeTool` is set the drawer opens on that tab; 「今天」 is a local view —
+ * it is not a `ToolId`, so selecting it only flips the tab.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import { Dialog as RadixDialog, Tabs as RadixTabs } from "radix-ui";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import {
+  Root as Popover,
+  Content as PopoverContent,
+  Portal as PopoverPortal,
+  Trigger as PopoverTrigger,
+} from "@animate-ui/react/primitives/radix-ui/popover";
+import type { ContextUsageView, ShellProps, ToolId } from "../contract.js";
+import { strings } from "../../core/strings.js";
+import { bearBodyScale } from "./body-scale.js";
+import { MoreMenu } from "./menu.js";
+import { Notice } from "./slots.js";
+import { TodayPanel } from "./today-panel.js";
+import { ProgressPanel } from "./progress-panel.js";
+import { ReadingPanel } from "./reading-panel.js";
+import { CardsPanel } from "./cards-panel.js";
+import { CalendarPanel } from "./calendar-panel.js";
+import { SkillsPanel } from "./skills-panel.js";
+import { ControlBot } from "./control-bot.js";
+
+/** The paper colour the window should open with (anti-flash). */
+const BEAR_PAPER = "#fbfbfa";
+
+/** The drawer's 今天 tab value; tool tabs use their `ToolId`. */
+const TODAY_TAB = "today";
+
+/** The drawer slides in from the right: one short tween, no flip, no spring. */
+const DRAWER_SLIDE = { type: "tween", duration: 0.18, ease: [0.22, 1, 0.36, 1] } as const;
+
+/** The context-usage button and its popover (detail, progress bar, compact). */
+function ContextButton({ contextUsage }: { contextUsage: ContextUsageView }) {
+  const percent = contextUsage.percent === null ? null : Math.min(100, Math.max(0, contextUsage.percent));
+  return (
+    <Popover>
+      <PopoverTrigger className="bear-btn">{contextUsage.label}</PopoverTrigger>
+      <PopoverPortal>
+        <PopoverContent className="bear-pop" align="end" sideOffset={6}>
+          <p>{contextUsage.detail}</p>
+          <div className="bear-progress">
+            <div className="bear-progress-fill" style={{ width: `${percent ?? 0}%` }} />
+          </div>
+          <button type="button" disabled={contextUsage.compacting} onClick={contextUsage.onCompact}>
+            {strings.chat.compactNow}
+          </button>
+        </PopoverContent>
+      </PopoverPortal>
+    </Popover>
+  );
+}
+
+export function Shell(props: ShellProps) {
+  const {
+    children,
+    notices,
+    onDismissNotice,
+    contextUsage,
+    tools,
+    activeTool,
+    onOpenTool,
+    focusMode,
+    panels,
+    onWindowBackground,
+    onPrompt,
+    onToggleFocus,
+  } = props;
+
+  // Drawer state is derived, never synced in an effect: `requested` is the
+  // 学习 button, `dismissedFor` remembers the tool the user closed the drawer
+  // on, and `picked` is a 今天 selection valid only while `activeTool` stands
+  // (a new activeTool always wins the tab, per the contract).
+  const [requested, setRequested] = useState(false);
+  // The tool open at mount counts as dismissed: the app's default tool suits a
+  // side-window skin, but Bear starts with the drawer closed.
+  const [dismissedFor, setDismissedFor] = useState<ToolId | null>(activeTool);
+  // A change of `activeTool` is a fresh request (⌘1–5, a / command): it clears
+  // any earlier dismissal, including the startup one. Adjusted during render,
+  // not in an effect (the project's lint rule).
+  const [seenTool, setSeenTool] = useState<ToolId | null>(activeTool);
+  if (activeTool !== seenTool) {
+    setSeenTool(activeTool);
+    setDismissedFor(null);
+  }
+  const [picked, setPicked] = useState<{ tool: ToolId | null } | null>(null);
+  const [lastTool, setLastTool] = useState<ToolId>(tools[0]?.id ?? "progress");
+  const reduceMotion = useReducedMotion();
+
+  const open = requested || (activeTool !== null && activeTool !== dismissedFor);
+  const tab = picked !== null && picked.tool === activeTool ? TODAY_TAB : (activeTool ?? lastTool);
+
+  // Mirror the window background so it opens in the paper colour (anti-flash).
+  useEffect(() => {
+    onWindowBackground(BEAR_PAPER);
+  }, [onWindowBackground]);
+
+  const openTool = useCallback(
+    (tool: ToolId): void => {
+      setPicked(null);
+      setLastTool(tool);
+      setDismissedFor(null);
+      setRequested(true);
+      onOpenTool(tool);
+    },
+    [onOpenTool],
+  );
+
+  const onTab = useCallback(
+    (value: string): void => {
+      // 「今天」 is not a ToolId: selecting it only flips the tab, kept valid
+      // while `activeTool` is unchanged.
+      if (value === TODAY_TAB) {
+        setPicked({ tool: activeTool });
+        return;
+      }
+      openTool(value as ToolId);
+    },
+    [activeTool, openTool],
+  );
+
+  const onDrawerOpenChange = useCallback(
+    (next: boolean): void => {
+      setRequested(next);
+      // Closing keeps `activeTool` (and everything else) untouched; it only
+      // remembers not to auto-reopen for that same tool.
+      if (!next) setDismissedFor(activeTool);
+    },
+    [activeTool],
+  );
+
+  // Shortcuts, as in Chicago: ⌘1–5 tools, ⌘E 今天学到这里, ⌘. focus mode.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (!event.metaKey) return;
+      if (/^[1-5]$/.test(event.key)) {
+        const tool = tools[Number(event.key) - 1];
+        if (tool) {
+          event.preventDefault();
+          openTool(tool.id);
+        }
+      } else if (event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        onPrompt(strings.topBar.todayDone);
+      } else if (event.key === ".") {
+        event.preventDefault();
+        onToggleFocus();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [tools, openTool, onPrompt, onToggleFocus]);
+
+  return (
+    <div
+      className="bear-root"
+      data-bear-scale={String(bearBodyScale(props.bodyScale))}
+      data-agent-status={props.agentStatus}
+      data-focus={focusMode ? "true" : undefined}
+    >
+      <header className="bear-bar">
+        {!focusMode && (
+          <span className="bear-title">
+            {props.control && <ControlBot mood={props.control.mood} />}
+            {props.sessionTitle ?? strings.chat.freeSession}
+          </span>
+        )}
+        <span className="bear-bar-gap" />
+        {!focusMode && (
+          <>
+            <ContextButton contextUsage={contextUsage} />
+            <button type="button" className="bear-btn" onClick={() => onDrawerOpenChange(!open)}>
+              {strings.topBar.coursesAndPlans}
+            </button>
+          </>
+        )}
+        <MoreMenu
+          skins={props.skins}
+          activeSkin={props.activeSkin}
+          onSelectSkin={props.onSelectSkin}
+          bodyFont={props.bodyFont}
+          onBodyFont={props.onBodyFont}
+          bodyScale={props.bodyScale}
+          onBodyScale={props.onBodyScale}
+          models={props.models}
+          currentModel={props.currentModel}
+          onSelectModel={props.onSelectModel}
+          thinkingLevel={props.thinkingLevel}
+          thinkingLevels={props.thinkingLevels}
+          onSelectThinking={props.onSelectThinking}
+          onNewSession={props.onNewSession}
+          onContinueSession={props.onContinueSession}
+          focusMode={focusMode}
+          onToggleFocus={props.onToggleFocus}
+        />
+      </header>
+
+      <main className="bear-col">
+        <div className="bear-column">
+          {notices.length > 0 && (
+            <div className="bear-notices">
+              {notices.map((notice, index) => (
+                <Notice key={`${index}-${notice.text}`} notice={notice} onDismiss={() => onDismissNotice(index)} />
+              ))}
+            </div>
+          )}
+          {children}
+        </div>
+      </main>
+
+      {/* Non-modal: the reader keeps typing and scrolling while the drawer is
+          open, and nothing outside is hidden from assistive tech. */}
+      <RadixDialog.Root open={open} onOpenChange={onDrawerOpenChange} modal={false}>
+        <AnimatePresence>
+          {open && (
+            <RadixDialog.Portal forceMount>
+              <RadixDialog.Content forceMount asChild aria-describedby={undefined}>
+                <motion.div
+                  className="bear-drawer"
+                  initial={{ x: "100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "100%" }}
+                  transition={reduceMotion ? { duration: 0 } : DRAWER_SLIDE}
+                >
+                  <RadixDialog.Title className="bear-vh">{strings.tools.dockLabel}</RadixDialog.Title>
+                  <RadixTabs.Root className="bear-drawer-body" value={tab} onValueChange={onTab}>
+                    <div className="bear-drawer-top">
+                      <RadixTabs.List className="bear-tabs">
+                        <RadixTabs.Trigger className="bear-tab" value={TODAY_TAB}>
+                          {strings.today.title}
+                        </RadixTabs.Trigger>
+                        {tools.map((tool) => (
+                          <RadixTabs.Trigger key={tool.id} className="bear-tab" value={tool.id}>
+                            {tool.name}
+                          </RadixTabs.Trigger>
+                        ))}
+                      </RadixTabs.List>
+                      <RadixDialog.Close className="bear-drawer-close">{strings.chat.dismiss}</RadixDialog.Close>
+                    </div>
+                    <div className="bear-tabpanels">
+                      <RadixTabs.Content value={TODAY_TAB}>
+                        <TodayPanel {...panels.today} />
+                      </RadixTabs.Content>
+                      {tools.map((tool) => (
+                        <RadixTabs.Content key={tool.id} value={tool.id}>
+                          <ToolPanel tool={tool.id} panels={panels} />
+                        </RadixTabs.Content>
+                      ))}
+                    </div>
+                  </RadixTabs.Root>
+                </motion.div>
+              </RadixDialog.Content>
+            </RadixDialog.Portal>
+          )}
+        </AnimatePresence>
+      </RadixDialog.Root>
+    </div>
+  );
+}
+
+/** Render the body of whichever tool tab is selected. */
+function ToolPanel({ tool, panels }: { tool: ToolId; panels: ShellProps["panels"] }) {
+  switch (tool) {
+    case "progress":
+      return <ProgressPanel {...panels.progress} tool="progress" />;
+    case "reading":
+      return <ReadingPanel {...panels.reading} tool="reading" />;
+    case "cards":
+      return <CardsPanel {...panels.cards} tool="cards" />;
+    case "calendar":
+      return <CalendarPanel {...panels.calendar} tool="calendar" />;
+    case "skills":
+      return <SkillsPanel {...panels.skills} tool="skills" />;
+    default:
+      return null;
+  }
+}

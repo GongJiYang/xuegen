@@ -208,6 +208,25 @@ export function mapPiEvent(
       stateChanged = true;
       break;
     }
+    case "compaction_start": {
+      messages.push({ type: "compaction", phase: "start", reason: event.reason });
+      stateChanged = true;
+      break;
+    }
+    case "compaction_end": {
+      const payload: AgentToHostMessage = event.errorMessage
+        ? {
+            type: "compaction",
+            phase: "end",
+            reason: event.reason,
+            aborted: event.aborted,
+            errorMessage: event.errorMessage,
+          }
+        : { type: "compaction", phase: "end", reason: event.reason, aborted: event.aborted };
+      messages.push(payload);
+      stateChanged = true;
+      break;
+    }
     case "session_info_changed":
     case "entry_appended":
     case "agent_start":

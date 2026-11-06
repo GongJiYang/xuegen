@@ -19,6 +19,7 @@ export type CommandEffect =
   | { kind: "resume" }
   | { kind: "new-session" }
   | { kind: "continue-session" }
+  | { kind: "control" }
   | { kind: "prompt"; text: string }
   | { kind: "insert"; text: string }
   | { kind: "none" };
@@ -38,6 +39,8 @@ export function commandEffect(command: string): CommandEffect {
       return { kind: "new-session" };
     case "/继续会话":
       return { kind: "continue-session" };
+    case "/总控":
+      return { kind: "control" };
     case "/进度":
       return { kind: "tool", tool: "progress" };
     case "/阅读":

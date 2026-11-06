@@ -16,7 +16,7 @@ import type { Root as HastRoot, Element as HastElement } from "hast";
 import { markdownToHast } from "../../core/content/markdown-to-hast.js";
 import type { ContentNode } from "../../core/content/nodes.js";
 import { strings } from "../../core/strings.js";
-import { hastToReact } from "./hast-react.js";
+import { hastToReact } from "../../core/content/hast-react.js";
 
 interface NodeProps {
   node: ContentNode;

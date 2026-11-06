@@ -7,12 +7,18 @@
 | `state.ts` | `AsyncState<T>`（loading / error / ready）与纯辅助（`valueOf`、`isEmptyList`、`errorState`）。 |
 | `use-resource.ts` | 通用加载原语 `useBoardResource`：加载、重载、写入后刷新，含竞态与卸载取消。 |
 | `use-courses.ts` | `courses.list`（只读进度）。 |
-| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习、新建与改计划、认领新课程。 |
+| `course-intro.ts` | 开课卡片：`courseIntro` 从 `CourseSummary` 取上次任务/日期/下次起点/本周进度，`courseIntroLines` 生成三行文案。 |
+| `opening-action.ts` | `openingAction` 纯函数：今天已开课且非当前课 → 只切会话；已是当前课 → 只聚焦；否则发送开课消息。`startedTodayMap` 供按钮文案使用。 |
+| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。 |
 | `use-reload-on-answer.ts` | 流式 true → false 时刷新各面板（`useReloadOnAnswer`）。 |
 | `use-skills-panel.ts` | 技能面板的获取结果与待审阅状态（`useSkillsPanel`）。 |
 | `use-reading.ts` | `reading.today` / `reading.stats` / `reading.sources` + 加入、复习；`isWebUrl`、`clipPrompt` 纯函数。 |
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |
 | `use-calendar.ts` | `calendar.month` + 翻月、选日、写笔记；`monthGrid`、`shiftMonth`、`dayMarks`、`dayOf` 为纯函数。 |
 | `use-skills.ts` | `skills.list` + 开关、获取。 |
+| `cycle-today.ts` | 把一天的周期数据（cycle.day）变成「今天」窗口的标题、主攻块、没学的课、明天一行（纯函数）。 |
+| `use-cycle.ts` | 读今天、明天的 cycle.day 和日历当月的 cycle.month。 |
+| `progress-groups.ts` | 把科目骨架（subjects.list）和课程列表组合成总进度的主项 / 路线外 / 已学专题，并给课程打记号（纯函数）。 |
+| `use-subjects.ts` | 读当天的 subjects.list。 |
 
 写入动作（加入阅读、读完、存为新卡、写日历、技能开关）成功后刷新相关数据；失败结果返回给调用方由 `App` 呈现 Notice。日历网格、命令表等纯逻辑均有同目录 `*.test.ts`。

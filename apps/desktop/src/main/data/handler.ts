@@ -132,6 +132,14 @@ async function handleScriptRequest(
         request.text,
         "--json",
       ]);
+    case "cycle.day":
+      return runScript("cycle-plan/cycle.mjs", ["day", vault.vault, "--date", request.date, "--json"]);
+    case "cycle.month":
+      return runScript("cycle-plan/cycle.mjs", ["month", vault.vault, request.month, "--json"]);
+    case "cycle.overview":
+      return runScript("cycle-plan/cycle.mjs", ["overview", vault.vault, "--date", request.date, "--json"]);
+    case "subjects.list":
+      return runScript("cycle-plan/subjects.mjs", ["list", vault.vault, "--date", request.date, "--json"]);
     default:
       return assertNever(request);
   }

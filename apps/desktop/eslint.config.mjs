@@ -11,19 +11,31 @@ import prettier from "eslint-config-prettier";
  * which is the contract), skins must not import each other, and the renderer and
  * the Node-side processes must not reach across the IPC boundary.
  */
+/** Every skin directory under `src/renderer/skins/`; add a new skin here. */
+const SKINS = ["bare", "chicago", "bear"];
+/** Animation libraries: only a skin decides how things move (AGENTS.md §13). */
+const ANIMATION_RE = "^(motion|framer-motion|radix-ui|gsap|@animate-ui/[^/]+)(/.*)?$";
 const FROM_RENDERER = ["**/main/**", "**/agent/**"];
-const FROM_CORE = [...FROM_RENDERER, "**/skins/bare/**", "**/skins/chicago/**", "**/skins/registry*"];
-const FROM_BARE = [...FROM_RENDERER, "**/skins/chicago/**"];
-const FROM_CHICAGO = [...FROM_RENDERER, "**/skins/bare/**"];
+const FROM_CORE = [...FROM_RENDERER, ...SKINS.map((id) => `**/skins/${id}/**`), "**/skins/registry*"];
 const FROM_NODE_SIDE = ["**/renderer/**"];
+/** A skin may use animation libraries but not another skin or the Node side. */
+const fromSkin = (id) => [...FROM_RENDERER, ...SKINS.filter((other) => other !== id).map((other) => `**/skins/${other}/**`)];
 
-/** A `no-restricted-imports` configuration for one file group. */
-function restricted(group, message) {
-  return ["error", { patterns: [{ group, message }] }];
+/**
+ * A `no-restricted-imports` configuration for one file group; `noAnimation`
+ * also bans the animation libraries (everything outside a skin).
+ */
+function restricted(group, message, noAnimation = false) {
+  const patterns = [{ group, message }];
+  if (noAnimation) {
+    patterns.push({ regex: ANIMATION_RE, message: "only skins may import animation libraries (AGENTS.md §13)." });
+  }
+  return ["error", { patterns }];
 }
 
 export default tseslint.config(
-  { ignores: ["out/**", "node_modules/**", "*.tsbuildinfo"] },
+  // Bundled third-party code (see its SOURCE.txt) is not ours to lint, like node_modules.
+  { ignores: ["out/**", "node_modules/**", "*.tsbuildinfo", "src/renderer/skins/bear/vendor/**/*.js"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -42,6 +54,7 @@ export default tseslint.config(
       "no-restricted-imports": restricted(
         FROM_RENDERER,
         "renderer must go through the preload bridge, not import main/ or agent/.",
+        true,
       ),
     },
   },
@@ -51,27 +64,19 @@ export default tseslint.config(
       "no-restricted-imports": restricted(
         FROM_CORE,
         "core is skin-agnostic and renderer-only; import skins/contract, not a skin.",
+        true,
       ),
     },
   },
-  {
-    files: ["src/renderer/skins/bare/**/*.{ts,tsx}"],
+  ...SKINS.map((id) => ({
+    files: [`src/renderer/skins/${id}/**/*.{ts,tsx}`],
     rules: {
       "no-restricted-imports": restricted(
-        FROM_BARE,
+        fromSkin(id),
         "skins must not import another skin or the Node-side processes.",
       ),
     },
-  },
-  {
-    files: ["src/renderer/skins/chicago/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": restricted(
-        FROM_CHICAGO,
-        "skins must not import another skin or the Node-side processes.",
-      ),
-    },
-  },
+  })),
   {
     files: ["src/main/**/*.{ts,tsx}", "src/agent/**/*.{ts,tsx}"],
     rules: {

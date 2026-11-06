@@ -6,7 +6,8 @@
  * are the real November-2026 grid, so the calendar sample matches the design.
  */
 
-import type { AnkiStatus, CardsStats, CourseSummary, ReadingItem, ReadingSource, ReadingStats, SkillInfo, SkillReview } from "@shared/data-protocol.js";
+import type { AnkiStatus, CardsStats, CourseSummary, CycleDay, CycleMonth, CycleOverview, ReadingItem, ReadingSource, ReadingStats, SkillInfo, SkillReview, SubjectsOverview } from "@shared/data-protocol.js";
+import { groupProgress } from "../core/board/progress-groups.js";
 import { monthGrid } from "../core/board/use-calendar.js";
 import type { ShellPanels } from "../skins/contract.js";
 
@@ -97,6 +98,126 @@ export const SAMPLE_SOURCE_FILES: ReadingSource[] = [
   { path: "raw/articles/ctm-ch3.md", name: "ctm-ch3", modifiedAt: 1 },
 ];
 
+/** A day outside every cycle: the 今天 window keeps its plain layout. */
+export const SAMPLE_CYCLE_OUTSIDE: CycleDay = {
+  date: "2026-11-05",
+  weekday: "周四",
+  cycle: null,
+  week: null,
+  type: null,
+  subject: null,
+  course: null,
+  names: {},
+  subjects: {},
+  lessons: [],
+  overdue: [],
+};
+
+/** A 深度 day: today's lesson, one carried over from Monday, one missed in the other course. */
+export const SAMPLE_CYCLE_DAY: CycleDay = {
+  date: "2026-11-11",
+  weekday: "周三",
+  cycle: "C1",
+  week: 1,
+  type: "深度",
+  subject: "discrete-math",
+  course: "discrete-math-epp",
+  names: { "discrete-math-epp": "离散", ctm: "CTM" },
+  subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
+  lessons: [{ course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误" }],
+  overdue: [
+    { course: "discrete-math-epp", id: "D2", date: "2026-11-09", content: "Ch2 §2.1–2.2：真值表、逻辑等价、条件语句与逆否" },
+    { course: "ctm", id: "D1", date: "2026-11-10", content: "Ch1 概念阶梯 + Ch2 §2.2–2.3" },
+  ],
+};
+
+/** The first cycle week of November 2026, for the calendar's day-type labels. */
+export const SAMPLE_CYCLE_MONTH: CycleMonth = {
+  month: "2026-11",
+  days: {
+    "2026-11-06": { cycle: "C1", week: 1, type: "整合", subject: null, course: null },
+    "2026-11-07": { cycle: "C1", week: 1, type: "低强度", subject: null, course: null },
+    "2026-11-08": { cycle: "C1", week: 1, type: "休息", subject: null, course: null },
+    "2026-11-09": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp" },
+    "2026-11-10": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm" },
+    "2026-11-11": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp" },
+    "2026-11-12": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm" },
+  },
+  lessons: {
+    "2026-11-06": [{ course: "discrete-math-epp", id: "D1", content: "Ch1 全章：变量、三类陈述、集合、关系与函数" }],
+    "2026-11-09": [{ course: "discrete-math-epp", id: "D2", content: "Ch2 §2.1–2.2：真值表、逻辑等价" }],
+    "2026-11-10": [{ course: "ctm", id: "D1", content: "Ch1 概念阶梯 + Ch2 §2.2–2.3" }],
+  },
+  names: { "discrete-math-epp": "离散", ctm: "CTM" },
+  subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
+  cycles: [{ cycle: "C1", start: "2026-11-06", end: "2026-12-24" }],
+  recovery: [],
+};
+
+/** 总进度 top: the route, C1 and its two courses. */
+export const SAMPLE_OVERVIEW: CycleOverview = {
+  date: "2026-11-06",
+  route: {
+    start: "2026-11-06",
+    end: "2028-07-20",
+    bufferWeeks: 12,
+    weeksLeft: 89,
+    cycles: [
+      { id: "C1", start: "2026-11-06", end: "2026-12-24", main: ["离散数学", "编程语言与编程范式"], aux: ["数据结构与算法", "C 与系统编程"], status: "进行中" },
+      { id: "C2", start: "2026-12-25", end: "2027-02-11", main: ["数据结构与算法", "C 与系统编程"], aux: ["计算机体系结构", "计算理论"], status: "未开始" },
+      { id: "C3", start: "2027-02-19", end: "2027-04-08", main: ["计算机体系结构", "计算理论"], aux: ["操作系统", "并发编程"], status: "未开始" },
+    ],
+    recovery: [{ start: "2027-02-12", end: "2027-02-18" }],
+  },
+  cycle: {
+    cycle: "C1",
+    title: "离散数学 + 编程语言与编程范式",
+    start: "2026-11-06",
+    end: "2026-12-24",
+    week: 1,
+    weeks: 7,
+    daysLeft: 48,
+    next: { cycle: "C2", start: "2026-12-25" },
+  },
+  courses: [
+    { slug: "discrete-math-epp", subject: "discrete-math", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章：变量、三类陈述、集合、关系与函数" } },
+    { slug: "ctm", subject: "programming-paradigms", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "Ch1 概念阶梯 + Ch2 §2.2–2.3" } },
+  ],
+};
+
+/** A small subject skeleton: one main subject with two courses, one subject only with ingested material. */
+export const SAMPLE_SUBJECTS: SubjectsOverview = {
+  date: "2026-11-06",
+  cycle: { cycle: "C1", week: 1, weeks: 7, aux: "（空）；（空）——路线原定数据结构与算法、C 与系统编程" },
+  subjects: [
+    {
+      slug: "programming-paradigms",
+      title: "编程语言与编程范式",
+      layer: "A 数学与理论基础",
+      route: "C1 主项",
+      main: true,
+      courses: ["ctm", "programming-paradigms"],
+      materials: [
+        { type: "书籍", mark: "now", status: "学习中", role: "主线", title: "CTM", course: "ctm" },
+        { type: "书籍", mark: "none", status: "未制定计划", role: "主线（进阶）", title: "SICP", course: null },
+        { type: "在线书籍", mark: "none", status: "未制定计划", role: "练习", title: "Seven Languages in Seven Weeks", course: null },
+      ],
+    },
+    {
+      slug: "software-engineering",
+      title: "软件工程",
+      layer: "D 工程与职业能力",
+      route: "C10 主项",
+      main: false,
+      courses: [],
+      materials: [{ type: "文章", mark: "done", status: "已摄取", role: "参考", title: "Command Pattern", course: null }],
+    },
+  ],
+};
+
+/** SAMPLE_SUBJECTS grouped as on 2026-11-06 (ctm last studied 10-16, so it is marked !). */
+export const SAMPLE_GROUPS = groupProgress(SAMPLE_SUBJECTS, SAMPLE_COURSES, "2026-11-06");
+
 /** The real November-2026 grid, so the calendar sample matches the design. */
 export const SAMPLE_CALENDAR_CELLS = monthGrid("2026-11");
 
@@ -111,20 +232,35 @@ export const SAMPLE_PANELS: ShellPanels = {
       { kind: "record", label: "编程范式", detail: "2026-11-03-01" },
       { kind: "reading", label: "CTM 第 2 章", detail: "CTM 第 2 章" },
     ],
+    tomorrowPlan: [
+      { kind: "plan", label: "Python 装饰器入门", detail: "`@` 只是缩写" },
+      { kind: "plan", label: "Python 装饰器入门", detail: "复习：函数是「东西」" },
+    ],
     readingDue: { status: "ready", value: SAMPLE_READING },
     cards: { status: "ready", value: SAMPLE_CARDS },
     resume: null,
+    startedToday: { ctm: true },
+    cycleToday: { status: "ready", value: SAMPLE_CYCLE_OUTSIDE },
+    cycleTomorrow: { status: "ready", value: SAMPLE_CYCLE_OUTSIDE },
+    courses: { status: "ready", value: SAMPLE_COURSES },
+    anki: { status: "ready", value: SAMPLE_ANKI },
+    onStudyCourse: noop,
+    onVerifyCourse: noop,
+    onOpenControl: null,
     onResume: noop,
     agentReady: true,
   },
   progress: {
     courses: { status: "ready", value: SAMPLE_COURSES },
     courseStyles: { ctm: "plain" },
+    startedToday: { ctm: true },
     onCourseStyle: noop,
     onStudy: noop,
     onNewCourse: noop,
     onEditPlan: noop,
     sources: { status: "ready", value: SAMPLE_SOURCE_FILES },
+    groups: null,
+    overview: { status: "ready", value: SAMPLE_OVERVIEW },
   },
   reading: {
     queue: { status: "ready", value: SAMPLE_SOURCES },
@@ -171,6 +307,7 @@ export const SAMPLE_PANELS: ShellPanels = {
     onSelectDay: noop,
     onEditDay: noop,
     courseTitles: { ctm: "CTM 7 周", "programming-paradigms": "编程范式" },
+    cycleMonth: { status: "ready", value: SAMPLE_CYCLE_MONTH },
   },
   skills: {
     skills: { status: "ready", value: SAMPLE_SKILLS },

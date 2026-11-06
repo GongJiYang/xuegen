@@ -94,6 +94,80 @@ describe("handleDataRequest", () => {
     }
   });
 
+  it("cycle.day and cycle.month read the cycle page", async () => {
+    touch(
+      join(vault, "wiki", "cycles", "c1.md"),
+      [
+        "---",
+        "cycle: C1",
+        "start: 2026-11-06",
+        "end: 2026-12-24",
+        "---",
+        "",
+        "## Weekly Template",
+        "",
+        "| 星期 | 类型 | 课程 |",
+        "|---|---|---|",
+        "| 周一 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周二 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周三 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周四 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周五 | 整合 | — |",
+        "| 周六 | 低强度 | — |",
+        "| 周日 | 休息 | — |",
+        "",
+      ].join("\n"),
+    );
+    touch(join(vault, "wiki", "subjects", "demo.md"), ["# Demo 科目", "", "## Courses", "- [[courses/demo]] - Demo", ""].join("\n"));
+    const day = await handleDataRequest({ kind: "cycle.day", date: "2026-11-09" });
+    expect(day.ok).toBe(true);
+    if (day.ok) {
+      expect(day.data).toMatchObject({ cycle: "C1", week: 1, type: "深度", subject: "demo", course: null, lessons: [], overdue: [] });
+    }
+    const month = await handleDataRequest({ kind: "cycle.month", month: "2026-11" });
+    expect(month.ok).toBe(true);
+    if (month.ok) {
+      const data = month.data as { days: Record<string, { type: string }> };
+      expect(data.days["2026-11-06"]?.type).toBe("整合");
+      expect(data.days["2026-11-05"]).toBeUndefined();
+    }
+    const overview = await handleDataRequest({ kind: "cycle.overview", date: "2026-11-09" });
+    expect(overview.ok).toBe(true);
+    if (overview.ok) expect(overview.data).toMatchObject({ route: null, cycle: { cycle: "C1" } });
+  });
+
+  it("subjects.list reads the subject pages", async () => {
+    touch(
+      join(vault, "wiki", "subjects", "demo-subject.md"),
+      [
+        "---",
+        "layer: A 数学与理论基础",
+        "route: 路线外",
+        "---",
+        "",
+        "# 演示科目",
+        "",
+        "## Materials",
+        "",
+        "### 书籍",
+        "- ◌ 未制定计划 · 拓展 · [[2026-11-05-demo|演示书]]",
+        "",
+        "## Courses",
+        "- [[courses/demo]] - Demo",
+        "",
+      ].join("\n"),
+    );
+    const result = await handleDataRequest({ kind: "subjects.list", date: "2026-11-09" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toMatchObject({
+        date: "2026-11-09",
+        cycle: null,
+        subjects: [{ slug: "demo-subject", title: "演示科目", main: false, courses: ["demo"], materials: [{ title: "演示书", mark: "none" }] }],
+      });
+    }
+  });
+
   it("cards.add then cards.stats reports the new unsynced card", async () => {
     const add = await handleDataRequest({ kind: "cards.add", deck: "Demo", front: "问题？", back: "答案" });
     expect(add.ok).toBe(true);

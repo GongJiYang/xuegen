@@ -4,11 +4,12 @@
  * plain semantic HTML. The reference skin: no styles, no motion.
  */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { TEACHING_STYLE_LABELS } from "@shared/protocol.js";
 import type {
   AssistantMessageProps,
   ComposerProps,
+  CourseIntroCardProps,
   ExerciseProps,
   ModelPickerProps,
   NoticeProps,
@@ -18,17 +19,43 @@ import type {
   UserMessageProps,
 } from "../contract.js";
 import { strings } from "../../core/strings.js";
+import { courseIntroLines } from "../../core/board/course-intro.js";
+import { notesAt } from "../../core/chat/context-usage.js";
 import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
+import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
 import { SlashMenu } from "./panels-more.js";
 
 /** Ignore a second send click this soon after the first (double-click guard). */
 const SEND_DEBOUNCE_MS = 600;
 
-export function Thread({ messages, thinking, noModels, modelsReason, renderMessage }: ThreadProps) {
+export function Thread({
+  messages,
+  thinking,
+  noModels,
+  modelsReason,
+  renderMessage,
+  intro,
+  systemNotes,
+}: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
-  const { atBottom, scrollToBottom } = useFollowBottom(paneRef);
-  if (messages.length === 0) {
+  const answerRef = useRef<HTMLDivElement | null>(null);
+  const lastAssistant = lastAssistantMessage(messages);
+  const { atBottom, scrollToBottom } = useFollowBottom(paneRef, {
+    answer: lastAssistant ? { key: lastAssistant.id, elementRef: answerRef } : null,
+    answerStreaming: lastAssistant?.streaming ?? false,
+  });
+  const lastAssistantIndex = lastAssistant ? messages.indexOf(lastAssistant) : -1;
+  const card = intro ? <CourseIntroCard card={intro.card} /> : null;
+  // Before the opening prompt arrives, the card belongs after the transcript.
+  const cardIndex = intro ? Math.min(intro.beforeIndex, messages.length) : null;
+  const notes = (index: number) =>
+    notesAt(systemNotes, index, messages.length).map((note, n) => (
+      <p key={`note-${index}-${n}`} data-slot="thread-note" role="note">
+        {note.text}
+      </p>
+    ));
+  if (messages.length === 0 && !card) {
     return (
       <div data-slot="thread" role="log">
         <p>{noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}</p>
@@ -38,16 +65,37 @@ export function Thread({ messages, thinking, noModels, modelsReason, renderMessa
   return (
     <div data-slot="thread" role="log" ref={paneRef}>
       {messages.map((message, index) => (
-        <div key={message.id} data-message-id={message.id}>
-          {renderMessage(message, thinkingFor(messages, index, thinking))}
-        </div>
+        <Fragment key={message.id}>
+          {notes(index)}
+          {cardIndex === index && card}
+          <div
+            ref={index === lastAssistantIndex ? answerRef : undefined}
+            data-message-id={message.id}
+          >
+            {renderMessage(message, thinkingFor(messages, index, thinking))}
+          </div>
+        </Fragment>
       ))}
+      {notes(messages.length)}
+      {cardIndex === messages.length && card}
       {!atBottom && (
         <button type="button" onClick={scrollToBottom}>
           {strings.chat.backToLatest}
         </button>
       )}
     </div>
+  );
+}
+
+export function CourseIntroCard({ card }: CourseIntroCardProps) {
+  const lines = courseIntroLines(card);
+  return (
+    <section data-slot="course-intro" aria-label={card.title}>
+      <h3>{card.title}</h3>
+      <p>{lines.last}</p>
+      <p>{lines.next}</p>
+      <p>{lines.week}</p>
+    </section>
   );
 }
 
@@ -63,6 +111,7 @@ export function UserMessage({ message, body, styleTag }: UserMessageProps) {
 export function AssistantMessage({
   message,
   thinking,
+  activity,
   onCopy,
   copied,
   onRetry,
@@ -79,7 +128,7 @@ export function AssistantMessage({
       {nodes.map((node, index) => (
         <div key={index}>{renderContent(node, streaming)}</div>
       ))}
-      {thinking && <Thinking label={strings.chat.thinking} />}
+      {thinking && <Thinking label={activity?.label ?? strings.chat.thinking} />}
       {message.errorMessage && <p role="alert">{message.errorMessage}</p>}
       <button type="button" onClick={onCopy}>
         {copied ? strings.chat.copied : strings.chat.copy}

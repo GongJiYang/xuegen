@@ -1,0 +1,15 @@
+grokbot-web — animated avatar used by the Bear skin's 总控 title (BE-11b).
+
+Upstream: https://github.com/Coiggahou2002/grokbot-web
+Commit:   616c1dd451f105a10a903e01eed8f82370968681
+License:  BSD-3-Clause (see LICENSE); a port of nasawz/GrokBot.
+Not published on npm. The TypeScript sources do not pass this project's strict
+checks, so they are bundled instead of copied:
+
+  node_modules/.bin/esbuild <upstream>/src/react.tsx --bundle --format=esm \
+    --target=es2022 --jsx=automatic --external:react \
+    --external:react/jsx-runtime --legal-comments=inline \
+    --outfile=src/renderer/skins/bear/vendor/grokbot-web/grokbot-web.js
+
+grokbot-web.d.ts is hand-written and declares only what Xuegen uses.
+Do not edit grokbot-web.js; rebuild it from a reviewed upstream commit.

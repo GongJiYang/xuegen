@@ -25,7 +25,14 @@ import type {
   HostToAgentMessage,
   IpcEnvelope,
 } from "../shared/protocol.js";
-import { DATA_CHANNEL, IPC_CHANNEL, SETTINGS_CHANNEL, isHostToAgentMessage } from "../shared/protocol.js";
+import {
+  DATA_CHANNEL,
+  IPC_CHANNEL,
+  SETTINGS_CHANNEL,
+  isCompactionPayload,
+  isContextUsagePayload,
+  isHostToAgentMessage,
+} from "../shared/protocol.js";
 import { isDataRequest, type DataResponse } from "../shared/data-protocol.js";
 // The agent-side module only computes a path from the filesystem; importing it
 // here keeps a single implementation of the repo-root walk.
@@ -95,6 +102,17 @@ function startAgentProcess(): void {
   });
 
   agentProcess.on("message", (message: AgentToHostMessage) => {
+    // The agent is trusted code, but the payload still crosses a process
+    // boundary: drop a malformed usage/compaction update rather than letting a
+    // bad number reach the UI.
+    if (message.type === "context-usage" && !isContextUsagePayload(message)) {
+      console.error("[main] 收到非法上下文用量，已丢弃:", message);
+      return;
+    }
+    if (message.type === "compaction" && !isCompactionPayload(message)) {
+      console.error("[main] 收到非法压缩事件，已丢弃:", message);
+      return;
+    }
     // Reset the restart budget once the agent reports a healthy start.
     if (message.type === "agent-status" && message.status === "ready") restartCount = 0;
     sendToRenderer(message);

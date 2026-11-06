@@ -15,6 +15,7 @@ import type {
   AgentToHostMessage,
   ChatMessage,
   CommandInfo,
+  ContextUsagePayload,
   ModelInfo,
   TeachingStyle,
 } from "@shared/protocol.js";
@@ -22,7 +23,8 @@ import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
 import { withStylePrefix } from "./style-prefix.js";
 import { isComposerDisabled, noticesFor } from "./view-models.js";
 import { resetScrollMemory } from "./use-scroll-memory.js";
-import type { NoticeItem } from "../../skins/contract.js";
+import type { NoticeItem, ThreadNote } from "../../skins/contract.js";
+import { threadNotes } from "./context-usage.js";
 import * as client from "../client.js";
 
 export interface ChatController {
@@ -42,6 +44,14 @@ export interface ChatController {
   notices: NoticeItem[];
   /** `/skill:<name>` commands the agent offers (enabled skills only). */
   commands: CommandInfo[];
+  /** Estimated context usage, or null before the agent reports one. */
+  contextUsage: ContextUsagePayload | null;
+  /** True while Pi is summarizing older messages. */
+  compacting: boolean;
+  /** Local-only transcript lines (compaction markers), ready to render. */
+  systemNotes: ThreadNote[];
+  /** Ask Pi to compact the conversation now. */
+  compact(): void;
   send(text: string): void;
   /**
    * Send a prompt on behalf of a `/` command.
@@ -136,6 +146,7 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
   }, []);
 
   const stop = useCallback(() => client.send({ type: "abort" }), []);
+  const compact = useCallback(() => client.send({ type: "compact" }), []);
 
   // Retry resends the last user message. `withStylePrefix` never double-prefixes,
   // so the stored (already-prefixed) markdown can be sent as-is. Defined inside
@@ -191,6 +202,10 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
       disabled: isComposerDisabled(state),
       notices: noticesFor(state),
       commands: state.commands,
+      contextUsage: state.contextUsage,
+      compacting: state.compaction?.phase === "start",
+      systemNotes: threadNotes(state.systemNotes),
+      compact,
       send,
       sendCommand,
       stop,
@@ -203,5 +218,17 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
       setThinkingLevel,
       dismissNotice,
     };
-  }, [state, send, sendCommand, stop, newSession, continueSession, openSession, setModel, setThinkingLevel, dismissNotice]);
+  }, [
+    state,
+    compact,
+    send,
+    sendCommand,
+    stop,
+    newSession,
+    continueSession,
+    openSession,
+    setModel,
+    setThinkingLevel,
+    dismissNotice,
+  ]);
 }

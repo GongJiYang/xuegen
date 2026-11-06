@@ -7,6 +7,7 @@
  */
 
 import type { ChatMessage, ModelInfo, ToolCallView } from "@shared/protocol.js";
+import type { CourseIntro } from "../core/board/course-intro.js";
 
 export const SAMPLE_MARKDOWN = `## 二次函数的图像
 
@@ -123,6 +124,22 @@ export const SAMPLE_TOOL_ERROR: ToolCallView = {
   argsSummary: "{ path: 'missing.md' }",
   status: "error",
   resultText: "ENOENT: no such file or directory",
+};
+
+export const SAMPLE_COURSE_INTRO: CourseIntro = {
+  title: "CTM 7 周学习计划",
+  lastDate: "2026-11-03",
+  lastDone: "读 1.2 合一",
+  next: "2.1 数据流变量",
+  week: { done: 3, total: 5 },
+};
+
+export const SAMPLE_COURSE_INTRO_EMPTY: CourseIntro = {
+  title: "新课程",
+  lastDate: null,
+  lastDone: null,
+  next: null,
+  week: { done: 0, total: 0 },
 };
 
 export const SAMPLE_USER_MESSAGE: ChatMessage = {

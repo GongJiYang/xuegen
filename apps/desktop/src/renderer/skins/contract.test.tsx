@@ -7,6 +7,7 @@
  * a missing implementation fails here, which is what keeps `bare` in sync.
  */
 
+import { contextUsageView } from "../core/chat/context-usage.js";
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -19,6 +20,7 @@ import type { SkinModule } from "./contract.js";
 import { SAMPLE_PANELS } from "../gallery/panel-samples.js";
 import {
   SAMPLE_ASSISTANT_MESSAGE,
+  SAMPLE_COURSE_INTRO,
   SAMPLE_ERROR_MESSAGE,
   SAMPLE_MODELS,
   SAMPLE_STREAMING_MESSAGE,
@@ -76,14 +78,19 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
       SkillsPanel,
       DayEditor,
       SlashMenu,
+      CourseIntroCard,
     } = skin.slots;
 
     render(
       <Shell
         sessionTitle={null}
+        control={null}
+        contextUsage={contextUsageView(null, false, () => {})}
         skins={skinChoices}
         activeSkin={definition.id}
         onSelectSkin={noop}
+        bodyFont="pixel"
+        onBodyFont={noop}
         bodyScale={1}
         onBodyScale={noop}
         skinOptions={{}}
@@ -116,6 +123,9 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           thinking={false}
           noModels={false}
           modelsReason={null}
+          intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 1 }}
+          systemNotes={[{ beforeIndex: 1, text: "note" }]}
+          activity={null}
           renderMessage={(message, thinking) => renderMessage(skin, message, thinking)}
         />
         <Thread
@@ -123,8 +133,12 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           thinking={false}
           noModels
           modelsReason={strings.chat.loginHint}
+          intro={null}
+          systemNotes={[]}
+          activity={null}
           renderMessage={() => null}
         />
+        <CourseIntroCard card={SAMPLE_COURSE_INTRO} />
         <Exercise
           title="检验题"
           body="当 a>0 时开口朝上？"

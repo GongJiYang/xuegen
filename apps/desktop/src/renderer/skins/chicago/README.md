@@ -12,8 +12,8 @@ System 6 风格的黑白像素界面。视觉基准与像素细节见 `docs/desk
 | `menubar.tsx` | 菜单栏与下拉菜单（学 / 文件 / 编辑 / 学习 / 风格 / 显示 / 模型），菜单项闪烁后执行回调。 |
 | `tool-dock.tsx` | 最右图标列；32×32 像素图标由 `icons.tsx` 按当前配色生成。 |
 | `icons.tsx` | 五个工具的 16×16 像素图（`ICON_ART`）；`toolDescriptors` 与两色 SVG data URL。 |
-| `today-panel.tsx` | 「今天」窗口：计数 + 接着上次卡片 +「继续学习」。 |
-| `progress-panel.tsx` | 总进度：每门课可展开，本周任务、下次起点、每课风格单选、开始学习。 |
+| `today-panel.tsx` | 「今天」窗口：计数 + 接着上次卡片 +「继续学习」/「回到这门课」。 |
+| `progress-panel.tsx` | 总进度：每门课可展开，本周任务、下次起点、每课风格单选、开始学习/回到这门课。 |
 | `reading-panel.tsx` | 阅读：加入阅读（候选来自 `reading.sources`）+ 今天该读 + 下次接着读 / 推迟 / 读完。 |
 | `cards-panel.tsx` | 卡片：新卡表单、总数 / 待同步、各牌组同步比例、Anki 状态与重试。 |
 | `calendar-panel.tsx` | 日历：月网格（周一起）、●◆▲✎ 标记（`Fusion12Diagram`）、◀▶ 翻月、当天详情。 |
@@ -26,7 +26,7 @@ System 6 风格的黑白像素界面。视觉基准与像素细节见 `docs/desk
 | `dialog.tsx` | 双线边框对话框（检验题、日历写入复用）。 |
 | `content.tsx` | `ContentRenderers`：Markdown、表格、代码双线框、终端字符图、KaTeX、Mermaid、callout。 |
 | `palette.ts` | 五套严格两色配色与像素图案（网点、条纹、按钮圆角、图标）SVG data URL 生成。 |
-| `body-scale.ts` | 正文字号读取时归一化：任意值映射到可渲染的整数倍 1/2，不回写，保留其他皮肤的原始值。 |
+| `body-scale.ts` | 正文字号档位入口：像素字体 1/2，平滑字体 1.25/1.5/1.75/2；具体档位与吸附逻辑在 `core/settings/body-font.ts`。 |
 | `motion.ts` | `MotionPreset`：缩放矩形、闪烁、条纹、披露三角、进度、菜单栏反白。 |
 | `motion-constants.ts` | 全部动效时长与步数（对照 chicago.md §5 核对）。 |
 | `hast-react.ts` | 把 core 的 HAST 结果渲染为 React 元素。 |

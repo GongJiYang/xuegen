@@ -10,3 +10,6 @@
 - `sources.ts`：`reading.sources` —— 列出库内 `raw/`、`Clippings/` 下尚未入队的 `.md`/`.pdf`（按修改时间倒序，最多 50 条），供「加入阅读」输入框的候选。已在阅读页 `source` 里链接的原文会被排除。
 
 不负责：模型调用、界面渲染、课程与阅读状态的解析逻辑（那些在 skill 脚本里）。
+
+- cycle.day / cycle.month → skills/cycle-plan/cycle.mjs（day / month，只读）
+- subjects.list → skills/cycle-plan/subjects.mjs（list，只读）

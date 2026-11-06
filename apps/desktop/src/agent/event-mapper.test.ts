@@ -226,3 +226,30 @@ describe("mapPiEvent queue and state", () => {
     expect(mapped.stateChanged).toBe(false);
   });
 });
+
+describe("mapPiEvent compaction", () => {
+  it("maps compaction start and end", () => {
+    const { messages } = run([
+      { type: "compaction_start", reason: "threshold" } as AgentSessionEvent,
+      { type: "compaction_end", reason: "threshold", result: undefined, aborted: false, willRetry: false } as AgentSessionEvent,
+    ]);
+    expect(messages).toEqual([
+      { type: "compaction", phase: "start", reason: "threshold" },
+      { type: "compaction", phase: "end", reason: "threshold", aborted: false },
+    ]);
+  });
+
+  it("carries a failure message", () => {
+    const { messages } = run([
+      {
+        type: "compaction_end",
+        reason: "manual",
+        result: undefined,
+        aborted: false,
+        willRetry: false,
+        errorMessage: "boom",
+      } as AgentSessionEvent,
+    ]);
+    expect(messages[0]).toMatchObject({ type: "compaction", phase: "end", errorMessage: "boom" });
+  });
+});

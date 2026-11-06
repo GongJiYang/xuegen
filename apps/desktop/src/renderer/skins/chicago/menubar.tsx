@@ -9,13 +9,13 @@
  */
 
 import { forwardRef, useEffect, useRef, useState } from "react";
-import type { ModelInfo, TeachingStyle } from "@shared/protocol.js";
-import { TEACHING_STYLE_LABELS, THINKING_LEVEL_LABELS } from "@shared/protocol.js";
+import type { BodyFont, ModelInfo, TeachingStyle } from "@shared/protocol.js";
+import { BODY_FONTS, TEACHING_STYLE_LABELS, THINKING_LEVEL_LABELS } from "@shared/protocol.js";
 import { strings } from "../../core/strings.js";
 import { shortModelName } from "../../core/chat/model-short-name.js";
 import type { ToolDescriptor, ToolId } from "../contract.js";
 import { PALETTES, PALETTE_IDS, PALETTE_OPTION_KEY, resolvePaletteId } from "./palette.js";
-import { isBigScale } from "./body-scale.js";
+import { bodyScalePixels, bodyScaleStepsForFont, coerceBodyScaleForFont } from "../../core/settings/body-font.js";
 
 interface MenuBarProps {
   skins: { id: string; name: string }[];
@@ -23,6 +23,8 @@ interface MenuBarProps {
   onSelectSkin(id: string): void;
   skinOptions: Record<string, string>;
   onSkinOption(key: string, value: string): void;
+  bodyFont: BodyFont;
+  onBodyFont(font: BodyFont): void;
   bodyScale: number;
   onBodyScale(value: number): void;
   models: ModelInfo[];
@@ -249,14 +251,20 @@ function buildMenus(
           onSelect: run(() => props.onSelectSkin(skin.id)),
         })),
         null,
-        {
-          key: "big",
-          label: strings.topBar.bodyScale,
-          checked: isBigScale(props.bodyScale),
-          // Writing a whole multiple is what makes the stored value and the
-          // rendered size agree from now on (a legacy 0.9 becomes 1 or 2).
-          onSelect: run(() => props.onBodyScale(isBigScale(props.bodyScale) ? 1 : 2)),
-        },
+        { key: "body-font-head", label: `${strings.topBar.bodyFont} ▸`, disabled: true },
+        ...BODY_FONTS.map((font) => ({
+          key: `font-${font}`,
+          label: strings.topBar.fontNames[font],
+          checked: font === props.bodyFont,
+          onSelect: run(() => props.onBodyFont(font)),
+        })),
+        { key: "body-size-head", label: `${strings.topBar.bodyScale} ▸`, disabled: true },
+        ...bodyScaleStepsForFont(props.bodyFont).map((scale) => ({
+          key: `size-${scale}`,
+          label: `${bodyScalePixels(scale)}px`,
+          checked: scale === coerceBodyScaleForFont(props.bodyScale, props.bodyFont),
+          onSelect: run(() => props.onBodyScale(scale)),
+        })),
         {
           key: "focus",
           label: strings.topBar.focusMode,

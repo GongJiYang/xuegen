@@ -19,6 +19,7 @@ function baseProps(overrides: Partial<AssistantMessageProps> = {}): AssistantMes
   return {
     message: { id: "a1", role: "assistant", markdown: "部分内容", streaming: false, toolCalls: [] },
     thinking: false,
+    activity: null,
     onCopy: vi.fn(),
     copied: false,
     onRetry: vi.fn(),

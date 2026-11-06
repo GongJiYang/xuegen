@@ -9,10 +9,11 @@
  * widget keeps the roles the contract test asserts.
  */
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import type {
   AssistantMessageProps,
   BoardPanelProps,
+  CourseIntroCardProps,
   ExerciseProps,
   ModelPickerProps,
   NotesPanelProps,
@@ -23,9 +24,12 @@ import type {
   UserMessageProps,
 } from "../contract.js";
 import { strings } from "../../core/strings.js";
+import { courseIntroLines } from "../../core/board/course-intro.js";
+import { notesAt } from "../../core/chat/context-usage.js";
 import { useMotion } from "../../core/motion/index.js";
 import { useScrollMemory } from "../../core/chat/use-scroll-memory.js";
 import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
+import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
 import { isAborted, translateModelError } from "../../core/chat/model-error.js";
 import { chicagoMotion, INTENT_ATTRIBUTE } from "./motion.js";
@@ -71,25 +75,61 @@ function MessageError({ raw }: { raw: string }) {
   );
 }
 
-export function Thread({ messages, thinking, noModels, modelsReason, renderMessage }: ThreadProps) {
+export function Thread({
+  messages,
+  thinking,
+  noModels,
+  modelsReason,
+  renderMessage,
+  intro,
+  systemNotes,
+}: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
   useScrollMemory(paneRef);
-  // Follow new content while the reader is at the bottom; pause when they scroll up.
-  const { atBottom, scrollToBottom } = useFollowBottom(paneRef);
+  // Pin a new answer's opening line to the viewport top, then stop following.
+  const answerRef = useRef<HTMLDivElement | null>(null);
+  const lastAssistant = lastAssistantMessage(messages);
+  const { atBottom, scrollToBottom } = useFollowBottom(paneRef, {
+    answer: lastAssistant ? { key: lastAssistant.id, elementRef: answerRef } : null,
+    answerStreaming: lastAssistant?.streaming ?? false,
+  });
+  const lastAssistantIndex = lastAssistant ? messages.indexOf(lastAssistant) : -1;
+  const card = intro ? <CourseIntroCard card={intro.card} /> : null;
+  // Before the opening prompt arrives, the card belongs after the transcript.
+  const cardIndex = intro ? Math.min(intro.beforeIndex, messages.length) : null;
+  const notes = (index: number) =>
+    notesAt(systemNotes, index, messages.length).map((note, n) => (
+      <p key={`note-${index}-${n}`} className="chicago-note" role="note">
+        {note.text}
+      </p>
+    ));
 
   return (
     <div className="chicago-pane chicago-body" ref={paneRef} role="log">
       <div className="chicago-thread">
         {messages.length === 0 ? (
-          <p className="chicago-empty">{noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}</p>
+          card ?? (
+            <p className="chicago-empty">
+              {noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}
+            </p>
+          )
         ) : (
           messages.map((message, index) => (
-            <div key={message.id} data-message-id={message.id}>
-              {renderMessage(message, thinkingFor(messages, index, thinking))}
-            </div>
+            <Fragment key={message.id}>
+              {notes(index)}
+              {cardIndex === index && card}
+              <div
+                ref={index === lastAssistantIndex ? answerRef : undefined}
+                data-message-id={message.id}
+              >
+                {renderMessage(message, thinkingFor(messages, index, thinking))}
+              </div>
+            </Fragment>
           ))
         )}
+        {messages.length > 0 && notes(messages.length)}
+        {messages.length > 0 && cardIndex === messages.length && card}
       </div>
       {!atBottom && (
         <button type="button" className="chicago-back-to-latest" onClick={scrollToBottom}>
@@ -97,6 +137,20 @@ export function Thread({ messages, thinking, noModels, modelsReason, renderMessa
         </button>
       )}
     </div>
+  );
+}
+
+export function CourseIntroCard({ card }: CourseIntroCardProps) {
+  const lines = courseIntroLines(card);
+  const ref = useRef<HTMLElement | null>(null);
+  useMotion(chicagoMotion, "appear", ref, [card.title]);
+  return (
+    <section ref={ref} className="chicago-intro" aria-label={card.title}>
+      <div className="chicago-intro-title">{card.title}</div>
+      <p>{lines.last}</p>
+      <p>{lines.next}</p>
+      <p>{lines.week}</p>
+    </section>
   );
 }
 

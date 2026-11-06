@@ -12,7 +12,12 @@
 
 import type { ShellProps, SkinModule, SkinSlots } from "../contract.js";
 import { strings } from "../../core/strings.js";
-import { DEFAULT_BODY_SCALE_STEPS } from "../../core/settings/step-body-scale.js";
+import { BODY_FONTS, isBodyFont } from "@shared/protocol.js";
+import {
+  bodyScalePixels,
+  bodyScaleStepsForFont,
+  coerceBodyScaleForFont,
+} from "../../core/settings/body-font.js";
 import { BareContentNode } from "./content.js";
 import { ReadingPanel, TodayPanel, ToolDock } from "./panels.js";
 import { ProgressPanel } from "./progress-panel.js";
@@ -20,6 +25,7 @@ import { BoardPanel, CalendarPanel, CardsPanel, DayEditor, NotesPanel, SkillsPan
 import {
   AssistantMessage,
   Composer,
+  CourseIntroCard,
   Exercise,
   ModelPicker,
   Notice,
@@ -34,11 +40,14 @@ function Shell({
   skins,
   activeSkin,
   onSelectSkin,
+  bodyFont,
+  onBodyFont,
   bodyScale,
   onBodyScale,
   agentStatus,
   notices,
   onDismissNotice,
+  contextUsage,
 }: ShellProps) {
   return (
     <div data-slot="shell">
@@ -61,16 +70,42 @@ function Shell({
           </select>
         </label>
         <label>
-          <span>{strings.topBar.bodyScale}</span>
-          <input
-            type="range"
-            min={0.75}
-            max={2}
-            step={0.05}
-            value={bodyScale}
-            onChange={(event) => onBodyScale(Number(event.target.value))}
-          />
+          <span>{strings.topBar.bodyFont}</span>
+          <select
+            aria-label={strings.topBar.bodyFontTitle}
+            value={bodyFont}
+            onChange={(event) => {
+              if (isBodyFont(event.target.value)) onBodyFont(event.target.value);
+            }}
+          >
+            {BODY_FONTS.map((font) => (
+              <option key={font} value={font}>
+                {strings.topBar.fontNames[font]}
+              </option>
+            ))}
+          </select>
         </label>
+        <label>
+          <span>{strings.topBar.bodyScale}</span>
+          <select
+            aria-label={strings.topBar.bodyScaleTitle}
+            value={String(coerceBodyScaleForFont(bodyScale, bodyFont))}
+            onChange={(event) => onBodyScale(Number(event.target.value))}
+          >
+            {bodyScaleStepsForFont(bodyFont).map((step) => (
+              <option key={step} value={String(step)}>
+                {bodyScalePixels(step)}px
+              </option>
+            ))}
+          </select>
+        </label>
+        <details data-slot="context-usage">
+          <summary>{contextUsage.label}</summary>
+          <p>{contextUsage.detail}</p>
+          <button type="button" disabled={contextUsage.compacting} onClick={contextUsage.onCompact}>
+            {strings.chat.compactNow}
+          </button>
+        </details>
         <span data-slot="agent-status" role="status">
           {agentStatus}
         </span>
@@ -113,11 +148,12 @@ const bareSlots: SkinSlots = {
   SkillsPanel,
   DayEditor,
   SlashMenu,
+  CourseIntroCard,
 };
 
 /** The bare skin module, consumed by the registry's named-export loader. */
 export const bareSkin: SkinModule = {
-  bodyScaleSteps: DEFAULT_BODY_SCALE_STEPS,
+  bodyScaleSteps: bodyScaleStepsForFont,
   slots: bareSlots,
   motion: { run: () => null },
   content: { Node: BareContentNode },

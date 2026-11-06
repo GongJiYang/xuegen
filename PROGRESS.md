@@ -1,41 +1,42 @@
-# PROGRESS（更新于 2026-11-03 晚，最新提交 bfb1aad，分支 desktop，所有改动均未提交）
+# PROGRESS（更新于 2026-11-06，分支 desktop；BE-6～PL-7 已全部提交）
 
 ## ▶ 下一步（新会话直接从这里开始）
-`docs/archive/desktop/HANDOFF-2026-11-04.md` 的 T1–T4 已完成（2026-11-04 晚）：代码改由 opencode 写（`opencode run --pure -m deepseek/deepseek-flash --auto --dir <xuegen>`，不加 `cd`；日志 `/Users/gjy/pi-learning/opencode-*.log`；任务说明 `docs/archive/desktop/batch-t1-t2.md`、`docs/archive/desktop/batch-t3-zoom.md`、`docs/archive/desktop/batch-t1-layout.md`）。T4 在真实 Electron（临时 XUEGEN_HOME + 库副本）走查全部通过：分课会话、切回恢复、重启恢复、新课程建课并归属、改计划、自动刷新面板、`/skill:` 显示、⌘=/⌘0 只改正文且菜单无缩放项。检查全绿：desktop 272 测试、根 104 测试。剩下：T5 回答用户的画图问题（不写代码）；用户决定是否提交。已知小事：开发模式热更新后助手回答暂时不显示（重启恢复，不影响正式使用）。
+核对 BE-6 卡片面板：测试副本 Electron（端口 9460）打开抽屉「卡片」截图，对照 `/Users/gjy/pi-learning/design/animate/?d=cards`，通过后把 `docs/desktop/batch-bear-6.md` 移到 `docs/archive/desktop/`；然后做 Bear「技能」面板设计稿（Claude 做，`design/animate/` 新建 `?d=skills`）给用户确认。
 
 ## 当前位置
-UI-0 已完成并经 Claude 复验（typecheck/lint/73 测试/build/smoke 通过，grep 无残留）。Chicago 设计稿（`/Users/gjy/pi-learning/design/chicago/index.html`，仓库外）用户已确认，含 5 套两色护眼配色、防闪屏、终端字符图专用字体 `Fusion12Diagram`（生成脚本 `design/chicago/tools/make-diagram-font.py`）。
+学习周期 C1 已开跑（2026-11-06 ~ 12-24，周五至周四为一周；离散 D1 = 11-06，CTM D1 = 11-10）。桌面版周期视图、日历类型、总进度按科目分组、总控会话、对话里的活动头像都已完成并在测试副本验收。总进度/日历按设计稿 `?d=plan` 重做完成（PL-1/2），路线终止日期读库里新页 `wiki/cycles/route.md`。用户正式窗口（端口 9470）07:25 用旧代码启动，需重启才能用上 PL（改了主进程）。测试窗口（9460）可能还开着，下次用前先确认或关掉。
 
-## 已完成（最近的在前，均经 Claude 按真实场景复验）
+## 已完成（最近的在前）
 | 批次 | 结果 |
 |---|---|
-| S-D 画图 skill `diagram` | 两轮完成，Claude 复验：9 个真实样例结果正确（多图相邻不误报、缺边/中文按 1 列/列错位均报出），lint 0 错误，66 测试通过 |
-| UI-0 皮肤架构 | cmd 完成，Claude 复验通过：core/chat、content、motion、settings，skins/contract+registry+bare，画廊 `?gallery&skin=`，`⌘⇧K` 切换 |
-| 画图 skill 调研 | 6 个仓库均 MIT；只吸收 show-dont-tell/box-diagram/codex-preview/tldr 的规则，不装 pretty-mermaid、glyphcss（中文对齐问题、依赖） |
-| Chicago 视觉设计稿 | 用户确认「就这一版」；字体 ChicagoFLF + Fusion Pixel 12px（比例/等宽），弃用 Monaco；像素圆角按钮；1 倍截图非黑白像素为 0 |
-| 皮肤架构与 Chicago 设计 | `docs/desktop/UI-ARCHITECTURE.md`、`docs/desktop/skins/README.md`、`docs/desktop/skins/chicago.md`、`docs/archive/desktop/batch-ui-0.md`、`docs/archive/desktop/batch-ui-1.md`；AGENTS.md §12/§13 改为皮肤与微交互规则 |
-| S1 skill 规范 | `docs/skills/AUTHORING.md`、`scripts/lint-skills.mjs`、`npm run lint:skills`；6 个 skill 0 错误 |
-| reading skill | `skills/reading/SKILL.md` + `reading-queue.mjs`（修 3 轮：引号、库布局、resume）；26 测试通过 |
-| 动效批 / 修复 B / 修复 A / 第 1 批 | 桌面版能对话；这些旧 UI 与动效将在 UI-0 中移除 |
+| PL-5/6 + course 技能 | 「正在思考」整次回答只画一行、去掉呼吸动画（未在真实回答里目测）；每门课每天第一次开课用新会话（离散课对不上号的原因：开课发进了 11-05 旧会话）。course SKILL 加「原书：带读/先读后讲/边读边讲」（阅读算在 90 分钟内）与「骨架：教材目录/自拟」。PL-7 已做：新课程表单去掉「每天时长」（学根按难度估每节时长，course SKILL 已写）、加「原书」三档。讲解风格问题已诊断未修（两处来源：desktop.json courseStyles vs 课程页「讲解风格」；Next Session 混入风格词；teach SKILL 无冲突规则、「延续」说法与每条带标签不符；「深度」与学习深度轴混淆） |
+| PL-3/4 | 用户第二轮反馈：总进度只留「预计结束」+ 12 周期×7 周格；课按科目分组，未排课资料有「排课」；周模板深度日改为链接科目（`[[subjects/…\|短名]]`），本周期的课 = 科目页链接、周期内有新课的课程，同科目可多门课分深度日（check 查撞车）。库已迁移：c1.md 模板、两个科目页课程链接加短名、库 AGENTS.md 与 SKILL.md 同步；`subjects.mjs` 也只读 `c<N>.md` |
+| PL-1/2 + 路线页 | 用户批准设计稿 `design/animate/?d=plan`。库新建 `wiki/cycles/route.md`（C1–C12 + 5 个恢复周，计划内结束 2028-07-20，缓冲 12 周；库 AGENTS.md 补 Route Page 规则）。`cycle.mjs` 只读 `c<N>.md`、新增 `overview`、`month` 带课次/短名/周期边界/恢复日、`check` 比对路线页；`core/board/plan-view.ts`；Bear 总进度顶部路线卡 + 本周期 + 课程卡，日历格子写课名、C1 起/完、选中日课次。偏离：日历详情没有「开始 →」；课程卡展开仍是原来的本周任务。已知小问题：已完成课程（Prolog/Scala/Erlang）仍排在主项里、下方有一条粗黑线（旧样式）；`progress-panel.tsx` 471 行，待拆 |
+| BE-11a/b/c | 总控会话（`/总控`、今天视图「总控 →」，每周期一个，每天首次打开自动要简报，标题「总控 · C1」+ 22px 墨色头像）；对话进行中那一行 24px 头像 + 正在思考/查资料/动手/写（`core/chat/activity.ts`，只读 bash 命令算查资料）。grokbot-web 打包在 `skins/bear/vendor/`（BSD-3，提交 616c1dd，见 SOURCE.txt），eslint 只忽略该 .js |
+| BE-10a/b | `skills/cycle-plan/subjects.mjs` + `subjects.list`；总进度按 主项/辅助/路线外/已学专题 分组，记号 ✓ ! ○ ●（超 14 天没学为 !） |
+| BE-9a～d | `cycle.mjs`（day/week/month/check）、`cycle.day`/`cycle.month`；Bear 今天周期视图、日历「深整低休」；正文 42em、滚动条隐藏 |
+| cycle-1～3 | 排期 `--days`/`--extra`/`--reviews anki`；`cycle-plan` skill（SKILL.md 由 Claude 写）；真实库两门课已按周模板重排 |
+| Wiki（Claude 直接改，用户批准） | 库 `AGENTS.md` 补科目/周期/课程/日历规则与状态记号；`subjects.md` + 7 科目页、`cycles/c1.md`、9 个登记来源页；修 126 处歧义链接、8 处断链。备份 `/tmp/vault-backup-2026-11-05` |
+
+测试：桌面 428、脚本 140 全绿；`lint:skills` 0 错误。
 
 ## 排队（按顺序）
-1. F1 → F2 → F3 功能循环（见 ▶ 下一步）
-2. 桌面 2A 卡片总览 → 2B Anki 状态（只读 AnkiConnect）→ 2C 课程+阅读看板 → 2D 制卡审核
-3. S2 路由评测 → S3.5 公开仓库 xuegen-skills（MIT）
-4. RAG（R0–R4）已暂缓
+1. BE-6 卡片面板截图核对（见下一步）。
+2. Bear「技能」面板：设计稿 → 用户确认 → 逐步清单派 Devin。
+3. Trilium 每日笔记双向同步（Trilium 已装、37840 端口，ETAPI `/etapi/calendar/days/{date}`；与 `wiki/calendar/YYYY-MM-DD.md` 互相同步，两边都改标冲突；令牌存 `~/.xuegen/trilium-token`）。动手前问用户：以哪边为主、是否导入历史日记、日记里写什么。
+4. 可选：diagram 检查加强；其余皮肤 Things/Linear/Arc；外部提醒 → 周报 → 降低检查题作答成本。
 
 ## 关键决策
-- 代码由 cmd 写：`cmd -p "…" -m deepseek/deepseek-v4-flash --yolo --trust --skip-onboarding --no-auto-update --max-turns N`，命令必须以 `cmd -p` 开头（权限规则在 `/Users/gjy/pi-learning/.claude/settings.local.json`），不要加 `cd`。Claude 写任务说明、审查、验收。
-- 新皮肤先做可点的静态设计稿给用户确认，再写任务派 cmd（Chicago 曾跳过这一步被用户指出）。
-- UI：极简专注阅读；每套 UI 是命名皮肤（登记表 `docs/desktop/skins/README.md`）；动效只做微交互，组件只发意图，皮肤决定怎么动。
-- Anki 同步由 Obsidian 的 obsidian-to-anki 负责，桌面版只读（显示「N 张待同步」）。
-- RAG 用 API 嵌入、不纳入会话记录、暂缓；评测集与模型无关。skill 仓库公开，MIT。
-- Obsidian 库 `/Users/gjy/Documents/Obsdian-gjy/GJY`：已加 `wiki/reading/`、`wiki/extracts/` 规则与摘录制卡补充（原文件备份在 `/Users/gjy/pi-learning/backups/vault-2026-11-03/`）。
+- 仓库内代码全交 Devin（`swe-2-high`，见 `xuegen-arch-gate` skill，任务单是逐步清单、给完整代码与锚点）；设计稿（`design/animate/`，端口 5181）、SKILL.md 文字、用户同意的 Wiki 内容由 Claude 直接做。审查时 <10 行的小修 Claude 可改并说明。
+- 学习周期：路线 `~/Documents/学习路径/计算机知识体系.md` v19；周模板 一三离散、二四范式、五整合、六低强度、日休息；每节 90 分钟；复习全交 Anki，收课时先提议卡片、确认后才写。周期页格式以 `skills/cycle-plan/SKILL.md` 为准（frontmatter + 7 行周模板，链接别名即课程短名）。
+- 状态色只表示状态并配记号：● 蓝 #1aa3ff / ! 琥珀 #c98a12（字 #a86b00）/ ✓ 绿 #3a8a5c / ○ 灰 #8b9096 / ◌ 浅灰 #b8bcc2；Bear 变量 `--warn --warn-text --faint --hairline --done`。
+- 文案要简洁直观（用户要求）。验收用 `XUEGEN_HOME=/tmp/xg-e2e/home`（库副本 `/tmp/xg-e2e/vault/GJY`，副本里 C1 与课程排期被测试会话改过，用前可从真实库重拷），CDP 脚本在 `/tmp/xg-e2e/*.mjs`。改主进程/设置要重启窗口，只改渲染层可 reload。
 
 ## 待用户处理
-- 是否提交 `desktop` 分支上的全部改动（尚未提交任何内容）。
-- Chicago 正文默认 12px 还是 24px：实现后试读决定。
+- （已提交 2026-11-06）
+- `~/.xuegen/models.json` 里未启用的中转渠道（provider `moxuna`）要不要删。
+- SICP 文件与版本（找到后登记并排课）。
 
 ## 不要碰
-- `~/.xuegen/`（用户凭据与会话）、Obsidian 库中除已授权规则外的内容。
-- 设计产物不入库：截图/录屏只用于自检（工具 `/Users/gjy/pi-learning/tools/record-page.mjs`）。
+- 真实 `~/.xuegen` 与 Obsidian 库（用户在用）；改库内容须用户同意，课程页走 unlock → 改 → lock → dashboard → render-board。
+- 用户正式窗口（端口 9470）别点；更新前确认没在回答。

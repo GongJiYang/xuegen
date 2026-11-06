@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useRef } from "react";
+import { useRef, type RefObject } from "react";
 import { NEAR_BOTTOM_PX, useFollowBottom } from "./use-follow-bottom.js";
 
 /** A manual ResizeObserver/MutationObserver: the test fires `trigger()`. */
@@ -70,6 +70,12 @@ function useFollowOn(element: HTMLElement) {
   return useFollowBottom(ref);
 }
 
+/** Give an element a viewport position, which jsdom does not compute. */
+function place(element: HTMLElement, top: number): void {
+  element.getBoundingClientRect = () =>
+    ({ top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+}
+
 describe("useFollowBottom", () => {
   beforeEach(() => {
     ManualObserver.instances = [];
@@ -123,6 +129,77 @@ describe("useFollowBottom", () => {
     pane.grow(50);
     act(() => grow());
     expect(pane.get()).toBe(350);
+  });
+
+  it("pins a new answer's opening line to the top, then stops following", () => {
+    const pane = fakePane({ scrollHeight: 1000, clientHeight: 300 });
+    place(pane.element, 100);
+    const anchor = document.createElement("div");
+    place(anchor, 400);
+    const anchorRef: RefObject<HTMLElement | null> = { current: anchor };
+
+    const { result } = renderHook(() =>
+      useFollowBottom(useRef<HTMLElement | null>(pane.element), {
+        answer: { key: "a1", elementRef: anchorRef },
+        answerStreaming: true,
+      }),
+    );
+
+    // 400 - 100 = 300: the answer's start is now at the viewport top.
+    expect(pane.get()).toBe(300);
+    expect(result.current.atBottom).toBe(false);
+
+    // Subsequent growth does not chase the bottom.
+    pane.grow(400);
+    act(() => grow());
+    expect(pane.get()).toBe(300);
+  });
+
+  it("resumes bottom-following after scrollToBottom", () => {
+    const pane = fakePane({ scrollHeight: 1000, clientHeight: 300 });
+    place(pane.element, 100);
+    const anchor = document.createElement("div");
+    place(anchor, 400);
+    const anchorRef: RefObject<HTMLElement | null> = { current: anchor };
+
+    const { result } = renderHook(() =>
+      useFollowBottom(useRef<HTMLElement | null>(pane.element), {
+        answer: { key: "a1", elementRef: anchorRef },
+        answerStreaming: true,
+      }),
+    );
+
+    act(() => result.current.scrollToBottom());
+    expect(result.current.atBottom).toBe(true);
+    expect(pane.get()).toBe(1000);
+
+    pane.grow(100);
+    act(() => grow());
+    expect(pane.get()).toBe(1100);
+  });
+
+  it("does not yank a reader who already scrolled up", () => {
+    const pane = fakePane({ scrollHeight: 300, clientHeight: 100 });
+    place(pane.element, 0);
+    const anchor = document.createElement("div");
+    place(anchor, 120);
+    const anchorRef: RefObject<HTMLElement | null> = { current: anchor };
+
+    const { result, rerender } = renderHook(
+      ({ streaming, key }: { streaming: boolean; key: string | null }) =>
+        useFollowBottom(useRef<HTMLElement | null>(pane.element), {
+          answer: key ? { key, elementRef: anchorRef } : null,
+          answerStreaming: streaming,
+        }),
+      { initialProps: { streaming: false, key: null } as { streaming: boolean; key: string | null } },
+    );
+
+    pane.element.scrollTop = 10;
+    act(() => pane.fireScroll());
+    expect(result.current.atBottom).toBe(false);
+
+    rerender({ streaming: true, key: "a1" });
+    expect(pane.get()).toBe(10);
   });
 
   it("treats a small offset (within the threshold) as still following", () => {

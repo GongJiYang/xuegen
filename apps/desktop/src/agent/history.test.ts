@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyFromMessages } from "./history.js";
+import { historyFromEntries, historyFromMessages } from "./history.js";
 
 describe("historyFromMessages", () => {
   it("keeps user and assistant text and drops everything else", () => {
@@ -41,5 +41,27 @@ describe("historyFromMessages", () => {
 
   it("handles malformed entries without throwing", () => {
     expect(historyFromMessages([null, undefined, 42, { role: "user" }], "pre")).toHaveLength(0);
+  });
+});
+
+describe("historyFromEntries", () => {
+  const entries = [
+    { type: "session" },
+    { type: "message", message: { role: "user", content: "q1" } },
+    { type: "message", message: { role: "assistant", content: [{ type: "text", text: "a1" }] } },
+    { type: "compaction", summary: "…", firstKeptEntryId: "x" },
+    { type: "message", message: { role: "user", content: "q2" } },
+    { type: "message", message: { role: "toolResult", content: "tool" } },
+    null,
+  ];
+
+  it("keeps the original messages visible after a compaction", () => {
+    const { messages } = historyFromEntries(entries, "s");
+    expect(messages.map((message) => message.markdown)).toEqual(["q1", "a1", "q2"]);
+  });
+
+  it("puts a compaction note where the compaction entry was recorded", () => {
+    const { notes } = historyFromEntries(entries, "s");
+    expect(notes).toEqual([{ beforeIndex: 2, kind: "compaction" }]);
   });
 });

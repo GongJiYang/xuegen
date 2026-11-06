@@ -11,6 +11,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { ChatMessage, ToolCallView } from "@shared/protocol.js";
 import { parseContent } from "../content/parse-content.js";
+import { activityOf } from "./activity.js";
 import { splitStyleTag } from "./style-prefix.js";
 import type { ContentNode } from "../content/nodes.js";
 import type { ContentRenderers, SkinSlots } from "../../skins/contract.js";
@@ -102,6 +103,7 @@ export function MessageRenderer({
     <slots.AssistantMessage
       message={message}
       thinking={thinking}
+      activity={activityOf(message, thinking)}
       onCopy={onCopy}
       copied={copied}
       onRetry={onRetry}

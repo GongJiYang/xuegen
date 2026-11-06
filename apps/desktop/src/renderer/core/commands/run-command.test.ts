@@ -6,6 +6,7 @@ describe("commandEffect", () => {
     expect(commandEffect("/大白话")).toEqual({ kind: "style", style: "plain" });
     expect(commandEffect("/细讲")).toEqual({ kind: "style", style: "detailed" });
     expect(commandEffect("/深度")).toEqual({ kind: "style", style: "deep" });
+    expect(commandEffect("/总控")).toEqual({ kind: "control" });
   });
 
   it("maps tool commands", () => {

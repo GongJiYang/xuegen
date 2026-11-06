@@ -18,7 +18,6 @@ import { strings } from "../../core/strings.js";
 import { useMotion } from "../../core/motion/index.js";
 import { chicagoMotion } from "./motion.js";
 import { applyPalette, PALETTE_OPTION_KEY, resolvePaletteId } from "./palette.js";
-import { isBigScale } from "./body-scale.js";
 import { MenuBar } from "./menubar.js";
 import { ToolDockWithPalette } from "./tool-dock.js";
 import { TodayPanel } from "./today-panel.js";
@@ -36,6 +35,8 @@ export function Shell(props: ShellProps) {
     skins,
     activeSkin,
     onSelectSkin,
+    bodyFont,
+    onBodyFont,
     bodyScale,
     onBodyScale,
     skinOptions,
@@ -66,6 +67,7 @@ export function Shell(props: ShellProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [dismissedAlert, setDismissedAlert] = useState<string | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
 
   // Reopening a window must clear its collapsed flag, or a tool the user closed
   // stays hidden no matter which dock icon or menu they click (B3).
@@ -136,12 +138,9 @@ export function Shell(props: ShellProps) {
   useMotion(chicagoMotion, "appear", alertRef, [alertNotice]);
 
   const windowTitle = activeTool ? toolTitle(activeTool) : null;
-  // Coerce at read time only: a legacy fractional value renders at the nearest
-  // whole multiple without writing back, so other skins keep the original.
-  const big = isBigScale(bodyScale);
 
   return (
-    <div ref={ref} className={`chicago-root ${big ? "chicago-big" : ""}`} data-agent-status={agentStatus}>
+    <div ref={ref} className="chicago-root" data-agent-status={agentStatus}>
       <MenuBar
         ref={menuBarRef}
         skins={skins}
@@ -149,6 +148,8 @@ export function Shell(props: ShellProps) {
         onSelectSkin={onSelectSkin}
         skinOptions={skinOptions}
         onSkinOption={onSkinOption}
+        bodyFont={bodyFont}
+        onBodyFont={onBodyFont}
         bodyScale={bodyScale}
         onBodyScale={onBodyScale}
         models={models}
@@ -182,6 +183,30 @@ export function Shell(props: ShellProps) {
               onClick={() => setCollapsed((state) => ({ ...state, chat: !state.chat }))}
             />
             <span className="chicago-title">{props.sessionTitle ?? strings.chat.freeSession}</span>
+            <button
+              type="button"
+              className="chicago-ctx"
+              aria-expanded={contextOpen}
+              onClick={() => setContextOpen((value) => !value)}
+            >
+              {props.contextUsage.label}
+            </button>
+            {contextOpen && (
+              <div className="chicago-ctx-panel" role="dialog" aria-label={props.contextUsage.label}>
+                <div>{props.contextUsage.detail}</div>
+                <button
+                  type="button"
+                  className="chicago-btn"
+                  disabled={props.contextUsage.compacting}
+                  onClick={() => {
+                    props.contextUsage.onCompact();
+                    setContextOpen(false);
+                  }}
+                >
+                  {strings.chat.compactNow}
+                </button>
+              </div>
+            )}
             <button
               type="button"
               className="chicago-box chicago-box-zoom"

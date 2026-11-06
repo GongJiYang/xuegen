@@ -3,10 +3,57 @@
  *
  * Only user and assistant text messages survive; system and tool-result entries
  * are folded away, since batch 1 shows tools as cards on live runs only.
+ *
+ * `historyFromEntries` replays the session *branch* (the raw persisted entries)
+ * rather than Pi's projected context. That keeps the original messages visible
+ * after a compaction — the session file still stores them — and lets a local
+ * marker sit exactly where the `CompactionEntry` was appended. The model itself
+ * sees the summary plus the kept messages, not this full transcript.
  */
 
-import type { ChatMessage } from "../shared/protocol.js";
+import type { ChatMessage, SystemNote } from "../shared/protocol.js";
 import { textFromContent } from "./event-mapper.js";
+
+/** A restored transcript plus the local-only notes to render between messages. */
+export interface HistoryReplay {
+  messages: ChatMessage[];
+  notes: SystemNote[];
+}
+
+function messageFrom(value: unknown, id: string): ChatMessage | null {
+  const message = value as { role?: string; content?: unknown } | undefined;
+  if (!message || (message.role !== "user" && message.role !== "assistant")) return null;
+  const markdown = textFromContent(message.content);
+  if (!markdown) return null;
+  return {
+    id,
+    role: message.role,
+    markdown,
+    streaming: false,
+    toolCalls: [],
+  };
+}
+
+/**
+ * Replay raw session entries, inserting a local compaction marker where the
+ * session file recorded one. Notes are renderer-only and never persisted.
+ */
+export function historyFromEntries(entries: readonly unknown[], idPrefix: string): HistoryReplay {
+  const messages: ChatMessage[] = [];
+  const notes: SystemNote[] = [];
+  entries.forEach((entry, index) => {
+    const record = entry as { type?: string; message?: unknown } | null | undefined;
+    if (!record) return;
+    if (record.type === "compaction") {
+      notes.push({ beforeIndex: messages.length, kind: "compaction" });
+      return;
+    }
+    if (record.type !== "message") return;
+    const message = messageFrom(record.message, `${idPrefix}-history-${index}`);
+    if (message) messages.push(message);
+  });
+  return { messages, notes };
+}
 
 /**
  * Build renderer messages from a Pi transcript.
@@ -17,17 +64,8 @@ import { textFromContent } from "./event-mapper.js";
 export function historyFromMessages(messages: readonly unknown[], idPrefix: string): ChatMessage[] {
   const result: ChatMessage[] = [];
   messages.forEach((entry, index) => {
-    const message = entry as { role?: string; content?: unknown } | undefined;
-    if (!message || (message.role !== "user" && message.role !== "assistant")) return;
-    const markdown = textFromContent(message.content);
-    if (!markdown) return;
-    result.push({
-      id: `${idPrefix}-history-${index}`,
-      role: message.role,
-      markdown,
-      streaming: false,
-      toolCalls: [],
-    });
+    const message = messageFrom(entry, `${idPrefix}-history-${index}`);
+    if (message) result.push(message);
   });
   return result;
 }

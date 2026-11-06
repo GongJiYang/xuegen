@@ -196,3 +196,22 @@ test("toListEntry：日期一律 YYYY-MM-DD，lastRecord 为 null 时保留 null
   const full = toListEntry(parseCourse(FULL, "ctm"));
   assert.match(full.lastRecord.date, /^\d{4}-\d{2}-\d{2}$/);
 });
+
+test("计划表也认 course-schedule.mjs 写的完整日期（带星期）", () => {
+  const text = [
+    "<!-- xuegen:course-state -->",
+    "# 排期课",
+    "## 计划表（参考）",
+    "<!-- xuegen:schedule:start rest=sun -->",
+    "| 天 | 日期 | 内容 | 材料 | 完成条件 |",
+    "|---|---|---|---|---|",
+    "| D1 | 2026-11-04（周三） | 函数是值 | 解释器 | 能说清 f 与 f() |",
+    "| R1-D1 | 2027-01-05（周二） | 复习：函数是值 | 笔记 / 检查题 | 复述要点 |",
+    "<!-- xuegen:schedule:end -->",
+    "## Learning Record",
+  ].join("\n");
+  assert.deepEqual(parseCourse(text, "x").plan, [
+    { date: "2026-11-04", label: "函数是值" },
+    { date: "2027-01-05", label: "复习：函数是值" },
+  ]);
+});

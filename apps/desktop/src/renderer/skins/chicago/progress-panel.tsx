@@ -10,14 +10,19 @@
 import { useState } from "react";
 import { TEACHING_STYLE_LABELS, type TeachingStyle } from "@shared/protocol.js";
 import type { CourseSummary } from "@shared/data-protocol.js";
-import type { NewCourseRequest } from "../../core/board/course-prompts.js";
+import {
+  READING_MODES,
+  REST_DAYS,
+  defaultEndDate,
+  type NewCourseRequest,
+  type ReadingMode,
+  type RestDays,
+} from "../../core/board/course-prompts.js";
 import type { ProgressPanelProps } from "../contract.js";
+import { routeView } from "../../core/board/plan-view.js";
 import { strings } from "../../core/strings.js";
 import { Bar, Caption, CheckBox, Field, InRow, RadioGroup } from "./widgets.js";
 import { Failed, Loading, Note, todayIso } from "./panel-shared.js";
-
-const MINUTES_PER_DAY = [30, 45, 60, 90] as const;
-type MinutesPerDay = (typeof MINUTES_PER_DAY)[number];
 
 /** Candidate paths for the material field; a click fills the field. */
 function materialCandidates(material: string, sources: ProgressPanelProps["sources"]): string[] {
@@ -40,15 +45,19 @@ function NewCourseForm({
 }) {
   const [title, setTitle] = useState("");
   const [material, setMaterial] = useState("");
-  const [minutes, setMinutes] = useState<MinutesPerDay>(45);
+  const [reading, setReading] = useState<ReadingMode>("guided");
   const [startDate, setStartDate] = useState(todayIso);
+  // null = follow the start date (+4 weeks) until the user types a deadline.
+  const [endInput, setEndInput] = useState<string | null>(null);
+  const endDate = endInput ?? defaultEndDate(startDate);
+  const [rest, setRest] = useState<RestDays>("sun");
   const [style, setStyle] = useState<TeachingStyle>("plain");
   const candidates = materialCandidates(material, sources);
 
   function submit(): void {
     const name = title.trim();
     if (!name) return;
-    onSubmit({ title: name, material: material.trim(), minutesPerDay: minutes, startDate, style });
+    onSubmit({ title: name, material: material.trim(), startDate, endDate, rest, reading, style });
   }
 
   return (
@@ -80,24 +89,44 @@ function NewCourseForm({
         </ul>
       )}
       <InRow>
-        <RadioGroup<string>
-          name="new-course-minutes"
-          value={String(minutes)}
-          label={`${strings.progress.minutesPerDay}：`}
-          options={MINUTES_PER_DAY.map((entry) => ({
-            id: String(entry),
-            label: strings.progress.minutesOption(entry),
-          }))}
-          onChange={(id) => setMinutes(Number(id) as MinutesPerDay)}
+        <span>{strings.progress.startDate}：</span>
+        <Field
+          grow
+          value={startDate}
+          onChange={setStartDate}
+          placeholder={strings.progress.startDatePlaceholder}
+          ariaLabel={strings.progress.startDate}
         />
       </InRow>
-      <Field
-        block
-        value={startDate}
-        onChange={setStartDate}
-        placeholder={strings.progress.startDatePlaceholder}
-        ariaLabel={strings.progress.startDate}
-      />
+      <InRow>
+        <span>{strings.progress.endDate}：</span>
+        <Field
+          grow
+          value={endDate}
+          onChange={setEndInput}
+          placeholder={strings.progress.startDatePlaceholder}
+          ariaLabel={strings.progress.endDate}
+        />
+      </InRow>
+      <InRow>
+        <RadioGroup<RestDays>
+          name="new-course-rest"
+          value={rest}
+          label={`${strings.progress.restDays}：`}
+          options={REST_DAYS.map((id) => ({ id, label: strings.progress.restOptions[id] ?? id }))}
+          onChange={setRest}
+        />
+      </InRow>
+      <InRow>
+        <RadioGroup<ReadingMode>
+          name="new-course-reading"
+          value={reading}
+          label={`${strings.progress.reading}：`}
+          options={READING_MODES.map((id) => ({ id, label: strings.progress.readingOptions[id] ?? id }))}
+          onChange={setReading}
+        />
+      </InRow>
+      <Note>{strings.progress.readingHints[reading]}</Note>
       <InRow>
         <RadioGroup<TeachingStyle>
           name="new-course-style"
@@ -125,6 +154,7 @@ function CourseRow({
   course,
   isOpen,
   style,
+  started,
   onToggle,
   onCourseStyle,
   onStudy,
@@ -133,6 +163,7 @@ function CourseRow({
   course: CourseSummary;
   isOpen: boolean;
   style: TeachingStyle;
+  started: boolean;
   onToggle(): void;
   onCourseStyle(style: TeachingStyle): void;
   onStudy(): void;
@@ -189,7 +220,7 @@ function CourseRow({
             </button>
             <span className="chicago-def">
               <button type="button" className="chicago-btn" onClick={onStudy}>
-                {strings.progress.study}
+                {started ? strings.progress.backToCourse : strings.progress.study}
               </button>
             </span>
           </div>
@@ -227,11 +258,14 @@ function CourseRow({
 export function ProgressPanel({
   courses,
   courseStyles,
+  startedToday,
   onCourseStyle,
   onStudy,
   onNewCourse,
   onEditPlan,
   sources,
+  groups,
+  overview,
 }: ProgressPanelProps) {
   // The first course starts expanded, matching the design's initial state.
   const [open, setOpen] = useState(0);
@@ -242,6 +276,12 @@ export function ProgressPanel({
 
   return (
     <div className="chicago-pane-inner">
+      {overview.status === "ready" && overview.value.route && (
+        <Note>
+          {strings.plan.routeEndLabel} {routeView(overview.value, overview.value.date)?.end}
+        </Note>
+      )}
+      {groups?.cycle && <Note>{strings.progress.cycleTop(groups.cycle.cycle, groups.cycle.week, groups.cycle.weeks)}</Note>}
       <InRow spread>
         <Note>{strings.progress.caption}</Note>
         <span className="chicago-def">
@@ -272,6 +312,7 @@ export function ProgressPanel({
           course={course}
           isOpen={open === index}
           style={courseStyles[course.slug] ?? "plain"}
+          started={startedToday[course.slug] === true}
           onToggle={() => setOpen(open === index ? -1 : index)}
           onCourseStyle={(style) => onCourseStyle(course.slug, style)}
           onStudy={() => onStudy(course)}

@@ -150,3 +150,25 @@ describe("isThinking", () => {
     expect(isThinking([])).toBe(false);
   });
 });
+
+describe("chatReducer context usage and compaction", () => {
+  it("drops the previous session's usage when a transcript is replayed", () => {
+    const withUsage = reduce(initialChatState, {
+      type: "context-usage",
+      tokens: 10,
+      contextWindow: 100,
+      percent: 10,
+    });
+    expect(withUsage.contextUsage?.percent).toBe(10);
+    const replayed = reduce(withUsage, { type: "history", messages: [], notes: [] });
+    expect(replayed.contextUsage).toBeNull();
+  });
+
+  it("adds a compaction note at the end of the transcript when one finishes", () => {
+    const started = reduce(initialChatState, { type: "compaction", phase: "start", reason: "threshold" });
+    expect(started.compaction?.phase).toBe("start");
+    const ended = reduce(started, { type: "compaction", phase: "end", reason: "threshold", aborted: false });
+    expect(ended.compaction).toBeNull();
+    expect(ended.systemNotes).toEqual([{ beforeIndex: 0, kind: "compaction" }]);
+  });
+});

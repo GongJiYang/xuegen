@@ -146,7 +146,8 @@ function tableCells(line) {
 /**
  * 解析 `## 计划表` 里带日期的行。
  *
- * 形如 `| D2 | 10-22 | … |`：第二列是 `MM-DD`，年份取课程上下文（记录年份/当年）。
+ * 形如 `| D2 | 10-22 | … |`：日期列是 `MM-DD`，年份取课程上下文（记录年份/当年）；
+ * 也认 course-schedule.mjs 生成的 `| D2 | 2026-11-05（周四） | … |`（年份以单元格为准）。
  * 用于日历聚合；其他形态的表格行（如 `| W1 | … |`）不产出计划。
  */
 function parsePlanRows(sections, year) {
@@ -156,10 +157,12 @@ function parsePlanRows(sections, year) {
   for (const line of plan.lines) {
     if (!/^\|/.test(line.trim())) continue;
     const cells = tableCells(line);
-    const dateCell = cells.find((cell) => /^\d{1,2}-\d{2}$/.test(cell));
+    // `10-22`（年份取上下文）或 course-schedule.mjs 写的 `2026-11-05（周四）`。
+    const dateCell = cells.find((cell) => /^(\d{4}-)?\d{1,2}-\d{2}(（[^）]*）)?$/.test(cell));
     if (!dateCell) continue;
-    const [month, day] = dateCell.split("-");
-    found.push({ date: `${year}-${month.padStart(2, "0")}-${day}`, label: planLabel(cells, dateCell) });
+    const parts = dateCell.replace(/（[^）]*）$/, "").split("-");
+    const [y, month, day] = parts.length === 3 ? parts : [String(year), ...parts];
+    found.push({ date: `${y}-${month.padStart(2, "0")}-${day}`, label: planLabel(cells, dateCell) });
   }
   return found;
 }

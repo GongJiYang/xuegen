@@ -41,14 +41,76 @@
   --chrome-size: 12px;
   --body-size: 12px;
   --body-lh: 20px;
+  /* Code and diagrams are pixel fonts: they follow the body only on the 12/24 grid. */
+  --code-size: var(--body-size);
+  --code-lh: var(--body-lh);
   --ink: #000;
   --paper: #fff;
 }
 
-[data-skin="chicago"].chicago-big,
-[data-skin="chicago"] .chicago-big {
+/* Body sizes. The pixel font keeps its integer grid (12/24px, 20/40px line
+   boxes). A smooth system font uses the finer 15/18/21/24px ladder with a 1.6
+   line height; `--body-lh` stays in px so the margins below can derive from it. */
+[data-skin="chicago"][data-body-font="pixel"][data-body-scale="2"] {
   --body-size: 24px;
   --body-lh: 40px;
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.25"] {
+  --body-size: 15px;
+  --body-lh: calc(15px * 1.6);
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.5"] {
+  --body-size: 18px;
+  --body-lh: calc(18px * 1.6);
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.75"] {
+  --body-size: 21px;
+  --body-lh: calc(21px * 1.6);
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="2"] {
+  --body-size: 24px;
+  --body-lh: calc(24px * 1.6);
+}
+
+/* A smooth body at 15/18px keeps code at 12px, at 21/24px at 24px: the pixel
+   code and diagram fonts are only crisp on whole multiples of 12. */
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.25"],
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.5"] {
+  --code-size: 12px;
+  --code-lh: 20px;
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="1.75"],
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"])[data-body-scale="2"] {
+  --code-size: 24px;
+  --code-lh: 40px;
+}
+
+/* Smooth system fonts apply to the reading column only. The chrome and the
+   code/diagram fonts stay pixel and keep `-webkit-font-smoothing: none`. */
+[data-skin="chicago"][data-body-font="hei"] .chicago-thread {
+  --font-body: "PingFang SC", "Hiragino Sans GB", "Heiti SC", sans-serif;
+}
+[data-skin="chicago"][data-body-font="kai"] .chicago-thread {
+  --font-body: "Kaiti SC", "STKaiti", "KaiTi", serif;
+}
+[data-skin="chicago"][data-body-font="song"] .chicago-thread {
+  --font-body: "Songti SC", "STSong", "SimSun", serif;
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread p,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread li,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread td,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread th,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread blockquote,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread h2,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread h3,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-you {
+  -webkit-font-smoothing: antialiased;
+  font-smooth: always;
+}
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread code,
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-thread pre {
+  -webkit-font-smoothing: none;
+  font-smooth: never;
 }
 
 /* The neutral baseline in `index.css` sets `body { color: #000 }`; re-assert the
@@ -304,6 +366,38 @@
   text-overflow: clip;
 }
 
+/* Context usage: a plain label at the right of the chat title bar; clicking it
+   opens a small panel with the token count and 立即压缩. */
+[data-skin="chicago"] .chicago-tb .chicago-ctx {
+  position: absolute;
+  right: 28px;
+  top: 0;
+  height: 19px;
+  padding: 0 6px;
+  border: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 12px / 19px var(--font-chrome);
+  cursor: default;
+}
+
+[data-skin="chicago"] .chicago-tb .chicago-ctx-panel {
+  position: absolute;
+  right: 8px;
+  top: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--ink);
+  box-shadow: 1px 1px 0 var(--ink);
+  background: var(--paper);
+  font: 12px / 20px var(--font-chrome);
+  white-space: nowrap;
+}
+
 [data-skin="chicago"] .chicago-tb .chicago-box {
   position: absolute;
   top: 3px;
@@ -369,9 +463,9 @@
   padding: 16px 24px 24px;
 }
 
-/* The reading column is centred in the chat window and grows with it up to a
-   comfortable measure (B1): a wide window no longer leaves the text hugging the
-   left with a big blank on the right. */
+/* The reading column is centred in the chat window. Its overall box stays at
+   720px, but paragraphs and lists are held to a 36em measure so a wide window
+   does not produce 60-character lines; tables and code may run wider. */
 [data-skin="chicago"] .chicago-thread {
   max-width: 720px;
   margin-inline: auto;
@@ -405,7 +499,7 @@
 [data-skin="chicago"] .chicago-you {
   margin-left: auto;
   width: fit-content;
-  max-width: 82%;
+  max-width: min(82%, 36em);
   border: 1px solid var(--ink);
   padding: 18px 10px 8px;
   position: relative;
@@ -432,12 +526,39 @@
   width: fit-content;
 }
 
+[data-skin="chicago"][data-body-font]:not([data-body-font="pixel"]) .chicago-answer h3 {
+  font-family: var(--font-body);
+}
+
 [data-skin="chicago"] .chicago-answer p {
   margin: 0;
 }
 
 [data-skin="chicago"] .chicago-answer > * + * {
-  margin-top: calc(var(--body-lh) / 2);
+  margin-top: calc(var(--body-size) * 0.75);
+}
+
+/* Paragraphs inside one Markdown node need the same 0.75em gap as the
+   between-node rule above; otherwise two adjacent paragraphs touch. */
+[data-skin="chicago"] .chicago-answer p + p,
+[data-skin="chicago"] .chicago-answer p + ul,
+[data-skin="chicago"] .chicago-answer p + ol,
+[data-skin="chicago"] .chicago-answer p + blockquote,
+[data-skin="chicago"] .chicago-answer ul + p,
+[data-skin="chicago"] .chicago-answer ol + p,
+[data-skin="chicago"] .chicago-answer blockquote + p {
+  margin-top: calc(var(--body-size) * 0.75);
+}
+
+/* The 36em measure applies to prose, not to tables, code, diagrams, or the
+   exercise dialog (which may be wider than the reading column). */
+[data-skin="chicago"] .chicago-answer p,
+[data-skin="chicago"] .chicago-answer ul,
+[data-skin="chicago"] .chicago-answer ol,
+[data-skin="chicago"] .chicago-answer blockquote,
+[data-skin="chicago"] .chicago-answer h2,
+[data-skin="chicago"] .chicago-answer h3 {
+  max-width: 36em;
 }
 
 [data-skin="chicago"] .chicago-answer h3 + * {
@@ -456,6 +577,7 @@
 
 [data-skin="chicago"] .chicago-answer code {
   font-family: var(--font-code);
+  font-size: var(--code-size);
 }
 
 [data-skin="chicago"] .chicago-answer table {
@@ -486,7 +608,7 @@
   display: block;
   border: 2px solid var(--ink);
   padding: 6px 10px;
-  font: var(--body-size) / var(--body-lh) var(--font-code);
+  font: var(--code-size) / var(--code-lh) var(--font-code);
   white-space: pre;
   overflow-x: auto;
 }
@@ -502,7 +624,7 @@
   display: block;
   border: 0;
   padding: 0;
-  font: var(--body-size) / calc(var(--body-size) * 4 / 3) var(--font-code);
+  font: var(--code-size) / calc(var(--code-size) * 4 / 3) var(--font-code);
   white-space: pre;
   overflow-x: auto;
   overflow-y: visible;
@@ -861,6 +983,12 @@
   flex: none;
 }
 
+[data-skin="chicago"] .chicago-note {
+  margin: 8px 0;
+  text-align: center;
+  font: 12px / 20px var(--font-chrome);
+}
+
 [data-skin="chicago"] .chicago-modeless {
   position: absolute;
   right: 28px;
@@ -1068,6 +1196,23 @@
   justify-content: space-between;
   font: 12px / 16px var(--font-chrome);
   gap: 8px;
+}
+
+/* ── 开课卡片 ──────────────────────────────────────────────── */
+[data-skin="chicago"] .chicago-intro {
+  border: 1px dashed var(--ink);
+  padding: 6px 8px;
+  margin: 8px 0;
+  font: 12px / 18px var(--font-body);
+}
+
+[data-skin="chicago"] .chicago-intro p {
+  margin: 0;
+}
+
+[data-skin="chicago"] .chicago-intro-title {
+  font: 12px / 16px var(--font-chrome);
+  margin-bottom: 4px;
 }
 
 /* ── 今天 resume card ──────────────────────────────────────── */

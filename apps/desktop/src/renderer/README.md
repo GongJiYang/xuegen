@@ -8,7 +8,7 @@ src/renderer/
 │   ├── chat/    useChat、chat-reducer（纯函数）、消息 → 插槽的粘合、视图模型
 │   ├── content/ Markdown 解析管线：类型化内容节点 + 分类
 │   ├── motion/  动效意图 API（MotionIntent / MotionPreset / useMotion），减少动效判断
-│   ├── settings/ 界面设置（皮肤、正文字号），经 preload 读写
+│   ├── settings/ 界面设置（皮肤、正文字体与字号），经 preload 读写
 │   ├── client.ts preload 桥的唯一入口
 │   └── strings.ts 全部界面文案（皮肤共享）
 ├── skins/       皮肤契约、登记表、bare 参照皮肤

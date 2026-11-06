@@ -45,6 +45,12 @@ describe("stepBodyScale", () => {
     expect(stepBodyScale(1.5, "reset", [0.5, 1.5])).toBe(0.5);
   });
 
+  it("resets to an explicit target when one is given", () => {
+    expect(stepBodyScale(1, "reset", CHICAGO_STEPS, 2)).toBe(2);
+    expect(stepBodyScale(2, "reset", [1.25, 1.5, 1.75, 2], 1.5)).toBe(1.5);
+    expect(stepBodyScale(1.75, "reset", [1.25, 1.5, 1.75, 2], 1.5)).toBe(1.5);
+  });
+
   it("treats an off-ladder value by magnitude", () => {
     expect(stepBodyScale(1.4, "in", CHICAGO_STEPS)).toBe(2);
     expect(stepBodyScale(1.6, "out", CHICAGO_STEPS)).toBe(1);

@@ -7,9 +7,10 @@
  * persisted in the background.
  */
 
-import { useCallback, useMemo } from "react";
-import type { DesktopSettings } from "@shared/protocol.js";
-import { SKINS } from "./registry.js";
+import { useCallback, useEffect, useMemo } from "react";
+import type { BodyFont, DesktopSettings } from "@shared/protocol.js";
+import { coerceBodyScaleForFont } from "../core/settings/body-font.js";
+import { SKINS, skinIds } from "./registry.js";
 
 /** Shared empty options, so a skin without options keeps a stable reference. */
 const EMPTY_SKIN_OPTIONS: Record<string, string> = {};
@@ -18,6 +19,7 @@ export interface SkinAppearance {
   skinChoices: { id: string; name: string }[];
   skinOptions: Record<string, string>;
   onSelectSkin(id: string): void;
+  onBodyFont(font: BodyFont): void;
   onBodyScale(value: number): void;
   onSkinOption(key: string, value: string): void;
   onWindowBackground(color: string): void;
@@ -43,6 +45,15 @@ export function useSkinAppearance(
     [update],
   );
 
+  const onBodyFont = useCallback(
+    (font: BodyFont) => {
+      // Snap the current size onto the new font's ladder so switching fonts
+      // never lands on a scale the skin cannot render.
+      update({ bodyFont: font, bodyScale: coerceBodyScaleForFont(settings.bodyScale, font) });
+    },
+    [update, settings.bodyScale],
+  );
+
   const onBodyScale = useCallback(
     (value: number) => {
       update({ bodyScale: value });
@@ -65,5 +76,34 @@ export function useSkinAppearance(
     [update, settings.windowBackground],
   );
 
-  return { skinChoices, skinOptions, onSelectSkin, onBodyScale, onSkinOption, onWindowBackground };
+  return {
+    skinChoices,
+    skinOptions,
+    onSelectSkin,
+    onBodyFont,
+    onBodyScale,
+    onSkinOption,
+    onWindowBackground,
+  };
+}
+
+/** Development only: ⌘⇧K cycles through the registered skins. */
+export function useSkinCycleShortcut(
+  loadedId: string,
+  update: (patch: Partial<DesktopSettings>) => void,
+): void {
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const ids = skinIds();
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        const index = ids.indexOf(loadedId);
+        const next = ids[(index + 1) % ids.length];
+        if (next) update({ skin: next });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loadedId, update]);
 }

@@ -93,6 +93,153 @@ export interface CalendarMonth {
   days: Record<string, CalendarDay>;
 }
 
+/** The four kinds of day in a study cycle's weekly template (`cycle.mjs`). */
+export type CycleDayType = "深度" | "整合" | "低强度" | "休息";
+
+/** One lesson row from a course schedule, as `cycle.mjs` reports it. */
+export interface CycleLesson {
+  course: string;
+  id: string;
+  content: string;
+}
+
+/** A day's place in its cycle, from `cycle.mjs day --json`. `cycle` is null outside every cycle. */
+export interface CycleDay {
+  date: string;
+  /** 周一 … 周日. */
+  weekday: string;
+  cycle: string | null;
+  week: number | null;
+  type: CycleDayType | null;
+  /** The subject a 深度 day belongs to; null for other day types. */
+  subject: string | null;
+  /** On a 深度 day: the subject's course with a lesson that day, else its earliest overdue one, else its first course this cycle; null on other days. */
+  course: string | null;
+  /** Course slug → its short name (the alias of its link on the subject page). */
+  names: Record<string, string>;
+  /** Subject slug → the short name the weekly template links it with. */
+  subjects: Record<string, string>;
+  /** That day's lesson rows across the cycle's courses (new lessons and 机动, no reviews). */
+  lessons: CycleLesson[];
+  /** Earlier new lessons not yet listed in a course's 「完成：」 line. */
+  overdue: (CycleLesson & { date: string })[];
+}
+
+/** One in-cycle day of a month, from `cycle.mjs month --json`. */
+export interface CycleSlot {
+  cycle: string;
+  week: number;
+  type: CycleDayType;
+  subject: string | null;
+  /** The subject's course with a lesson that day, or null. */
+  course: string | null;
+}
+
+/**
+ * A month of study-cycle data, from `cycle.mjs month --json`.
+ *
+ * `days` holds only in-cycle days; `lessons` the lesson rows planned on a day;
+ * `names` the courses' and `subjects` the subjects' short names; `cycles` every
+ * cycle's bounds (for the 「C1 起 / C1 完」 flags); `recovery` the route's
+ * recovery days in this month.
+ */
+export interface CycleMonth {
+  month: string;
+  days: Record<string, CycleSlot>;
+  lessons: Record<string, CycleLesson[]>;
+  names: Record<string, string>;
+  subjects: Record<string, string>;
+  cycles: { cycle: string; start: string; end: string }[];
+  recovery: string[];
+}
+
+/** One cycle row of the two-year route (`wiki/cycles/route.md`). */
+export interface RouteCycle {
+  id: string;
+  start: string;
+  end: string;
+  main: string[];
+  aux: string[];
+  /** 进行中 / 未开始 / 完成. */
+  status: string;
+}
+
+/** The two-year route; `end` is the last day of the last cycle. */
+export interface RouteInfo {
+  start: string;
+  end: string;
+  bufferWeeks: number;
+  weeksLeft: number;
+  cycles: RouteCycle[];
+  recovery: { start: string; end: string }[];
+}
+
+/** One course of the current cycle: new lessons only. */
+export interface CycleCourseProgress {
+  slug: string;
+  /** Its subject's slug. */
+  subject: string;
+  /** The short name the weekly template links it with. */
+  name: string;
+  total: number;
+  done: number;
+  /** Date of the last lesson, or null without a schedule. */
+  end: string | null;
+  /** The first lesson not yet done (may be in the past). */
+  next: { id: string; date: string; content: string } | null;
+}
+
+/** The top of 总进度, from `cycle.mjs overview --json`. */
+export interface CycleOverview {
+  date: string;
+  route: RouteInfo | null;
+  cycle: {
+    cycle: string;
+    /** The cycle page's title without 「C1 · 」. */
+    title: string;
+    start: string;
+    end: string;
+    week: number;
+    weeks: number;
+    daysLeft: number;
+    next: { cycle: string; start: string } | null;
+  } | null;
+  courses: CycleCourseProgress[];
+}
+
+/** One material line on a subject page, from `subjects.mjs`. */
+export interface SubjectMaterial {
+  /** The `###` heading it sits under: 书籍 / 在线书籍 / 论文 / 公开课 / 视频 / 文章 / 代码与工具. */
+  type: string;
+  mark: "now" | "warn" | "done" | "plan" | "none";
+  /** 学习中 / 已摄取 / 未制定计划 … as written on the page. */
+  status: string;
+  /** 主线 / 参考 / 练习 / 预习 / 拓展 … as written on the page. */
+  role: string;
+  title: string;
+  /** The course that uses it, when the line links one. */
+  course: string | null;
+}
+
+/** One subject page, from `subjects.mjs list --json`. */
+export interface SubjectInfo {
+  slug: string;
+  title: string;
+  layer: string;
+  route: string;
+  /** True when the route makes it a main subject of the current cycle. */
+  main: boolean;
+  courses: string[];
+  materials: SubjectMaterial[];
+}
+
+/** Every subject plus the cycle the date falls in (null outside every cycle). */
+export interface SubjectsOverview {
+  date: string;
+  cycle: { cycle: string; week: number; weeks: number; aux: string | null } | null;
+  subjects: SubjectInfo[];
+}
+
 /** One skill the app can enable or disable. */
 export interface SkillInfo {
   name: string;
@@ -142,6 +289,10 @@ export type DataRequest =
   | { kind: "anki.status" }
   | { kind: "calendar.month"; month: string }
   | { kind: "calendar.write"; date: string; text: string }
+  | { kind: "cycle.day"; date: string }
+  | { kind: "cycle.month"; month: string }
+  | { kind: "cycle.overview"; date: string }
+  | { kind: "subjects.list"; date: string }
   | { kind: "skills.list" }
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
   | { kind: "skills.fetch"; url: string }
@@ -162,6 +313,10 @@ export interface DataResponseMap {
   "anki.status": AnkiStatus;
   "calendar.month": CalendarMonth;
   "calendar.write": { date: string; file: string | null; wrote: boolean };
+  "cycle.day": CycleDay;
+  "cycle.month": CycleMonth;
+  "cycle.overview": CycleOverview;
+  "subjects.list": SubjectsOverview;
   "skills.list": SkillInfo[];
   "skills.setEnabled": DesktopSettings;
   "skills.fetch": { skills: { name: string; path: string }[] };
@@ -265,6 +420,13 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return typeof value.month === "string" && isIsoMonth(value.month);
     case "calendar.write":
       return typeof value.date === "string" && isIsoDate(value.date) && typeof value.text === "string";
+    case "cycle.day":
+    case "cycle.overview":
+      return typeof value.date === "string" && isIsoDate(value.date);
+    case "cycle.month":
+      return typeof value.month === "string" && isIsoMonth(value.month);
+    case "subjects.list":
+      return typeof value.date === "string" && isIsoDate(value.date);
     case "skills.setEnabled":
       return typeof value.name === "string" && typeof value.enabled === "boolean";
     case "skills.fetch":

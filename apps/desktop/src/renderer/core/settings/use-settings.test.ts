@@ -12,6 +12,7 @@ describe("useSettings", () => {
   it("loads settings from the client and normalizes them", async () => {
     vi.spyOn(client, "getSettings").mockResolvedValue({
       skin: "chicago",
+      bodyFont: "pixel",
       bodyScale: 1.5,
       skinOptions: { chicago: { palette: "amber" } },
       windowBackground: "#17130e",
@@ -19,11 +20,15 @@ describe("useSettings", () => {
       courseStyles: {},
       sessionStyle: "plain",
       courseSessions: {},
+      courseStartedOn: {},
+      controlSessions: {},
+      controlBriefOn: {},
     });
     const { result } = renderHook(() => useSettings());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.settings).toEqual({
       skin: "chicago",
+      bodyFont: "pixel",
       bodyScale: 1.5,
       skinOptions: { chicago: { palette: "amber" } },
       windowBackground: "#17130e",
@@ -31,6 +36,9 @@ describe("useSettings", () => {
       courseStyles: {},
       sessionStyle: "plain",
       courseSessions: {},
+      courseStartedOn: {},
+      controlSessions: {},
+      controlBriefOn: {},
     });
   });
 

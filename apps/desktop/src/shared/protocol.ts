@@ -56,6 +56,43 @@ export interface ChatMessage {
   errorMessage?: string;
 }
 
+/**
+ * Estimated context usage for the active session.
+ *
+ * `tokens` and `percent` are null right after a compaction, until a fresh model
+ * response provides authoritative usage again (Pi's `getContextUsage` contract).
+ */
+export interface ContextUsagePayload {
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+}
+
+/** Why Pi compacted the conversation. */
+export type CompactionReason = "manual" | "threshold" | "overflow";
+
+/**
+ * One compaction lifecycle event.
+ *
+ * `start` has no outcome fields; `end` carries whether it aborted or failed.
+ */
+export interface CompactionPayload {
+  phase: "start" | "end";
+  reason: CompactionReason;
+  aborted?: boolean;
+  errorMessage?: string;
+}
+
+/**
+ * A local-only transcript annotation (never written to the session file and
+ * never sent to the model). The renderer maps `kind` to its own copy.
+ */
+export interface SystemNote {
+  /** Insert before the message at this index; equal to the length means last. */
+  beforeIndex: number;
+  kind: "compaction";
+}
+
 /** A model list plus the reason it may be empty. */
 export interface ModelListPayload {
   models: ModelInfo[];
@@ -97,6 +134,8 @@ export type HostToAgentMessage =
   | { type: "set-thinking-level"; level: ThinkingLevel }
   | { type: "list-models" }
   | { type: "list-commands"; disabledSkills: string[] }
+  /** Compact the conversation now (the 「立即压缩」 button). */
+  | { type: "compact" }
   /**
    * Switch to a specific session: the file of an earlier session to resume, or
    * null for a brand-new one. Each course keeps its own session so contexts never
@@ -127,7 +166,11 @@ export type AgentToHostMessage =
   | { type: "models"; models: ModelListPayload }
   | { type: "models-changed" }
   /** Full conversation snapshot, sent on start and after a session switch. */
-  | { type: "history"; messages: ChatMessage[] }
+  | { type: "history"; messages: ChatMessage[]; notes?: SystemNote[] }
+  /** Estimated context usage; sent after each turn, session switch, compaction. */
+  | ({ type: "context-usage" } & ContextUsagePayload)
+  /** Pi began or finished compacting old messages. */
+  | ({ type: "compaction" } & CompactionPayload)
   | { type: "agent-status"; status: AgentStatus }
   /** Commands the composer's `/` menu offers, sourced from the loaded skills. */
   | { type: "commands"; commands: CommandInfo[] }
@@ -148,6 +191,22 @@ export interface IpcEnvelope<T> {
 }
 
 /**
+ * The font used for message body text.
+ *
+ * The chrome (menus, titles, buttons) and code/diagram blocks always keep the
+ * skin's pixel fonts; only the reading column can switch to a system font.
+ */
+export type BodyFont = "pixel" | "hei" | "kai" | "song";
+
+/** The body-font ids, in menu order. */
+export const BODY_FONTS: BodyFont[] = ["pixel", "hei", "kai", "song"];
+
+/** Runtime guard for a persisted `bodyFont` value. */
+export function isBodyFont(value: unknown): value is BodyFont {
+  return value === "pixel" || value === "hei" || value === "kai" || value === "song";
+}
+
+/**
  * User-visible desktop settings, persisted by the main process to
  * `~/.xuegen/desktop.json`. The renderer reads and writes them through the
  * preload bridge; it never touches the file.
@@ -155,6 +214,8 @@ export interface IpcEnvelope<T> {
 export interface DesktopSettings {
   /** Active skin id; an unknown id falls back to `bare` at load time. */
   skin: string;
+  /** Message body font; the chrome and code stay pixel regardless. */
+  bodyFont: BodyFont;
   /** Body text scale multiplier, kept within [`BODY_SCALE_MIN`, `BODY_SCALE_MAX`]. */
   bodyScale: number;
   /**
@@ -183,6 +244,18 @@ export interface DesktopSettings {
   sessionStyle: TeachingStyle;
   /** The session file each course studies in, keyed by course slug. */
   courseSessions: Record<string, string>;
+  /**
+   * The local day (`YYYY-MM-DD`) each course was last opened, keyed by slug.
+   *
+   * Course sessions persist across days, so this is what tells 「回到这门课」 apart
+   * from 「开始学习」: a course opened today switches back without sending an
+   * opening message; one not yet opened today starts the day's lesson.
+   */
+  courseStartedOn: Record<string, string>;
+  /** The 总控 session file of each study cycle, keyed by cycle id (`C1`). */
+  controlSessions: Record<string, string>;
+  /** The local day (`YYYY-MM-DD`) the 总控 brief was last asked for, keyed by cycle id. */
+  controlBriefOn: Record<string, string>;
 }
 
 /** Teaching style ids sent to the agent as a `[风格：X]` message prefix. */
@@ -230,12 +303,18 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   // A fresh install opens Chicago: it is the designed, everyday skin. `bare` is
   // a reference/no-style fallback, still selectable but not the default.
   skin: "chicago",
-  bodyScale: 1,
+  bodyFont: "pixel",
+  // 24px is the default for a new install: 12px pixel body text was judged too
+  // small for sustained reading (see docs/desktop/batch-reading-typography.md).
+  bodyScale: 2,
   skinOptions: {},
   windowBackground: "",
   disabledSkills: [],
   courseStyles: {},
   courseSessions: {},
+  courseStartedOn: {},
+  controlSessions: {},
+  controlBriefOn: {},
   // The user has only ever used 大白话, so that is the default (see FEATURES.md).
   sessionStyle: "plain",
 };
@@ -252,6 +331,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** Runtime guard for a `context-usage` payload (nulls are valid, NaN is not). */
+export function isContextUsagePayload(value: unknown): value is ContextUsagePayload {
+  if (!isRecord(value)) return false;
+  const tokensOk = value.tokens === null || isFiniteNumber(value.tokens);
+  const percentOk = value.percent === null || isFiniteNumber(value.percent);
+  return tokensOk && percentOk && isFiniteNumber(value.contextWindow);
+}
+
+/** Runtime guard for a `compaction` payload. */
+export function isCompactionPayload(value: unknown): value is CompactionPayload {
+  if (!isRecord(value)) return false;
+  if (value.phase !== "start" && value.phase !== "end") return false;
+  if (value.reason !== "manual" && value.reason !== "threshold" && value.reason !== "overflow") {
+    return false;
+  }
+  if (value.aborted !== undefined && typeof value.aborted !== "boolean") return false;
+  return value.errorMessage === undefined || typeof value.errorMessage === "string";
+}
+
 /**
  * Runtime guard for renderer -> main requests.
  *
@@ -266,6 +368,7 @@ export function isHostToAgentMessage(value: unknown): value is HostToAgentMessag
     case "new-session":
     case "continue-session":
     case "list-models":
+    case "compact":
       return true;
     case "list-commands":
       return Array.isArray(value.disabledSkills) && value.disabledSkills.every((name) => typeof name === "string");
@@ -352,14 +455,42 @@ export function normalizeCourseSessions(value: unknown): Record<string, string> 
   return result;
 }
 
+/** True for a real `YYYY-MM-DD` calendar date (rejects `2026-13-40`). */
+function isIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [yearText = "", monthText = "", dayText = ""] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+/**
+ * Coerce a persisted `courseStartedOn` value into `{ slug: YYYY-MM-DD }`.
+ *
+ * Only real calendar dates survive, so a hand-edited file cannot make a course
+ * look "started today" with a malformed string. Keys must be non-empty slugs.
+ */
+export function normalizeCourseStartedOn(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const result: Record<string, string> = {};
+  for (const [slug, day] of Object.entries(value)) {
+    if (slug.trim() !== "" && typeof day === "string" && isIsoDate(day)) result[slug] = day;
+  }
+  return result;
+}
+
 /** Coerce arbitrary parsed JSON into valid settings, falling back to defaults. */
 export function normalizeDesktopSettings(value: unknown): DesktopSettings {
   if (!isDesktopSettings(value)) return { ...DEFAULT_DESKTOP_SETTINGS };
   const record = value as unknown as Record<string, unknown>;
   const skin = value.skin.trim() || DEFAULT_DESKTOP_SETTINGS.skin;
+  const bodyFont = isBodyFont(record.bodyFont) ? record.bodyFont : DEFAULT_DESKTOP_SETTINGS.bodyFont;
   const bodyScale = Math.min(BODY_SCALE_MAX, Math.max(BODY_SCALE_MIN, value.bodyScale));
   return {
     skin,
+    bodyFont,
     bodyScale,
     skinOptions: normalizeSkinOptions(record.skinOptions),
     windowBackground: normalizeBackgroundColor(record.windowBackground),
@@ -369,6 +500,9 @@ export function normalizeDesktopSettings(value: unknown): DesktopSettings {
       ? record.sessionStyle
       : DEFAULT_DESKTOP_SETTINGS.sessionStyle,
     courseSessions: normalizeCourseSessions(record.courseSessions),
+    courseStartedOn: normalizeCourseStartedOn(record.courseStartedOn),
+    controlSessions: normalizeCourseSessions(record.controlSessions),
+    controlBriefOn: normalizeCourseStartedOn(record.controlBriefOn),
   };
 }
 

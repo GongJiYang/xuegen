@@ -11,6 +11,7 @@
 import { useState } from "react";
 import type { ReadingPanelProps, TodayPanelProps, ToolDockProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
+import { cycleHeadline } from "../../core/board/cycle-today.js";
 
 export function ToolDock({ tools, active, onOpen, todayActive, onOpenToday }: ToolDockProps) {
   return (
@@ -41,10 +42,28 @@ export function ToolDock({ tools, active, onOpen, todayActive, onOpenToday }: To
   );
 }
 
-export function TodayPanel({ todayPlan, readingDue, cards, resume, onResume, agentReady }: TodayPanelProps) {
+export function TodayPanel({
+  todayPlan,
+  tomorrowPlan,
+  readingDue,
+  cards,
+  resume,
+  startedToday,
+  onResume,
+  agentReady,
+  cycleToday,
+  onOpenControl,
+}: TodayPanelProps) {
+  const cycleLine = cycleToday.status === "ready" ? cycleHeadline(cycleToday.value) : null;
   return (
     <section data-slot="today" aria-label={strings.today.title}>
       <h2>{strings.today.title}</h2>
+      {cycleLine && <p data-slot="cycle-headline">{cycleLine}</p>}
+      {onOpenControl && (
+        <button type="button" onClick={onOpenControl}>
+          {strings.control.open}
+        </button>
+      )}
       <dl>
         <dt>{strings.today.todayPlan}</dt>
         <dd>{todayPlan.length}</dd>
@@ -62,6 +81,18 @@ export function TodayPanel({ todayPlan, readingDue, cards, resume, onResume, age
           ))}
         </ul>
       )}
+      <h3>{strings.today.tomorrowPlan}</h3>
+      {tomorrowPlan.length === 0 ? (
+        <p>{strings.today.tomorrowPlanEmpty}</p>
+      ) : (
+        <ul data-slot="tomorrow-plan">
+          {tomorrowPlan.map((item, index) => (
+            <li key={index}>
+              {item.label}：{item.detail}
+            </li>
+          ))}
+        </ul>
+      )}
       {resume ? (
         <div data-slot="resume">
           <p>
@@ -72,7 +103,11 @@ export function TodayPanel({ todayPlan, readingDue, cards, resume, onResume, age
             {resume.nextSession ?? strings.today.nextSessionUnset}
           </p>
           <button type="button" disabled={!agentReady} onClick={onResume}>
-            {agentReady ? strings.today.resume : strings.today.preparing}
+            {agentReady
+              ? startedToday[resume.course.slug]
+                ? strings.today.backToCourse
+                : strings.today.resume
+              : strings.today.preparing}
           </button>
         </div>
       ) : (
@@ -142,6 +177,7 @@ function ReadingForm({ sources, onAdd, onClip }: Pick<ReadingPanelProps, "source
 export function ReadingPanel({ queue, sources, onAdd, onClip, onReview }: ReadingPanelProps) {
   return (
     <section data-slot="reading" aria-label={strings.tools.reading}>
+      <p>{strings.reading.scopeHint}</p>
       <ReadingForm sources={sources} onAdd={onAdd} onClip={onClip} />
       {queue.status === "loading" && <p>{strings.today.loading}</p>}
       {queue.status === "error" && <p role="alert">{queue.message}</p>}

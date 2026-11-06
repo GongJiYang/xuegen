@@ -1,0 +1,2070 @@
+/*
+ * Bear skin stylesheet (iA Writer / Bear direction).
+ *
+ * Every selector is scoped under `[data-skin="bear"]` so two skins can never
+ * collide; the scope is written by hand (bear.md is the spec). One column of
+ * body text, almost invisible chrome, no shadows, no gradients, corners ≤ 4px.
+ *
+ * Body font follows `data-body-font` on <html> (`pixel` renders as `hei` here —
+ * the pixel face belongs to Chicago). Body size follows `data-bear-scale` on
+ * `.bear-root`: the Shell snaps the stored scale to the nearest bear rung
+ * (14/16/18/20/24px on a 16px base) because the `data-body-scale` attribute is
+ * quantized to core's coarser ladder and could not express 14/18px.
+ */
+
+/* Code and character diagrams: every non-CJK glyph is exactly half an em
+   (Iosevka subset, see scripts/make-bear-diagram-font.py); Chinese falls back
+   to PingFang SC at a full em, so diagram columns line up. */
+@font-face {
+  font-family: "BearDiagramMono";
+  src: url("./assets/bear-diagram-mono.woff2") format("woff2");
+  font-display: block;
+}
+
+[data-skin="bear"] {
+  --paper: #fbfbfa;
+  --ink: #1f2124;
+  --soft: #8b9096;
+  --rule: #e3e5e8;
+  --code-bg: #f1f2f3;
+  --accent: #1aa3ff;
+  --danger: #b3261e;
+  --warn: #c98a12;
+  --warn-text: #a86b00;
+  --faint: #b8bcc2;
+  --hairline: #eceef0;
+  --done: #3a8a5c;
+  --font-ui: -apple-system, "PingFang SC", sans-serif;
+  --font-body: "PingFang SC", -apple-system, sans-serif;
+  --font-mono: "BearDiagramMono", "PingFang SC", monospace;
+}
+
+[data-skin="bear"][data-body-font="kai"] {
+  --font-body: "Kaiti SC", "STKaiti", serif;
+}
+[data-skin="bear"][data-body-font="song"] {
+  --font-body: "Songti SC", "STSong", serif;
+}
+/* `pixel` falls through to the default 黑体 stack (bear.md §3). */
+
+[data-skin="bear"],
+[data-skin="bear"] body,
+[data-skin="bear"] #root {
+  height: 100%;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ── Layout: title bar / one centred column / composer. ───────────────────── */
+
+[data-skin="bear"] .bear-root {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink);
+  --bear-body-size: 16px;
+}
+[data-skin="bear"] .bear-root[data-bear-scale="0.875"] {
+  --bear-body-size: 14px;
+}
+[data-skin="bear"] .bear-root[data-bear-scale="1.125"] {
+  --bear-body-size: 18px;
+}
+[data-skin="bear"] .bear-root[data-bear-scale="1.25"] {
+  --bear-body-size: 20px;
+}
+[data-skin="bear"] .bear-root[data-bear-scale="1.5"] {
+  --bear-body-size: 24px;
+}
+
+[data-skin="bear"] .bear-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.7em 1.4em 0.4em;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-bar-gap {
+  flex: 1 1 auto;
+}
+[data-skin="bear"] .bear-title {
+  color: var(--soft);
+}
+
+/* Buttons: text-only chrome — soft, ink on hover, no box. Scoped on the
+   skin (not .bear-root) so the drawer and menus, which render in portals
+   outside the root, get the same reset. */
+[data-skin="bear"] button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+[data-skin="bear"] button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+[data-skin="bear"] .bear-bar button:hover,
+[data-skin="bear"] .bear-btn:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-btn-accent {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-btn-accent:hover {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+/* The column: about 40 characters of body text (42em minus padding), centred; notices sit on top of the thread. */
+[data-skin="bear"] .bear-col {
+  min-height: 0;
+}
+[data-skin="bear"] .bear-column {
+  /* The 42em measure is in body ems, not the 13px chrome size. */
+  font-size: var(--bear-body-size);
+  max-width: 42em;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 1.2em;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+[data-skin="bear"] .bear-notices {
+  flex: none;
+}
+[data-skin="bear"] .bear-notices .bear-notice {
+  margin: 0.3em 0;
+}
+
+/* ── Thread and messages. ─────────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-thread-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+[data-skin="bear"] .bear-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+[data-skin="bear"] .bear-body {
+  font-family: var(--font-body);
+  font-size: var(--bear-body-size);
+  line-height: 1.75;
+}
+[data-skin="bear"] .bear-body p {
+  margin: 0 0 0.7em;
+}
+[data-skin="bear"] .bear-body h1,
+[data-skin="bear"] .bear-body h2,
+[data-skin="bear"] .bear-body h3,
+[data-skin="bear"] .bear-body h4 {
+  font-size: 1em;
+  font-weight: 650;
+  margin: 1.3em 0 0.6em;
+}
+[data-skin="bear"] .bear-body h2::before,
+[data-skin="bear"] .bear-body h3::before,
+[data-skin="bear"] .bear-body h4::before {
+  content: "### ";
+  color: var(--rule);
+  font-weight: 400;
+}
+[data-skin="bear"] .bear-body strong {
+  font-weight: 650;
+}
+[data-skin="bear"] .bear-body code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+[data-skin="bear"] .bear-body ul,
+[data-skin="bear"] .bear-body ol {
+  margin: 0 0 0.7em;
+  padding-left: 1.4em;
+}
+[data-skin="bear"] .bear-body blockquote {
+  margin: 0 0 0.7em;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--rule);
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+[data-skin="bear"] .bear-body hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 1.4em 0;
+}
+[data-skin="bear"] .bear-body .katex {
+  font-size: 1em;
+}
+
+/* The empty thread. */
+[data-skin="bear"] .bear-empty {
+  color: var(--soft);
+}
+
+/* Local transcript notes (e.g. a compaction marker). */
+[data-skin="bear"] .bear-note {
+  color: var(--soft);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  margin: 1em 0;
+}
+
+/* User message: soft text with a 2px rule line on the left. */
+[data-skin="bear"] .bear-you {
+  color: var(--soft);
+  border-left: 2px solid var(--rule);
+  padding-left: 0.9em;
+  margin: 1em 0;
+  font-family: var(--font-body);
+  font-size: var(--bear-body-size);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+[data-skin="bear"] .bear-style-tag {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  margin-bottom: 0.2em;
+}
+
+/* Assistant message and its foot row (copy / retry as soft text buttons). */
+[data-skin="bear"] .bear-answer {
+  margin: 1em 0;
+}
+[data-skin="bear"] .bear-answer-foot {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--soft);
+  display: flex;
+  gap: 1em;
+}
+[data-skin="bear"] .bear-answer-foot button {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-answer-foot button:hover {
+  color: var(--ink);
+}
+
+/* In-message errors: danger for real failures, soft status for a user stop. */
+[data-skin="bear"] .bear-message-error {
+  color: var(--danger);
+}
+[data-skin="bear"] .bear-message-error pre {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-message-stopped {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-error-detail summary {
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-error-detail pre {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Thinking: a soft shimmering label (Animate UI supplies the shimmer). */
+[data-skin="bear"] .bear-thinking {
+  color: var(--soft);
+  font-size: 13px;
+  font-family: var(--font-ui);
+}
+
+/* Tool activity: one small soft line, details expand underneath. */
+[data-skin="bear"] .bear-tool {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--soft);
+  margin: 0.4em 0;
+}
+[data-skin="bear"] .bear-tool-summary {
+  display: flex;
+  gap: 0.5em;
+  align-items: baseline;
+}
+[data-skin="bear"] .bear-tool-detail {
+  padding: 0.3em 0 0.3em 1.2em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+[data-skin="bear"] .bear-tool-detail dt {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tool-detail dd {
+  margin: 0 0 0.4em;
+}
+
+/* Exercise (检查理解): accent left line, accent 14px title, text buttons. */
+[data-skin="bear"] .bear-exercise {
+  border-left: 2px solid var(--accent);
+  padding-left: 0.9em;
+  margin: 1em 0;
+}
+[data-skin="bear"] .bear-exercise-title {
+  color: var(--accent);
+  font-size: 14px;
+  font-family: var(--font-ui);
+  margin-bottom: 0.4em;
+}
+[data-skin="bear"] .bear-exercise-btns {
+  display: flex;
+  gap: 1.2em;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-exercise-btns button {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-exercise-btns button:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-exercise-btns .bear-btn-answer {
+  color: var(--accent);
+}
+
+/* Course intro card: rule left line, ink title, three soft lines. */
+[data-skin="bear"] .bear-intro {
+  border-left: 2px solid var(--rule);
+  padding-left: 0.9em;
+  margin: 1em 0;
+  font-family: var(--font-body);
+  font-size: var(--bear-body-size);
+  line-height: 1.75;
+}
+[data-skin="bear"] .bear-intro-title {
+  color: var(--ink);
+  font-weight: 650;
+}
+[data-skin="bear"] .bear-intro p {
+  margin: 0;
+  color: var(--soft);
+}
+
+/* 「回到最新」: a text button pinned to the column's bottom right. */
+[data-skin="bear"] .bear-back {
+  position: absolute;
+  right: 0;
+  bottom: 0.6em;
+  padding: 0.2em 0.6em;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-back:hover {
+  color: var(--ink);
+}
+
+/* ── Notices (one line each at the column top; error in --danger). ────────── */
+
+[data-skin="bear"] .bear-notice {
+  display: flex;
+  gap: 0.8em;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-notice[data-tone="error"] {
+  color: var(--danger);
+}
+[data-skin="bear"] .bear-notice .bear-notice-dismiss {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-notice .bear-notice-dismiss:hover {
+  color: var(--ink);
+}
+
+/* ── Composer (BE-5): one white card, auto-growing field, round send. ──── */
+
+[data-skin="bear"] .bear-composer {
+  flex: none;
+  position: relative;
+  padding: 0.6em 0 1.1em;
+}
+[data-skin="bear"] .bear-ccard {
+  padding: 10px 12px 8px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 120ms ease-out;
+}
+[data-skin="bear"] .bear-ccard:focus-within {
+  border-color: #c4c8cc;
+}
+[data-skin="bear"] .bear-cinput {
+  display: block;
+  width: 100%;
+  min-height: 1.75em;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: var(--bear-body-size);
+  line-height: 1.75;
+  color: var(--ink);
+  caret-color: var(--accent);
+}
+[data-skin="bear"] .bear-cinput:focus-visible {
+  outline: none;
+}
+[data-skin="bear"] .bear-cinput::placeholder {
+  color: #b3b8be;
+}
+[data-skin="bear"] .bear-cfoot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+[data-skin="bear"] .bear-cstyles {
+  display: flex;
+  gap: 12px;
+}
+[data-skin="bear"] .bear-cstyle {
+  padding: 3px 0;
+  color: var(--soft);
+  box-shadow: inset 0 -1px 0 transparent;
+  transition: color 120ms ease-out, box-shadow 120ms ease-out;
+}
+[data-skin="bear"] .bear-cstyle:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-cstyle[data-state="checked"] {
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--ink);
+}
+[data-skin="bear"] .bear-chint {
+  margin-left: auto;
+  font-size: 12px;
+  color: #b3b8be;
+}
+[data-skin="bear"] .bear-csend {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  transition: background 120ms ease-out;
+}
+[data-skin="bear"] .bear-csend:disabled {
+  background: var(--rule);
+  color: #fff;
+  opacity: 1;
+}
+[data-skin="bear"] .bear-csend.is-stop {
+  background: var(--ink);
+}
+[data-skin="bear"] .bear-answering {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: -2px 0 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 13px;
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-answering-cancel {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-answering-cancel:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-cslash-hint {
+  margin: 0 0 0.4em;
+  font-size: 13px;
+  color: var(--danger);
+}
+[data-skin="bear"] .bear-cstatus {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--soft);
+}
+
+/* The / menu floating above the composer. */
+[data-skin="bear"] .bear-slash {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  max-height: 18em;
+  overflow-y: auto;
+  font-size: 13px;
+  z-index: 10;
+}
+[data-skin="bear"] .bear-slash-group {
+  padding: 0.5em 0.9em 0.1em;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-slash-item {
+  display: flex;
+  gap: 0.8em;
+  width: 100%;
+  padding: 0.3em 0.9em;
+  text-align: left;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-slash-item[data-selected="true"],
+[data-skin="bear"] .bear-slash-item:hover {
+  background: var(--code-bg);
+}
+[data-skin="bear"] .bear-slash-item .bear-slash-desc {
+  color: var(--soft);
+  flex: 1 1 auto;
+}
+
+/* ── Content nodes. ───────────────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-code {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.8em 1em;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 0.7em 0;
+}
+[data-skin="bear"] .bear-code code {
+  font-size: inherit;
+}
+
+[data-skin="bear"] .bear-diagram {
+  font-family: var(--font-mono);
+  font-size: calc(var(--bear-body-size) * 0.875);
+  line-height: 1.25;
+  overflow-x: auto;
+  margin: 0.7em 0;
+  white-space: pre;
+}
+
+[data-skin="bear"] .bear-table {
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.92em;
+}
+[data-skin="bear"] .bear-table th,
+[data-skin="bear"] .bear-table td {
+  border: 1px solid var(--rule);
+  padding: 0.25em 0.8em;
+  text-align: left;
+  font-weight: normal;
+}
+[data-skin="bear"] .bear-table th {
+  font-weight: 650;
+}
+
+[data-skin="bear"] .bear-math {
+  margin: 0.7em 0;
+  overflow-x: auto;
+}
+[data-skin="bear"] .bear-mermaid {
+  margin: 0.7em 0;
+}
+
+[data-skin="bear"] .bear-callout {
+  border-left: 2px solid var(--rule);
+  padding-left: 0.9em;
+  margin: 0.7em 0;
+}
+[data-skin="bear"] .bear-callout[data-tone="warning"] {
+  border-left-color: var(--danger);
+}
+[data-skin="bear"] .bear-callout-head {
+  color: var(--soft);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  margin-bottom: 0.3em;
+}
+[data-skin="bear"] .bear-callout[data-tone="warning"] .bear-callout-head {
+  color: var(--danger);
+}
+
+/* ── Title-bar popups: context popover and the ⋯ menu. ────────────────────── */
+
+[data-skin="bear"] .bear-pop,
+[data-skin="bear"] .bear-menu,
+[data-skin="bear"] .bear-submenu {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink);
+  z-index: 40;
+}
+[data-skin="bear"] .bear-pop {
+  padding: 0.8em 1em;
+  min-width: 15em;
+}
+[data-skin="bear"] .bear-pop p {
+  margin: 0 0 0.6em;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-progress {
+  height: 2px;
+  background: var(--rule);
+  margin: 0.5em 0 0.7em;
+}
+[data-skin="bear"] .bear-progress-fill {
+  height: 100%;
+  background: var(--ink);
+}
+[data-skin="bear"] .bear-pop button {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-pop button:disabled {
+  color: var(--soft);
+}
+
+/* Dropdown menu items (Radix renders them as divs with role="menuitem"). */
+[data-skin="bear"] .bear-menu,
+[data-skin="bear"] .bear-submenu {
+  padding: 0.3em 0;
+  min-width: 12em;
+}
+[data-skin="bear"] .bear-menu [role="menuitem"],
+[data-skin="bear"] .bear-menu [role="menuitemcheckbox"],
+[data-skin="bear"] .bear-menu [role="menuitemradio"],
+[data-skin="bear"] .bear-menu [role="menu"] [role="menuitem"],
+[data-skin="bear"] .bear-submenu [role="menuitemradio"],
+[data-skin="bear"] .bear-menu .bear-subtrigger {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  padding: 0.35em 1em;
+  color: var(--ink);
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+[data-skin="bear"] .bear-menu [data-highlighted],
+[data-skin="bear"] .bear-submenu [data-highlighted] {
+  background: var(--code-bg);
+}
+[data-skin="bear"] .bear-menu [data-disabled],
+[data-skin="bear"] .bear-submenu [data-disabled] {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-menu-sep {
+  height: 1px;
+  background: var(--rule);
+  margin: 0.3em 0;
+}
+[data-skin="bear"] .bear-check {
+  width: 1em;
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-subtrigger::after {
+  content: "▸";
+  margin-left: auto;
+  color: var(--soft);
+}
+
+/* ── Right drawer (380px) with the ToolDock tabs. ─────────────────────────── */
+
+[data-skin="bear"] .bear-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  max-width: 90vw;
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+/* The tabs root fills the drawer below the title so the panels can scroll. */
+[data-skin="bear"] .bear-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="bear"] .bear-drawer-top {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-right: 1.2em;
+}
+[data-skin="bear"] .bear-drawer-close {
+  font-size: 13px;
+  color: var(--soft);
+  padding: 0.3em 0;
+}
+[data-skin="bear"] .bear-drawer-close:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabs {
+  display: flex;
+  gap: 1em;
+  padding: 0.7em 1.2em 0;
+  font-size: 13px;
+  flex: none;
+  position: relative;
+}
+[data-skin="bear"] .bear-tab {
+  color: var(--soft);
+  padding: 0.3em 0;
+  box-shadow: inset 0 -1px 0 transparent;
+  transition: color 120ms ease-out, box-shadow 120ms ease-out;
+}
+[data-skin="bear"] .bear-tab:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tab[data-state="active"] {
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9em 1.2em 1.4em;
+  font-size: 14px;
+}
+[data-skin="bear"] .bear-tabpanels h2,
+[data-skin="bear"] .bear-tabpanels h3 {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0.9em 0 0.4em;
+}
+[data-skin="bear"] .bear-tabpanels p {
+  margin: 0.4em 0;
+}
+[data-skin="bear"] .bear-tabpanels ul {
+  margin: 0.3em 0;
+  padding-left: 0;
+  list-style: none;
+}
+[data-skin="bear"] .bear-tabpanels ul li {
+  border-bottom: 1px solid #eceef0;
+  padding: 0.5em 0;
+}
+[data-skin="bear"] .bear-tabpanels ul li:last-child {
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-tabpanels button {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels button:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels input,
+[data-skin="bear"] .bear-tabpanels textarea,
+[data-skin="bear"] .bear-tabpanels select {
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  padding: 0.2em 0;
+}
+[data-skin="bear"] .bear-tabpanels input:focus,
+[data-skin="bear"] .bear-tabpanels textarea:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels fieldset {
+  border: none;
+  margin: 0.4em 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-tabpanels legend {
+  color: var(--soft);
+  padding: 0;
+}
+[data-skin="bear"] .bear-tabpanels label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-right: 1em;
+}
+[data-skin="bear"] .bear-muted {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-panel-bar {
+  height: 2px;
+  background: var(--rule);
+  margin: 0.3em 0;
+}
+[data-skin="bear"] .bear-panel-fill {
+  height: 100%;
+  background: var(--ink);
+}
+
+/* ── Minimal panels and dialogs (BE-1: semantic, bear base colours). ──────── */
+
+[data-skin="bear"] .bear-daydlg-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(250 250 249 / 0.6);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+[data-skin="bear"] .bear-daydlg {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1em 1.2em;
+  width: 30em;
+  max-width: 90vw;
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-daydlg textarea {
+  width: 100%;
+  min-height: 8em;
+  font-family: var(--font-body);
+  font-size: var(--bear-body-size);
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  background: transparent;
+  resize: vertical;
+}
+[data-skin="bear"] .bear-daydlg textarea:focus {
+  outline: none;
+  border-bottom-color: var(--ink);
+}
+[data-skin="bear"] .bear-daydlg-btns {
+  display: flex;
+  gap: 1.2em;
+  justify-content: flex-end;
+  margin-top: 0.8em;
+}
+[data-skin="bear"] .bear-daydlg-btns button {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-daydlg-btns button:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-daydlg-btns .bear-btn-save {
+  color: var(--accent);
+}
+
+/* Model picker as a standalone select (the ⋯ menu uses radio items instead). */
+[data-skin="bear"] .bear-model-select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.2em 0.4em;
+}
+
+/* Visually hidden (accessible-only) elements, e.g. the drawer's DialogTitle. */
+[data-skin="bear"] .bear-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* The drawer label row (ToolDock slot rendered standalone, e.g. gallery). */
+[data-skin="bear"] .bear-dock {
+  display: flex;
+  gap: 1em;
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-dock button {
+  color: var(--soft);
+  padding: 0.3em 0;
+}
+[data-skin="bear"] .bear-dock button[aria-current="true"] {
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+/* Keyboard focus: a thin accent outline instead of the browser's default ring. */
+[data-skin="bear"] :focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+[data-skin="bear"] :focus:not(:focus-visible) {
+  outline: none;
+}
+/* ── 今天 / 总进度 (BE-2) ───────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-tabpanels .bear-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 1.4em 0 0.4em;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-section-count {
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  padding: 0.45em 0;
+}
+[data-skin="bear"] .bear-plan-course {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-detail {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-counts {
+  margin: 1.4em 0 0;
+  padding-top: 0.8em;
+  border-top: 1px solid #eceef0;
+  display: grid;
+  gap: 0.4em;
+}
+[data-skin="bear"] .bear-count {
+  display: flex;
+  justify-content: space-between;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-count dd {
+  margin: 0;
+  display: inline-flex;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-resume {
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 2px solid var(--accent);
+}
+[data-skin="bear"] .bear-resume-head {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-resume-title {
+  margin: 0.15em 0;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+[data-skin="bear"] .bear-tabpanels .bear-link {
+  color: var(--soft);
+  padding: 0.2em 0;
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-tabpanels .bear-link:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels .bear-link-accent,
+[data-skin="bear"] .bear-tabpanels .bear-link-accent:hover {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.2em;
+  margin-top: 0.7em;
+}
+
+[data-skin="bear"] .bear-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1em;
+}
+[data-skin="bear"] .bear-tabpanels .bear-progress-head .bear-muted {
+  margin: 0;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-courses {
+  margin-top: 0.6em;
+}
+[data-skin="bear"] .bear-course {
+  padding: 0.7em 0;
+  border-bottom: 1px solid #eceef0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-course-head {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+[data-skin="bear"] .bear-tabpanels .bear-course-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  text-align: left;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-course-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+}
+[data-skin="bear"] .bear-tabpanels .bear-course-trigger .bear-pg-mark {
+  margin-right: -0.4em;
+}
+[data-skin="bear"] .bear-course-pct {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-meter {
+  height: 2px;
+  margin-top: 0.5em;
+  overflow: hidden;
+  background: #eceef0;
+}
+[data-skin="bear"] .bear-meter-fill {
+  height: 100%;
+  background: var(--ink);
+  transition: width 240ms ease-out;
+}
+[data-skin="bear"] .bear-course-body {
+  overflow: hidden;
+}
+[data-skin="bear"] .bear-course-inner {
+  padding-top: 0.6em;
+}
+[data-skin="bear"] .bear-tabpanels .bear-course-inner .bear-muted {
+  margin: 0.2em 0;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-tabpanels .bear-tasks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+  padding: 0.3em 0;
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.25em;
+  border: 1px solid #c4c8cc;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-task.is-done {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-course-next {
+  margin: 0.6em 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+[data-skin="bear"] .bear-tabpanels .bear-field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  margin: 0.55em 0;
+}
+[data-skin="bear"] .bear-field-label {
+  flex: none;
+  width: 5.5em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-input {
+  flex: 1;
+  min-width: 0;
+}
+[data-skin="bear"] .bear-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9em;
+}
+[data-skin="bear"] .bear-tabpanels .bear-seg-item {
+  padding: 0.1em 0;
+  color: var(--soft);
+  box-shadow: inset 0 -1px 0 transparent;
+  transition: color 120ms ease-out, box-shadow 120ms ease-out;
+}
+[data-skin="bear"] .bear-tabpanels .bear-seg-item[data-state="checked"] {
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--ink);
+}
+[data-skin="bear"] .bear-newcourse {
+  margin: 0.8em 0 1.2em;
+  padding: 0 0 0.6em 0.9em;
+  border-left: 2px solid var(--rule);
+}
+[data-skin="bear"] .bear-inline-form {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  margin-top: 0.6em;
+}
+
+/* Scrollbars: hidden everywhere in Bear (user, 2026-11-05). The wheel and the
+   trackpad still scroll; the page stays a sheet of paper. */
+[data-skin="bear"] ::-webkit-scrollbar {
+  display: none;
+}
+[data-skin="bear"] * {
+  scrollbar-width: none;
+}
+
+/* ── 日历 (BE-3) ───────────────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-mcal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.9em;
+}
+[data-skin="bear"] .bear-mcal-month {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-mcal-nav {
+  display: flex;
+  gap: 0.9em;
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-mcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 2px;
+}
+[data-skin="bear"] .bear-mcal-wd {
+  padding-bottom: 0.4em;
+  text-align: center;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-day {
+  height: 52px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1px;
+  padding: 5px 0 0;
+  border-radius: 7px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  transition: background 120ms ease-out;
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-day:hover {
+  background: var(--code-bg);
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-day.is-out {
+  color: #c4c8cc;
+}
+[data-skin="bear"] .bear-mcal-num {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 13px;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+[data-skin="bear"] .bear-mcal-day.is-today .bear-mcal-num {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 650;
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-day.is-sel {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+[data-skin="bear"] .bear-mcal-dots {
+  display: flex;
+  gap: 3px;
+  height: 4px;
+}
+[data-skin="bear"] .bear-mcal-dot {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+[data-skin="bear"] .bear-mcal-dot.is-plan {
+  background: var(--ink);
+}
+[data-skin="bear"] .bear-mcal-dot.is-done {
+  background: var(--accent);
+}
+[data-skin="bear"] .bear-mcal-dot.is-read {
+  box-shadow: inset 0 0 0 1px var(--soft);
+}
+[data-skin="bear"] .bear-mcal-dot.is-note {
+  background: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-legend {
+  display: flex;
+  gap: 1.1em;
+  margin-top: 0.6em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+[data-skin="bear"] .bear-mcal-detail {
+  margin-top: 1.2em;
+  padding-top: 0.9em;
+  border-top: 1px solid #eceef0;
+}
+[data-skin="bear"] .bear-mcal-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+[data-skin="bear"] .bear-mcal-detail-title {
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-mcal-detail section {
+  margin-top: 0.9em;
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-detail h4 {
+  margin: 0 0 0.3em;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-list li {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35em 0;
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-note {
+  margin: 0.7em 0 0;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--rule);
+  color: var(--ink);
+}
+/* ── 阅读 (BE-4) ───────────────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-tabpanels .bear-read-scope {
+  margin: 0 0 1em;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-field {
+  width: 100%;
+  caret-color: var(--accent);
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-cands {
+  margin: 0.3em 0 0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-cands li {
+  padding: 0;
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-cands button {
+  width: 100%;
+  padding: 0.3em 0.4em;
+  border-radius: 4px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-cands button:hover {
+  background: var(--code-bg);
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-read-row {
+  display: flex;
+  align-items: baseline;
+  gap: 1.2em;
+  margin-top: 0.6em;
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-toggle.is-on {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-read-toggle .bear-box {
+  margin-top: 0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-submit {
+  margin-left: auto;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-note {
+  margin: 0.5em 0 0;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-list li.bear-read-item {
+  display: block;
+  padding: 0.6em 0;
+  border-bottom: 1px solid #eceef0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-list li.bear-read-item:last-child {
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-read-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+}
+[data-skin="bear"] .bear-read-title {
+  min-width: 0;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-read-due {
+  flex: none;
+  font-size: 12px;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-read-due.is-now {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-read-meta {
+  display: flex;
+  gap: 0.7em;
+  margin-top: 0.1em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-read-high {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels .bear-read-foot {
+  margin-top: 1.6em;
+  font-size: 12px;
+}
+
+/* ── 卡片 (BE-6) ───────────────────────────────────────────────────────── */
+
+[data-skin="bear"] .bear-anki {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 13px;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-anki-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--soft);
+}
+[data-skin="bear"] .bear-anki-dot.is-on {
+  background: var(--accent);
+  box-shadow: none;
+}
+[data-skin="bear"] .bear-anki-today {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-card-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 1.2em 0 0.2em;
+}
+[data-skin="bear"] .bear-card-counts dt {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-card-counts dd {
+  margin: 0;
+  display: inline-flex;
+  font-size: 22px;
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-tabpanels .bear-card-note {
+  margin: 0.3em 0;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-extracts {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 1em;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 2px solid var(--accent);
+  font-size: 13px;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-newcard {
+  margin: 0.4em 0 0.8em;
+  padding: 0 0 0.6em 0.9em;
+  border-left: 2px solid var(--rule);
+}
+[data-skin="bear"] .bear-tabpanels .bear-card-field {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  margin: 0.5em 0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-card-field.is-top {
+  align-items: flex-start;
+}
+[data-skin="bear"] .bear-card-label {
+  flex: none;
+  width: 3em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-card-input {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  caret-color: var(--accent);
+}
+[data-skin="bear"] .bear-tabpanels .bear-decks li.bear-deck {
+  display: block;
+  padding: 0.6em 0;
+  border-bottom: 1px solid #eceef0;
+}
+[data-skin="bear"] .bear-deck-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+}
+[data-skin="bear"] .bear-deck-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-deck-num {
+  flex: none;
+  font-size: 13px;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-deck .bear-meter {
+  margin-top: 0.45em;
+}
+[data-skin="bear"] .bear-deck-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-deck-due {
+  color: var(--accent);
+}
+
+/* ── 工具步骤折叠 (BE-7) ─────────────────────────────────────────────────
+   One line per answer stands for all its tool steps; the rows show only
+   when that line is opened. Tool-only steps in the middle of an answer
+   vanish while folded, and only the answer's last part keeps 复制 Markdown. */
+
+[data-skin="bear"] .bear-turn-tools {
+  display: inline-flex;
+  gap: 0.4em;
+  margin: 0.2em 0 0.6em;
+  font-size: 13px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-turn-tools:hover {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-turn-part[data-turn]:not([data-tools-open]) .bear-tool {
+  display: none;
+}
+[data-skin="bear"] .bear-turn-part[data-turn]:not([data-tools-open]):not([data-has-text]):not([data-turn-last]) {
+  display: none;
+}
+[data-skin="bear"] .bear-turn-part[data-turn]:not([data-turn-last]) .bear-answer-foot {
+  display: none;
+}
+
+/* Study cycle (BE-9c): the 今天 cycle view and the calendar's day types. */
+[data-skin="bear"] .bear-cy-head {
+  margin: 0 0 0.6em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-cy-focus {
+  padding: 0.7em 0 0.8em;
+  border-top: 2px solid var(--accent);
+  border-bottom: 1px solid var(--hairline);
+}
+[data-skin="bear"] .bear-cy-focus.is-rest {
+  border-top-color: var(--rule);
+}
+[data-skin="bear"] .bear-cy-k {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-cy-title {
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-cy-carried {
+  margin: 0.2em 0 0.3em;
+  font-size: 12px;
+  color: var(--warn-text);
+}
+[data-skin="bear"] .bear-cy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-cy-list li {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  padding: 0.45em 0;
+  border-bottom: 1px solid var(--hairline);
+}
+[data-skin="bear"] .bear-cy-mark {
+  width: 1em;
+  flex: none;
+  text-align: center;
+  font-weight: 700;
+}
+[data-skin="bear"] .bear-cy-text {
+  flex: 1;
+  min-width: 0;
+}
+[data-skin="bear"] .bear-cy-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-cy-list li.is-now .bear-cy-mark {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-cy-list li.is-warn .bear-cy-mark {
+  color: var(--warn);
+}
+[data-skin="bear"] .bear-cy-list li.is-warn .bear-cy-meta {
+  color: var(--warn-text);
+}
+[data-skin="bear"] .bear-cy-list li.is-plan .bear-cy-mark {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-cy-next {
+  margin: 0.9em 0 0;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-type {
+  min-height: 12px;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-day.is-rest,
+[data-skin="bear"] .bear-mcal-day.is-rest .bear-mcal-type {
+  color: var(--faint);
+}
+[data-skin="bear"] .bear-mcal-cyclegend {
+  margin: 0.3em 0 0;
+  font-size: 11px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-slot {
+  margin: 0.2em 0 0;
+  font-size: 12px;
+}
+
+/* 总进度 by subject (BE-10b). */
+[data-skin="bear"] .bear-pg-cycle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0.4em 0 0.2em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-weeks {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+[data-skin="bear"] .bear-pg-weeks i {
+  height: 2px;
+  background: var(--rule);
+}
+[data-skin="bear"] .bear-pg-weeks i.is-on {
+  background: var(--accent);
+}
+[data-skin="bear"] .bear-pg-section {
+  margin-top: 1em;
+}
+[data-skin="bear"] .bear-tabpanels .bear-pg-section-head {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 0.25em;
+  border-bottom: 1px solid var(--rule);
+  font-weight: 650;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-pg-subject {
+  margin-top: 0.6em;
+}
+[data-skin="bear"] .bear-pg-subject-name {
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-mark {
+  width: 1em;
+  flex: none;
+  text-align: center;
+  font-weight: 700;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-mark.is-now,
+[data-skin="bear"] li.is-now .bear-pg-mark {
+  color: var(--accent);
+}
+[data-skin="bear"] .bear-pg-mark.is-warn {
+  color: var(--warn);
+}
+[data-skin="bear"] .bear-pg-mark.is-done,
+[data-skin="bear"] li.is-done .bear-pg-mark {
+  color: var(--done);
+}
+[data-skin="bear"] li.is-none .bear-pg-mark {
+  color: var(--faint);
+}
+[data-skin="bear"] li.is-none .bear-pg-title {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-meta {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-course-trigger:has(.bear-pg-mark.is-warn) .bear-pg-meta {
+  color: var(--warn-text);
+}
+[data-skin="bear"] .bear-tabpanels .bear-pg-mats-toggle {
+  margin: 0.2em 0 0 1.5em;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-mats-group {
+  margin: 0.3em 0 0 1.5em;
+}
+[data-skin="bear"] .bear-pg-mats-type {
+  font-size: 11px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-pg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-pg-list li {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  padding: 0.3em 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-pg-title {
+  flex: 1;
+  min-width: 0;
+}
+[data-skin="bear"] .bear-pg-aux {
+  margin: 0.3em 0 0;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-pg-legend {
+  margin: 1.2em 0 0;
+  font-size: 11px;
+  color: var(--soft);
+}
+
+[data-skin="bear"] .bear-cy-headrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+}
+
+/* 总控 avatar in the title bar (BE-11b). */
+[data-skin="bear"] .bear-bot {
+  display: inline-flex;
+  vertical-align: -6px;
+  margin-right: 6px;
+}
+[data-skin="bear"] .bear-bot canvas {
+  display: block;
+}
+
+/* The in-progress line: avatar + what 学根 is doing (BE-11c). */
+[data-skin="bear"] .bear-activity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0.6em 0 0;
+}
+[data-skin="bear"] .bear-activity .bear-bot {
+  margin-right: 0;
+  vertical-align: middle;
+}
+[data-skin="bear"] .bear-activity .bear-thinking {
+  margin: 0;
+}
+
+/* 总进度 / 日历 redesign (design ?d=plan). */
+[data-skin="bear"] .bear-plan-label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-route {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+}
+[data-skin="bear"] .bear-plan-end {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+[data-skin="bear"] .bear-plan-end span {
+  font-size: 13px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-end strong {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  column-gap: 6px;
+  row-gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 0;
+}
+[data-skin="bear"] .bear-plan-seg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+[data-skin="bear"] .bear-plan-seg em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+[data-skin="bear"] .bear-plan-seg.is-now em {
+  color: var(--accent);
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-more {
+  margin-top: 6px;
+  font-size: 12px;
+}
+[data-skin="bear"] .bear-plan-cycles {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-cycles li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: none;
+  font-size: 12.5px;
+}
+[data-skin="bear"] .bear-plan-cid {
+  width: 26px;
+  color: var(--soft);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-plan-cycles li.is-now .bear-plan-cid {
+  color: var(--accent);
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-plan-cname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-plan-cycle {
+  padding: 18px 0 4px;
+}
+[data-skin="bear"] .bear-plan-cycle-head {
+  display: flex;
+  justify-content: space-between;
+}
+[data-skin="bear"] .bear-plan-title {
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-plan-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-plan-range-end {
+  color: var(--ink);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-plan-bar {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--hairline);
+}
+[data-skin="bear"] .bear-plan-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--accent);
+}
+[data-skin="bear"] .bear-course.is-card {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: #fff;
+}
+[data-skin="bear"] .bear-plan-count {
+  flex: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-plan-count small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 1.5em;
+}
+[data-skin="bear"] .bear-plan-line .bear-meter {
+  flex: 1;
+  margin-top: 0;
+}
+[data-skin="bear"] .bear-plan-line .bear-meter-fill {
+  background: var(--accent);
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-next {
+  margin: 6px 0 0 1.5em;
+  font-size: 12.5px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-next b {
+  font-weight: 500;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-plan-next.is-warn b {
+  color: var(--warn-text);
+}
+[data-skin="bear"] .bear-course.is-card .bear-pg-subject-name {
+  display: none;
+}
+[data-skin="bear"] .bear-tabpanels .bear-plan-aux {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 0 4px;
+  font-size: 12.5px;
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-plan-aux .bear-pg-meta {
+  margin-left: auto;
+  color: var(--faint);
+}
+[data-skin="bear"] .bear-pg-warn {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--warn-text);
+}
+[data-skin="bear"] .bear-plan-foot {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+[data-skin="bear"] .bear-mcal-tag {
+  min-height: 14px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--soft);
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-mcal-day.is-deep .bear-mcal-tag {
+  font-weight: 600;
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-mcal-day.is-recover .bear-mcal-tag {
+  color: var(--faint);
+}
+[data-skin="bear"] .bear-mcal-flag {
+  position: absolute;
+  top: -1px;
+  right: 1px;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 13px;
+  color: #fff;
+  background: var(--ink);
+}
+[data-skin="bear"] .bear-mcal-notedot {
+  position: absolute;
+  bottom: 4px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-items {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-tabpanels .bear-mcal-items li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: none;
+  font-size: 13px;
+}
+[data-skin="bear"] .bear-mcal-items li > span:nth-child(2) {
+  flex: 1;
+}
+[data-skin="bear"] .bear-mcal-items b {
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-mcal-items small {
+  color: var(--soft);
+}
+[data-skin="bear"] .bear-mcal-items .is-empty {
+  color: var(--faint);
+}
+
+/* 总进度 second version: 12 cycles × 7 week cells, subjects shown. */
+[data-skin="bear"] .bear-plan-weeks {
+  display: flex;
+  gap: 1px;
+}
+[data-skin="bear"] .bear-plan-weeks i {
+  flex: 1;
+  height: 10px;
+  background: var(--hairline);
+}
+[data-skin="bear"] .bear-plan-weeks i:first-child {
+  border-radius: 2px 0 0 2px;
+}
+[data-skin="bear"] .bear-plan-weeks i:last-child {
+  border-radius: 0 2px 2px 0;
+}
+[data-skin="bear"] .bear-plan-weeks i.is-done {
+  background: var(--done);
+}
+[data-skin="bear"] .bear-plan-weeks i.is-now {
+  background: var(--accent);
+}
+[data-skin="bear"] .bear-plan-weeks i.is-left {
+  background: #d6ecfb;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-pg-subject {
+  margin-top: 16px;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-course.is-card {
+  margin-top: 6px;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-course:not(.is-card) {
+  padding: 6px 0 0 2px;
+  border-bottom: none;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-course:not(.is-card) .bear-meter {
+  display: none;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-pg-mats-toggle {
+  margin-left: 2px;
+}
+[data-skin="bear"] .bear-progress.is-plan .bear-pg-mats-group {
+  margin-left: 2px;
+}
+[data-skin="bear"] .bear-tabpanels .bear-reading-hint {
+  margin: -0.2em 0 0.4em;
+  font-size: 12px;
+}

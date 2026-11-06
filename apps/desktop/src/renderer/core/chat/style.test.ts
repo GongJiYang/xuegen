@@ -4,10 +4,14 @@ import type { DesktopSettings } from "@shared/protocol.js";
 
 const settings: DesktopSettings = {
   skin: "chicago",
+  bodyFont: "pixel",
   bodyScale: 1,
   windowBackground: "",
   sessionStyle: "plain",
   courseSessions: {},
+  courseStartedOn: {},
+  controlSessions: {},
+  controlBriefOn: {},
   courseStyles: { ctm: "detailed" },
   skinOptions: {},
   disabledSkills: [],

@@ -9,12 +9,17 @@
 import { useState } from "react";
 import type { CourseSummary } from "@shared/data-protocol.js";
 import { TEACHING_STYLE_LABELS, type TeachingStyle } from "@shared/protocol.js";
-import type { NewCourseRequest } from "../../core/board/course-prompts.js";
+import {
+  READING_MODES,
+  REST_DAYS,
+  defaultEndDate,
+  type NewCourseRequest,
+  type ReadingMode,
+  type RestDays,
+} from "../../core/board/course-prompts.js";
 import type { ProgressPanelProps } from "../contract.js";
+import { routeView } from "../../core/board/plan-view.js";
 import { strings } from "../../core/strings.js";
-
-const MINUTES_PER_DAY = [30, 45, 60, 90] as const;
-type MinutesPerDay = (typeof MINUTES_PER_DAY)[number];
 
 /** Today as `YYYY-MM-DD` in the local timezone. */
 function todayIso(): string {
@@ -34,14 +39,17 @@ function NewCourseForm({
 }) {
   const [title, setTitle] = useState("");
   const [material, setMaterial] = useState("");
-  const [minutes, setMinutes] = useState<MinutesPerDay>(45);
+  const [reading, setReading] = useState<ReadingMode>("guided");
   const [startDate, setStartDate] = useState(todayIso);
+  const [endInput, setEndInput] = useState<string | null>(null);
+  const endDate = endInput ?? defaultEndDate(startDate);
+  const [rest, setRest] = useState<RestDays>("sun");
   const [style, setStyle] = useState<TeachingStyle>("plain");
 
   function submit(): void {
     const name = title.trim();
     if (!name) return;
-    onSubmit({ title: name, material: material.trim(), minutesPerDay: minutes, startDate, style });
+    onSubmit({ title: name, material: material.trim(), startDate, endDate, rest, reading, style });
   }
 
   return (
@@ -71,20 +79,6 @@ function NewCourseForm({
         {sources.status === "ready" &&
           sources.value.map((source) => <option key={source.path} value={source.path} />)}
       </datalist>
-      <fieldset>
-        <legend>{strings.progress.minutesPerDay}</legend>
-        {MINUTES_PER_DAY.map((entry) => (
-          <label key={entry}>
-            <input
-              type="radio"
-              name="new-course-minutes"
-              checked={minutes === entry}
-              onChange={() => setMinutes(entry)}
-            />
-            {strings.progress.minutesOption(entry)}
-          </label>
-        ))}
-      </fieldset>
       <label>
         {strings.progress.startDate}
         <input
@@ -94,6 +88,34 @@ function NewCourseForm({
           onChange={(event) => setStartDate(event.target.value)}
         />
       </label>
+      <label>
+        {strings.progress.endDate}
+        <input
+          type="date"
+          aria-label={strings.progress.endDate}
+          value={endDate}
+          onChange={(event) => setEndInput(event.target.value)}
+        />
+      </label>
+      <fieldset>
+        <legend>{strings.progress.restDays}</legend>
+        {REST_DAYS.map((id) => (
+          <label key={id}>
+            <input type="radio" name="new-course-rest" checked={rest === id} onChange={() => setRest(id)} />
+            {strings.progress.restOptions[id] ?? id}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset>
+        <legend>{strings.progress.reading}</legend>
+        {READING_MODES.map((id) => (
+          <label key={id}>
+            <input type="radio" name="new-course-reading" checked={reading === id} onChange={() => setReading(id)} />
+            {strings.progress.readingOptions[id] ?? id}
+          </label>
+        ))}
+        <p>{strings.progress.readingHints[reading]}</p>
+      </fieldset>
       <fieldset>
         <legend>{strings.progress.style}</legend>
         {TEACHING_STYLE_LABELS.map((entry) => (
@@ -121,12 +143,14 @@ function NewCourseForm({
 function CourseRow({
   course,
   style,
+  started,
   onCourseStyle,
   onStudy,
   onEditPlan,
 }: {
   course: CourseSummary;
   style: TeachingStyle;
+  started: boolean;
   onCourseStyle(style: TeachingStyle): void;
   onStudy(): void;
   onEditPlan(change: string): void;
@@ -158,7 +182,7 @@ function CourseRow({
         ))}
       </fieldset>
       <button type="button" onClick={onStudy}>
-        {strings.progress.study}
+        {started ? strings.progress.backToCourse : strings.progress.study}
       </button>
       <button type="button" onClick={() => setChange(change === null ? "" : null)}>
         {strings.progress.editPlan}
@@ -193,18 +217,31 @@ function CourseRow({
 export function ProgressPanel({
   courses,
   courseStyles,
+  startedToday,
   onCourseStyle,
   onStudy,
   onNewCourse,
   onEditPlan,
   sources,
+  groups,
+  overview,
 }: ProgressPanelProps) {
   const [creating, setCreating] = useState(false);
   if (courses.status === "loading") return <p>{strings.today.loading}</p>;
   if (courses.status === "error") return <p role="alert">{courses.message}</p>;
   return (
     <section data-slot="progress" aria-label={strings.tools.progress}>
+      {overview.status === "ready" && overview.value.route && (
+        <p data-slot="progress-route">
+          {strings.plan.routeEndLabel} {routeView(overview.value, overview.value.date)?.end}
+        </p>
+      )}
       <p>{strings.progress.caption}</p>
+      {groups?.cycle && (
+        <p data-slot="progress-cycle">
+          {strings.progress.cycleTop(groups.cycle.cycle, groups.cycle.week, groups.cycle.weeks)}
+        </p>
+      )}
       <button type="button" aria-expanded={creating} onClick={() => setCreating((value) => !value)}>
         {strings.progress.newCourse}
       </button>
@@ -227,6 +264,7 @@ export function ProgressPanel({
               key={course.slug}
               course={course}
               style={courseStyles[course.slug] ?? "plain"}
+              started={startedToday[course.slug] === true}
               onCourseStyle={(style) => onCourseStyle(course.slug, style)}
               onStudy={() => onStudy(course)}
               onEditPlan={(change) => onEditPlan(course, change)}

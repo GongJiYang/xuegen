@@ -11,12 +11,16 @@ import type {
   AgentToHostMessage,
   ChatMessage,
   CommandInfo,
+  CompactionPayload,
+  ContextUsagePayload,
   ModelInfo,
   ModelListPayload,
   SessionStatePayload,
+  SystemNote,
   ToolCallView,
 } from "@shared/protocol.js";
 import { assertNever } from "@shared/protocol.js";
+import { strings } from "../strings.js";
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -30,6 +34,12 @@ export interface ChatState {
   ready: boolean;
   /** Skills the agent offers as `/skill:<name>` commands (already enabled-only). */
   commands: CommandInfo[];
+  /** Latest context usage snapshot, or null before the agent reports one. */
+  contextUsage: ContextUsagePayload | null;
+  /** The live compaction event, while one is running; null otherwise. */
+  compaction: CompactionPayload | null;
+  /** Local-only transcript lines (e.g. where a compaction happened). */
+  systemNotes: SystemNote[];
 }
 
 export const initialChatState: ChatState = {
@@ -41,6 +51,9 @@ export const initialChatState: ChatState = {
   errors: [],
   ready: false,
   commands: [],
+  contextUsage: null,
+  compaction: null,
+  systemNotes: [],
 };
 
 /** Events the reducer accepts: agent messages plus local-only actions. */
@@ -48,6 +61,22 @@ export type ChatAction =
   | { kind: "agent-event"; event: AgentToHostMessage }
   | { kind: "dismiss-error"; index: number }
   | { kind: "clear-messages" };
+
+function applyCompaction(state: ChatState, event: CompactionPayload): ChatState {
+  if (event.phase === "start") return { ...state, compaction: event };
+  const next: ChatState = { ...state, compaction: null };
+  if (event.aborted) return next;
+  if (event.errorMessage) {
+    return appendError(next, strings.chat.compactionFailed(event.errorMessage));
+  }
+  return {
+    ...next,
+    systemNotes: [
+      ...next.systemNotes,
+      { beforeIndex: next.messages.length, kind: "compaction" },
+    ],
+  };
+}
 
 function applyModels(state: ChatState, payload: ModelListPayload): ChatState {
   return { ...state, models: payload.models, modelsReason: payload.reason ?? null };
@@ -101,7 +130,9 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
     case "models":
       return applyModels(state, event.models);
     case "history":
-      return { ...state, messages: event.messages };
+      // A replayed transcript belongs to a (possibly different) session: drop the
+      // previous session's usage until the agent reports this one's.
+      return { ...state, messages: event.messages, systemNotes: event.notes ?? [], contextUsage: null };
     case "message-start":
       return upsertMessage(state, event.message);
     case "message-delta":
@@ -110,6 +141,10 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       return upsertMessage(state, { ...event.message, streaming: false });
     case "tool-call":
       return applyToolCall(state, event.messageId, event.call);
+    case "context-usage":
+      return { ...state, contextUsage: event };
+    case "compaction":
+      return applyCompaction(state, event);
     case "agent-status":
       return { ...state, agentStatus: event.status };
     case "error":
@@ -137,7 +172,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "dismiss-error":
       return { ...state, errors: state.errors.filter((_, position) => position !== action.index) };
     case "clear-messages":
-      return { ...state, messages: [] };
+      return { ...state, messages: [], systemNotes: [] };
     default:
       return assertNever(action);
   }

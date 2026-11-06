@@ -11,12 +11,22 @@
  */
 
 import type { ComponentType } from "react";
-import type { AgentStatus, ChatMessage, ModelInfo, TeachingStyle, ToolCallView } from "@shared/protocol.js";
+import type {
+  AgentStatus,
+  BodyFont,
+  ChatMessage,
+  ModelInfo,
+  TeachingStyle,
+  ToolCallView,
+} from "@shared/protocol.js";
 import type {
   AnkiStatus,
   CalendarMonth,
   CardsStats,
   CourseSummary,
+  CycleDay,
+  CycleMonth,
+  CycleOverview,
   ReadingDue,
   ReadingItem,
   ReadingPriority,
@@ -29,7 +39,11 @@ import type { MotionPreset } from "../core/motion/index.js";
 import type { ContentNode } from "../core/content/nodes.js";
 import type { AsyncState } from "../core/board/state.js";
 import type { NewCourseRequest } from "../core/board/course-prompts.js";
+import type { CourseIntro, CourseIntroState } from "../core/board/course-intro.js";
 import type { CalendarCell } from "../core/board/use-calendar.js";
+import type { ProgressGroups } from "../core/board/progress-groups.js";
+import type { ControlView } from "../core/board/bot-state.js";
+import type { Activity } from "../core/chat/activity.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 
@@ -48,6 +62,24 @@ export interface SkinChoice {
 /** A callback the Shell calls to switch skins. */
 export type SkinSelectHandler = (id: string) => void;
 
+/**
+ * Context usage as the Shell's title bar and its small panel need it.
+ *
+ * `label` is the finished title-bar string (skeleton, 即将压缩 suffix, or the
+ * 正在压缩 line), so no skin invents its own wording. `detail` is the
+ * 「已用 … / … token」 line for the panel opened by clicking it.
+ */
+export interface ContextUsageView {
+  label: string;
+  detail: string;
+  tokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+  compacting: boolean;
+  /** Ask the agent to compact now (`/compact` through the host channel). */
+  onCompact(): void;
+}
+
 export interface ShellProps {
   /** The whole application body (thread, composer, panels), to place in a layout. */
   children: React.ReactNode;
@@ -56,15 +88,21 @@ export interface ShellProps {
    * course (each course has its own session), otherwise null for a free chat.
    */
   sessionTitle: string | null;
+  /** The 总控 avatar while the 总控 session is open; null in any other session. */
+  control: ControlView | null;
   /** Every registered skin, for the mandatory "appearance" entry. */
   skins: SkinChoice[];
   /** Currently active skin id. */
   activeSkin: string;
   /** Switch to another skin. */
   onSelectSkin: SkinSelectHandler;
+  /** Message body font. */
+  bodyFont: BodyFont;
+  /** Change the body font; core also snaps the scale to its ladder. */
+  onBodyFont(font: BodyFont): void;
   /** Current body scale multiplier. */
   bodyScale: number;
-  /** Change the body scale. */
+  /** Change the body scale (one of the current font's rungs). */
   onBodyScale(value: number): void;
   /**
    * The active skin's own appearance options, keyed by option name.
@@ -113,6 +151,8 @@ export interface ShellProps {
   notices: NoticeItem[];
   /** Dismiss a notice by index. */
   onDismissNotice(index: number): void;
+  /** Estimated context usage plus the manual compact action. */
+  contextUsage: ContextUsageView;
 
   /** The identified tool windows, in the order the dock shows them. */
   tools: ToolDescriptor[];
@@ -149,6 +189,14 @@ export interface ShellPanels {
   skills: Omit<SkillsPanelProps, "tool">;
 }
 
+/** A local-only line shown in the transcript (e.g. where a compaction happened). */
+export interface ThreadNote {
+  /** Render before the message at this index; equal to the length means last. */
+  beforeIndex: number;
+  /** Ready-to-show text from `core/strings.ts`. */
+  text: string;
+}
+
 export interface ThreadProps {
   messages: ChatMessage[];
   /**
@@ -165,6 +213,28 @@ export interface ThreadProps {
   modelsReason: string | null;
   /** Render one assistant/user message (core-provided slot). */
   renderMessage(message: ChatMessage, thinking: boolean): React.ReactNode;
+  /**
+   * The local opening card, or null when no course was just started.
+   *
+   * Render it before message `beforeIndex`; when `beforeIndex` is at or past the
+   * end, render it last (the opening user message has not arrived yet).
+   */
+  intro: CourseIntroState | null;
+  /**
+   * Local-only annotations to render between messages. They are never written
+   * to the session file and never sent to the model.
+   */
+  systemNotes: ThreadNote[];
+  /**
+   * The answer-in-progress line for the whole turn (core's `turnActivity`), or
+   * null when idle. A skin that draws it once after the transcript (Bear) never
+   * remounts it between assistant blocks; skins may ignore it.
+   */
+  activity: Activity | null;
+}
+
+export interface CourseIntroCardProps {
+  card: CourseIntro;
 }
 
 export interface UserMessageProps {
@@ -189,6 +259,8 @@ export interface AssistantMessageProps {
   message: ChatMessage;
   /** True when this block should show the thinking indicator. */
   thinking: boolean;
+  /** What 学根 is doing in this block right now (思考 / 查资料 / 动手 / 写), or null. */
+  activity: Activity | null;
   /** Copy the raw Markdown to the clipboard. */
   onCopy(): void;
   /** True for a moment after a successful copy. */
@@ -271,6 +343,8 @@ export interface ComposerProps {
    * 「正在回答：第 N 题」 banner above the field.
    */
   answering: number | null;
+  /** Leave 「检查理解」 answering mode without sending (optional). */
+  onCancelAnswer?(): void;
   /**
    * A counter that increments whenever core wants the field focused.
    *
@@ -346,12 +420,29 @@ export interface ToolPanelProps {
 export interface TodayPanelProps {
   /** Today's concrete plans and records, listed under 「今天计划」. */
   todayPlan: TodayPlanItem[];
+  /** Tomorrow's plans (course schedule rows, reading due), listed under 「明天」. */
+  tomorrowPlan: TodayPlanItem[];
   /** Reading due from stats. */
   readingDue: AsyncState<ReadingStats>;
   cards: AsyncState<CardsStats>;
   /** The course to resume, or null when there is no record yet. */
   resume: ResumePoint | null;
-  /** Ask the agent to resume the chosen course. */
+  /** Courses already opened today, so 继续学习 can read 「回到这门课」 instead. */
+  startedToday: Record<string, boolean>;
+  /** Today's and tomorrow's place in the study cycle; `cycle` is null outside every cycle. */
+  cycleToday: AsyncState<CycleDay>;
+  cycleTomorrow: AsyncState<CycleDay>;
+  /** The course list, for the 整合 day's 本周 counts. */
+  courses: AsyncState<CourseSummary[]>;
+  /** Anki status, for the 「Anki」 row's due count. */
+  anki: AsyncState<AnkiStatus>;
+  /** Start a cycle lesson in its course's session (same as 总进度's 开始学习). */
+  onStudyCourse(slug: string): void;
+  /** Open a course's session and ask for this week's 周核实. */
+  onVerifyCourse(slug: string): void;
+  /** Open the 总控 session, or null outside a study cycle. */
+  onOpenControl: (() => void) | null;
+  /** Resume the chosen course, or switch back to it when it was opened today. */
   onResume(): void;
   /**
    * Whether the agent can accept a prompt yet.
@@ -368,7 +459,9 @@ export interface ProgressPanelProps extends ToolPanelProps {
   courseStyles: Record<string, TeachingStyle>;
   /** Change one course's remembered style. */
   onCourseStyle(slug: string, style: TeachingStyle): void;
-  /** Open a course's session ("开始学习"). */
+  /** Courses already opened today, so a row's button can read 「回到这门课」. */
+  startedToday: Record<string, boolean>;
+  /** Start today's lesson, or switch back to a course opened today. */
   onStudy(course: CourseSummary): void;
   /** Create a course through the `course` skill. */
   onNewCourse(request: NewCourseRequest): void;
@@ -376,6 +469,10 @@ export interface ProgressPanelProps extends ToolPanelProps {
   onEditPlan(course: CourseSummary, change: string): void;
   /** Candidate material paths for the new-course form. */
   sources: AsyncState<ReadingSource[]>;
+  /** Courses grouped by subject for the current cycle, or null to show the plain list. */
+  groups: ProgressGroups | null;
+  /** The two-year route, the current cycle and its courses' lesson counts (cycle.mjs overview). */
+  overview: AsyncState<CycleOverview>;
 }
 
 /** What adding a reading source produced, for the panel's confirmation line. */
@@ -436,8 +533,12 @@ export interface CalendarPanelProps extends ToolPanelProps {
   onSelectDay(date: string): void;
   /** Open the day editor (double click, or the 写笔记 button). */
   onEditDay(date: string): void;
+  /** Jump to today's month and select today (optional; a skin may omit the button). */
+  onToday?(): void;
   /** Course slug → title, so the day's detail shows a name, not a slug. */
   courseTitles: Record<string, string>;
+  /** The displayed month's study-cycle day types; days outside every cycle are absent. */
+  cycleMonth: AsyncState<CycleMonth>;
 }
 
 export interface SkillsPanelProps extends ToolPanelProps {
@@ -531,6 +632,8 @@ export interface SkinSlots {
   DayEditor: ComponentType<DayEditorProps>;
   /** The `/` command menu. */
   SlashMenu: ComponentType<SlashMenuProps>;
+  /** The local card shown the instant a course is opened. */
+  CourseIntroCard: ComponentType<CourseIntroCardProps>;
 }
 
 /** The lazily-loaded module a skin id resolves to. */
@@ -538,12 +641,13 @@ export interface SkinModule {
   /** Lazily import the skin's stylesheet (scoped under `[data-skin="<id>"]`). */
   stylesheet?: () => Promise<unknown>;
   /**
-   * The body scales the skin can render crisply, ascending.
+   * The body scales the skin can render crisply, ascending — or a function of
+   * the active body font when the ladder depends on it.
    *
    * `⌘+` / `⌘-` step through this ladder instead of zooming the page. Omit it to
    * use `core/settings`' default 0.75–2 ladder (bare's range).
    */
-  bodyScaleSteps?: readonly number[];
+  bodyScaleSteps?: readonly number[] | ((font: BodyFont) => readonly number[]);
   slots: SkinSlots;
   motion: MotionPreset;
   content: ContentRenderers;

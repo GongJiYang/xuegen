@@ -23,7 +23,7 @@ import type {
 import { assertNever } from "../shared/protocol.js";
 import { createXuegenSession, findModel, listAvailableModels, listCommands } from "./session.js";
 import { createEventMapperState, mapPiEvent, toModelInfo, type EventMapperState } from "./event-mapper.js";
-import { historyFromMessages } from "./history.js";
+import { historyFromEntries, type HistoryReplay } from "./history.js";
 
 /**
  * Electron `utilityProcess` global, present only inside the agent process.
@@ -47,7 +47,7 @@ class AgentHost {
   private mapperState: EventMapperState = createEventMapperState();
   private cwd = "";
   private models: ModelListPayload = { models: [] };
-  private history: ChatMessage[] = [];
+  private history: HistoryReplay = { messages: [], notes: [] };
 
   async start(): Promise<void> {
     const { session, cwd, modelFallbackMessage } = await createXuegenSession({ continueRecent: true });
@@ -57,9 +57,10 @@ class AgentHost {
 
     const { models, reason } = await listAvailableModels(session);
     this.models = reason === undefined ? { models } : { models, reason };
-    this.history = historyFromMessages(session.messages, this.nextId("session"));
+    this.history = historyFromEntries(session.sessionManager.getBranch(), this.nextId("session"));
 
     this.broadcast();
+    this.emitContextUsage();
     post({ type: "agent-status", status: "ready" });
 
     // Warnings are user-facing; post them after the ready snapshot so the UI has state.
@@ -76,7 +77,7 @@ class AgentHost {
       state: this.snapshot(),
       models: this.models,
     });
-    post({ type: "history", messages: this.history });
+    post({ type: "history", messages: this.history.messages, notes: this.history.notes });
   }
 
   private snapshot(): SessionStatePayload {
@@ -103,7 +104,19 @@ class AgentHost {
 
   private refreshHistory(): void {
     if (!this.session) return;
-    this.history = historyFromMessages(this.session.messages, this.nextId("session"));
+    this.history = historyFromEntries(this.session.sessionManager.getBranch(), this.nextId("session"));
+  }
+
+  /** Report the session's current estimated context usage, when available. */
+  private emitContextUsage(): void {
+    const usage = this.session?.getContextUsage();
+    if (!usage) return;
+    post({
+      type: "context-usage",
+      tokens: usage.tokens,
+      contextWindow: usage.contextWindow,
+      percent: usage.percent,
+    });
   }
 
   private handleEvent(event: AgentSessionEvent): void {
@@ -111,6 +124,9 @@ class AgentHost {
     this.mapperState = mapped.state;
     for (const message of mapped.messages) post(message);
     if (mapped.stateChanged) this.emitState();
+    // A turn just settled, or a compaction changed what counts against the
+    // window: refresh the usage the title bar shows.
+    if (event.type === "agent_settled" || event.type === "compaction_end") this.emitContextUsage();
   }
 
   /** Send a user prompt, streaming or as a follow-up when the session is busy. */
@@ -125,7 +141,7 @@ class AgentHost {
     };
     post({ type: "message-start", message });
     post({ type: "message-end", message });
-    this.history = [...this.history, message];
+    this.history = { ...this.history, messages: [...this.history.messages, message] };
 
     if (this.session.isStreaming) {
       await this.session.prompt(text, { streamingBehavior: "followUp" });
@@ -138,7 +154,11 @@ class AgentHost {
   async handle(message: HostToAgentMessage): Promise<void> {
     switch (message.type) {
       case "init": {
+        // A renderer (re)load asks for the transcript: rebuild it from the
+        // session, since replies streamed since startup are not in the cache.
+        this.refreshHistory();
         this.broadcast();
+        this.emitContextUsage();
         return;
       }
       case "prompt": {
@@ -149,6 +169,18 @@ class AgentHost {
           post({
             type: "error",
             error: `发送失败：${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+        return;
+      }
+      case "compact": {
+        if (!this.session) return;
+        try {
+          await this.session.compact();
+        } catch (error) {
+          post({
+            type: "error",
+            error: `压缩失败：${error instanceof Error ? error.message : String(error)}`,
           });
         }
         return;
@@ -248,8 +280,9 @@ class AgentHost {
     await this.refreshModels();
     this.refreshHistory();
     post({ type: "models", models: this.models });
-    post({ type: "history", messages: this.history });
+    post({ type: "history", messages: this.history.messages, notes: this.history.notes });
     this.emitState();
+    this.emitContextUsage();
   }
 
   dispose(): void {

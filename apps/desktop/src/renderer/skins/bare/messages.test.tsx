@@ -80,6 +80,9 @@ describe("Bare Thread thinking indicator", () => {
       thinking,
       noModels: false,
       modelsReason: null,
+      intro: null,
+      systemNotes: [],
+      activity: null,
       renderMessage: (message, isThinking) => (
         <MessageRenderer
           slots={slots}

@@ -54,19 +54,25 @@ describe("prompts", () => {
     const withNext = resumePoint([
       course({ slug: "a", title: "CTM", lastRecord: { date: "2026-11-03", seq: "01" }, nextSession: "1.3" }),
     ]);
-    expect(withNext && resumePrompt(withNext)).toBe("继续 CTM，从下次起点开始：1.3");
+    expect(withNext && resumePrompt(withNext)).toBe(
+      "继续 CTM，从下次起点开始：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+    );
 
     const noNext = resumePoint([
       course({ slug: "a", title: "CTM", lastRecord: { date: "2026-11-03", seq: "01" } }),
     ]);
-    expect(noNext && resumePrompt(noNext)).toBe("继续 CTM，从下次起点开始");
+    expect(noNext && resumePrompt(noNext)).toBe(
+      "继续 CTM，从下次起点开始（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+    );
   });
 
   it("builds the study prompt", () => {
     expect(studyPrompt(course({ slug: "a", title: "CTM", nextSession: "1.3" }))).toBe(
-      "开始今天的 CTM，下次起点：1.3",
+      "开始今天的 CTM，下次起点：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
-    expect(studyPrompt(course({ slug: "a", title: "CTM" }))).toBe("开始今天的 CTM");
+    expect(studyPrompt(course({ slug: "a", title: "CTM" }))).toBe(
+      "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+    );
   });
 });
 

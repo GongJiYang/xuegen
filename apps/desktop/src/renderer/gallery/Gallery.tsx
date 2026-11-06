@@ -7,7 +7,8 @@
  * core message renderer, so what the gallery shows is exactly what the app shows.
  */
 
-import type { ChatMessage } from "@shared/protocol.js";
+import { contextUsageView } from "../core/chat/context-usage.js";
+import type { BodyFont, ChatMessage } from "@shared/protocol.js";
 import type { NoticeItem, ShellProps, SkinSlots } from "../skins/contract.js";
 import type { ContentRenderers } from "../skins/contract.js";
 import { MessageRenderer } from "../core/chat/message-renderer.js";
@@ -19,6 +20,8 @@ import { toolDescriptors } from "../skins/chicago/icons.js";
 import { SAMPLE_PANELS } from "./panel-samples.js";
 import {
   SAMPLE_ASSISTANT_MESSAGE,
+  SAMPLE_COURSE_INTRO,
+  SAMPLE_COURSE_INTRO_EMPTY,
   SAMPLE_ERROR_MESSAGE,
   SAMPLE_MARKDOWN,
   SAMPLE_MODELS,
@@ -35,6 +38,8 @@ export interface GalleryProps {
   skinChoices: { id: string; name: string }[];
   activeSkin: string;
   onSelectSkin(id: string): void;
+  bodyFont: BodyFont;
+  onBodyFont(font: BodyFont): void;
   bodyScale: number;
   onBodyScale(value: number): void;
   skinOptions: Record<string, string>;
@@ -86,6 +91,8 @@ export function Gallery({
   skinChoices,
   activeSkin,
   onSelectSkin,
+  bodyFont,
+  onBodyFont,
   bodyScale,
   onBodyScale,
   skinOptions,
@@ -95,9 +102,13 @@ export function Gallery({
   const shellProps: ShellProps = {
     children: null,
     sessionTitle: "CTM 7 周学习计划",
+    control: null,
+    contextUsage: contextUsageView({ tokens: 52_000, contextWindow: 128_000, percent: 40.6 }, false, () => {}),
     skins: skinChoices,
     activeSkin,
     onSelectSkin,
+    bodyFont,
+    onBodyFont,
     bodyScale,
     onBodyScale,
     skinOptions,
@@ -143,10 +154,15 @@ export function Gallery({
             thinking={false}
             noModels={false}
             modelsReason={null}
+            intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 1 }}
+            systemNotes={[{ beforeIndex: 1, text: strings.chat.compactionNote }]}
+            activity={null}
             renderMessage={(message, thinking) => (
               <Message slots={slots} content={content} message={message} thinking={thinking} />
             )}
           />
+          <slots.CourseIntroCard card={SAMPLE_COURSE_INTRO} />
+          <slots.CourseIntroCard card={SAMPLE_COURSE_INTRO_EMPTY} />
         </section>
 
         <section>
@@ -156,6 +172,9 @@ export function Gallery({
             thinking={false}
             noModels={false}
             modelsReason={null}
+            intro={null}
+            systemNotes={[]}
+            activity={{ mood: "thinking", label: strings.chat.thinking }}
             renderMessage={(message, thinking) => (
               <Message slots={slots} content={content} message={message} thinking={thinking} />
             )}
@@ -166,12 +185,24 @@ export function Gallery({
         <section>
           <h2>错误 / 空对话 / 未登录</h2>
           <Message slots={slots} content={content} message={SAMPLE_ERROR_MESSAGE} />
-          <slots.Thread messages={[]} thinking={false} noModels={false} modelsReason={null} renderMessage={() => null} />
+          <slots.Thread
+            messages={[]}
+            thinking={false}
+            noModels={false}
+            modelsReason={null}
+            intro={null}
+            systemNotes={[]}
+            activity={null}
+            renderMessage={() => null}
+          />
           <slots.Thread
             messages={[]}
             thinking={false}
             noModels
             modelsReason={strings.chat.loginHint}
+            intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 0 }}
+            systemNotes={[]}
+            activity={null}
             renderMessage={() => null}
           />
         </section>

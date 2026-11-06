@@ -66,6 +66,7 @@ export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, o
 
   return (
     <div className="chicago-pane-inner">
+      <Note>{strings.reading.scopeHint}</Note>
       <div className="chicago-inbox">
         <Caption title={strings.reading.addCaption} hint={strings.reading.addHint} />
         <InRow>
