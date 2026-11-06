@@ -59,6 +59,8 @@ export function commandEffect(command: string): CommandEffect {
       return { kind: "tool", tool: "skills" };
     case "/继续":
       return { kind: "resume" };
+    case "/总结":
+      return { kind: "prompt", text: strings.commands.summarizePrompt };
     case "/今天学到这里":
       return { kind: "prompt", text: "今天学到这里，写进 wiki，更新计划" };
     default:

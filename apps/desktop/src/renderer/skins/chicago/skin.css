@@ -598,6 +598,10 @@
   font-family: var(--font-chrome);
 }
 
+[data-skin="chicago"] .chicago-answer :is(th, td) > p {
+  margin: 0;
+}
+
 [data-skin="chicago"] .chicago-answer pre.code-block {
   margin: 0;
   border: 1px solid var(--ink);

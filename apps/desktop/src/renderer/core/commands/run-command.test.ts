@@ -25,6 +25,12 @@ describe("commandEffect", () => {
     expect(effect.kind === "prompt" && effect.text).toContain("只在回复里列出");
   });
 
+  it("sends the summary prompt in the pin board's formats", () => {
+    expect(commandEffect("/总结")).toEqual({ kind: "prompt", text: strings.commands.summarizePrompt });
+    expect(strings.commands.summarizePrompt).toContain("[!abstract]");
+    expect(strings.commands.summarizePrompt).toContain("[!question]");
+  });
+
   it("maps the session commands", () => {
     expect(commandEffect("/新会话")).toEqual({ kind: "new-session" });
     expect(commandEffect("/继续会话")).toEqual({ kind: "continue-session" });

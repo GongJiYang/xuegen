@@ -36,6 +36,7 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
   { command: "/继续会话", group: "学习", description: strings.commands.continueSession },
   { command: "/继续", group: "学习", description: strings.commands.resume },
   { command: "/总控", group: "学习", description: strings.commands.control },
+  { command: "/总结", group: "学习", description: strings.commands.summarize },
   { command: "/今天学到这里", group: "学习", description: strings.commands.endToday },
   { command: "/进度", group: "学习", description: strings.commands.progress },
   { command: "/技能", group: "学习", description: strings.commands.skills },

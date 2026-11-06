@@ -127,6 +127,7 @@ export const strings = {
     control: "打开总控：今天的安排与周期进度",
     resume: "接着上次的下次起点开始",
     endToday: "写进 wiki、更新计划与进度",
+    summarize: "把这次讲过的内容总结成今日要点和题目，钉在左边",
     progress: "打开总进度",
     skills: "打开技能面板",
     addReading: "把一篇文章加入阅读队列",
@@ -135,6 +136,8 @@ export const strings = {
     calendar: "打开日历",
     unknown: "没有这个命令",
     skillFallback: "使用该技能",
+    summarizePrompt:
+      "把这次讲过的内容总结一下：1. 用一个 > [!abstract] 今日要点 框，每行写成 - **术语**：定义（一句话），覆盖这次讲过的概念；2. 把我答错或没答完的地方各出一道题，每题单独一个 > [!question] 块。只在回复里写，不改库。",
   },
   tools: {
     dockLabel: "工具",

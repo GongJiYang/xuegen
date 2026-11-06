@@ -583,6 +583,9 @@
 [data-skin="bear"] .bear-table th {
   font-weight: 650;
 }
+[data-skin="bear"] .bear-table :is(th, td) > p {
+  margin: 0;
+}
 
 [data-skin="bear"] .bear-math {
   margin: 0.7em 0;

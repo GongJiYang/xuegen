@@ -37,7 +37,7 @@ function Table({ header, rows }: { header: string[]; rows: string[][] }) {
         <tr>
           {header.map((cell, index) => (
             <th key={index} scope="col">
-              {cell}
+              <Markdown markdown={cell} />
             </th>
           ))}
         </tr>
@@ -46,7 +46,9 @@ function Table({ header, rows }: { header: string[]; rows: string[][] }) {
         {rows.map((row, rowIndex) => (
           <tr key={rowIndex}>
             {row.map((cell, cellIndex) => (
-              <td key={cellIndex}>{cell}</td>
+              <td key={cellIndex}>
+                <Markdown markdown={cell} />
+              </td>
             ))}
           </tr>
         ))}

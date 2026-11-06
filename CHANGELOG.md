@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-11-06
+
+- Desktop: `/总结` asks 学根 to sum up the lesson as a 今日要点 box (`> [!abstract]`, one `- **术语**：定义` line each) plus one `[!question]` callout per missed or unfinished point, so the pin rail fills even in a session that never loaded `teach`.
+- Desktop (Bear, Chicago): table cells render inline Markdown (bold, code, math) instead of the raw text.
+- Skills: main-subject courses must read the original book. `course` adds 原书「讲后读（错开）」 — the lesson's core pages (about 12–20, chosen when the lesson opens) are read on the other main subject's next lesson day, with a Today checkbox set at closing — and a `## 原书通读` section that reads the whole book in order at a normal pace (about 60 minutes each Saturday), not bound to the cycle end. `cycle-plan`: the 深度 brief lists today's 讲后读 and the 低强度 brief the next 原书通读 stretch.
+- Desktop: an unused import in a command test no longer fails `npm run lint`.
+
 ## v0.2.1 — 2026-11-06
 
 - Skills: lessons check the course's cycle role at start (aux: ≤ 45 min, overview, no 检查理解, no cards); 周核实 procedure for main courses; 总控 brief lists the aux lesson; reading can clip a URL into `Clippings/`; card drafts are shown before anything is written; concept-page and material-status rules made consistent; calendar hands schedule questions to cycle-plan/course.
