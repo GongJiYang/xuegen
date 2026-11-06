@@ -76,7 +76,6 @@ function DayDetail({
                   {lesson.name} {lesson.id}
                 </b>{" "}
                 <Rich text={lesson.content} />
-                {!lesson.aux && <small> · {strings.cycle.minutes}</small>}
               </span>
             </li>
           ))}

@@ -70,4 +70,24 @@ describe("Bear 总进度 v4", () => {
     await user.click(screen.getByRole("button", { name: strings.progress.editPlan }));
     expect(screen.getByLabelText(strings.progress.editPlan)).toBeTruthy();
   });
+
+  it("plans an aux course on the cycle's days from the 辅助 row", async () => {
+    const user = userEvent.setup();
+    const onNewCourse = vi.fn();
+    render(<ProgressPanel {...baseProps({ onNewCourse })} />);
+    // data-structures is the only aux subject without a course in the sample.
+    await user.click(screen.getByRole("button", { name: strings.plan.planMaterial }));
+    expect(screen.getByText(strings.progress.placementTitle("数据结构"))).toBeTruthy();
+    expect(screen.getByText(strings.progress.placementTag("C1", "aux"))).toBeTruthy();
+    expect(screen.getByRole("button", { name: strings.progress.placementSubmit })).toBeTruthy();
+    expect(screen.queryByLabelText(strings.progress.startDate)).toBeNull();
+    await user.type(screen.getByLabelText(strings.progress.courseTitle), "数据结构入门");
+    await user.click(screen.getByRole("button", { name: strings.progress.placementSubmit }));
+    expect(onNewCourse).toHaveBeenCalledTimes(1);
+    const request = onNewCourse.mock.calls[0]?.[0];
+    expect(request.cycle?.role).toBe("aux");
+    expect(request.cycle?.subject).toBe("data-structures");
+    expect(request.cycle?.days).toEqual(SAMPLE_OVERVIEW.cycle?.subjectDays["data-structures"]);
+    expect(request.cycle?.end).toBe("2026-12-24");
+  });
 });

@@ -1,10 +1,9 @@
 # PROGRESS（更新于 2026-11-06 晚，分支 desktop；最后推送 2cb31f6，之后 PL-11/12/13 未提交）
 
 ## ▶ 下一步（新会话直接从这里开始）
-1. **审查 PL-13（程序内更新）**：Devin 已跑完，尚未审查。任务单 `docs/desktop/batch-plan-13.md`，报告在 `/Users/gjy/pi-learning/devin-plan-13.log` 结尾。按 xuegen-arch-gate 审查 `src/shared/update.ts`、`src/main/update.ts`、`main/index.ts`（菜单「检查更新…」、DATA_CHANNEL 拦截 update.*）、三皮肤 `update-bar.tsx`、App.tsx ≤ 450；重跑全部检查与 `npm run dist`；归档任务单。设计稿 `?d=update` 已获批。
-2. **发 v0.2.0**：用户问过「可以发版吗」，Claude 的回答是 PL-13 验收后发。发版前向用户报告审查结果并确认，然后按 `docs/desktop/RELEASE.md` 执行。
-3. **首次安装**：`dist/mac-arm64/学根.app` 拷到 `/Applications` 并清隔离属性；关掉开发模式正式窗口（端口 9470）前先问用户。之后发 v0.2.1 时让用户在学根里点「更新并重启」验证整条流程。
-4. 小项：总进度辅助行显示短名「C / 数据结构」（设计稿是全名，待用户表态）；`progress-panel.tsx` 527 行待拆；讲解风格问题已诊断未修（见 PL-5/6 行）。
+v0.2.0 已发布（GitHub Release，提交 a58bbd3，tag v0.2.0），已装到 `/Applications/学根.app`，用户从 Dock 用它；开发模式窗口不再作为正式窗口。程序内更新已端到端验证（/tmp 旧版 0.1.0 → 检查 → 下载 → 替换 → 自动重开为 0.2.0）。以后改完、用户说「发版」时按 `docs/desktop/RELEASE.md`。
+待办小项：应用图标（需 ≥512×512 图）；总进度辅助行显示短名「C / 数据结构」（设计稿是全名，待用户表态）；`progress-panel.tsx` 527 行待拆；讲解风格问题已诊断未修（见 PL-5/6 行）。
+注意：从工具里用 `( … &)` 启动的 Electron 可能随工具进程一起退出；需要长时间运行的用 `open -n <app> --env … --args …`。
 
 PL-12（已完成）：`electron-builder.json` + `npm run dist` → `dist/xuegen-<ver>-arm64-mac.zip`（未签名，约 129 MB）；打包后 `findRepoRoot` 读 `Resources/xuegen`，Claude 实测免环境变量可用。仓库已公开（desktop 与 main 同步推送）。
 

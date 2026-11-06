@@ -6,6 +6,7 @@ import {
   cellFlag,
   cellTag,
   courseCards,
+  cyclePlacement,
   cycleView,
   dayLessons,
   daySlotLine,
@@ -234,5 +235,19 @@ describe("subjectDaysLine", () => {
     expect(subjectDaysLine(OVERVIEW, "discrete-math")).toBe("周一 · 周三");
     expect(subjectDaysLine(OVERVIEW, "nope")).toBe("");
     expect(subjectDaysLine({ ...OVERVIEW, cycle: null }, "discrete-math")).toBe("");
+  });
+});
+
+describe("cyclePlacement", () => {
+  it("takes the cycle id, the subject's days and the cycle's end; null outside a cycle", () => {
+    expect(cyclePlacement(OVERVIEW, "discrete-math", "离散数学", "main")).toEqual({
+      cycle: "C1",
+      subject: "discrete-math",
+      subjectName: "离散数学",
+      role: "main",
+      days: ["周一", "周三"],
+      end: "2026-12-24",
+    });
+    expect(cyclePlacement({ ...OVERVIEW, cycle: null }, "discrete-math", "离散数学", "main")).toBeNull();
   });
 });

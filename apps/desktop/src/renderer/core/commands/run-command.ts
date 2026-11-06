@@ -10,6 +10,7 @@
 
 import type { TeachingStyle } from "@shared/protocol.js";
 import type { ToolFocus, ToolId } from "../../skins/contract.js";
+import { strings } from "../strings.js";
 
 /** The effect of running a command. */
 export type CommandEffect =
@@ -51,7 +52,7 @@ export function commandEffect(command: string): CommandEffect {
     case "/制卡":
       // 说明 is 「把这次学到的内容起草成卡片」: it must ask 学根 to draft, not
       // merely open the cards window.
-      return { kind: "prompt", text: "把这次学到的内容起草成卡片" };
+      return { kind: "prompt", text: strings.cards.draftPrompt };
     case "/日历":
       return { kind: "tool", tool: "calendar" };
     case "/技能":

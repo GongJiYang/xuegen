@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commandEffect } from "./run-command.js";
+import { strings } from "../strings.js";
 
 describe("commandEffect", () => {
   it("maps style commands", () => {
@@ -21,7 +22,7 @@ describe("commandEffect", () => {
   it("sends the cards draft prompt instead of only opening the window", () => {
     const effect = commandEffect("/制卡");
     expect(effect.kind).toBe("prompt");
-    expect(effect.kind === "prompt" && effect.text).toContain("起草成卡片");
+    expect(effect.kind === "prompt" && effect.text).toContain("只在回复里列出");
   });
 
   it("maps the session commands", () => {

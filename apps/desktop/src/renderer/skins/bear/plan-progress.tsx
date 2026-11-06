@@ -11,8 +11,9 @@ import { RadioGroup } from "radix-ui";
 import { Root as Accordion } from "@animate-ui/react/primitives/radix-ui/accordion";
 import type { CourseSummary, CycleOverview } from "@shared/data-protocol.js";
 import { TEACHING_STYLE_LABELS, type TeachingStyle } from "@shared/protocol.js";
+import type { CyclePlacement } from "../../core/board/course-prompts.js";
 import type { AuxRow, CourseCard, CycleView, RouteView } from "../../core/board/plan-view.js";
-import { subjectDaysLine } from "../../core/board/plan-view.js";
+import { cyclePlacement, subjectDaysLine } from "../../core/board/plan-view.js";
 import type { GroupedCourse, ProgressGroups, SubjectGroup } from "../../core/board/progress-groups.js";
 import { strings } from "../../core/strings.js";
 import { CycleLine, RouteCard } from "./plan-top.js";
@@ -159,7 +160,7 @@ export interface PlanProgressProps {
   onCourseStyle(slug: string, style: TeachingStyle): void;
   onStudy(course: CourseSummary): void;
   onEditPlan(course: CourseSummary, change: string): void;
-  onPlanMaterial(title: string): void;
+  onPlanMaterial(title: string, placement: CyclePlacement | null): void;
   /** Draws a non-cycle course row (路线外), inside an accordion. */
   renderCourse(item: GroupedCourse): ReactNode;
   /** 「＋ 新课程」 and its form. */
@@ -196,7 +197,10 @@ export function PlanProgress(props: PlanProgressProps) {
         </header>
         {own.map((card, index) => renderCard(card, first ? index : 1))}
         <div className="bear-p4-foot">
-          <Materials group={group} onPlan={props.onPlanMaterial} />
+          <Materials
+            group={group}
+            onPlan={(title) => props.onPlanMaterial(title, cyclePlacement(overview, group.slug, group.title, "main"))}
+          />
           {finished.length > 0 && (
             <button
               type="button"
@@ -245,7 +249,11 @@ export function PlanProgress(props: PlanProgressProps) {
                 {row.course ? strings.plan.auxProgress(row.course.done, row.course.total) : subjectDaysLine(overview, row.subject)}
               </span>
               {!row.course && (
-                <button type="button" className="bear-link bear-link-accent" onClick={() => props.onPlanMaterial(row.subjectName)}>
+                <button
+                  type="button"
+                  className="bear-link bear-link-accent"
+                  onClick={() => props.onPlanMaterial("", cyclePlacement(overview, row.subject, row.subjectName, "aux"))}
+                >
                   {strings.plan.planMaterial}
                 </button>
               )}

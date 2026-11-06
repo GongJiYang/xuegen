@@ -180,7 +180,7 @@ export const strings = {
     typeShort: { 深度: "深", 整合: "整", 低强度: "低", 休息: "休" } as Record<CycleDayType, string>,
     headline: (week: number, weekday: string, type: CycleDayType, extra: boolean): string =>
       `第 ${week} 周 · ${weekday} · ${CYCLE_DAY_TYPE[type]}${extra ? "（加课）" : ""}`,
-    minutes: "90 分钟",
+    minutes: "今天主攻",
     start: "开始 →",
     carried: (date: string): string => `! 原定 ${date.slice(5)}，顺延到今天`,
     missed: (name: string, id: string): string => `${name} ${id} 没学`,
@@ -298,6 +298,15 @@ export const strings = {
       "read-first": "每节先读原书 §x–y，再讲和练；阅读单独打勾",
       "read-along": "课上一起读原文段落，逐段讲",
     } as Record<string, string>,
+    placementTitle: (subject: string): string => `排课 · ${subject}`,
+    placementTag: (cycle: string, role: "main" | "aux"): string => `${cycle} ${role === "aux" ? "辅助" : "主项"}`,
+    placementLine: (days: string[], role: "main" | "aux", end: string, cycle: string): string =>
+      `${days.join(" · ")}\u3000${role === "aux" ? "每节 ≤ 45 分钟\u3000" : ""}排到 ${end.slice(5)}（${cycle} 结束）`,
+    placementHint: (role: "main" | "aux"): string =>
+      role === "aux"
+        ? "辅助只做了解，不出检查题；周期内排不下的留到下个周期。"
+        : "按资料难度估每节时长；周期内排不下的留到下个周期。",
+    placementSubmit: "交给学根排课",
     style: "讲解风格",
     create: "建课",
     cancel: "取消",
@@ -376,6 +385,7 @@ export const strings = {
     retry: "重试",
     pendingExtracts: "条摘录待制卡",
     draft: "让学根起草",
+    draftPrompt: "/skill:wiki-save 从本次已核实的内容起草 3–8 张卡，只在回复里列出，我确认后再写入。",
     empty: "还没有卡片。上面存一张，或让学根起草。",
     decksCaption: "牌组",
     newCard: "＋ 新卡片",
@@ -485,6 +495,7 @@ export const strings = {
      */
     answering: (n: number): string => `正在回答：第 ${n} 题`,
     /** The prompt sent to 学根 when the learner asks for a hint. */
+    exerciseAnswerPrefix: (index: number, text: string): string => `第 ${index} 题：${text}`,
     exerciseHintPrompt: (n: number): string => `给我第 ${n} 题的提示`,
     /** The prompt sent to 学根 when the learner skips a question. */
     exerciseSkipPrompt: (n: number): string => `跳过第 ${n} 题`,

@@ -2598,3 +2598,31 @@
   font-size: 12.5px;
   color: #4a4f55;
 }
+/* Long course names never spill out of a calendar cell. */
+[data-skin="bear"] .bear-mcal-tag,
+[data-skin="bear"] .bear-mcal-aux {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+}
+/* 排课 from the cycle view (design ?d=newcourse, CycleForm). */
+[data-skin="bear"] .bear-nc-cycle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 2px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--code-bg);
+  font-size: 12.5px;
+  color: #4a4f55;
+}
+[data-skin="bear"] .bear-nc-tag {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--rule);
+  font-size: 11.5px;
+  color: var(--ink);
+}

@@ -322,7 +322,7 @@ export function App() {
     onEditPlan: handleEditPlan,
     onReadingAdd: handleReadingAdd,
     onReadingClip: handleReadingClip,
-    onDraftCards: () => controller.send(strings.cards.draft),
+    onDraftCards: () => controller.send(strings.cards.draftPrompt),
     onEditDay: (date) => {
       const day =
         calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;
@@ -373,7 +373,7 @@ export function App() {
         <Composer
           streaming={controller.streaming}
           disabled={controller.disabled}
-          onSend={controller.send}
+          onSend={(text) => controller.send(answering === null ? text : strings.content.exerciseAnswerPrefix(answering, text))}
           onStop={controller.stop}
           style={style}
           onStyle={handleSelectStyle}

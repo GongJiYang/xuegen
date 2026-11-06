@@ -29,6 +29,7 @@ import {
   READING_MODES,
   REST_DAYS,
   defaultEndDate,
+  type CyclePlacement,
   type NewCourseRequest,
   type ReadingMode,
   type RestDays,
@@ -132,11 +133,13 @@ function TextField({
 
 function NewCourseForm({
   initialTitle,
+  placement = null,
   sources,
   onSubmit,
   onCancel,
 }: {
   initialTitle?: string;
+  placement?: CyclePlacement | null;
   sources: ProgressPanelProps["sources"];
   onSubmit(request: NewCourseRequest): void;
   onCancel(): void;
@@ -153,15 +156,29 @@ function NewCourseForm({
   function submit(): void {
     const name = title.trim();
     if (!name) return;
-    onSubmit({ title: name, material: material.trim(), startDate, endDate, rest, reading, style });
+    onSubmit(
+      placement
+        ? { title: name, material: material.trim(), startDate: todayIso(), endDate: placement.end, rest: "none", reading, style, cycle: placement }
+        : { title: name, material: material.trim(), startDate, endDate, rest, reading, style },
+    );
   }
 
   return (
     <div className="bear-newcourse">
       <h3 className="bear-section">
-        <span>{strings.progress.newCourse}</span>
+        <span>{placement ? strings.progress.placementTitle(placement.subjectName) : strings.progress.newCourse}</span>
       </h3>
-      <p className="bear-muted">{strings.progress.newCourseHint}</p>
+      {placement ? (
+        <>
+          <div className="bear-nc-cycle">
+            <span className="bear-nc-tag">{strings.progress.placementTag(placement.cycle, placement.role)}</span>
+            <span>{strings.progress.placementLine(placement.days, placement.role, placement.end, placement.cycle)}</span>
+          </div>
+          <p className="bear-muted">{strings.progress.placementHint(placement.role)}</p>
+        </>
+      ) : (
+        <p className="bear-muted">{strings.progress.newCourseHint}</p>
+      )}
       <TextField
         label={strings.progress.courseTitle}
         value={title}
@@ -179,14 +196,18 @@ function NewCourseForm({
         {sources.status === "ready" &&
           sources.value.map((source) => <option key={source.path} value={source.path} />)}
       </datalist>
-      <TextField type="date" label={strings.progress.startDate} value={startDate} onChange={setStartDate} />
-      <TextField type="date" label={strings.progress.endDate} value={endDate} onChange={setEndInput} />
-      <Segmented
-        label={strings.progress.restDays}
-        value={rest}
-        options={REST_DAYS.map((id) => ({ id, label: strings.progress.restOptions[id] ?? id }))}
-        onChange={(next) => setRest(next)}
-      />
+      {!placement && (
+        <>
+          <TextField type="date" label={strings.progress.startDate} value={startDate} onChange={setStartDate} />
+          <TextField type="date" label={strings.progress.endDate} value={endDate} onChange={setEndInput} />
+          <Segmented
+            label={strings.progress.restDays}
+            value={rest}
+            options={REST_DAYS.map((id) => ({ id, label: strings.progress.restOptions[id] ?? id }))}
+            onChange={(next) => setRest(next)}
+          />
+        </>
+      )}
       <Segmented
         label={strings.progress.reading}
         value={reading}
@@ -205,7 +226,7 @@ function NewCourseForm({
           {strings.progress.cancel}
         </button>
         <button type="button" className="bear-link bear-link-accent" disabled={!title.trim()} onClick={submit}>
-          {strings.progress.create}
+          {placement ? strings.progress.placementSubmit : strings.progress.create}
         </button>
       </div>
     </div>
@@ -376,7 +397,7 @@ export function ProgressPanel({
   overview,
 }: ProgressPanelProps) {
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState<{ title: string; placement: CyclePlacement | null } | null>(null);
   if (courses.status === "loading") return <p className="bear-muted">{strings.today.loading}</p>;
   if (courses.status === "error") return <p role="alert">{courses.message}</p>;
   const today = todayIso();
@@ -416,8 +437,9 @@ export function ProgressPanel({
   );
   const form = creating && (
     <NewCourseForm
-      key={draft ?? ""}
-      initialTitle={draft ?? undefined}
+      key={draft ? `${draft.title}|${draft.placement?.subject ?? ""}` : ""}
+      initialTitle={draft?.title || undefined}
+      placement={draft?.placement ?? null}
       sources={sources}
       onSubmit={(request) => {
         onNewCourse(request);
@@ -446,8 +468,8 @@ export function ProgressPanel({
           onCourseStyle={onCourseStyle}
           onStudy={onStudy}
           onEditPlan={onEditPlan}
-          onPlanMaterial={(title) => {
-            setDraft(title);
+          onPlanMaterial={(title, placement) => {
+            setDraft({ title, placement });
             setCreating(true);
           }}
           renderCourse={(item) => renderRow(item.course, item.mark, strings.progress.lastSeen(item.course.lastRecord?.date ?? null))}
@@ -493,7 +515,7 @@ export function ProgressPanel({
               auxPlanned={cycleTop?.aux ?? null}
               aux={aux}
               onPlanMaterial={(title) => {
-                setDraft(title);
+                setDraft({ title, placement: null });
                 setCreating(true);
               }}
               renderCourse={(item) =>

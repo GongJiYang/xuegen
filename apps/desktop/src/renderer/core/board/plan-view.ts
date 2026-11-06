@@ -8,6 +8,7 @@
  */
 
 import type { CourseRole, CycleMonth, CycleOverview } from "@shared/data-protocol.js";
+import type { CyclePlacement } from "./course-prompts.js";
 import { strings } from "../strings.js";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -255,4 +256,16 @@ export function hasAux(month: CycleMonth | null): boolean {
 /** 「周一 · 周三」 for a subject of the current cycle, or "". */
 export function subjectDaysLine(overview: CycleOverview, subject: string): string {
   return strings.plan.days(overview.cycle?.subjectDays[subject] ?? []);
+}
+
+/** Where a course planned for `subject` would sit in the current cycle, or null outside a cycle. */
+export function cyclePlacement(
+  overview: CycleOverview,
+  subject: string,
+  subjectName: string,
+  role: "main" | "aux",
+): CyclePlacement | null {
+  const cycle = overview.cycle;
+  if (!cycle) return null;
+  return { cycle: cycle.cycle, subject, subjectName, role, days: cycle.subjectDays[subject] ?? [], end: cycle.end };
 }

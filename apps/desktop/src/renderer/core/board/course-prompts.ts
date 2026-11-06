@@ -8,6 +8,20 @@
 
 import type { TeachingStyle } from "@shared/protocol.js";
 
+/** Where a course sits in the current study cycle, when it is planned from the cycle view. */
+export interface CyclePlacement {
+  /** 「C1」. */
+  cycle: string;
+  /** Subject slug and display name. */
+  subject: string;
+  subjectName: string;
+  role: "main" | "aux";
+  /** The subject's days in the weekly template: 「周一」「周三」. */
+  days: string[];
+  /** The cycle's last day, `YYYY-MM-DD`. */
+  end: string;
+}
+
 /** What the 「新课程」 form collects. */
 export interface NewCourseRequest {
   title: string;
@@ -22,6 +36,8 @@ export interface NewCourseRequest {
   /** How the original text is used: 带读 / 先读后讲 / 边读边讲. */
   reading: ReadingMode;
   style: TeachingStyle;
+  /** Set when planned from the cycle view: dates come from the cycle, not the form. */
+  cycle?: CyclePlacement;
 }
 
 /** The rest-day choices the form offers (values are `course-schedule.mjs --rest`). */
@@ -52,6 +68,21 @@ export function newCoursePrompt(request: NewCourseRequest): string {
   const material = request.material.trim()
     ? `资料：${request.material.trim()}。`
     : "资料还没定，先问我要用什么资料。";
+  if (request.cycle) {
+    const placement = request.cycle;
+    const role = placement.role === "aux" ? "辅助" : "主项";
+    const length =
+      placement.role === "aux"
+        ? "每节不超过 45 分钟、只做了解、不出检查题"
+        : "每节时长按资料难度估（一般不超过 2 小时）";
+    return [
+      `/skill:course 新建课程「${request.title.trim()}」。`,
+      material,
+      `这是 ${placement.cycle} ${role}课（科目：${placement.subjectName}），只排在${placement.days.join("、")}，${length}，从今天之后第一个上课日排到 ${placement.end}（${placement.cycle} 结束），排不下的留到下个周期；原书「${READING_NAMES[request.reading]}」，讲解风格「${STYLE_NAMES[request.style]}」。`,
+      "按 course 技能「学习周期里的课」排期（--days 用这几天，--reviews anki），建好后在科目页资料行补短名链接，并跑 cycle.mjs check。",
+      "建好后先用三五行告诉我本周期能学到哪里，再开始第一课。",
+    ].join("");
+  }
   return [
     `/skill:course 新建课程「${request.title.trim()}」。`,
     material,

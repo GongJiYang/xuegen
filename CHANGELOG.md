@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.2.1 — 2026-11-06
+
+- Skills: lessons check the course's cycle role at start (aux: ≤ 45 min, overview, no 检查理解, no cards); 周核实 procedure for main courses; 总控 brief lists the aux lesson; reading can clip a URL into `Clippings/`; card drafts are shown before anything is written; concept-page and material-status rules made consistent; calendar hands schedule questions to cycle-plan/course.
+- Desktop: answers to a 检查理解 question carry 「第 N 题：」; 让学根起草 / `/制卡` ask for a draft only; the 90-minute label is gone.
+- Desktop (Bear): 排课 from the cycle view plans on the cycle — the form shows 「C1 辅助 · 周一 · 周三 · 每节 ≤ 45 分钟 · 排到 12-24」 instead of start/end/rest fields, and the request tells the `course` skill the subject, role, days and cycle end. `course` skill: a 「学习周期里的课」 section (days from the template, aux ≤ 45 min and not assessed, overflow to the next cycle, check afterwards).
+- Desktop (Bear): calendar cell labels are cut with an ellipsis instead of spilling out of the cell.
 ## v0.2.0 — 2026-11-06
 
 - Desktop: packaged as 学根.app (`npm run dist`, unsigned zip; bundled skills found under `Resources/xuegen`). In-app update: the packaged app checks this repository's GitHub releases (quietly 8 s after start, or via 学根 → 检查更新…), shows an update bar (改进条目、稍后、更新并重启), downloads with progress, then swaps the app bundle and relaunches; only this repository's release assets are accepted.
