@@ -149,7 +149,11 @@ async function verify(coursesDir, dashboardFile) {
 /** 列出课程：`--json` 输出数组，否则一行一门。 */
 async function listCommand(coursesDir, json) {
   const courses = await listCourses(coursesDir);
-  const entries = courses.map(toListEntry);
+  const entries = [];
+  for (const course of courses) {
+    const changedAt = (await stat(join(coursesDir, `${course.slug}.md`))).mtimeMs;
+    entries.push({ ...toListEntry(course), changedAt: Math.floor(changedAt) });
+  }
   if (json) {
     process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);
     return;

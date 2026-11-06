@@ -63,6 +63,6 @@ describe("course prompts", () => {
       cycle: { cycle: "C1", subject: "programming-paradigms", subjectName: "编程语言与编程范式", role: "main", days: ["周二", "周四"], end: "2026-12-24" },
     });
     expect(main).toContain("这是 C1 主项课");
-    expect(main).toContain("一般不超过 2 小时");
+    expect(main).toContain("不估时长");
   });
 });

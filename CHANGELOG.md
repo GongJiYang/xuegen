@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-11-06
+
+- Desktop: a course session from an earlier day (after a relaunch, or left open overnight) shows 「这是 11-04 的「…」会话。开今天的课 →」; the button starts today's lesson in a fresh session. Notices can carry a button (`NoticeItem.action`), implemented in bare, Bear and Chicago.
+- Desktop: in a course session, the next prompt carries 「[课程页或技能可能已更新：先重读课程页和要用的技能，以文件为准]」 when the course page changed since the session's last answer, or on the first prompt after a relaunch or update. `course-state.mjs list` reports each course file's `changedAt`.
+- Desktop: 改计划 and 周核实 open a fresh session when the course's remembered session is from an earlier day.
+- Desktop: the board also reloads when the window regains focus (at most every 5 s) and when the local day changes.
+- Skills: no time estimates — lessons say what is studied (chapters, pages, points, done-when), never 「约 N 分钟」 or an expected finish date; 原书通读 assigns one stretch per Saturday. `course`: re-read the course page before opening, continuing, comparing plans or answering progress questions; one session per course per day. `cycle-plan`: the brief lists overdue 讲后读 with 「!」. The 排课 request and form hint say 「按教材章节切课次」.
+
 ## v0.3.0 — 2026-11-06
 
 - Desktop: `/总结` asks 学根 to sum up the lesson as a 今日要点 box (`> [!abstract]`, one `- **术语**：定义` line each) plus one `[!question]` callout per missed or unfinished point, so the pin rail fills even in a session that never loaded `teach`.

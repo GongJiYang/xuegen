@@ -101,6 +101,7 @@ export const strings = {
     /** The local transcript marker inserted where a compaction happened. */
     compactionNote: "较早的对话已压缩为摘要（课程进度保存在课程文件里，不受影响）",
     compactionFailed: (reason: string): string => `压缩失败：${reason}`,
+    refreshNote: "[课程页或技能可能已更新：先重读课程页和要用的技能，以文件为准]",
   },
   input: {
     placeholder: "发消息…（Enter 发送，Shift+Enter 换行）",
@@ -308,7 +309,7 @@ export const strings = {
     placementHint: (role: "main" | "aux"): string =>
       role === "aux"
         ? "辅助只做了解，不出检查题；周期内排不下的留到下个周期。"
-        : "按资料难度估每节时长；周期内排不下的留到下个周期。",
+        : "按教材章节切课次；周期内排不下的留到下个周期。",
     placementSubmit: "交给学根排课",
     style: "讲解风格",
     create: "建课",
@@ -512,6 +513,9 @@ export const strings = {
     agentStopped: "会话已停止。",
     skinFallback: "皮肤加载失败，已回退到 Bare。",
     unknownSkin: "未知皮肤，已回退到 Bare。",
+    staleSession: (day: string, title: string): string => `这是 ${day} 的「${title}」会话。`,
+    staleSessionAction: "开今天的课 →",
+    actionTitle: "提示",
   },
   panels: {
     boardTitle: "课程看板",

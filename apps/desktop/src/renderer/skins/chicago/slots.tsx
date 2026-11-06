@@ -345,10 +345,17 @@ export function Notice({ notice, onDismiss }: NoticeProps) {
   return (
     <div className="chicago-inline-modeless" role="status" data-slot="notice" data-tone={notice.tone}>
       <div className="chicago-tb">
-        <span className="chicago-title">{strings.chat.loginHint}</span>
+        <span className="chicago-title">{notice.action ? strings.notice.actionTitle : strings.chat.loginHint}</span>
       </div>
       <div className="chicago-pane chicago-note">
         <p>{notice.text}</p>
+        {notice.action && (
+          <div className="chicago-btns">
+            <button type="button" className="chicago-btn" onClick={notice.action.run}>
+              {notice.action.label}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

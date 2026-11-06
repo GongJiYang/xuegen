@@ -379,6 +379,8 @@ export interface NoticeItem {
    * still available for troubleshooting.
    */
   detail?: string;
+  /** An optional button on the notice (e.g. 「开今天的课 →」). */
+  action?: { label: string; run(): void };
 }
 
 export interface NoticeProps {

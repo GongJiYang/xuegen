@@ -391,6 +391,10 @@
 [data-skin="bear"] .bear-notice .bear-notice-dismiss:hover {
   color: var(--ink);
 }
+[data-skin="bear"] .bear-notice-action {
+  flex: none;
+  margin-left: 8px;
+}
 
 /* ── Composer (BE-5): one white card, auto-growing field, round send. ──── */
 

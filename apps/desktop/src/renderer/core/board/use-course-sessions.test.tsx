@@ -12,6 +12,7 @@ import type { CourseSummary } from "@shared/data-protocol.js";
 import type { ChatController } from "../chat/useChat.js";
 import type { ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
+import { dateKey } from "./use-calendar.js";
 import {
   resolveActiveCourse,
   useCourseSessions,
@@ -46,6 +47,7 @@ function fakeController(sessionFile: string | null = "/home/sessions/new.jsonl")
     messages: [],
     send: vi.fn(),
     sendCommand: vi.fn(),
+    setRefreshNote: vi.fn(),
     openSession: vi.fn().mockResolvedValue(sessionFile),
     newSession: vi.fn(),
     continueSession: vi.fn(),
@@ -474,5 +476,68 @@ describe("useCourseSessions — returning to a course", () => {
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ courseStartedOn: { ctm: today } }),
     );
+  });
+});
+
+describe("useCourseSessions — stale remembered sessions", () => {
+  const course = {
+    slug: "ctm",
+    title: "CTM 7 周",
+    weekLabel: "W3",
+    week: { done: 0, total: 0, tasks: [] },
+    overall: { done: 0, total: 0 },
+    lastRecord: null,
+    nextSession: "2.1",
+    styleHint: null,
+  } as CourseSummary;
+
+  /** The session-file stamp for a local day at local noon, in the file-name format. */
+  function stampFor(localDay: string): string {
+    const [year, month, day] = localDay.split("-").map(Number);
+    const iso = new Date(year ?? 2000, (month ?? 1) - 1, day ?? 1, 12, 0, 0).toISOString();
+    return `/home/sessions/${iso.replace(/[:.]/g, "-")}_abc.jsonl`;
+  }
+
+  it("opens a fresh session for 改计划 when the remembered one is from an earlier day", async () => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const controller = fakeController("/home/sessions/new.jsonl");
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: stampFor(dateKey(y)) } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleEditPlan(course, "少一点");
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith(null);
+  });
+
+  it("reuses the remembered session for 改计划 when it is from today", async () => {
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController("/home/sessions/new.jsonl");
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleEditPlan(course, "少一点");
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith(file);
   });
 });

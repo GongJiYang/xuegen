@@ -60,6 +60,8 @@ export interface ChatController {
    * the whole instruction, so the session style must not ride along (B9).
    */
   sendCommand(text: string): void;
+  /** A note put in front of the next prompts (send and sendCommand) until set back to null. */
+  setRefreshNote(note: string | null): void;
   stop(): void;
   /** Resend the most recent user message, after a stop or a failed answer. */
   retry(): void;
@@ -93,6 +95,11 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
   useEffect(() => {
     styleRef.current = style;
   }, [style]);
+
+  const refreshNoteRef = useRef<string | null>(null);
+  const setRefreshNote = useCallback((note: string | null) => {
+    refreshNoteRef.current = note;
+  }, []);
 
   // Pending `open-session` requests, resolved by the agent's `session-opened`.
   const openRequests = useRef(new Map<string, (sessionFile: string | null) => void>());
@@ -134,15 +141,18 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
   const send = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    const note = refreshNoteRef.current;
+    const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
     // a tag on display (see `splitStyleTag`), so the raw prefix is never shown.
-    client.send({ type: "prompt", text: withStylePrefix(styleRef.current, trimmed) });
+    client.send({ type: "prompt", text: withStylePrefix(styleRef.current, body) });
   }, []);
 
   const sendCommand = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    client.send({ type: "prompt", text: trimmed });
+    const note = refreshNoteRef.current;
+    client.send({ type: "prompt", text: note ? `${note} ${trimmed}` : trimmed });
   }, []);
 
   const stop = useCallback(() => client.send({ type: "abort" }), []);
@@ -208,6 +218,7 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
       compact,
       send,
       sendCommand,
+      setRefreshNote,
       stop,
       retry,
       newSession,
@@ -223,6 +234,7 @@ export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly
     compact,
     send,
     sendCommand,
+    setRefreshNote,
     stop,
     newSession,
     continueSession,

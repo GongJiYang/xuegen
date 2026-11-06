@@ -19,3 +19,36 @@ export function useReloadOnAnswer(streaming: boolean, reload: () => void): void 
     reload();
   }, [streaming, reload]);
 }
+
+/**
+ * Also reload when the window regains focus (the vault may have changed in
+ * Obsidian) and when the local day changes while the window stays open.
+ * Focus reloads are at most one per 5 s.
+ */
+export function useReloadOnFocusAndDay(reload: () => void): void {
+  const reloadRef = useRef(reload);
+  useEffect(() => {
+    reloadRef.current = reload;
+  }, [reload]);
+  useEffect(() => {
+    let last = 0;
+    const onFocus = (): void => {
+      const now = Date.now();
+      if (now - last < 5000) return;
+      last = now;
+      reloadRef.current();
+    };
+    let day = new Date().toDateString();
+    const timer = window.setInterval(() => {
+      const current = new Date().toDateString();
+      if (current === day) return;
+      day = current;
+      reloadRef.current();
+    }, 60_000);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(timer);
+    };
+  }, []);
+}

@@ -55,6 +55,7 @@ const GALLERY_NOTICES: NoticeItem[] = [
     text: MODEL_ERROR_SUMMARIES.auth,
     detail: '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
   },
+  { tone: "info", text: strings.notice.staleSession("11-06", "离散数学（Epp, 5th ed）"), action: { label: strings.notice.staleSessionAction, run: () => undefined } },
 ];
 
 const SLASH = filterCommands(allCommands([]), "");

@@ -21,7 +21,8 @@ import { useBodyScaleShortcuts } from "./core/settings/use-body-scale-shortcuts.
 import { coerceBodyScaleForFont } from "./core/settings/body-font.js";
 import { useCourses } from "./core/board/use-courses.js";
 import { useActiveCourse, useCourseSessions } from "./core/board/use-course-sessions.js";
-import { useReloadOnAnswer } from "./core/board/use-reload-on-answer.js";
+import { useBoardReload } from "./core/board/use-board-reload.js";
+import { useSessionFreshness } from "./core/board/use-session-freshness.js";
 import { useReading, clipPrompt } from "./core/board/use-reading.js";
 import { useCards, useAnki } from "./core/board/use-cards.js";
 import { useCalendar, dateKey } from "./core/board/use-calendar.js";
@@ -123,6 +124,7 @@ export function App() {
     handleNewSession,
     handleContinueSession,
   } = useCourseSessions(controller, settings, update, courses, resume, activeCourse, setActiveCourse, () => setFocusRequest((value) => value + 1));
+  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, handleStudy);
   const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
   const control = useControlSession(controller, settings, update, cycleId, setActiveCourse, () =>
     setFocusRequest((value) => value + 1),
@@ -163,17 +165,7 @@ export function App() {
     };
   }, [skin, loadedId, settings.bodyFont, settings.bodyScale]);
 
-  // Reload the board when an answer ends: 学根 may have written course progress,
-  // reading, cards, or calendar notes during the turn.
-  const reloadBoard = useCallback(() => {
-    courses.reload();
-    reading.reload();
-    cards.reload();
-    calendar.resource.reload();
-    cycle.reload();
-    subjects.reload();
-  }, [courses, reading, cards, calendar.resource, cycle, subjects]);
-  useReloadOnAnswer(controller.streaming, reloadBoard);
+  useBoardReload(controller.streaming, [courses, reading, cards, calendar.resource, cycle, subjects]);
 
   useSkinCycleShortcut(loadedId, update);
 
@@ -294,7 +286,7 @@ export function App() {
 
   const { Shell, Thread, Composer, DayEditor, UpdateBar } = skin.slots;
 
-  const notices = notice ? [notice, ...controller.notices] : controller.notices;
+  const notices = [...(notice ? [notice] : []), ...controller.notices, ...(freshness.notice ? [freshness.notice] : [])];
 
   const panels = shellPanels({
     courses,
@@ -411,7 +403,7 @@ export function App() {
     onContinueSession: handleContinueSession,
     agentStatus: controller.agentStatus,
     notices,
-    onDismissNotice: controller.dismissNotice,
+    onDismissNotice: (index) => (freshness.notice && index === notices.length - 1 ? freshness.dismiss() : controller.dismissNotice(index)),
     tools: toolDescriptors(),
     activeTool,
     onOpenTool: (tool) => {

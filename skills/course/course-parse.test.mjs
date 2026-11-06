@@ -170,6 +170,7 @@ test("list --json：跳过无标记文件、按 slug 排序、字段完整", asy
   );
   const ctm = entries[0];
   assert.deepEqual(Object.keys(ctm).sort(), [
+    "changedAt",
     "lastRecord",
     "nextSession",
     "overall",
@@ -179,6 +180,7 @@ test("list --json：跳过无标记文件、按 slug 排序、字段完整", asy
     "week",
     "weekLabel",
   ]);
+  assert.ok(Number.isInteger(ctm.changedAt));
   assert.equal(ctm.styleHint, null);
   assert.deepEqual(ctm.week.tasks[0], { label: "模块 1a", done: false });
   await rm(dir, { recursive: true, force: true });

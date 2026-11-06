@@ -74,7 +74,7 @@ export function newCoursePrompt(request: NewCourseRequest): string {
     const length =
       placement.role === "aux"
         ? "每节不超过 45 分钟、只做了解、不出检查题"
-        : "每节时长按资料难度估（一般不超过 2 小时）";
+        : "每节 90 分钟、按教材章节切课次、不估时长；讲后读原书核心页";
     return [
       `/skill:course 新建课程「${request.title.trim()}」。`,
       material,

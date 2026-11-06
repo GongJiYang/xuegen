@@ -368,6 +368,11 @@ export function Notice({ notice, onDismiss }: NoticeProps) {
   return (
     <span data-slot="notice" data-tone={notice.tone} role={notice.tone === "error" ? "alert" : "status"}>
       {notice.text}
+      {notice.action && (
+        <button type="button" onClick={notice.action.run}>
+          {notice.action.label}
+        </button>
+      )}
       {onDismiss && (
         <button type="button" onClick={onDismiss} aria-label={strings.chat.dismiss}>
           ×

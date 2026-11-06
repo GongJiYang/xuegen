@@ -1,0 +1,70 @@
+/**
+ * Whether a course session is out of date: opened on an earlier day, or
+ * started before the course file last changed. Pure: the caller passes today,
+ * the time-zone offset, and what it has seen.
+ */
+
+const SESSION_STAMP = /(?:^|[\\/])(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z_[^\\/]*$/;
+
+/**
+ * The local day (YYYY-MM-DD) a session file was created, from its file name;
+ * null when the name has no timestamp.
+ * @param tzOffsetMinutes `new Date().getTimezoneOffset()` (UTC − local, in minutes).
+ */
+export function sessionDay(file: string | null, tzOffsetMinutes: number): string | null {
+  if (!file) return null;
+  const match = SESSION_STAMP.exec(file);
+  if (!match) return null;
+  // The regex matched, so all seven digit groups are present.
+  const [, y, mo, d, h, mi, s, ms] = match.map(Number);
+  const utc = Date.UTC(y!, mo! - 1, d!, h!, mi!, s!, ms!);
+  const local = new Date(utc - tzOffsetMinutes * 60_000);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`;
+}
+
+/**
+ * The open session is a course's remembered session created before today:
+ * returns that course and the session's day, else null.
+ */
+export function staleCourseSession(
+  activeCourse: string | null,
+  openSessionFile: string | null,
+  courseSessions: Record<string, string>,
+  today: string,
+  tzOffsetMinutes: number,
+): { slug: string; day: string } | null {
+  if (!activeCourse || !openSessionFile) return null;
+  if (courseSessions[activeCourse] !== openSessionFile) return null;
+  const day = sessionDay(openSessionFile, tzOffsetMinutes);
+  return day && day < today ? { slug: activeCourse, day } : null;
+}
+
+/** A course action should open a fresh session: none remembered, or the remembered one is from an earlier day. */
+export function startsFresh(
+  slug: string,
+  courseSessions: Record<string, string>,
+  today: string,
+  tzOffsetMinutes: number,
+): boolean {
+  const day = sessionDay(courseSessions[slug] ?? null, tzOffsetMinutes);
+  return day === null || day < today;
+}
+
+/**
+ * The next message in this course session should ask 学根 to re-read the
+ * course page: nothing seen yet in this app run, or the page changed since the
+ * last answer ended. Free chats and empty (fresh) sessions never need it.
+ */
+export function needsRefresh(
+  sessionFile: string | null,
+  activeCourse: string | null,
+  messageCount: number,
+  changedAt: number | undefined,
+  seen: Record<string, number>,
+): boolean {
+  if (!sessionFile || !activeCourse || messageCount === 0) return false;
+  const last = seen[sessionFile];
+  if (last === undefined) return true;
+  return changedAt !== undefined && changedAt > last;
+}

@@ -22,6 +22,7 @@ import { findNewCourseSlug } from "./course-claim.js";
 import { courseIntro, type CourseIntro, type CourseIntroState } from "./course-intro.js";
 import { editPlanPrompt, newCoursePrompt, type NewCourseRequest } from "./course-prompts.js";
 import { openingAction, startedTodayMap } from "./opening-action.js";
+import { startsFresh } from "./session-freshness.js";
 import { dateKey } from "./use-calendar.js";
 import { resumePrompt, studyPrompt, type ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
@@ -115,7 +116,14 @@ export function useCourseSessions(
       // it goes out without the session style prefix.
       const deliver = (message: string): void => (command ? controller.sendCommand(message) : controller.send(message));
       if (card) setIntro({ card, beforeIndex: controller.messages.length });
-      if (activeCourse === slug && !fresh) {
+      // A remembered session from an earlier day is stale: 改计划 / 周核实 open a fresh one too.
+      // No remembered file is not stale — the open session then belongs to this run.
+      const remembered = settings.courseSessions[slug];
+      const stale =
+        remembered !== undefined &&
+        startsFresh(slug, settings.courseSessions, dateKey(new Date()), new Date().getTimezoneOffset());
+      const freshNow = fresh || stale;
+      if (activeCourse === slug && !freshNow) {
         deliver(text);
         if (startedOn) {
           update({ courseStartedOn: { ...settings.courseStartedOn, [slug]: startedOn } });
@@ -124,7 +132,7 @@ export function useCourseSessions(
       }
       // The day's first lesson starts a fresh session, so 学根 reads the course
       // file anew instead of answering from an older session's memory.
-      const known = fresh ? null : (settings.courseSessions[slug] ?? null);
+      const known = freshNow ? null : (settings.courseSessions[slug] ?? null);
       setActiveCourse(slug);
       void controller.openSession(known).then((opened) => {
         const patch: Partial<DesktopSettings> = {};

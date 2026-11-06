@@ -132,7 +132,8 @@ export function Shell(props: ShellProps) {
 
   const firstError = notices.find((notice) => notice.tone === "error") ?? null;
   const alertNotice = firstError && firstError.text !== dismissedAlert ? firstError : null;
-  const modeless = notices.find((notice) => notice.tone === "info") ?? null;
+  const modeless = notices.find((notice) => notice.tone === "info" && !notice.action) ?? null;
+  const actionNotice = notices.find((notice) => notice.action) ?? null;
 
   useMotion(chicagoMotion, "alert", menuBarRef, [alertNotice]);
   useMotion(chicagoMotion, "appear", alertRef, [alertNotice]);
@@ -290,6 +291,28 @@ export function Shell(props: ShellProps) {
           <div className="chicago-pane chicago-note">
             <p>{modeless.text}</p>
             <pre className="chicago-code">xuegen login</pre>
+          </div>
+        </div>
+      )}
+
+      {actionNotice && !alertNotice && !modeless && (
+        <div className="chicago-win chicago-modeless chicago-show" aria-label={strings.notice.actionTitle}>
+          <div className="chicago-tb">
+            <button
+              type="button"
+              className="chicago-box chicago-box-close"
+              aria-label={strings.chat.dismiss}
+              onClick={() => onDismissNotice(notices.indexOf(actionNotice))}
+            />
+            <span className="chicago-title">{strings.notice.actionTitle}</span>
+          </div>
+          <div className="chicago-pane chicago-note">
+            <p>{actionNotice.text}</p>
+            <div className="chicago-btns">
+              <button type="button" className="chicago-btn" onClick={actionNotice.action?.run}>
+                {actionNotice.action?.label}
+              </button>
+            </div>
           </div>
         </div>
       )}

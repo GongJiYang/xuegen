@@ -368,6 +368,11 @@ export function Notice({ notice, onDismiss }: NoticeProps) {
         {notice.text}
         {notice.detail && <ErrorDetail raw={notice.detail} />}
       </span>
+      {notice.action && (
+        <button type="button" className="bear-link bear-link-accent bear-notice-action" onClick={notice.action.run}>
+          {notice.action.label}
+        </button>
+      )}
       {onDismiss && (
         <button type="button" className="bear-notice-dismiss" onClick={onDismiss}>
           {strings.chat.dismiss}

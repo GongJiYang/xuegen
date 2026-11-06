@@ -93,6 +93,22 @@ describe("useChat prompt prefixing (B9)", () => {
     });
     expect(send).toHaveBeenCalledWith({ type: "prompt", text: "把这次学到的内容起草成卡片" });
   });
+
+  it("prepends the refresh note until it is cleared", () => {
+    const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    render(<ActionsHarness />);
+    act(() => {
+      captured?.setRefreshNote("[N]");
+      captured?.send("hi");
+    });
+    expect(send).toHaveBeenCalledWith({ type: "prompt", text: expect.stringContaining("[N] hi") });
+
+    act(() => {
+      captured?.setRefreshNote(null);
+      captured?.send("hi");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.not.stringContaining("[N]") });
+  });
 });
 
 describe("useChat openSession", () => {
