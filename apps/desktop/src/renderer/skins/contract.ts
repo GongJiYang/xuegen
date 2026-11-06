@@ -44,6 +44,7 @@ import type { CalendarCell } from "../core/board/use-calendar.js";
 import type { ProgressGroups } from "../core/board/progress-groups.js";
 import type { ControlView } from "../core/board/bot-state.js";
 import type { Activity } from "../core/chat/activity.js";
+import type { PinBoard } from "../core/chat/pin-board.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 
@@ -231,6 +232,8 @@ export interface ThreadProps {
    * remounts it between assistant blocks; skins may ignore it.
    */
   activity: Activity | null;
+  /** The lesson's pinned 今日要点 box and latest questions (core's `pinBoard`), or null. Skins may ignore it. */
+  pin: PinBoard | null;
 }
 
 export interface CourseIntroCardProps {

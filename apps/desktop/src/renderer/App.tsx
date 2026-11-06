@@ -32,6 +32,7 @@ import { controlView } from "./core/board/bot-state.js";
 import { shellPanels } from "./core/board/shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
 import { turnActivity } from "./core/chat/activity.js";
+import { pinBoard } from "./core/chat/pin-board.js";
 import { useSkills } from "./core/board/use-skills.js";
 import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
@@ -352,6 +353,7 @@ export function App() {
           intro={intro}
           systemNotes={controller.systemNotes}
           activity={turnActivity(controller.messages, controller.streaming, controller.thinking)}
+          pin={pinBoard(controller.messages)}
           renderMessage={(message, thinking) => (
             <MessageRenderer
               slots={skin.slots}

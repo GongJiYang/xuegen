@@ -38,7 +38,7 @@ import { strings } from "../../core/strings.js";
 import { Rich } from "./rich.js";
 import type { CourseMark } from "../../core/board/progress-groups.js";
 import { GroupedProgress, MARKS } from "./progress-groups.js";
-import { courseCards, cycleView, routeView, type CourseCard } from "../../core/board/plan-view.js";
+import { auxRows, courseCards, cycleView, routeView, type CourseCard } from "../../core/board/plan-view.js";
 import { CycleCard, RouteCard } from "./plan-top.js";
 
 /** Course rows open and close with one short tween. */
@@ -383,6 +383,7 @@ export function ProgressPanel({
   const route = ready ? routeView(ready, today) : null;
   const cycleTop = ready ? cycleView(ready, today) : null;
   const cards = new Map((ready ? courseCards(ready, today) : []).map((card) => [card.slug, card]));
+  const aux = ready ? auxRows(ready) : [];
   const mainSlugs = new Set(groups?.main.flatMap((group) => group.courses.map((item) => item.course.slug)) ?? []);
   const renderRow = (course: CourseSummary, mark: CourseMark | null, meta: string | null): ReactNode => (
     <CourseRow
@@ -457,6 +458,7 @@ export function ProgressPanel({
               groups={groups}
               compact={cycleTop !== null}
               auxPlanned={cycleTop?.aux ?? null}
+              aux={aux}
               onPlanMaterial={(title) => {
                 setDraft(title);
                 setCreating(true);

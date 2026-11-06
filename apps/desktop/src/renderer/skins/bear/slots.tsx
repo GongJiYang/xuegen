@@ -43,6 +43,7 @@ import { thinkingFor } from "../../core/chat/thinking.js";
 import { assistantTurns } from "../../core/chat/turns.js";
 import { isAborted, translateModelError } from "../../core/chat/model-error.js";
 import { bearMotion } from "./motion.js";
+import { PinRail } from "./pin-rail.js";
 
 /**
  * The expandable "详情" holding an error's raw text.
@@ -91,6 +92,7 @@ export function Thread({
   intro,
   systemNotes,
   activity,
+  pin,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -125,6 +127,7 @@ export function Thread({
 
   return (
     <div className="bear-thread-wrap">
+      {pin && <PinRail pin={pin} pane={paneRef} />}
       <div className="bear-pane bear-body" ref={paneRef} role="log">
         {messages.length === 0 ? (
           card ?? (

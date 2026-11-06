@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { checkCycle, cycleSubjects, dayInfo, findCycle, monthInfo, parseCycle, parseRoute, planInfo, subjectCourses, weekInfo, weekOf } from "./cycle.mjs";
+import { checkCycle, cycleAuxSubjects, cycleSubjects, dayInfo, findCycle, monthInfo, parseCycle, parseRoute, planInfo, subjectCourses, weekInfo, weekOf } from "./cycle.mjs";
 import { parseDays, parseRest, planSchedule, renderTable, readSchedule } from "../course/course-schedule.mjs";
 
 const run = promisify(execFile);
@@ -40,11 +40,16 @@ end: 2026-12-24
 
 const SUBJECT_X = "# 离散\n\n## Materials\n\n### 书籍\n\n- ● 学习中 · 主线 · [[src-a]] → [[courses/a\\|离散]]\n\n## Courses\n- [[courses/old]] - 旧课\n";
 const SUBJECT_Y = "# 范式\n\n## Materials\n\n### 书籍\n\n- ● 学习中 · 主线 · [[src-b]] → [[courses/b\\|范式]]\n- ◌ 未制定计划 · 主线 · [[src-c]]\n";
+const SUBJECT_Z = "# C\n\n## Materials\n\n### 书籍\n\n- ● 学习中 · 主线 · [[src-d]] → [[courses/d\\|C]]\n";
+const CYCLE_AUX = CYCLE.replace("| 星期 | 类型 | 课程 |", "| 星期 | 类型 | 主项 | 辅助 |")
+  .replace("| 周一 | 深度 | [[subjects/x\\|离散]] |", "| 周一 | 深度 | [[subjects/x\\|离散]] | [[subjects/z\\|C]] |")
+  .replace("| 周三 | 深度 | [[subjects/x\\|离散]] |", "| 周三 | 深度 | [[subjects/x\\|离散]] | [[subjects/z\\|C]] |");
 
 async function writeSubjects(vault) {
   await mkdir(join(vault, "wiki", "subjects"), { recursive: true });
   await writeFile(join(vault, "wiki", "subjects", "x.md"), SUBJECT_X);
   await writeFile(join(vault, "wiki", "subjects", "y.md"), SUBJECT_Y);
+  await writeFile(join(vault, "wiki", "subjects", "z.md"), SUBJECT_Z);
 }
 
 const lessons = (n) => Array.from({ length: n }, (_, i) => ({ content: `第 ${i + 1} 课` }));
@@ -54,14 +59,15 @@ function courseText(rows, days, record = "") {
   return ["# 课", "", "## 计划表", "", renderTable(rows, SUN, days, "anki"), "", "## Learning Record", record, ""].join("\n");
 }
 
-const SUBJECT_OF = { a: "x", b: "y", c: "y" };
-const NAME_OF = { a: "离散", b: "范式", c: "C" };
+const SUBJECT_OF = { a: "x", b: "y", c: "y", d: "z" };
+const NAME_OF = { a: "离散", b: "范式", c: "C", d: "C" };
+const ROLE_OF = { a: "main", b: "main", c: "main", d: "aux" };
 
 function coursesFrom(texts) {
   const map = new Map();
   for (const [slug, text] of Object.entries(texts)) {
     const schedule = readSchedule(text);
-    map.set(slug, { subject: SUBJECT_OF[slug], name: NAME_OF[slug], rows: schedule.rows, done: new Set(), days: schedule.days });
+    map.set(slug, { subject: SUBJECT_OF[slug], role: ROLE_OF[slug], name: NAME_OF[slug], rows: schedule.rows, done: new Set(), days: schedule.days });
   }
   return map;
 }
@@ -97,9 +103,9 @@ test("parseCycle reads frontmatter and the 7-row weekly template", () => {
   const cycle = parseCycle(CYCLE);
   assert.equal(cycle.cycle, "C1");
   assert.equal(cycle.start, "2026-11-06");
-  assert.deepEqual(cycle.template[1], { type: "深度", subject: "x" });
-  assert.deepEqual(cycle.template[5], { type: "整合", subject: null });
-  assert.deepEqual(cycle.template[0], { type: "休息", subject: null });
+  assert.deepEqual(cycle.template[1], { type: "深度", subject: "x", aux: null });
+  assert.deepEqual(cycle.template[5], { type: "整合", subject: null, aux: null });
+  assert.deepEqual(cycle.template[0], { type: "休息", subject: null, aux: null });
   assert.deepEqual(cycleSubjects(cycle), ["x", "y"]);
   assert.deepEqual(cycle.subjects, { x: "离散", y: "范式" });
 });
@@ -112,7 +118,7 @@ test("parseCycle rejects broken pages", () => {
   assert.throws(() => parseCycle(CYCLE.replace("end: 2026-12-24", "end: 2026-10-01")), /早于/);
   assert.throws(() => parseCycle(CYCLE.replace("[[subjects/x\\|离散]] |\n| 周二", "[[courses/a\\|离散]] |\n| 周二")), /没有链接科目/);
   const both = parseCycle(CYCLE.replaceAll("[[subjects/x\\|离散]]", "[[subjects/x\\|离散]]（[[courses/a\\|离散]]）"));
-  assert.deepEqual(both.template[1], { type: "深度", subject: "x" });
+  assert.deepEqual(both.template[1], { type: "深度", subject: "x", aux: null });
 });
 
 test("weekOf counts 7-day weeks from start; findCycle picks the cycle containing the date", () => {
@@ -258,9 +264,9 @@ test("monthInfo lists only the days inside a cycle", () => {
   assert.equal(info.month, "2026-11");
   assert.equal(Object.keys(info.days).length, 25);
   assert.equal(info.days["2026-11-05"], undefined);
-  assert.deepEqual(info.days["2026-11-06"], { cycle: "C1", week: 1, type: "整合", subject: null, course: null });
-  assert.deepEqual(info.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: null });
-  assert.deepEqual(info.days["2026-11-30"], { cycle: "C1", week: 4, type: "深度", subject: "x", course: null });
+  assert.deepEqual(info.days["2026-11-06"], { cycle: "C1", week: 1, type: "整合", subject: null, course: null, aux: null, auxCourse: null });
+  assert.deepEqual(info.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: null, aux: null, auxCourse: null });
+  assert.deepEqual(info.days["2026-11-30"], { cycle: "C1", week: 4, type: "深度", subject: "x", course: null, aux: null, auxCourse: null });
   assert.equal(Object.keys(monthInfo([cycle], "2027-01").days).length, 0);
 });
 
@@ -275,7 +281,7 @@ test("CLI: month prints the cycle days of a month and rejects a bad month", asyn
     await writeFile(join(vault, "wiki", "courses", "b.md"), courseText(bRows, B_DAYS));
     const info = JSON.parse((await run("node", [SCRIPT, "month", vault, "2026-12", "--json"])).stdout);
     assert.equal(Object.keys(info.days).length, 24);
-    assert.deepEqual(info.days["2026-12-24"], { cycle: "C1", week: 7, type: "深度", subject: "y", course: "b" });
+    assert.deepEqual(info.days["2026-12-24"], { cycle: "C1", week: 7, type: "深度", subject: "y", course: "b", aux: null, auxCourse: null });
     assert.equal(info.days["2026-12-10"].course, "b");
     assert.equal(info.days["2026-12-25"], undefined);
     await assert.rejects(run("node", [SCRIPT, "month", vault, "2026-13", "--json"]), (error) => /YYYY-MM/.test(error.stderr));
@@ -345,10 +351,13 @@ test("planInfo gives the route, the cycle and each course's lesson counts", () =
     weeks: 7,
     daysLeft: 44,
     next: { cycle: "C2", start: "2026-12-25" },
+    subjects: { x: "离散", y: "范式" },
+    auxSubjects: [],
   });
   assert.deepEqual(info.courses[0], {
     slug: "a",
     subject: "x",
+    role: "main",
     name: "离散",
     total: 4,
     done: 1,
@@ -431,6 +440,60 @@ test("CLI: loadCourses keeps only courses with a lesson inside the cycle and ski
     assert.deepEqual(JSON.parse((await run("node", [SCRIPT, "check", vault, "--json"])).stdout), { ok: true, problems: [] });
     await rm(join(vault, "wiki", "subjects", "y.md"));
     await assert.rejects(run("node", [SCRIPT, "check", vault, "--json"]), (error) => /subjects\/y\.md/.test(error.stdout));
+  } finally {
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("parseCycle reads the 辅助 column; dayInfo, monthInfo and checkCycle handle aux courses", () => {
+  const cycle = parseCycle(CYCLE_AUX);
+  assert.deepEqual(cycle.template[1], { type: "深度", subject: "x", aux: "z" });
+  assert.deepEqual(cycle.template[2], { type: "深度", subject: "y", aux: null });
+  assert.deepEqual(cycleAuxSubjects(cycle), ["z"]);
+  assert.equal(cycle.subjects.z, "C");
+  assert.throws(() => parseCycle(CYCLE_AUX.replace("| 周五 | 整合 | — |", "| 周五 | 整合 | — | [[subjects/z\\|C]] |")), /不能排辅助/);
+  assert.throws(() => parseCycle(CYCLE_AUX.replace("| 周一 | 深度 | [[subjects/x\\|离散]] | [[subjects/z\\|C]] |", "| 周一 | 深度 | [[subjects/x\\|离散]] | [[subjects/x\\|离散]] |")), /同一个科目/);
+  assert.throws(() => parseCycle(CYCLE_AUX.replace("| 周三 | 深度 | [[subjects/x\\|离散]] | [[subjects/z\\|C]] |", "| 周三 | 深度 | [[subjects/x\\|离散]] | [[subjects/y\\|范式]] |")), /既是主项又是辅助/);
+
+  const D_DAYS = parseDays("mon,wed", SUN);
+  const dRows = planSchedule(lessons(3), { ...RANGE, days: D_DAYS });
+  const courses = coursesFrom({ a: courseText(aRows, A_DAYS), b: courseText(bRows, B_DAYS), d: courseText(dRows, D_DAYS) });
+  const mon = dayInfo(cycle, courses, "2026-11-09");
+  assert.equal(mon.course, "a");
+  assert.equal(mon.aux, "z");
+  assert.equal(mon.auxCourse, "d");
+  assert.deepEqual(mon.roles, { a: "main", b: "main", d: "aux" });
+  assert.deepEqual(mon.lessons.map((item) => item.course).sort(), ["a", "d"]);
+  const tue = dayInfo(cycle, courses, "2026-11-10");
+  assert.equal(tue.aux, null);
+  assert.equal(tue.auxCourse, null);
+
+  const month = monthInfo([cycle], "2026-11", { courses: new Map([["C1", courses]]) });
+  assert.deepEqual(month.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: "a", aux: "z", auxCourse: "d" });
+  assert.equal(month.roles.d, "aux");
+
+  assert.deepEqual(checkCycle(cycle, courses), []);
+  const TUE = parseDays("tue", SUN);
+  const wrong = coursesFrom({ a: courseText(aRows, A_DAYS), b: courseText(bRows, B_DAYS), d: courseText(planSchedule(lessons(2), { ...RANGE, days: TUE }), TUE) });
+  assert.ok(checkCycle(cycle, wrong).some((problem) => /courses\/d 的上课日（周二）不是 subjects\/z 的深度日/.test(problem)));
+  assert.deepEqual(checkCycle(cycle, coursesFrom({ a: courseText(aRows, A_DAYS), b: courseText(bRows, B_DAYS) })), []);
+});
+
+test("CLI: overview marks aux courses", async () => {
+  const vault = await mkdtemp(join(tmpdir(), "cycle-aux-"));
+  try {
+    await mkdir(join(vault, "wiki", "cycles"), { recursive: true });
+    await mkdir(join(vault, "wiki", "courses"), { recursive: true });
+    await writeSubjects(vault);
+    await writeFile(join(vault, "wiki", "cycles", "c1.md"), CYCLE_AUX);
+    await writeFile(join(vault, "wiki", "courses", "a.md"), courseText(aRows, A_DAYS));
+    await writeFile(join(vault, "wiki", "courses", "b.md"), courseText(bRows, B_DAYS));
+    const D_DAYS = parseDays("mon,wed", SUN);
+    await writeFile(join(vault, "wiki", "courses", "d.md"), courseText(planSchedule(lessons(3), { ...RANGE, days: D_DAYS }), D_DAYS));
+    const info = JSON.parse((await run("node", [SCRIPT, "overview", vault, "--date", "2026-11-06", "--json"])).stdout);
+    assert.deepEqual(info.courses.map((item) => [item.slug, item.role]), [["a", "main"], ["b", "main"], ["d", "aux"]]);
+    assert.deepEqual(info.cycle.auxSubjects, ["z"]);
+    assert.deepEqual(JSON.parse((await run("node", [SCRIPT, "check", vault, "--json"])).stdout), { ok: true, problems: [] });
   } finally {
     await rm(vault, { recursive: true, force: true });
   }

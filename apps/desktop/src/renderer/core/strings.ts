@@ -74,6 +74,12 @@ export const strings = {
     activitySearching: (detail: string): string => `正在查资料：${detail}`,
     activityWorking: (detail: string): string => `正在动手：${detail}`,
     activityWriting: "正在写",
+    pinDefs: "本课要点",
+    pinQuestions: "当前题目",
+    pinJumpDefs: "跳到原文 ↑",
+    pinJumpQuestions: "跳到原题 ↑",
+    pinChip: (defs: number, questions: number): string =>
+      [defs > 0 ? `要点 ${defs}` : "", questions > 0 ? `题目 ${questions}` : ""].filter(Boolean).join(" · "),
     backToLatest: "↓ 回到最新",
     /** One line standing for all of an answer's tool steps (click to show them). */
     toolSteps: (n: number): string => `学根做了 ${n} 步操作`,
@@ -187,8 +193,9 @@ export const strings = {
     anki: "Anki",
     ankiDue: (count: number): string => `${count} 张待复习`,
     ankiOff: "未打开",
-    tomorrow: (weekday: string, type: CycleDayType, lesson: string | null): string =>
-      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}`,
+    tomorrow: (weekday: string, type: CycleDayType, lesson: string | null, aux: string | null = null): string =>
+      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}${aux ? ` + 辅助 ${aux}` : ""}`,
+    auxTag: "辅助",
     verifyPrompt: (slug: string): string =>
       `做本周周核实：按收课流程逐项提问，核对后再打勾（课程文件：wiki/courses/${slug}.md）`,
     legend: "深 · 整 · 低 · 休 ＝ 日子类型",
@@ -234,6 +241,10 @@ export const strings = {
     restItem: "休息，不排任务",
     legend: (names: string[]): string =>
       `${names.length > 0 ? `${names.join(" / ")} = 深度课\u3000` : ""}整合 = 周核实\u3000Anki = 低强度\u3000空白 = 休息`,
+    legendAux: "上行主项 · 下行辅助　整合 = 周核实　Anki = 低强度　空白 = 休息",
+    auxTitle: "辅助",
+    auxNote: "只做了解 · 不考核 · 每次 ≤ 45 分钟",
+    auxProgress: (done: number, total: number): string => `${done} / ${total} 节`,
   },
   progress: {
     caption: "点课程名展开；勾选由学根在「今天学到这里」时按证据写入。",

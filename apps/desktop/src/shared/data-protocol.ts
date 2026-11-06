@@ -96,6 +96,9 @@ export interface CalendarMonth {
 /** The four kinds of day in a study cycle's weekly template (`cycle.mjs`). */
 export type CycleDayType = "深度" | "整合" | "低强度" | "休息";
 
+/** A cycle course's role: a main subject's course, or an auxiliary (preview, not assessed) one. */
+export type CourseRole = "main" | "aux";
+
 /** One lesson row from a course schedule, as `cycle.mjs` reports it. */
 export interface CycleLesson {
   course: string;
@@ -115,10 +118,16 @@ export interface CycleDay {
   subject: string | null;
   /** On a 深度 day: the subject's course with a lesson that day, else its earliest overdue one, else its first course this cycle; null on other days. */
   course: string | null;
+  /** The auxiliary subject of a 深度 day, or null. */
+  aux: string | null;
+  /** The auxiliary subject's course for that day (same rule as `course`), or null. */
+  auxCourse: string | null;
   /** Course slug → its short name (the alias of its link on the subject page). */
   names: Record<string, string>;
   /** Subject slug → the short name the weekly template links it with. */
   subjects: Record<string, string>;
+  /** Course slug → main or aux. */
+  roles: Record<string, CourseRole>;
   /** That day's lesson rows across the cycle's courses (new lessons and 机动, no reviews). */
   lessons: CycleLesson[];
   /** Earlier new lessons not yet listed in a course's 「完成：」 line. */
@@ -133,6 +142,8 @@ export interface CycleSlot {
   subject: string | null;
   /** The subject's course with a lesson that day, or null. */
   course: string | null;
+  aux: string | null;
+  auxCourse: string | null;
 }
 
 /**
@@ -149,6 +160,7 @@ export interface CycleMonth {
   lessons: Record<string, CycleLesson[]>;
   names: Record<string, string>;
   subjects: Record<string, string>;
+  roles: Record<string, CourseRole>;
   cycles: { cycle: string; start: string; end: string }[];
   recovery: string[];
 }
@@ -179,6 +191,7 @@ export interface CycleCourseProgress {
   slug: string;
   /** Its subject's slug. */
   subject: string;
+  role: CourseRole;
   /** The short name the weekly template links it with. */
   name: string;
   total: number;
@@ -203,6 +216,10 @@ export interface CycleOverview {
     weeks: number;
     daysLeft: number;
     next: { cycle: string; start: string } | null;
+    /** Subject slug → short name (main and aux columns). */
+    subjects: Record<string, string>;
+    /** The auxiliary column's subjects, in template order. */
+    auxSubjects: string[];
   } | null;
   courses: CycleCourseProgress[];
 }

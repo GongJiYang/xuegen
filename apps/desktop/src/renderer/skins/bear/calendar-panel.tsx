@@ -12,7 +12,7 @@
 
 import type { CalendarDay, CycleDayType } from "@shared/data-protocol.js";
 import type { CalendarPanelProps } from "../contract.js";
-import { cellFlag, cellTag, dayLessons, daySlotLine, legendNames } from "../../core/board/plan-view.js";
+import { cellAuxTag, cellFlag, cellTag, dayLessons, daySlotLine, hasAux, legendNames } from "../../core/board/plan-view.js";
 import { dateKey } from "../../core/board/use-calendar.js";
 import { dayTitle } from "../../core/format.js";
 import { strings } from "../../core/strings.js";
@@ -51,7 +51,7 @@ function DayDetail({
   courseTitles: Record<string, string>;
   onEditDay(date: string): void;
   slotLine: string | null;
-  lessons: { name: string; id: string; content: string }[];
+  lessons: { name: string; id: string; content: string; aux: boolean }[];
   slotType: CycleDayType | null;
   isToday: boolean;
 }) {
@@ -71,11 +71,12 @@ function DayDetail({
             <li key={`${lesson.name}-${lesson.id}`} className={isToday ? "is-now" : ""}>
               <span className="bear-pg-mark">{isToday ? "●" : "○"}</span>
               <span>
+                {lesson.aux && <span className="bear-cy-auxtag">{strings.cycle.auxTag}</span>}{" "}
                 <b>
                   {lesson.name} {lesson.id}
                 </b>{" "}
                 <Rich text={lesson.content} />
-                <small> · {strings.cycle.minutes}</small>
+                {!lesson.aux && <small> · {strings.cycle.minutes}</small>}
               </span>
             </li>
           ))}
@@ -210,6 +211,7 @@ export function CalendarPanel({
           if (slot?.type === "休息") classes.push("is-rest");
           const tag = cell.out ? "" : cellTag(cycle, cell.date);
           const flag = cell.out ? null : cellFlag(cycle, cell.date);
+          const auxTag = cell.out ? "" : cellAuxTag(cycle, cell.date);
           if (!cell.out && (cycle?.lessons[cell.date]?.length || slot?.type === "深度")) classes.push("is-deep");
           if (!cell.out && cycle?.recovery.includes(cell.date)) classes.push("is-recover");
           return (
@@ -224,6 +226,7 @@ export function CalendarPanel({
             >
               <span className="bear-mcal-num">{cell.day}</span>
               {slot || tag ? <span className="bear-mcal-tag">{tag}</span> : <Dots day={days[cell.date]} />}
+              {auxTag && <span className="bear-mcal-aux">{auxTag}</span>}
               {flag && <span className="bear-mcal-flag">{flag}</span>}
               {(slot || tag) && days[cell.date]?.note && <i className="bear-mcal-notedot" aria-hidden="true" />}
             </button>
@@ -231,7 +234,7 @@ export function CalendarPanel({
         })}
       </div>
       {Object.keys(cycleDays).length > 0 ? (
-        <p className="bear-mcal-cyclegend">{strings.plan.legend(legendNames(cycle))}</p>
+        <p className="bear-mcal-cyclegend">{hasAux(cycle) ? strings.plan.legendAux : strings.plan.legend(legendNames(cycle))}</p>
       ) : (
         <div className="bear-mcal-legend">
           <span>

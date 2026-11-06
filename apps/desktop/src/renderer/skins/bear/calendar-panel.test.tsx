@@ -107,7 +107,15 @@ describe("Bear 日历 panel", () => {
     expect(screen.getByRole("button", { name: dayTitle("2026-11-10") }).textContent).toContain("CTM");
     expect(screen.getByRole("button", { name: dayTitle("2026-11-08") }).className).toContain("is-rest");
     // The legend uses ideographic spaces; keep them instead of the default whitespace collapsing.
-    expect(screen.getByText(strings.plan.legend(["离散", "CTM"]), { normalizer: (text) => text })).toBeTruthy();
+    expect(screen.getByText(strings.plan.legendAux, { normalizer: (text) => text })).toBeTruthy();
+  });
+
+  it("shows the aux line in cells and an aux lesson in the detail", () => {
+    render(<CalendarPanel {...baseProps({ selected: "2026-11-09" })} />);
+    expect(screen.getByRole("button", { name: dayTitle("2026-11-09") }).textContent).toContain("Effective C");
+    expect(screen.getByRole("button", { name: dayTitle("2026-11-10") }).textContent).toContain("数据结构");
+    expect(screen.getByText("Effective C D1")).toBeTruthy();
+    expect(screen.getByText(strings.plan.legendAux, { normalizer: (text) => text })).toBeTruthy();
   });
 
   it("shows the selected day's cycle line and its lessons", () => {

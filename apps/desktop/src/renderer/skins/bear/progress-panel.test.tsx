@@ -108,7 +108,9 @@ describe("Bear 总进度 panel", () => {
     expect(screen.queryByText(strings.progress.cycleTop("C1", 1, 7))).toBeNull();
     expect(screen.getByText(strings.plan.courseEnd("12-24"))).toBeTruthy();
     expect(screen.getByText(strings.plan.lessonTotal(14).trim())).toBeTruthy();
-    expect(screen.getByText(strings.plan.auxEmpty)).toBeTruthy();
+    expect(screen.getByText(strings.plan.auxNote)).toBeTruthy();
+    expect(screen.getByText("Effective C")).toBeTruthy();
+    expect(screen.getByText(strings.plan.auxProgress(0, 7))).toBeTruthy();
     expect(screen.getByText("编程语言与编程范式")).toBeTruthy();
     expect(screen.getByText("C1", { selector: "em" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: `▸ ${strings.progress.materials(3, 2)}` }));

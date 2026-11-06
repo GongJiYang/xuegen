@@ -157,6 +157,7 @@ export function Gallery({
             intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 1 }}
             systemNotes={[{ beforeIndex: 1, text: strings.chat.compactionNote }]}
             activity={null}
+            pin={null}
             renderMessage={(message, thinking) => (
               <Message slots={slots} content={content} message={message} thinking={thinking} />
             )}
@@ -175,6 +176,7 @@ export function Gallery({
             intro={null}
             systemNotes={[]}
             activity={{ mood: "thinking", label: strings.chat.thinking }}
+            pin={null}
             renderMessage={(message, thinking) => (
               <Message slots={slots} content={content} message={message} thinking={thinking} />
             )}
@@ -193,6 +195,7 @@ export function Gallery({
             intro={null}
             systemNotes={[]}
             activity={null}
+            pin={null}
             renderMessage={() => null}
           />
           <slots.Thread
@@ -203,6 +206,7 @@ export function Gallery({
             intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 0 }}
             systemNotes={[]}
             activity={null}
+            pin={null}
             renderMessage={() => null}
           />
         </section>

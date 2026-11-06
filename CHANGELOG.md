@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Desktop (Bear): a pin rail in the margin left of the chat shows the lesson's 今日要点 box (`> [!abstract]`) and the latest round of 检查理解 questions, with jump links back to the source message; when the margin is too narrow it folds into a 「要点 N · 题目 M」 chip. `teach`/`course`: each lesson first writes its core terms to `wiki/concepts/` (one page per term) and opens with the 今日要点 box; every question round uses `[!question]` callouts.
+- Study cycles: the weekly template takes an optional 辅助 column — each 深度 day pairs a main subject with an auxiliary one (next cycle's main subject; short, not assessed). `cycle.mjs` marks courses main/aux and checks aux courses against their own days. Bear: calendar cells show the aux line, the day detail and 今天 list the aux lesson, 明天 mentions it, and 总进度 has a 辅助 block (course progress or 排课).
 - Desktop: the 新课程 form drops 每天时长 (the `course` skill now estimates each lesson's length from the material's difficulty and length) and adds 原书 — 带读 / 先读后讲 / 边读边讲, with a one-line hint — carried into the create-course request.
 - Desktop: the answer-in-progress line is drawn once under the transcript and stays for the whole answer (正在思考 in the gaps between tool steps), so it no longer disappears, jumps between blocks or redraws the avatar; Bear drops the breathing fade under the shimmer. Each course's first lesson of the day opens a fresh session (later clicks that day return to it), so 学根 reads the course file anew instead of answering from an older session.
 - `course` skill: each course records 原书：带读 / 先读后讲 / 边读边讲 (reading the original inside the lesson's time, as its own checkbox for 先读后讲), and lessons follow the textbook's table of contents when there is one (`骨架：教材目录` / `骨架：自拟`).

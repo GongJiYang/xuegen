@@ -7,6 +7,7 @@
 import { Fragment, useState, type ReactNode } from "react";
 import type { SubjectMaterial } from "@shared/data-protocol.js";
 import type { GroupedCourse, ProgressGroups, SubjectGroup } from "../../core/board/progress-groups.js";
+import type { AuxRow } from "../../core/board/plan-view.js";
 import { strings } from "../../core/strings.js";
 
 /** The state marks every Bear status line uses. */
@@ -112,6 +113,7 @@ export function GroupedProgress({
   renderCourse,
   compact = false,
   auxPlanned = null,
+  aux = [],
   onPlanMaterial,
 }: {
   groups: ProgressGroups;
@@ -120,15 +122,16 @@ export function GroupedProgress({
   compact?: boolean;
   /** 「原定 …」 for the empty auxiliary slots, from the route page. */
   auxPlanned?: string | null;
+  /** The cycle's auxiliary subjects (compact mode): shown as their own block instead of the 辅助位空着 line. */
+  aux?: AuxRow[];
   /** Open the new-course form for an unplanned material (compact mode only). */
   onPlanMaterial?: (title: string) => void;
 }) {
   const cycle = groups.cycle;
-  const otherCount = groups.other.reduce((sum, group) => sum + group.courses.length, 0);
-  const otherWarn = groups.other.reduce(
-    (sum, group) => sum + group.courses.filter((item) => item.mark === "warn").length,
-    0,
-  );
+  const auxSlugs = new Set(aux.map((row) => row.subject));
+  const other = compact ? groups.other.filter((group) => !auxSlugs.has(group.slug)) : groups.other;
+  const otherCount = other.reduce((sum, group) => sum + group.courses.length, 0);
+  const otherWarn = other.reduce((sum, group) => sum + group.courses.filter((item) => item.mark === "warn").length, 0);
   return (
     <>
       {cycle && !compact && (
@@ -146,12 +149,46 @@ export function GroupedProgress({
           {groups.main.map((group) => (
             <Subject key={group.slug} group={group} renderCourse={renderCourse} onPlan={onPlanMaterial} />
           ))}
-          {cycle && (
-            <p className="bear-plan-aux">
-              <span className="bear-pg-mark">{groups.auxEmpty ? MARKS.none : MARKS.plan}</span>
-              <span>{groups.auxEmpty ? strings.plan.auxEmpty : groups.aux}</span>
-              {groups.auxEmpty && auxPlanned && <span className="bear-pg-meta">{auxPlanned}</span>}
-            </p>
+          {aux.length > 0 ? (
+            <div className="bear-plan-auxsec">
+              <div className="bear-plan-auxhead">
+                <span>{strings.plan.auxTitle}</span>
+                <span className="bear-pg-meta">{strings.plan.auxNote}</span>
+              </div>
+              {aux.map((row) => (
+                <div key={row.subject} className="bear-plan-auxrow">
+                  <span className={row.course ? "bear-pg-mark is-now" : "bear-pg-mark"}>
+                    {row.course ? MARKS.now : MARKS.none}
+                  </span>
+                  <span className="bear-pg-title">
+                    {row.subjectName}
+                    {row.course && (
+                      <>
+                        {" · "}
+                        <b>{row.course.name}</b>
+                      </>
+                    )}
+                  </span>
+                  {row.course ? (
+                    <span className="bear-pg-meta">{strings.plan.auxProgress(row.course.done, row.course.total)}</span>
+                  ) : (
+                    onPlanMaterial && (
+                      <button type="button" className="bear-link bear-link-accent" onClick={() => onPlanMaterial(row.subjectName)}>
+                        {strings.plan.planMaterial}
+                      </button>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            cycle && (
+              <p className="bear-plan-aux">
+                <span className="bear-pg-mark">{groups.auxEmpty ? MARKS.none : MARKS.plan}</span>
+                <span>{groups.auxEmpty ? strings.plan.auxEmpty : groups.aux}</span>
+                {groups.auxEmpty && auxPlanned && <span className="bear-pg-meta">{auxPlanned}</span>}
+              </p>
+            )
           )}
         </>
       ) : (
@@ -170,14 +207,14 @@ export function GroupedProgress({
           )}
         </>
       )}
-      {groups.other.length > 0 && (
+      {other.length > 0 && (
         <Section
           title={strings.progress.sectionOther}
           meta={strings.progress.countCourses(otherCount)}
           warn={compact && otherWarn > 0 ? strings.plan.otherWarn(otherWarn) : undefined}
           defaultOpen={false}
         >
-          {groups.other.map((group) => (
+          {other.map((group) => (
             <Subject key={group.slug || group.title} group={group} renderCourse={renderCourse} />
           ))}
         </Section>

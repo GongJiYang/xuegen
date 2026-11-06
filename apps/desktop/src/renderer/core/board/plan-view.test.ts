@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CycleMonth, CycleOverview } from "@shared/data-protocol.js";
 import {
+  auxRows,
+  cellAuxTag,
   cellFlag,
   cellTag,
   courseCards,
@@ -8,6 +10,7 @@ import {
   dayLessons,
   daySlotLine,
   daysBetween,
+  hasAux,
   legendNames,
   routeView,
   shortDay,
@@ -36,26 +39,29 @@ const OVERVIEW: CycleOverview = {
     weeks: 7,
     daysLeft: 48,
     next: { cycle: "C2", start: "2026-12-25" },
+    subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
+    auxSubjects: [],
   },
   courses: [
-    { slug: "epp", subject: "discrete-math", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章" } },
-    { slug: "ctm", subject: "programming-paradigms", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "概念阶梯" } },
+    { slug: "epp", subject: "discrete-math", role: "main", name: "离散", total: 15, done: 0, end: "2026-12-23", next: { id: "D1", date: "2026-11-06", content: "Ch1 全章" } },
+    { slug: "ctm", subject: "programming-paradigms", role: "main", name: "CTM", total: 14, done: 0, end: "2026-12-24", next: { id: "D1", date: "2026-11-10", content: "概念阶梯" } },
   ],
 };
 
 const MONTH: CycleMonth = {
   month: "2026-12",
   days: {
-    "2026-12-21": { cycle: "C1", week: 7, type: "深度", subject: "discrete-math", course: "epp" },
-    "2026-12-22": { cycle: "C1", week: 7, type: "深度", subject: "programming-paradigms", course: null },
-    "2026-12-24": { cycle: "C1", week: 7, type: "深度", subject: "programming-paradigms", course: null },
-    "2026-12-18": { cycle: "C1", week: 7, type: "整合", subject: null, course: null },
-    "2026-12-19": { cycle: "C1", week: 7, type: "低强度", subject: null, course: null },
-    "2026-12-20": { cycle: "C1", week: 7, type: "休息", subject: null, course: null },
+    "2026-12-21": { cycle: "C1", week: 7, type: "深度", subject: "discrete-math", course: "epp", aux: null, auxCourse: null },
+    "2026-12-22": { cycle: "C1", week: 7, type: "深度", subject: "programming-paradigms", course: null, aux: null, auxCourse: null },
+    "2026-12-24": { cycle: "C1", week: 7, type: "深度", subject: "programming-paradigms", course: null, aux: null, auxCourse: null },
+    "2026-12-18": { cycle: "C1", week: 7, type: "整合", subject: null, course: null, aux: null, auxCourse: null },
+    "2026-12-19": { cycle: "C1", week: 7, type: "低强度", subject: null, course: null, aux: null, auxCourse: null },
+    "2026-12-20": { cycle: "C1", week: 7, type: "休息", subject: null, course: null, aux: null, auxCourse: null },
   },
   lessons: { "2026-12-21": [{ course: "epp", id: "D14", content: "组合数" }] },
   names: { epp: "离散", ctm: "CTM" },
   subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
+  roles: { epp: "main", ctm: "main" },
   cycles: [
     { cycle: "C1", start: "2026-11-06", end: "2026-12-24" },
     { cycle: "C2", start: "2026-12-25", end: "2027-02-11" },
@@ -123,6 +129,7 @@ describe("courseCards", () => {
     const [epp, ctm] = courseCards(OVERVIEW, "2026-11-06");
     expect(epp).toEqual({
       slug: "epp",
+      role: "main",
       name: "离散",
       done: 0,
       total: 15,
@@ -139,7 +146,7 @@ describe("courseCards", () => {
   it("marks a finished course done and copes with no schedule", () => {
     const finished = { ...OVERVIEW, courses: [{ ...OVERVIEW.courses[0]!, done: 15, next: null }] };
     expect(courseCards(finished, "2026-12-24")[0]).toMatchObject({ mark: "done", percent: 100, next: null });
-    const empty = { ...OVERVIEW, courses: [{ slug: "x", subject: "s", name: "x", total: 0, done: 0, end: null, next: null }] };
+    const empty = { ...OVERVIEW, courses: [{ slug: "x", subject: "s", role: "main" as const, name: "x", total: 0, done: 0, end: null, next: null }] };
     expect(courseCards(empty, "2026-11-06")[0]).toMatchObject({ mark: "now", percent: 0, end: null, next: null });
   });
 });
@@ -166,9 +173,50 @@ describe("calendar cells", () => {
     expect(daySlotLine(MONTH, "2026-12-24")).toBe("C1 第 7 周 · 深度日 · C1 最后一天");
     expect(daySlotLine(MONTH, "2026-12-30")).toBe("恢复周 · 不排新课");
     expect(daySlotLine(MONTH, "2026-12-31")).toBeNull();
-    expect(dayLessons(MONTH, "2026-12-21")).toEqual([{ name: "离散", id: "D14", content: "组合数" }]);
+    expect(dayLessons(MONTH, "2026-12-21")).toEqual([{ name: "离散", id: "D14", content: "组合数", aux: false }]);
     expect(dayLessons(MONTH, "2026-12-22")).toEqual([]);
     expect(legendNames(MONTH)).toEqual(["离散", "CTM"]);
     expect(legendNames(null)).toEqual([]);
+  });
+});
+
+describe("aux cells", () => {
+  const AUX: CycleMonth = {
+    ...MONTH,
+    days: { ...MONTH.days, "2026-12-21": { cycle: "C1", week: 7, type: "深度", subject: "discrete-math", course: "epp", aux: "c-systems", auxCourse: "effc" } },
+    lessons: { "2026-12-21": [{ course: "effc", id: "D2", content: "指针" }, { course: "epp", id: "D14", content: "组合数" }] },
+    names: { epp: "离散", ctm: "CTM", effc: "Effective C" },
+    subjects: { "discrete-math": "离散", "programming-paradigms": "范式", "c-systems": "C" },
+    roles: { epp: "main", ctm: "main", effc: "aux" },
+  };
+  it("the main tag skips aux lessons; the aux tag shows the aux course, else the aux subject", () => {
+    expect(cellTag(AUX, "2026-12-21")).toBe("离散");
+    expect(cellAuxTag(AUX, "2026-12-21")).toBe("Effective C");
+    const noLesson = { ...AUX, lessons: {} };
+    expect(cellAuxTag(noLesson, "2026-12-21")).toBe("C");
+    expect(cellAuxTag(AUX, "2026-12-22")).toBe("");
+    expect(cellAuxTag(null, "2026-12-21")).toBe("");
+    expect(dayLessons(AUX, "2026-12-21").map((item) => item.aux)).toEqual([true, false]);
+  });
+});
+
+describe("auxRows and hasAux", () => {
+  it("lists aux subjects with their course, or none", () => {
+    const withAux: CycleOverview = {
+      ...OVERVIEW,
+      cycle: { ...OVERVIEW.cycle!, subjects: { ...OVERVIEW.cycle!.subjects, c: "C", ds: "数据结构" }, auxSubjects: ["c", "ds"] },
+      courses: [...OVERVIEW.courses, { slug: "effc", subject: "c", role: "aux" as const, name: "Effective C", total: 7, done: 1, end: "2026-12-23", next: null }],
+    };
+    expect(auxRows(withAux)).toEqual([
+      { subject: "c", subjectName: "C", course: { slug: "effc", name: "Effective C", done: 1, total: 7 } },
+      { subject: "ds", subjectName: "数据结构", course: null },
+    ]);
+    expect(auxRows(OVERVIEW)).toEqual([]);
+    expect(auxRows({ ...OVERVIEW, cycle: null })).toEqual([]);
+  });
+  it("hasAux", () => {
+    expect(hasAux(MONTH)).toBe(false);
+    expect(hasAux({ ...MONTH, days: { "2026-12-21": { cycle: "C1", week: 7, type: "深度", subject: "x", course: null, aux: "c", auxCourse: null } } })).toBe(true);
+    expect(hasAux(null)).toBe(false);
   });
 });

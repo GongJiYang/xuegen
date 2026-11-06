@@ -7,7 +7,7 @@
  * argument; no clock.
  */
 
-import type { CycleMonth, CycleOverview } from "@shared/data-protocol.js";
+import type { CourseRole, CycleMonth, CycleOverview } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
@@ -62,6 +62,7 @@ export interface CycleView {
 
 export interface CourseCard {
   slug: string;
+  role: CourseRole;
   name: string;
   done: number;
   total: number;
@@ -143,6 +144,7 @@ export function courseCards(overview: CycleOverview, today: string): CourseCard[
           : shortDay(next.date);
     return {
       slug: course.slug,
+      role: course.role,
       name: course.name,
       done: course.done,
       total: course.total,
@@ -157,13 +159,22 @@ export function courseCards(overview: CycleOverview, today: string): CourseCard[
 /** What a calendar cell says: the lesson's short course name, else 恢复 / 整合 / Anki / the 深度 day's subject short name, else "". */
 export function cellTag(month: CycleMonth | null, date: string): string {
   if (!month) return "";
-  const lesson = month.lessons[date]?.[0];
+  const lesson = (month.lessons[date] ?? []).find((item) => month.roles[item.course] !== "aux");
   if (lesson) return month.names[lesson.course] ?? lesson.course;
   if (month.recovery.includes(date)) return strings.plan.tagRecovery;
   const slot = month.days[date];
   if (!slot) return "";
   if (slot.type === "深度") return slot.subject ? (month.subjects[slot.subject] ?? slot.subject) : "";
   return strings.plan.tag[slot.type];
+}
+
+/** The cell's second line: the aux lesson's short course name, else the day's aux subject short name, else "". */
+export function cellAuxTag(month: CycleMonth | null, date: string): string {
+  if (!month) return "";
+  const lesson = (month.lessons[date] ?? []).find((item) => month.roles[item.course] === "aux");
+  if (lesson) return month.names[lesson.course] ?? lesson.course;
+  const slot = month.days[date];
+  return slot?.aux ? (month.subjects[slot.aux] ?? slot.aux) : "";
 }
 
 /** 「C1 起」 on a cycle's first day, 「C1 完」 on its last, else null. */
@@ -185,16 +196,44 @@ export function daySlotLine(month: CycleMonth | null, date: string): string | nu
 }
 
 /** The selected day's lessons with short course names. */
-export function dayLessons(month: CycleMonth | null, date: string): { name: string; id: string; content: string }[] {
+export function dayLessons(month: CycleMonth | null, date: string): { name: string; id: string; content: string; aux: boolean }[] {
   if (!month) return [];
   return (month.lessons[date] ?? []).map((lesson) => ({
     name: month.names[lesson.course] ?? lesson.course,
     id: lesson.id,
     content: lesson.content,
+    aux: month.roles[lesson.course] === "aux",
   }));
 }
 
 /** The short names for the legend, in first-seen order. */
 export function legendNames(month: CycleMonth | null): string[] {
   return month ? [...new Set(Object.values(month.names))] : [];
+}
+
+export interface AuxRow {
+  subject: string;
+  /** The subject's short name from the weekly template. */
+  subjectName: string;
+  /** Its course this cycle, or null when none is scheduled yet. */
+  course: { slug: string; name: string; done: number; total: number } | null;
+}
+
+/** One row per auxiliary subject of the current cycle, with its course if any. */
+export function auxRows(overview: CycleOverview): AuxRow[] {
+  const cycle = overview.cycle;
+  if (!cycle) return [];
+  return cycle.auxSubjects.map((subject) => {
+    const course = overview.courses.find((item) => item.role === "aux" && item.subject === subject) ?? null;
+    return {
+      subject,
+      subjectName: cycle.subjects[subject] ?? subject,
+      course: course ? { slug: course.slug, name: course.name, done: course.done, total: course.total } : null,
+    };
+  });
+}
+
+/** Whether the month has any auxiliary day (the legend then explains the second line). */
+export function hasAux(month: CycleMonth | null): boolean {
+  return month ? Object.values(month.days).some((slot) => slot.aux !== null) : false;
 }

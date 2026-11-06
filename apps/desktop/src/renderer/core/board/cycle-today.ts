@@ -20,6 +20,8 @@ export type CycleFocus =
 export interface CycleTodayView {
   headline: string;
   focus: CycleFocus;
+  /** The day's auxiliary lesson (a short preview, not assessed), or null. */
+  aux: { lesson: CycleLesson; name: string } | null;
   /** Other courses' lessons that were missed; they shift when that course is opened. */
   missed: { name: string; id: string }[];
   /** Every day but 休息 shows the Anki row. */
@@ -48,11 +50,13 @@ export function cycleHeadline(day: CycleDay): string | null {
   return strings.cycle.headline(day.week, day.weekday, day.type, extra);
 }
 
-/** 「明天：周六 · 低强度日」 (plus the lesson), or null outside every cycle. */
+/** 「明天：周六 · 低强度日」 (plus the main lesson and 「+ 辅助 X」), or null outside every cycle. */
 export function tomorrowLine(day: CycleDay): string | null {
   if (day.type === null) return null;
-  const lesson = day.lessons[0];
-  return strings.cycle.tomorrow(day.weekday, day.type, lesson ? `${cycleName(day, lesson.course)} ${lesson.id}` : null);
+  const lesson = day.lessons.find((item) => day.roles[item.course] !== "aux");
+  const auxLesson = day.lessons.find((item) => day.roles[item.course] === "aux");
+  const aux = auxLesson ? cycleName(day, auxLesson.course) : day.aux ? (day.subjects[day.aux] ?? day.aux) : null;
+  return strings.cycle.tomorrow(day.weekday, day.type, lesson ? `${cycleName(day, lesson.course)} ${lesson.id}` : null, aux);
 }
 
 /**
@@ -65,9 +69,11 @@ export function tomorrowLine(day: CycleDay): string | null {
 export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleTodayView | null {
   const headline = cycleHeadline(day);
   if (headline === null) return null;
-  const focusCourse = day.lessons[0]?.course ?? day.course;
+  const isAux = (slug: string): boolean => day.roles[slug] === "aux";
+  const mainLessons = day.lessons.filter((item) => !isAux(item.course));
+  const focusCourse = mainLessons[0]?.course ?? day.course;
   const carried = day.overdue.find((row) => row.course === focusCourse) ?? null;
-  const lesson = carried ?? day.lessons[0] ?? null;
+  const lesson = carried ?? mainLessons[0] ?? null;
   const focus: CycleFocus = lesson
     ? {
         kind: "lesson",
@@ -81,11 +87,20 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
         ? { kind: "rest" }
         : { kind: "light" };
   const missed = day.overdue
-    .filter((row) => row !== carried)
+    .filter((row) => row !== carried && !isAux(row.course))
     .map((row) => ({ name: cycleName(day, row.course), id: row.id }));
   return {
     headline,
     focus,
+    aux: (() => {
+      const auxLesson =
+        day.lessons.find((item) => isAux(item.course)) ??
+        day.overdue.find((item) => item.course === day.auxCourse) ??
+        null;
+      return auxLesson
+        ? { lesson: { course: auxLesson.course, id: auxLesson.id, content: auxLesson.content }, name: cycleName(day, auxLesson.course) }
+        : null;
+    })(),
     missed,
     showAnki: day.type !== "休息",
     tomorrow: tomorrow ? tomorrowLine(tomorrow) : null,
@@ -94,7 +109,7 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
 
 /** The 整合 day's rows: each cycle course's 本周 done/total, in template order. */
 export function weekChecks(day: CycleDay, courses: CourseSummary[]): WeekCheck[] {
-  return Object.keys(day.names).flatMap((slug) => {
+  return Object.keys(day.names).filter((slug) => day.roles[slug] !== "aux").flatMap((slug) => {
     const course = courses.find((item) => item.slug === slug);
     return course ? [{ slug, name: cycleName(day, slug), done: course.week.done, total: course.week.total }] : [];
   });

@@ -14,8 +14,11 @@ function day(overrides: Partial<CycleDay>): CycleDay {
     type: "深度",
     subject: "discrete-math",
     course: "epp",
+    aux: null,
+    auxCourse: null,
     names: NAMES,
     subjects: {},
+    roles: { epp: "main", ctm: "main" },
     lessons: [],
     overdue: [],
     ...overrides,
@@ -100,5 +103,40 @@ describe("weekChecks and ankiDueCount", () => {
     expect(ankiDueCount({ running: true, due: [{ deck: "A", count: 30 }, { deck: "B", count: 7 }] })).toBe(37);
     expect(ankiDueCount({ running: true })).toBe(0);
     expect(ankiDueCount({ running: false })).toBeNull();
+  });
+});
+
+describe("aux lessons", () => {
+  it("keeps the aux lesson out of focus, missed and weekChecks", () => {
+    const monday = day({
+      names: { "discrete-math-epp": "离散", effc: "Effective C" },
+      roles: { "discrete-math-epp": "main", effc: "aux" },
+      aux: "c-systems",
+      auxCourse: "effc",
+      course: "discrete-math-epp",
+      lessons: [
+        { course: "effc", id: "D1", content: "指针" },
+        { course: "discrete-math-epp", id: "D2", content: "真值表" },
+      ],
+      overdue: [{ course: "effc", id: "D0", content: "导言", date: "2026-11-06" }],
+    });
+    const view = cycleTodayView(monday, null);
+    expect(view?.focus).toMatchObject({ kind: "lesson", lesson: { course: "discrete-math-epp" } });
+    expect(view?.aux?.lesson.id).toBe("D1");
+    expect(view?.missed.map((item) => item.name)).not.toContain("Effective C");
+    expect(weekChecks(monday, [course("effc", 1, 3), course("discrete-math-epp", 2, 3)]).map((item) => item.slug)).toEqual(["discrete-math-epp"]);
+  });
+  it("names the aux subject in the tomorrow line", () => {
+    const tuesday = day({
+      date: "2026-11-10",
+      weekday: "周二",
+      subject: "programming-paradigms",
+      course: "ctm",
+      aux: "ds",
+      subjects: { ds: "数据结构" },
+      lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
+      roles: { epp: "main", ctm: "main" },
+    });
+    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 深度日 · CTM D1 + 辅助 数据结构");
   });
 });

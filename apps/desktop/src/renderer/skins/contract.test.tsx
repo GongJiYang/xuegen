@@ -126,6 +126,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           intro={{ card: SAMPLE_COURSE_INTRO, beforeIndex: 1 }}
           systemNotes={[{ beforeIndex: 1, text: "note" }]}
           activity={null}
+          pin={null}
           renderMessage={(message, thinking) => renderMessage(skin, message, thinking)}
         />
         <Thread
@@ -136,6 +137,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           intro={null}
           systemNotes={[]}
           activity={null}
+          pin={null}
           renderMessage={() => null}
         />
         <CourseIntroCard card={SAMPLE_COURSE_INTRO} />

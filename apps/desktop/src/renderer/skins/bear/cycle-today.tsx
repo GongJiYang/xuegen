@@ -93,6 +93,7 @@ export interface CycleTodayProps extends FocusProps {
 export function CycleToday({ view, day, courses, anki, agentReady, onStudyCourse, onVerifyCourse, onOpenControl }: CycleTodayProps) {
   const due = anki.status === "ready" ? ankiDueCount(anki.value) : null;
   const ankiMeta = anki.status !== "ready" ? "—" : due === null ? strings.cycle.ankiOff : strings.cycle.ankiDue(due);
+  const aux = view.aux;
   return (
     <>
       <div className="bear-cy-headrow">
@@ -111,6 +112,27 @@ export function CycleToday({ view, day, courses, anki, agentReady, onStudyCourse
         onStudyCourse={onStudyCourse}
         onVerifyCourse={onVerifyCourse}
       />
+      {aux && (
+        <ul className="bear-cy-list">
+          <li className="is-aux">
+            <span className="bear-cy-auxtag">{strings.cycle.auxTag}</span>
+            <span className="bear-cy-text">
+              <b>
+                {aux.name} {aux.lesson.id}
+              </b>{" "}
+              <Rich text={aux.lesson.content} />
+            </span>
+            <button
+              type="button"
+              className="bear-link bear-link-accent"
+              disabled={!agentReady}
+              onClick={() => onStudyCourse(aux.lesson.course)}
+            >
+              {strings.cycle.start}
+            </button>
+          </li>
+        </ul>
+      )}
       {view.missed.length > 0 && (
         <ul className="bear-cy-list">
           {view.missed.map((row) => (
