@@ -1,30 +1,28 @@
-# PROGRESS（更新于 2026-11-06 晚，分支 desktop；v0.4.1 已发布，提交 ff826b0，desktop 与 main 已推送）
+# PROGRESS（更新于 2026-11-08，分支 desktop；v0.4.1 已发布并推送，desktop 与 main 同步）
 
 ## ▶ 下一步（新会话直接从这里开始）
-**v0.4.1（2026-11-08）**：检查更新改读 `releases/latest` 跳转（`net.request` 的 redirect 事件；`net.fetch` 的 response.url 在 Electron 里是空的，实测过），更新说明为 release 附件 `notes.md`；同一错误只显示一条；关提示按 `routeDismiss` 关对；开课/改计划给课程文件绝对路径与库根。用户决定：**不再加新功能，只修问题**；原书显示（`docs/desktop/batch-books-1.md`）搁置。
-用户审计后待办（用户自己处理）：离散 D1 的 11-06 作答没收课记录；离散讲解风格「深度」与实际所选不符。待核对的真实使用：11-07 周六简报（原书通读）、11-09 离散 D2（补定 D1/D2 核心页、钉板）、11-13 周核实、辅助课。默认模型已改回 OpenDesign（备份 `/tmp/settings.json.bak-1106b`）；moxuna 令牌过期，是否删由用户定。
-**v0.4.0（2026-11-06 晚发布）**：修旧会话漏洞（前一天的课程会话出提示条「开今天的课」；课程页在会话外改过或学根刚重启 → 下一条自动加「先重读」；改计划/周核实不进旧会话；面板在切回窗口、过零点时刷新）；技能去掉所有时间预估（用户要求：只排当天学什么）。测试窗口实测四种情况都对。Claude 审查时把「已读时间」改成答完时直接取课程列表记录（原写法依赖面板刷新时序，实测会漏）。
-**下一批：派 `docs/desktop/batch-books-1.md`（原书显示，设计稿 `?d=books` 用户已确认）给 Devin**，验收后发版。Devin 报告的范围外问题：`App.tsx` 按下标关提示，前置的皮肤提示会关错，待修。
-**v0.3.0（2026-11-06 22:10 发布）**：`/总结`（让学根按今日要点 + [!question] 格式总结，钉板才能显示）；Bear/Chicago 表格单元格走 Markdown（加粗/代码/公式）；技能：主项课必须读原书 =「讲后读（错开）」核心页（开课时定，读在另一门主项下一个上课日）+ 课程页 `## 原书通读`（每周六约 60 分钟、不受周期限制）。库里离散、CTM 两门课已按此改（备份 `/tmp/vault-backup-1106-reading/`）；离散 D1 核心页待 D2（11-09）开课时补定，D1+D2 都在 11-10 读。待用户从学根里「检查更新」装 v0.3.0，确认更新条与重启正常。
-检查更新的 API 限流问题**仍未修**（v0.3.0 没包含），下一版做。
-v0.2.1 已发布，并由 Claude 直接装到 `/Applications/学根.app`（用户选的；旧版备份 `/tmp/学根-0.2.0.app.bak`）。
-**先做：修检查更新**。现在 `src/main/update.ts` 查的是 `api.github.com/.../releases/latest`，未登录每小时 60 次、按出口 IP 计，今天被测试用光导致用户点「检查更新」失败（403）。改成不走 API：请求 `https://github.com/GongJiYang/xuegen/releases/latest` 读 302 跳转里的 tag 得到版本号，安装包地址按 `releases/download/v<ver>/xuegen-<ver>-arm64-mac.zip` 拼出，更新说明另传一个 `notes.md` 附件（`RELEASE.md` 同步加这一步）；`shared/update.ts` 的纯函数与测试相应改。另外菜单「检查更新…」失败时要有可见提示（确认 403 时是否显示了 error 条）。改完发 v0.2.2（需用户同意），让用户从学根里亲手更新一次。
-**重要**：安装版的技能来自打包时的快照（`Resources/xuegen/skills`），改仓库里的 SKILL.md 不会自动进用户的学根，必须发新版本。每次发版各自需要用户明确同意（自动权限检查会拦未确认的推送/发布）。
-今天的变更：PL-14 周期视图「排课」按周期排；技能断口排查后统一修了 course/teach/cycle-plan/reading/wiki-save/calendar（辅助课不出题、周核实、总控简报列辅助、剪藏、起草卡片、概念页与资料记号）；模型改为 OpenDesign `deepseek-v4.1-flash-eco`（`~/.xuegen/models.json` provider `opendesign`，settings 默认已改；备份 `/tmp/*.bak-1106`）。库：C 语言（Effective C，周一三）与数据结构（Sedgewick，周二四）已按 C1 辅助规则重排为各 14 节、每节 ≤ 45 分钟、边读边讲，`cycle.mjs check` 通过；`concepts/c/` 里旧计划 D1 的 4 页概念页保留。
-未修：Chicago 菜单「继续学习」把按钮文字当提示词发出（用户用 Bear，低优先）。
-待办小项：应用图标（需 ≥512×512 图）；总进度辅助行显示短名「C / 数据结构」（设计稿是全名，待用户表态）；`progress-panel.tsx` 527 行待拆；讲解风格问题已诊断未修（见 PL-5/6 行）。
-注意：从工具里用 `( … &)` 启动的 Electron 可能随工具进程一起退出；需要长时间运行的用 `open -n <app> --env … --args …`。
+**用户决定：不再加新功能，只修问题。** 当前任务是陪用户真实上课、核对之前没在实课里验证过的规则，发现问题再修：
+1. **周六（低强度日）总控简报**：应列出原书通读当天那一段（Epp、CTM 各一段，见课程页 `## 原书通读`）。离散 D1 已被用户挪到 11-07（周六），与 Epp Ch1 通读重叠，可视为一次。
+2. **11-09 离散 D2**（第一次「讲后读」）：开课时学根应先补定 D1（§1.1–1.4）核心页、再定 D2 核心页，收课在 `Today` 写「讲后读 … · 2026-11-10 读」；左边钉板应出现今日要点与题目（真实课里还没见过）。
+3. **11-13 周五整合**：第一次周核实；**辅助课**（C 语言周一三、数据结构周二四）第一次上。
+4. 已知未修（低优先）：Chicago「继续学习」把按钮文字当提示词发出；讲解风格冲突（desktop.json courseStyles vs 课程页「讲解风格」，已诊断未修）；`progress-panel.tsx` 527 行待拆。
+5. **搁置**（新功能，用户要求先不做）：原书显示 `docs/desktop/batch-books-1.md`（设计稿 `design/animate/?d=books` 已确认）；Bear 技能面板设计稿；Trilium 同步；应用图标。
 
-PL-12（已完成）：`electron-builder.json` + `npm run dist` → `dist/xuegen-<ver>-arm64-mac.zip`（未签名，约 129 MB）；打包后 `findRepoRoot` 读 `Resources/xuegen`，Claude 实测免环境变量可用。仓库已公开（desktop 与 main 同步推送）。
+**待用户自己处理**：离散 D1 在 11-06 旧会话里的作答没收课记录（开课时告诉学根讲过一遍）；离散课程页「讲解风格：深度」与实际所选不符；从学根「检查更新」装 v0.4.1（v0.4.0 仍走 API，可能 403，等一小时或让 Claude 直接装）；`~/.xuegen/models.json` 里 moxuna（令牌已过期）要不要删。默认模型已改回 OpenDesign `deepseek-v4.1-flash-eco`（备份 `/tmp/settings.json.bak-1106b`）。
 
-旧的下一步：核对 BE-6 卡片面板：测试副本 Electron（端口 9460）打开抽屉「卡片」截图，对照 `/Users/gjy/pi-learning/design/animate/?d=cards`，通过后把 `docs/desktop/batch-bear-6.md` 移到 `docs/archive/desktop/`；然后做 Bear「技能」面板设计稿（Claude 做，`design/animate/` 新建 `?d=skills`）给用户确认。
+**重要**：安装版的技能来自打包快照（`Resources/xuegen/skills`），改仓库 SKILL.md 必须发版才进用户的学根；每次发版要用户明确说「发版」。发版流程见 `docs/desktop/RELEASE.md`（现在要上传 `notes.md` 附件）。
+**测试注意**：测试窗口（`XUEGEN_HOME=/tmp/xg-e2e/home`，端口 9460）里的学根会去读真实库（实测读过、没写过）；验收后用 `find <真实库> ~/.xuegen -newer <标记>` 确认。Electron 的 `net.fetch` 跟跳转后 `response.url` 为空，要读跳转用 `net.request` + `redirect` 事件。
 
 ## 当前位置
-学习周期 C1 已开跑（2026-11-06 ~ 12-24，周五至周四为一周；离散 D1 = 11-06，CTM D1 = 11-10）。桌面版周期视图、日历类型、总进度按科目分组、总控会话、对话里的活动头像都已完成并在测试副本验收。总进度/日历按设计稿 `?d=plan` 重做完成（PL-1/2），路线终止日期读库里新页 `wiki/cycles/route.md`。用户正式窗口（端口 9470）07:25 用旧代码启动，需重启才能用上 PL（改了主进程）。测试窗口（9460）可能还开着，下次用前先确认或关掉。
+学习周期 C1（2026-11-06 ~ 12-24，周五至周四为一周）。主项：离散（Epp，周一三，D1 已挪到 11-07）、CTM（周二四，D1 = 11-10）；辅助：C 语言（周一三）、数据结构（周二四）。主项读原书 =「讲后读（错开）」核心页（开课时定，读在另一门主项下一个上课日）+ 课程页 `## 原书通读`（全书分段，每周六一段，不受周期限制）。**不估任何时长或读完日期**，只排当天学/读什么。
 
 ## 已完成（最近的在前）
 | 批次 | 结果 |
 |---|---|
+| v0.4.1 | 检查更新改读 `releases/latest` 跳转（不走限流 API），更新说明为 release 附件 `notes.md`；同一错误只显示一条；关提示关对（`routeDismiss`）；开课/改计划给课程文件绝对路径与库根（`course-state.mjs list` 加 `file`） |
+| v0.4.0 | 旧会话漏洞：前一天的课程会话出提示条「开今天的课 →」（`NoticeItem.action`，三皮肤）；课程页在会话外改过或学根重启后，下一条自动加「先重读」（`changedAt` + 答完时直接取列表记录）；改计划/周核实不进旧会话；面板在切回窗口、过零点时刷新。技能去掉所有时间预估；`course` 加「以文件为准」「一门课一天一个会话」；简报列过期讲后读 |
+| v0.3.0 | `/总结`；表格单元格走 Markdown；技能：主项讲后读核心页 + 原书通读。库：离散、CTM 课程页按此改（备份 `/tmp/vault-backup-1106-reading/`） |
+| v0.2.1 | PL-14 周期视图「排课」按周期排；技能断口统一修（辅助课、周核实、剪藏、起草卡片、概念页）；C 语言、数据结构按 C1 辅助重排 |
 | PL-11 | 总进度第四版（`skins/bear/plan-progress.tsx` 独立组件，设计稿 `?d=progress4`），已学完的课收进科目底部；测试窗口截图核对通过。`progress-panel.tsx` 527 行待拆 |
 | PL-10 | 对话左侧钉板（今日要点 + 当前题目，窄时缩成按钮；Claude 补了公式渲染）；teach/course SKILL：开课先写概念页（一术语一页）+ 今日要点框，题目必须用 [!question]。真实窗口用伪造会话验收过宽屏状态 |
 | PL-8/9 | 每天「一个主项 + 一个辅助」：周模板第 4 列「辅助」（只能在深度日、≤45 分钟、不考核），课程 role main/aux；Bear 日历第二行、今天辅助行、总进度辅助区。库已改：c1.md 四列模板（周一三 C 与系统编程，周二四 数据结构与算法）、新建 `subjects/data-structures-algorithms.md`、subjects/index/log/AGENTS.md 同步；cycle-plan SKILL 同步。待用户：在总控登记 Effective C 并排课（周一三） |
@@ -48,6 +46,7 @@ PL-12（已完成）：`electron-builder.json` + `npm run dist` → `dist/xuegen
 ## 关键决策
 - 仓库内代码全交 Devin（`swe-2-high`，见 `xuegen-arch-gate` skill，任务单是逐步清单、给完整代码与锚点）；设计稿（`design/animate/`，端口 5181）、SKILL.md 文字、用户同意的 Wiki 内容由 Claude 直接做。审查时 <10 行的小修 Claude 可改并说明。
 - 学习周期：路线 `~/Documents/学习路径/计算机知识体系.md` v19；周模板 一三离散、二四范式、五整合、六低强度、日休息；每节 90 分钟；复习全交 Anki，收课时先提议卡片、确认后才写。周期页格式以 `skills/cycle-plan/SKILL.md` 为准（frontmatter + 7 行周模板，链接别名即课程短名）。
+- 2026-11-06 用户定：主项必须读原书（讲后读错开 + 原书通读）；不估任何时长或读完日期；之后不加新功能、只修问题。
 - 状态色只表示状态并配记号：● 蓝 #1aa3ff / ! 琥珀 #c98a12（字 #a86b00）/ ✓ 绿 #3a8a5c / ○ 灰 #8b9096 / ◌ 浅灰 #b8bcc2；Bear 变量 `--warn --warn-text --faint --hairline --done`。
 - 文案要简洁直观（用户要求）。验收用 `XUEGEN_HOME=/tmp/xg-e2e/home`（库副本 `/tmp/xg-e2e/vault/GJY`，副本里 C1 与课程排期被测试会话改过，用前可从真实库重拷），CDP 脚本在 `/tmp/xg-e2e/*.mjs`。改主进程/设置要重启窗口，只改渲染层可 reload。
 
