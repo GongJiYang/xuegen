@@ -109,6 +109,14 @@ function useFollowGrowth(
       setFollowing(distanceFromBottom(element) <= NEAR_BOTTOM_PX);
     };
     const follow = (): void => {
+      // Content changed (a new session, a folded block, a shorter transcript):
+      // if the bottom is now in view, say so — no scroll event will.
+      // Only when the pane was not following: when it already is, the code below
+      // keeps the bottom pinned as the content grows.
+      if (distanceFromBottom(element) <= NEAR_BOTTOM_PX && !atBottomRef.current) {
+        setFollowing(true);
+        return;
+      }
       if (pinnedRef.current || !atBottomRef.current) return;
       element.scrollTop = element.scrollHeight;
     };

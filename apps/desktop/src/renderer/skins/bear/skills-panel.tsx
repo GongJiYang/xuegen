@@ -1,10 +1,9 @@
 /**
- * Bear 技能 panel — BE-2 完善前的最小可用版.
+ * Bear 技能 panel.
  *
- * Semantic HTML over the props: the install box with its fetch notice, the
- * skill list (toggle checkboxes for installed skills, 审核 buttons for
- * pending), and the review dialog with enable/discard. Final styling is BE-2
- * work.
+ * Semantic HTML over the props: the install box with its fetch notice, then
+ * 「已安装 · N」 and the skill list (toggle checkboxes for installed skills, 审核
+ * buttons for pending), and the review dialog with enable/discard.
  */
 
 import { useState } from "react";
@@ -37,6 +36,7 @@ export function SkillsPanel({
           />
           <button
             type="button"
+            className="bear-btn-secondary"
             onClick={() => {
               if (url.trim()) onFetch(url.trim());
               setUrl("");
@@ -53,41 +53,44 @@ export function SkillsPanel({
         (skills.value.length === 0 ? (
           <p className="bear-muted">{strings.skills.empty}</p>
         ) : (
-          <ul>
-            {skills.value.map((skill) => {
-              const label = skillLabel(skill.name, skill.description);
-              return (
-                <li key={skill.name}>
-                  {skill.source === "pending" ? (
-                    <button type="button" onClick={() => onReview(skill.name)}>
-                      {strings.skills.review} {label.title}
-                    </button>
-                  ) : (
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={skill.enabled}
-                        onChange={(event) => onToggle(skill.name, event.target.checked)}
-                      />
-                      <b>{label.title}</b>
-                    </label>
-                  )}
-                  <p className="bear-muted">{label.line}</p>
-                  <details className="bear-muted">
-                    <summary>{strings.skills.rawToggle}</summary>
-                    <p>
-                      /skill:{skill.name} · {skill.description} ·{" "}
-                      {skill.source === "builtin"
-                        ? strings.skills.sourceBuiltin
-                        : skill.source === "personal"
-                          ? strings.skills.sourcePersonal
-                          : strings.skills.sourcePending}
-                    </p>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <h3>{strings.skills.installed(skills.value.length)}</h3>
+            <ul className="bear-skill-list">
+              {skills.value.map((skill) => {
+                const label = skillLabel(skill.name, skill.description);
+                return (
+                  <li key={skill.name}>
+                    {skill.source === "pending" ? (
+                      <button type="button" onClick={() => onReview(skill.name)}>
+                        {strings.skills.review} {label.title}
+                      </button>
+                    ) : (
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={skill.enabled}
+                          onChange={(event) => onToggle(skill.name, event.target.checked)}
+                        />
+                        <b>{label.title}</b>
+                      </label>
+                    )}
+                    <p className="bear-muted">{label.line}</p>
+                    <details className="bear-muted">
+                      <summary>{strings.skills.rawToggle}</summary>
+                      <p>
+                        /skill:{skill.name} · {skill.description} ·{" "}
+                        {skill.source === "builtin"
+                          ? strings.skills.sourceBuiltin
+                          : skill.source === "personal"
+                            ? strings.skills.sourcePersonal
+                            : strings.skills.sourcePending}
+                      </p>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         ))}
       {review && (
         <div role="dialog" aria-label={strings.skills.review} data-slot="skill-review">

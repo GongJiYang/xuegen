@@ -171,6 +171,7 @@ export function Shell(props: ShellProps) {
   return (
     <div
       className="bear-root"
+      data-drawer={open ? "open" : undefined}
       data-bear-scale={String(bearBodyScale(props.bodyScale))}
       data-agent-status={props.agentStatus}
       data-focus={focusMode ? "true" : undefined}

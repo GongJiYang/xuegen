@@ -8,7 +8,7 @@
  * Text comes from `core/strings.ts`; only markup and class names live here.
  */
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import {
   Root as Accordion,
@@ -44,6 +44,7 @@ import { assistantTurns } from "../../core/chat/turns.js";
 import { isAborted, translateModelError } from "../../core/chat/model-error.js";
 import { bearMotion } from "./motion.js";
 import { PinRail } from "./pin-rail.js";
+import { publishBackToLatest, clearBackToLatest } from "./back-to-latest.js";
 
 /**
  * The expandable "详情" holding an error's raw text.
@@ -106,6 +107,12 @@ export function Thread({
     answerStreaming: lastAssistant?.streaming ?? false,
   });
   const lastAssistantIndex = lastAssistant ? messages.indexOf(lastAssistant) : -1;
+  // The button hangs on the composer's top edge (design ?d=bearv3), so the Thread
+  // publishes what it takes to draw it; see back-to-latest.ts.
+  useEffect(() => {
+    const published = publishBackToLatest(atBottom, scrollToBottom);
+    return () => clearBackToLatest(published);
+  }, [atBottom, scrollToBottom]);
   const card = intro ? <CourseIntroCard card={intro.card} /> : null;
   // Before the opening prompt arrives, the card belongs after the transcript.
   const cardIndex = intro ? Math.min(intro.beforeIndex, messages.length) : null;
@@ -134,7 +141,11 @@ export function Thread({
         {messages.length === 0 ? (
           card ?? (
             <p className="bear-empty">
-              {noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}
+              {header !== null
+                ? strings.control.emptyToday
+                : noModels && modelsReason
+                  ? strings.chat.loginHint
+                  : strings.chat.empty}
             </p>
           )
         ) : (
@@ -176,11 +187,6 @@ export function Thread({
         {messages.length > 0 && notes(messages.length)}
         {messages.length > 0 && cardIndex === messages.length && card}
       </div>
-      {!atBottom && (
-        <button type="button" className="bear-back" onClick={scrollToBottom}>
-          {strings.chat.backToLatest}
-        </button>
-      )}
     </div>
   );
 }

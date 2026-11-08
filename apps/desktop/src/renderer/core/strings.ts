@@ -118,6 +118,7 @@ export const strings = {
     styleLabel: "风格：",
     slashHint: "输入 / 查看功能",
     slashEmpty: "没有匹配的功能",
+    slashKeys: "↑↓ 选择 · Enter 执行 · Esc 关闭",
     placeholderShort: "问学根，或输入 / 查看功能",
     answerPlaceholder: "写下你的答案…",
     enterHint: "Enter 发送，Shift+Enter 换行",
@@ -252,6 +253,8 @@ export const strings = {
   control: {
     title: (cycle: string): string => `总控 · ${cycle}`,
     open: "总控 →",
+    /** The empty transcript under the 今日卡 before the first control message. */
+    emptyToday: "今天还没跟总控说话。点「让总控说说」看今日简报，或直接问怎么安排。",
     briefPrompt: "/skill:cycle-plan 给出今天的简报（按每日简报格式），只安排、不讲课。",
     card: {
       askBrief: "让总控说说",
@@ -536,6 +539,7 @@ export const strings = {
     expand: "展开全文",
     collapse: "收起",
     empty: "还没有技能。",
+    installed: (count: number): string => `已安装 · ${count}`,
     fetched: (names: string[]): string => `已下载到待审核区：${names.join("、")}。点「审核」查看后再决定是否启用。`,
     fetchFailed: (reason: string): string => `获取失败：${reason}`,
     review: "审核",

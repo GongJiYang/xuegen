@@ -44,6 +44,7 @@ export function SlashMenu({ groups, commands, selected, onSelect, onRun }: Slash
           </div>
         ))
       )}
+      <p className="bear-slash-keys">{strings.input.slashKeys}</p>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export const SKINS: SkinDefinition[] = [
   {
     id: "bear",
     name: "Bear",
-    version: "0.7",
+    version: "1.0",
     description: "iA Writer / Bear：只有一栏正文，侧栏收进抽屉",
     load: async () => (await import("./bear/index.js")).bearSkin,
   },

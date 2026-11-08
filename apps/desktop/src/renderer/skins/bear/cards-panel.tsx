@@ -4,7 +4,7 @@
  * Anki's connection on one line (with today's reviews, or 重试 when Anki is
  * closed), the total and unsynced counts as two large numbers, a highlighted
  * line when extracts wait to become cards (让学根起草), then the decks: name,
- * total, a 2px synced-ratio meter, and unsynced / due-today counts. 「＋ 新卡片」
+ * total, and unsynced / due-today counts. 「＋ 新卡片」
  * folds the new-card form above the deck list.
  */
 
@@ -180,7 +180,6 @@ export function CardsPanel({ cards, anki, onAdd, onRetryAnki, onDraft }: CardsPa
           ) : (
             <ul className="bear-decks">
               {decks.map((entry) => {
-                const synced = entry.total > 0 ? Math.round(((entry.total - entry.unsynced) / entry.total) * 100) : 0;
                 const due = running ? dueOf(entry.deck) : 0;
                 return (
                   <li key={entry.deck} className="bear-deck">
@@ -189,9 +188,6 @@ export function CardsPanel({ cards, anki, onAdd, onRetryAnki, onDraft }: CardsPa
                         {entry.deck}
                       </span>
                       <span className="bear-deck-num">{entry.total}</span>
-                    </div>
-                    <div className="bear-meter" aria-hidden="true">
-                      <div className="bear-meter-fill" style={{ width: `${synced}%` }} />
                     </div>
                     <div className="bear-deck-meta">
                       <span>

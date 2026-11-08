@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.6.1 — 2026-11-09
+
+- Desktop (Bear): matches the approved mockups — skills panel in three layers with 「已安装 · N」 and an outlined 「获取」; no progress bars under decks; a disabled solid button reads as disabled; the drawer makes room instead of covering the 今日卡; only the expanded course in 总进度 gets a tint; the calendar's today cell is a tint with an accent number; reading dates read 「11-14 周六」; style choices are one size smaller; 「回到最新」 hangs above the composer and disappears when the bottom is in view after switching sessions; the `/` menu shows a key hint; 总控 with no conversation today says so.
+
 ## v0.6.0 — 2026-11-08
 
 - Desktop: 学根 opens on this cycle's 总控 session (once per run, sends nothing; startup's restored session does not block it). A 今日卡 at the top of the 总控 thread lists today from local data — lessons (开课 →), aux, missed lessons, 周核实, 讲后读 (读完了), books due, Anki — in all three skins (`ControlCard`, `ThreadProps.header`). The daily brief is no longer sent automatically: 「让总控说说」 sends it, folded as 「今日简报」. Chicago's 今天 window has 「总控 →」.

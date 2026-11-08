@@ -14,6 +14,7 @@ import { Composer } from "./composer.js";
 import type { ComposerProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import type { SlashCommand } from "../../core/commands/commands.js";
+import { clearBackToLatest, publishBackToLatest } from "./back-to-latest.js";
 
 afterEach(cleanup);
 
@@ -143,5 +144,24 @@ describe("Bear composer", () => {
 
     rerender(<Composer {...baseProps({ focusRequest: 1 })} />);
     expect(document.activeElement).toBe(screen.getByRole("textbox"));
+  });
+
+  it("hides 「回到最新」 while the transcript is at its bottom", () => {
+    const published = publishBackToLatest(true, vi.fn());
+    render(<Composer {...baseProps()} />);
+    expect(screen.queryByRole("button", { name: strings.chat.backToLatest })).toBeNull();
+    clearBackToLatest(published);
+  });
+
+  it("draws 「回到最新」 inside the composer wrapper and jumps on click", async () => {
+    const jump = vi.fn();
+    const published = publishBackToLatest(false, jump);
+    render(<Composer {...baseProps()} />);
+    const button = screen.getByRole("button", { name: strings.chat.backToLatest });
+    // A child of the composer wrapper, so it hangs on the card's top edge.
+    expect(button.parentElement?.className).toBe("bear-composer");
+    await userEvent.click(button);
+    expect(jump).toHaveBeenCalledTimes(1);
+    clearBackToLatest(published);
   });
 });

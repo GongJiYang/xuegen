@@ -25,6 +25,7 @@ import type { ComposerProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { isUnknownCommand } from "../../core/commands/commands.js";
 import { SlashMenu } from "./slash-menu.js";
+import { useBackToLatest } from "./back-to-latest.js";
 
 /** Ignore a second send click this soon after the first (double-click guard). */
 const SEND_DEBOUNCE_MS = 600;
@@ -76,6 +77,8 @@ export function Composer({
   defaultStyleLabel,
 }: ComposerProps) {
   const [value, setValue] = useState("");
+  // 「回到最新」 hangs on this composer's top edge; the Thread owns its state.
+  const backToLatest = useBackToLatest();
   // The lesson-button hint currently hovered (the line under the buttons shows it).
   const [lessonHint, setLessonHint] = useState<string | null>(null);
   // Set when the user submits a `/xxx` the menu does not know: nothing is sent,
@@ -179,6 +182,11 @@ export function Composer({
 
   return (
     <div className="bear-composer">
+      {backToLatest !== null && !backToLatest.atBottom && (
+        <button type="button" className="bear-back" onClick={backToLatest.scrollToBottom}>
+          {strings.chat.backToLatest}
+        </button>
+      )}
       {commandsOpen && (
         <SlashMenu
           groups={commandGroups}

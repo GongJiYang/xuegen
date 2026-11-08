@@ -41,13 +41,15 @@ function fakePane(metrics: { scrollHeight: number; clientHeight: number }): {
   element: HTMLElement;
   get(): number;
   grow(by: number): void;
+  resize(next: { scrollHeight?: number; clientHeight?: number }): void;
   fireScroll(): void;
 } {
   const element = document.createElement("div");
   let top = 0;
-  let scrollHeight = metrics.scrollHeight;
-  Object.defineProperty(element, "scrollHeight", { get: () => scrollHeight, configurable: true });
-  Object.defineProperty(element, "clientHeight", { get: () => metrics.clientHeight, configurable: true });
+  // Mutable metrics: a shorter session replaces both sizes at once.
+  const size = { scrollHeight: metrics.scrollHeight, clientHeight: metrics.clientHeight };
+  Object.defineProperty(element, "scrollHeight", { get: () => size.scrollHeight, configurable: true });
+  Object.defineProperty(element, "clientHeight", { get: () => size.clientHeight, configurable: true });
   Object.defineProperty(element, "scrollTop", {
     get: () => top,
     set: (next: number) => {
@@ -59,7 +61,11 @@ function fakePane(metrics: { scrollHeight: number; clientHeight: number }): {
     element,
     get: () => top,
     grow: (by) => {
-      scrollHeight += by;
+      size.scrollHeight += by;
+    },
+    resize: (next) => {
+      size.scrollHeight = next.scrollHeight ?? size.scrollHeight;
+      size.clientHeight = next.clientHeight ?? size.clientHeight;
     },
     fireScroll: () => element.dispatchEvent(new Event("scroll")),
   };
@@ -209,6 +215,23 @@ describe("useFollowBottom", () => {
     // 300 - (300 - 100 - 20) - 100 = 20px from the bottom, inside NEAR_BOTTOM_PX.
     pane.element.scrollTop = 300 - 100 - (NEAR_BOTTOM_PX - 20);
     act(() => pane.fireScroll());
+    expect(result.current.atBottom).toBe(true);
+  });
+
+  it("notices when new content fits the pane again (a shorter session)", () => {
+    const pane = fakePane({ scrollHeight: 300, clientHeight: 100 });
+    const { result } = renderHook(() => useFollowOn(pane.element));
+
+    // A long transcript the reader scrolled up through: 200px below the fold.
+    pane.element.scrollTop = 0;
+    act(() => pane.fireScroll());
+    expect(result.current.atBottom).toBe(false);
+
+    // Switching to a session that fits: the offset stays, the content shrinks
+    // to the viewport, so the bottom is in view. No scroll event fires for this,
+    // only the observers do.
+    pane.resize({ scrollHeight: 400, clientHeight: 500 });
+    act(() => grow());
     expect(result.current.atBottom).toBe(true);
   });
 });
