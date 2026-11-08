@@ -28,10 +28,14 @@ import { useCalendar, dateKey } from "./core/board/use-calendar.js";
 import { useCycle } from "./core/board/use-cycle.js";
 import { useSubjects } from "./core/board/use-subjects.js";
 import { useControlSession } from "./core/board/use-control-session.js";
+import { useControlCard } from "./core/board/use-control-card.js";
+import { useSessionList } from "./core/board/use-session-list.js";
 import { controlView } from "./core/board/bot-state.js";
 import { shellPanels } from "./core/board/shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
-import { turnActivity } from "./core/chat/activity.js";
+import { useTurnActivity } from "./core/chat/use-turn-activity.js";
+import { useLessonActions } from "./core/chat/use-lesson-actions.js";
+import { useControlFold } from "./core/board/use-control-fold.js";
 import { pinBoard } from "./core/chat/pin-board.js";
 import { routeDismiss } from "./core/chat/view-models.js";
 import { useSkills } from "./core/board/use-skills.js";
@@ -40,6 +44,7 @@ import { useSlash } from "./core/commands/use-slash.js";
 import type { SlashCommand } from "./core/commands/commands.js";
 import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
 import { useSessionStyle } from "./core/chat/use-session-style.js";
+import { defaultStyleLabel } from "./core/board/default-style.js";
 import { dayTitle } from "./core/format.js";
 import { resumePoint, todayPlanItems } from "./core/today.js";
 import { useUpdate } from "./core/update/use-update.js";
@@ -112,7 +117,7 @@ export function App() {
   const selectStyle = sessionStyle.select;
   const controller = useChat(sessionStyle.style, settings.disabledSkills);
   if (controller.sessionFile !== openSessionFile) setOpenSessionFile(controller.sessionFile);
-  const slash = useSlash(controller.commands, settings.disabledSkills);
+  const slash = useSlash(controller.commands, settings.disabledSkills, activeCourse !== null);
   const {
     startedToday,
     intro,
@@ -123,13 +128,36 @@ export function App() {
     handleNewCourse,
     handleEditPlan,
     handleNewSession,
-    handleContinueSession,
   } = useCourseSessions(controller, settings, update, courses, resume, activeCourse, setActiveCourse, () => setFocusRequest((value) => value + 1));
   const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, handleStudy, handleContinueFresh);
   const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
-  const control = useControlSession(controller, settings, update, cycleId, setActiveCourse, () =>
-    setFocusRequest((value) => value + 1),
-  );
+  const agentReady = controller.agentStatus === "ready" && !controller.disabled;
+  const control = useControlSession(controller, settings, update, cycleId, setActiveCourse,
+    () => setFocusRequest((value) => value + 1), agentReady);
+  const studyCourse = (slug: string): void => {
+    const course = courses.state.status === "ready" ? courses.state.value.find((item) => item.slug === slug) : undefined;
+    if (course) handleStudy(course);
+  };
+  const openTool = (tool: ToolId): void => {
+    setFocusMode(false);
+    setActiveTool(tool);
+  };
+  const controlCard = useControlCard({
+    today: cycle.today,
+    tomorrow: cycle.tomorrow,
+    queue: reading.queue,
+    streaming: controller.streaming,
+    onStudy: studyCourse,
+    onVerify: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
+    onOpenTool: openTool,
+    onAskBrief: control.askBrief,
+    refresh: () => { courses.reload(); calendar.resource.reload(); },
+  });
+  const sessionList = useSessionList(controller, settings, setActiveCourse, cycle, courses, handleNewSession);
+  const requestOpenSessions = sessionList.requestOpen;
+  const fold = useControlFold(control.isControl, controller.messages, controller.systemNotes);
+  const activity = useTurnActivity(controller.messages, controller.streaming, controller.thinking);
+  const lessonButtons = useLessonActions(activeCourse, controller);
 
   const [activeTool, setActiveTool] = useState<ToolId | null>("progress");
   const [focusMode, setFocusMode] = useState(false);
@@ -222,8 +250,8 @@ export function App() {
           return handleResume();
         case "new-session":
           return handleNewSession();
-        case "continue-session":
-          return handleContinueSession();
+        case "sessions":
+          return requestOpenSessions();
         case "control":
           return control.openControl();
         case "prompt":
@@ -237,7 +265,7 @@ export function App() {
           return;
       }
     },
-    [slash, selectStyle, handleResume, handleNewSession, handleContinueSession, controller, control],
+    [slash, selectStyle, handleResume, handleNewSession, requestOpenSessions, controller, control],
   );
 
   if (!skin) {
@@ -263,9 +291,12 @@ export function App() {
     );
   }
 
-  const { Shell, Thread, Composer, DayEditor, UpdateBar } = skin.slots;
+  const { Shell, Thread, Composer, DayEditor, UpdateBar, ControlCard } = skin.slots;
 
   const notices = [...(notice ? [notice] : []), ...controller.notices, ...(freshness.notice ? [freshness.notice] : [])];
+  const older = fold.older
+    ? { label: strings.control.card.older(fold.older.count, fold.older.since, fold.open), onToggle: fold.toggle }
+    : null;
 
   const panels = shellPanels({
     courses,
@@ -283,7 +314,7 @@ export function App() {
     courseStyles: sessionStyle.courseStyles,
     startedToday,
     resume,
-    agentReady: controller.agentStatus === "ready" && !controller.disabled,
+    agentReady,
     focus: pendingFocus,
     onFocusHandled: () => setPendingFocus(null),
     onResume: handleResume,
@@ -299,12 +330,10 @@ export function App() {
         calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;
       setEditingDay({ date, text: day?.note ?? "" });
     },
-    onStudyCourse: (slug) => {
-      const course = courses.state.status === "ready" ? courses.state.value.find((item) => item.slug === slug) : undefined;
-      if (course) handleStudy(course);
-    },
+    onStudyCourse: studyCourse,
     onVerifyCourse: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
     onOpenControl: cycleId ? control.openControl : null,
+    sessions: sessionList.view,
   });
 
   const shellProps: ShellProps = {
@@ -320,25 +349,18 @@ export function App() {
       <>
         <UpdateBar {...updateBar} />
         <Thread
-          messages={controller.messages}
+          header={control.isControl && controlCard ? <ControlCard {...controlCard} older={older} /> : null}
+          messages={fold.messages}
           thinking={controller.thinking}
           noModels={controller.disabled}
           modelsReason={controller.modelsReason}
           intro={intro}
-          systemNotes={controller.systemNotes}
-          activity={turnActivity(controller.messages, controller.streaming, controller.thinking)}
+          systemNotes={fold.systemNotes}
+          activity={activity}
           pin={pinBoard(controller.messages)}
           renderMessage={(message, thinking) => (
-            <MessageRenderer
-              slots={skin.slots}
-              content={skin.content}
-              message={message}
-              thinking={thinking}
-              onRetry={controller.retry}
-              onExerciseAnswer={handleExerciseAnswer}
-              onExerciseHint={handleExerciseHint}
-              onExerciseSkip={handleExerciseSkip}
-            />
+            <MessageRenderer slots={skin.slots} content={skin.content} message={message} thinking={thinking} onRetry={controller.retry}
+              onExerciseAnswer={handleExerciseAnswer} onExerciseHint={handleExerciseHint} onExerciseSkip={handleExerciseSkip} />
           )}
         />
         <Composer
@@ -359,6 +381,8 @@ export function App() {
           answering={answering}
           onCancelAnswer={() => setAnswering(null)}
           focusRequest={focusRequest}
+          lessonActions={lessonButtons}
+          defaultStyleLabel={defaultStyleLabel(subjects.state, activeCourse)}
         />
       </>
     ),
@@ -379,7 +403,8 @@ export function App() {
     thinkingLevels: controller.thinkingLevels,
     onSelectThinking: controller.setThinkingLevel,
     onNewSession: handleNewSession,
-    onContinueSession: handleContinueSession,
+    onOpenSessions: requestOpenSessions,
+    sessions: sessionList.view,
     agentStatus: controller.agentStatus,
     notices,
     onDismissNotice: (index) => {
@@ -389,10 +414,7 @@ export function App() {
     },
     tools: toolDescriptors(),
     activeTool,
-    onOpenTool: (tool) => {
-      setFocusMode(false);
-      setActiveTool(tool);
-    },
+    onOpenTool: openTool,
     focusMode,
     onToggleFocus: () => setFocusMode((value) => !value),
     style: sessionStyle.style,

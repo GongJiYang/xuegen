@@ -42,7 +42,7 @@ export interface MoreMenuProps {
   thinkingLevels: string[];
   onSelectThinking(level: string): void;
   onNewSession(): void;
-  onContinueSession(): void;
+  onOpenSessions(): void;
   focusMode: boolean;
   onToggleFocus(): void;
 }
@@ -65,9 +65,9 @@ export function MoreMenu(props: MoreMenuProps) {
             <Check on={false} />
             {strings.topBar.newSession}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={props.onContinueSession}>
+          <DropdownMenuItem onSelect={props.onOpenSessions}>
             <Check on={false} />
-            {strings.topBar.continueSession}
+            {strings.topBar.sessionList}
           </DropdownMenuItem>
           <DropdownMenuSeparator className="bear-menu-sep" />
 

@@ -2,7 +2,7 @@
 // Exercises the data channel end to end by pointing XUEGEN_HOME at a temporary
 // wiki.json and vault, then invoking the same handler the IPC layer calls.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { handleDataRequest } from "./handler.js";
@@ -177,6 +177,90 @@ describe("handleDataRequest", () => {
       expect(data.total).toBe(1);
       expect(data.unsynced).toBe(1);
     }
+  });
+
+  it("course.afterRead rejects when the label matches no unchecked line", async () => {
+    const result = await handleDataRequest({
+      kind: "course.afterRead",
+      slug: "demo",
+      label: "§9.9 不存在",
+      date: "2026-10-22",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("script-failed");
+      expect(result.error).toContain("没有找到未打勾的讲后读");
+    }
+  });
+
+  it("course.afterRead checks the line, notes the reading page, rebuilds the boards", async () => {
+    // The demo course gains a 讲后读 row and a reading link; the reading page
+    // needs the full frontmatter FIELD_ORDER for `note` to rewrite it.
+    const courseFile = join(vault, "wiki", "courses", "demo.md");
+    const text = [
+      "<!-- xuegen:course-state -->",
+      "",
+      "# Demo",
+      "",
+      "## Key Facts",
+      "",
+      "- 当前周：W1 · 起步",
+      "",
+      "## This Week",
+      "",
+      "W1 · 起步",
+      "",
+      "- [ ] 任务一",
+      "",
+      "## Today",
+      "",
+      "- [ ] 讲后读 §1.1–1.4 核心页 · 2026-10-22 读",
+      "",
+      "## Next Session",
+      "",
+      "读 [[reading/epp|离散数学（Epp, 5th ed）]] §2.1。",
+      "",
+      "## Learning Record",
+      "",
+      "### 2026-10-21-01",
+      "",
+      "- 记录。",
+      "",
+    ].join("\n");
+    writeFileSync(courseFile, text, "utf8");
+    touch(
+      join(vault, "wiki", "reading", "epp.md"),
+      [
+        "---",
+        'source: "[[raw/epp]]"',
+        "priority: medium",
+        "status: active",
+        "due: 2026-10-22",
+        "interval_days: 2",
+        'last_read: ""',
+        'position: ""',
+        "---",
+        "",
+        "# 离散数学（Epp, 5th ed）",
+        "",
+        "## Reading Log",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await handleDataRequest({
+      kind: "course.afterRead",
+      slug: "demo",
+      label: "§1.1–1.4 核心页",
+      date: "2026-10-22",
+    });
+    expect(result).toEqual({ ok: true, data: { label: "§1.1–1.4 核心页", reading: "epp" } });
+    const course = readFileSync(courseFile, "utf8");
+    expect(course).toContain("- [x] 讲后读 §1.1–1.4 核心页 · 2026-10-22 读（用户自报，未检查，2026-10-22）");
+    const page = readFileSync(join(vault, "wiki", "reading", "epp.md"), "utf8");
+    expect(page).toContain("- 2026-10-22: 讲后读 §1.1–1.4 核心页 已读（用户自报）");
+    expect(statSync(join(vault, "wiki", "courses.md")).isFile()).toBe(true);
+    expect(statSync(join(vault, "wiki", "courses.html")).isFile()).toBe(true);
   });
 
   it("reading.add passes the chosen priority and due through to the queue", async () => {

@@ -12,6 +12,10 @@ export type ActivityMood = "thinking" | "searching" | "working" | "writing";
 export interface Activity {
   mood: ActivityMood;
   label: string;
+  /** 「3 分 12 秒 · 第 6 步」, or null before the first second. */
+  meta: string | null;
+  /** Past 3 minutes: skins tint the meta amber. */
+  long: boolean;
 }
 
 /** Pi's tools that only look at files; every other tool may change something. */
@@ -57,16 +61,16 @@ export function activityOf(message: ChatMessage, thinking: boolean): Activity | 
       LOOKING_TOOLS.has(running.toolName) ||
       (running.toolName === "bash" && LOOKING_COMMANDS.has(detail.trim().split(/\s+/)[0] ?? ""));
     if (looking) {
-      return { mood: "searching", label: strings.chat.activitySearching(clip(detailOf(running.argsSummary) || running.toolName)) };
+      return { mood: "searching", label: strings.chat.activitySearching(clip(detailOf(running.argsSummary) || running.toolName)), meta: null, long: false };
     }
-    return { mood: "working", label: strings.chat.activityWorking(clip(`${running.toolName} ${detailOf(running.argsSummary)}`.trim())) };
+    return { mood: "working", label: strings.chat.activityWorking(clip(`${running.toolName} ${detailOf(running.argsSummary)}`.trim())), meta: null, long: false };
   }
-  if (thinking) return { mood: "thinking", label: strings.chat.thinking };
-  if (message.streaming && message.markdown.trim() !== "") return { mood: "writing", label: strings.chat.activityWriting };
+  if (thinking) return { mood: "thinking", label: strings.chat.thinking, meta: null, long: false };
+  if (message.streaming && message.markdown.trim() !== "") return { mood: "writing", label: strings.chat.activityWriting, meta: null, long: false };
   return null;
 }
 
-const THINKING: Activity = { mood: "thinking", label: strings.chat.thinking };
+const THINKING: Activity = { mood: "thinking", label: strings.chat.thinking, meta: null, long: false };
 
 /**
  * The one in-progress line for a whole answer (Bear draws it once, after the
@@ -85,4 +89,22 @@ export function turnActivity(messages: ChatMessage[], busy: boolean, thinking: b
   const last = messages[messages.length - 1];
   if (!last || last.role !== "assistant") return THINKING;
   return activityOf(last, thinking) ?? THINKING;
+}
+
+/** Tool calls made since the learner's last message: the turn's step count. */
+export function turnSteps(messages: readonly ChatMessage[]): number {
+  let steps = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role === "user") break;
+    steps += message.toolCalls.length;
+  }
+  return steps;
+}
+
+/** Attach elapsed time and step count to the turn's activity line. */
+export function withTurnMeta(activity: Activity | null, steps: number, seconds: number): Activity | null {
+  if (activity === null) return null;
+  if (seconds < 1) return { ...activity, meta: null, long: false };
+  return { ...activity, meta: strings.chat.activityMeta(seconds, steps), long: seconds >= 180 };
 }

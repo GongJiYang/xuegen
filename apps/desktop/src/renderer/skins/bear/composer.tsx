@@ -13,6 +13,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { RadioGroup } from "radix-ui";
+import {
+  Root as DropdownMenu,
+  Content as DropdownMenuContent,
+  Item as DropdownMenuItem,
+  Portal as DropdownMenuPortal,
+  Trigger as DropdownMenuTrigger,
+} from "@animate-ui/react/primitives/radix-ui/dropdown-menu";
 import { TEACHING_STYLE_LABELS } from "@shared/protocol.js";
 import type { ComposerProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
@@ -65,8 +72,12 @@ export function Composer({
   answering,
   onCancelAnswer,
   focusRequest,
+  lessonActions,
+  defaultStyleLabel,
 }: ComposerProps) {
   const [value, setValue] = useState("");
+  // The lesson-button hint currently hovered (the line under the buttons shows it).
+  const [lessonHint, setLessonHint] = useState<string | null>(null);
   // Set when the user submits a `/xxx` the menu does not know: nothing is sent,
   // and the card shows 「没有这个命令」.
   const [unknownCommand, setUnknownCommand] = useState(false);
@@ -217,11 +228,54 @@ export function Composer({
             onValueChange={(next) => onStyle(next as typeof style)}
           >
             {TEACHING_STYLE_LABELS.map((entry) => (
-              <RadioGroup.Item key={entry.id} value={entry.id} className="bear-cstyle" aria-label={entry.label}>
-                {entry.label}
+              <RadioGroup.Item
+                key={entry.id}
+                value={entry.id}
+                className="bear-cstyle"
+                aria-label={entry.id === "default" ? defaultStyleLabel : entry.label}
+              >
+                {entry.id === "default" ? defaultStyleLabel : entry.label}
               </RadioGroup.Item>
             ))}
           </RadioGroup.Root>
+          {lessonActions.length > 0 && (
+            <span className="bear-clessons">
+              {lessonActions.map((action) => {
+                const hover = {
+                  title: action.hint,
+                  onMouseEnter: () => setLessonHint(action.hint),
+                  onMouseLeave: () => setLessonHint((current) => (current === action.hint ? null : current)),
+                };
+                return action.options.length > 0 ? (
+                  <DropdownMenu key={action.label} modal={false}>
+                    <DropdownMenuTrigger className="bear-clesson" disabled={streaming} {...hover}>
+                      {action.label} ▾
+                    </DropdownMenuTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuContent className="bear-menu" align="start" sideOffset={4}>
+                        {action.options.map((option) => (
+                          <DropdownMenuItem key={option.label} onSelect={option.run}>
+                            {option.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenu>
+                ) : (
+                  <button
+                    key={action.label}
+                    type="button"
+                    className="bear-clesson"
+                    disabled={streaming}
+                    onClick={action.run}
+                    {...hover}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
+            </span>
+          )}
           <span className="bear-chint">{strings.input.enterHint}</span>
           {showStop ? (
             <button type="button" className="bear-csend is-stop" aria-label={strings.input.stop} onClick={onStop}>
@@ -239,6 +293,7 @@ export function Composer({
             </button>
           )}
         </div>
+        {lessonActions.length > 0 && <div className="bear-clesson-hint">{lessonHint ?? ""}</div>}
       </div>
       {streaming && <p className="bear-cstatus">{strings.input.queueHint}</p>}
     </div>

@@ -35,13 +35,21 @@ export interface SlashState {
  * @param disabledSkills Skills the user turned off; filtered out locally so the
  *   menu updates in step with the checkbox, not only after the agent re-sends
  *   its command list.
+ * @param inCourse False outside a course session: the 上课 group is hidden.
  */
-export function useSlash(agentCommands: CommandInfo[], disabledSkills: readonly string[] = []): SlashState {
+export function useSlash(
+  agentCommands: CommandInfo[],
+  disabledSkills: readonly string[] = [],
+  inCourse = true,
+): SlashState {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
 
-  const all = useMemo(() => allCommands(agentCommands, disabledSkills), [agentCommands, disabledSkills]);
+  const all = useMemo(
+    () => allCommands(agentCommands, disabledSkills, inCourse),
+    [agentCommands, disabledSkills, inCourse],
+  );
   const commands = useMemo(() => rankCommands(all, query), [all, query]);
   const groups = useMemo(() => groupCommands(commands), [commands]);
 

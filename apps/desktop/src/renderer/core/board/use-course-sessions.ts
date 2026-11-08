@@ -86,7 +86,6 @@ export interface CourseSessionActions {
   handleNewCourse(request: NewCourseRequest): void;
   handleEditPlan(course: CourseSummary, change: string): void;
   handleNewSession(): void;
-  handleContinueSession(): void;
 }
 
 /** The course-session actions, bound to the already-created controller. */
@@ -269,11 +268,6 @@ export function useCourseSessions(
     setActiveCourse(null);
     controller.newSession();
   }, [controller, setActiveCourse]);
-  const handleContinueSession = useCallback(() => {
-    setIntro(null);
-    setActiveCourse(null);
-    controller.continueSession();
-  }, [controller, setActiveCourse]);
 
   return {
     activeCourse,
@@ -286,6 +280,5 @@ export function useCourseSessions(
     handleNewCourse,
     handleEditPlan,
     handleNewSession,
-    handleContinueSession,
   };
 }

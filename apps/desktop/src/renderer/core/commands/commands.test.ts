@@ -16,36 +16,57 @@ import {
 const SKILLS: CommandInfo[] = [
   { name: "diagram", description: "用字符图讲解", source: "skill" },
   { name: "wiki-save", description: "把内容写进 wiki", source: "skill" },
+  { name: "teach", description: "Teach one topic", source: "skill" },
 ];
 
 describe("command table", () => {
   it("appends one /skill: entry per agent command", () => {
     const all = allCommands(SKILLS);
-    expect(all).toHaveLength(BUILTIN_COMMANDS.length + 2);
+    expect(all).toHaveLength(BUILTIN_COMMANDS.length + SKILLS.length);
     expect(all.some((entry) => entry.command === "/skill:diagram")).toBe(true);
-    expect(all.filter((entry) => entry.group === "技能")).toHaveLength(2);
+    expect(all.filter((entry) => entry.group === "技能")).toHaveLength(SKILLS.length);
+  });
+
+  it("hides the 上课 group outside a course session", () => {
+    const all = allCommands(SKILLS, [], false);
+    expect(all.some((entry) => entry.group === "上课")).toBe(false);
+    expect(all.map((entry) => entry.command)).not.toContain("/总结");
+    expect(all.map((entry) => entry.command)).not.toContain("/制卡");
+    expect(all.map((entry) => entry.command)).not.toContain("/收课");
+    expect(all.some((entry) => entry.command === "/新会话")).toBe(true);
+    expect(allCommands(SKILLS, [], true).some((entry) => entry.group === "上课")).toBe(true);
   });
 
   it("drops a disabled skill from the menu immediately", () => {
     const all = allCommands(SKILLS, ["diagram"]);
     expect(all.some((entry) => entry.command === "/skill:diagram")).toBe(false);
     expect(all.some((entry) => entry.command === "/skill:wiki-save")).toBe(true);
-    expect(allCommands(SKILLS, ["diagram", "wiki-save"]).filter((entry) => entry.group === "技能")).toHaveLength(0);
+    expect(
+      allCommands(SKILLS, ["diagram", "wiki-save", "teach"]).filter((entry) => entry.group === "技能"),
+    ).toHaveLength(0);
   });
 
   it("maps style commands to their style id", () => {
+    expect(styleOfCommand("/默认")).toBe("default");
     expect(styleOfCommand("/大白话")).toBe("plain");
     expect(styleOfCommand("/细讲")).toBe("detailed");
     expect(styleOfCommand("/深度")).toBe("deep");
-    expect(styleOfCommand("/今天学到这里")).toBeNull();
+    expect(styleOfCommand("/收课")).toBeNull();
   });
 
   it("filters by command, description, and group", () => {
     const all = allCommands(SKILLS);
-    expect(filterCommands(all, "").length).toBe(all.length);
+    expect(filterCommands(all, "").some((entry) => entry.group === "技能")).toBe(false);
     expect(filterCommands(all, "深度").map((entry) => entry.command)).toEqual(["/深度"]);
-    expect(filterCommands(all, "阅读").some((entry) => entry.group === "阅读")).toBe(true);
+    expect(filterCommands(all, "阅读").map((entry) => entry.command)).toEqual(["/阅读", "/加入阅读"]);
     expect(filterCommands(all, "字符图").map((entry) => entry.command)).toEqual(["/skill:diagram"]);
+  });
+
+  it("hides skills on an empty query but still finds them when typing", () => {
+    const all = allCommands(SKILLS);
+    expect(rankCommands(all, "").every((entry) => entry.group !== "技能")).toBe(true);
+    expect(filterCommands(all, "").every((entry) => entry.group !== "技能")).toBe(true);
+    expect(rankCommands(all, "讲课").some((entry) => entry.command === "/skill:teach")).toBe(true);
   });
 
   it("groups in the design's stable order and drops empty groups", () => {
@@ -57,7 +78,7 @@ describe("command table", () => {
   it("ranks an exact name match first so Enter runs the intended command", () => {
     const all = allCommands(SKILLS);
     expect(rankCommands(all, "进度")[0]?.command).toBe("/进度");
-    expect(rankCommands(all, "今天学到这里")[0]?.command).toBe("/今天学到这里");
+    expect(rankCommands(all, "收课")[0]?.command).toBe("/收课");
   });
 
   it("ranks a name prefix above a description hit", () => {
@@ -71,15 +92,15 @@ describe("command table", () => {
   it("ranks a name substring above a description-only hit", () => {
     const all = allCommands(SKILLS);
     expect(rankCommands(all, "日历")[0]?.command).toBe("/日历");
-    expect(rankCommands(all, "阅读")[0]?.command).toBe("/加入阅读");
+    expect(rankCommands(all, "阅读")[0]?.command).toBe("/阅读");
   });
 
   it("keeps the table order for equal ranks and returns the list for an empty query", () => {
     const all = allCommands(SKILLS);
-    expect(rankCommands(all, "")).toEqual(all);
+    expect(rankCommands(all, "")).toEqual(BUILTIN_COMMANDS);
     const ranked = rankCommands(all, "日");
-    // 日历 (name prefix) and 今天学到这里 (description 「更新计划与进度」 does not
-    // contain 日) — only the exact/name matches survive ahead of group hits.
+    // 日历 (name prefix) — only the exact/name matches survive ahead of
+    // description or group hits.
     expect(ranked.length).toBeGreaterThan(0);
   });
 
@@ -99,7 +120,7 @@ describe("command table", () => {
   it("lists the session commands and the skills tool", () => {
     const commands = BUILTIN_COMMANDS.map((entry) => entry.command);
     expect(commands).toContain("/新会话");
-    expect(commands).toContain("/继续会话");
+    expect(commands).toContain("/总控");
     expect(commands).toContain("/技能");
   });
 

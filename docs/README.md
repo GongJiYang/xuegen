@@ -12,7 +12,9 @@
 | `PROGRESS.md` | 当前进度、下一步与待用户处理事项。 |
 | `docs/desktop/ARCHITECTURE.md` | 桌面版设计边界（六层模型在桌面的落点）。 |
 | `docs/desktop/UI-ARCHITECTURE.md` | 可替换皮肤架构、契约、样式隔离与动效原则。 |
-| `docs/desktop/FEATURES.md` | 桌面版功能 × 输入 × 输出总表。 |
+| `docs/desktop/SKIN-LEDGER.md` | 皮肤功能台账：每项界面功能的要求、契约、行为要点、各皮肤做到哪；新前端照它做，界面批次收尾时更新。 |
+| `docs/desktop/BEAR-VISUAL-PLAN.md` | Bear 视觉规则：字号 / 灰阶 / 间距 / 圆角变量、对比度要求、状态、深色、固定截图对比；Bear 新样式只用这里的变量。 |
+| `docs/desktop/FEATURES.md` | 2026-11-03 的初版功能总表（已由 SKIN-LEDGER 取代，只作历史）。 |
 | `docs/desktop/ROADMAP.md` | 桌面版批次路线图。 |
 | `docs/desktop/RELEASE.md` | 发版步骤：打包、GitHub Release、程序内更新、首次安装。 |
 | `docs/desktop/skins/README.md` | 皮肤登记表（id、版本、状态）。 |

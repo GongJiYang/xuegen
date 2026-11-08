@@ -10,6 +10,7 @@
 import { useState } from "react";
 import type { SkillsPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
+import { skillLabel } from "../../core/board/skills-description.js";
 
 export function SkillsPanel({
   skills,
@@ -53,32 +54,39 @@ export function SkillsPanel({
           <p className="bear-muted">{strings.skills.empty}</p>
         ) : (
           <ul>
-            {skills.value.map((skill) => (
-              <li key={skill.name}>
-                {skill.source === "pending" ? (
-                  <button type="button" onClick={() => onReview(skill.name)}>
-                    {strings.skills.review} {skill.name}
-                  </button>
-                ) : (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={skill.enabled}
-                      onChange={(event) => onToggle(skill.name, event.target.checked)}
-                    />
-                    {skill.name}
-                  </label>
-                )}
-                <p className="bear-muted">
-                  /skill:{skill.name} · {skill.description} ·{" "}
-                  {skill.source === "builtin"
-                    ? strings.skills.sourceBuiltin
-                    : skill.source === "personal"
-                      ? strings.skills.sourcePersonal
-                      : strings.skills.sourcePending}
-                </p>
-              </li>
-            ))}
+            {skills.value.map((skill) => {
+              const label = skillLabel(skill.name, skill.description);
+              return (
+                <li key={skill.name}>
+                  {skill.source === "pending" ? (
+                    <button type="button" onClick={() => onReview(skill.name)}>
+                      {strings.skills.review} {label.title}
+                    </button>
+                  ) : (
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={skill.enabled}
+                        onChange={(event) => onToggle(skill.name, event.target.checked)}
+                      />
+                      <b>{label.title}</b>
+                    </label>
+                  )}
+                  <p className="bear-muted">{label.line}</p>
+                  <details className="bear-muted">
+                    <summary>{strings.skills.rawToggle}</summary>
+                    <p>
+                      /skill:{skill.name} · {skill.description} ·{" "}
+                      {skill.source === "builtin"
+                        ? strings.skills.sourceBuiltin
+                        : skill.source === "personal"
+                          ? strings.skills.sourcePersonal
+                          : strings.skills.sourcePending}
+                    </p>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         ))}
       {review && (

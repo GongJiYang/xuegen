@@ -93,6 +93,7 @@ export function Thread({
   systemNotes,
   activity,
   pin,
+  header,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -129,6 +130,7 @@ export function Thread({
     <div className="bear-thread-wrap">
       {pin && <PinRail pin={pin} pane={paneRef} />}
       <div className="bear-pane bear-body" ref={paneRef} role="log">
+        {header}
         {messages.length === 0 ? (
           card ?? (
             <p className="bear-empty">
@@ -197,9 +199,19 @@ export function CourseIntroCard({ card }: CourseIntroCardProps) {
   );
 }
 
-export function UserMessage({ message, body, styleTag }: UserMessageProps) {
+export function UserMessage({ message, body, styleTag, actionLabel }: UserMessageProps) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const actionRef = useRef<HTMLDetailsElement | null>(null);
   useMotion(bearMotion, "appear", ref, [message.id]);
+  useMotion(bearMotion, "appear", actionRef, [message.id]);
+  if (actionLabel) {
+    return (
+      <details ref={actionRef} className="bear-you-action">
+        <summary>{actionLabel}</summary>
+        <div className="bear-you bear-you-action-body">{body || message.markdown}</div>
+      </details>
+    );
+  }
   return (
     <div ref={ref} className="bear-you">
       {styleTag && <span className="bear-style-tag">{styleTag}</span>}
@@ -251,12 +263,18 @@ export function Thinking({ label }: ThinkingProps) {
   );
 }
 
-/** The single line under the transcript while an answer runs: the avatar's mood and what 学根 is doing. */
+/** The single line under the transcript while an answer runs: the avatar's mood, what 学根 is doing, and for how long. */
 function ActivityLine({ activity }: { activity: Activity }) {
   return (
     <div className="bear-activity">
       <MiniBot mood={activity.mood} size={24} />
       <Thinking label={activity.label} />
+      {activity.meta && (
+        <span className={activity.long ? "bear-activity-meta is-long" : "bear-activity-meta"}>
+          {activity.meta}
+          {activity.long ? strings.chat.activityLong : ""}
+        </span>
+      )}
     </div>
   );
 }

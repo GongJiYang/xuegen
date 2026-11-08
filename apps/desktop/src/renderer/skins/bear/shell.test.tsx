@@ -63,7 +63,8 @@ function baseProps(overrides: Partial<ShellProps> = {}): ShellProps {
     thinkingLevels: ["low", "medium", "high"],
     onSelectThinking: vi.fn(),
     onNewSession: vi.fn(),
-    onContinueSession: vi.fn(),
+    onOpenSessions: vi.fn(),
+    sessions: { open: false, onOpenChange: vi.fn(), status: "ready", groups: [], onPick: vi.fn(), onNew: vi.fn() },
     agentStatus: "ready",
     notices: [],
     onDismissNotice: vi.fn(),
@@ -133,19 +134,17 @@ describe("Bear Shell", () => {
 
   it("runs the top-level ⋯ menu callbacks", async () => {
     const onNewSession = vi.fn();
-    const onContinueSession = vi.fn();
+    const onOpenSessions = vi.fn();
     const onToggleFocus = vi.fn();
-    render(<Shell {...baseProps({ onNewSession, onContinueSession, onToggleFocus })} />);
+    render(<Shell {...baseProps({ onNewSession, onOpenSessions, onToggleFocus })} />);
 
     await userEvent.click(screen.getByRole("button", { name: "⋯" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(strings.topBar.newSession) }));
     expect(onNewSession).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByRole("button", { name: "⋯" }));
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: new RegExp(strings.topBar.continueSession) }),
-    );
-    expect(onContinueSession).toHaveBeenCalledTimes(1);
+    await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(strings.topBar.sessionList) }));
+    expect(onOpenSessions).toHaveBeenCalledTimes(1);
 
     await userEvent.click(screen.getByRole("button", { name: "⋯" }));
     await userEvent.click(

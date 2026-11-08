@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { CalendarDay, CourseSummary } from "@shared/data-protocol.js";
 import { resumePoint, resumePrompt, studyPrompt, todayPlanItems } from "./today.js";
+import { splitActionMarker, type ActionKind } from "./chat/action-marker.js";
+
+/** A prompt's visible body plus the action marker it folds to. */
+function marked(text: string | null): { body: string; action: ActionKind | null; slug: string | null; courseTitle: string | null } {
+  const parts = splitActionMarker(text ?? "");
+  return { body: parts.body, action: parts.action, slug: parts.slug, courseTitle: parts.courseTitle };
+}
 
 function course(partial: Partial<CourseSummary> & { slug: string; title: string }): CourseSummary {
   return {
@@ -54,32 +61,38 @@ describe("prompts", () => {
     const withNext = resumePoint([
       course({ slug: "a", title: "CTM", lastRecord: { date: "2026-11-03", seq: "01" }, nextSession: "1.3" }),
     ]);
-    expect(withNext && resumePrompt(withNext)).toBe(
-      "继续 CTM，从下次起点开始：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
-    );
+    expect(withNext && marked(resumePrompt(withNext))).toEqual({
+      body: "继续 CTM，从下次起点开始：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+      action: "resume",
+      slug: "a",
+      courseTitle: "CTM",
+    });
 
     const noNext = resumePoint([
       course({ slug: "a", title: "CTM", lastRecord: { date: "2026-11-03", seq: "01" } }),
     ]);
-    expect(noNext && resumePrompt(noNext)).toBe(
+    expect(noNext && marked(resumePrompt(noNext)).body).toBe(
       "继续 CTM，从下次起点开始（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
   });
 
   it("builds the study prompt", () => {
-    expect(studyPrompt(course({ slug: "a", title: "CTM", nextSession: "1.3" }))).toBe(
-      "开始今天的 CTM，下次起点：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
-    );
-    expect(studyPrompt(course({ slug: "a", title: "CTM" }))).toBe(
+    expect(marked(studyPrompt(course({ slug: "a", title: "CTM", nextSession: "1.3" })))).toEqual({
+      body: "开始今天的 CTM，下次起点：1.3（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+      action: "open",
+      slug: "a",
+      courseTitle: "CTM",
+    });
+    expect(marked(studyPrompt(course({ slug: "a", title: "CTM" }))).body).toBe(
       "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
   });
 
   it("names the course file's absolute path and vault root when known", () => {
-    expect(studyPrompt(course({ slug: "a", title: "CTM", file: "/Users/x/V/wiki/courses/a.md" }))).toBe(
+    expect(marked(studyPrompt(course({ slug: "a", title: "CTM", file: "/Users/x/V/wiki/courses/a.md" }))).body).toBe(
       "开始今天的 CTM（课程文件：/Users/x/V/wiki/courses/a.md；库根：/Users/x/V。下次起点以此为准，不必先找库、列目录或读看板）",
     );
-    expect(studyPrompt(course({ slug: "a", title: "CTM", file: "/elsewhere/a.md" }))).toBe(
+    expect(marked(studyPrompt(course({ slug: "a", title: "CTM", file: "/elsewhere/a.md" }))).body).toBe(
       "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
   });

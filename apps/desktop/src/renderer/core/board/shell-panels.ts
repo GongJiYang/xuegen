@@ -10,7 +10,7 @@ import type { ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
 import type { CourseSummary } from "@shared/data-protocol.js";
 import type { SubjectsOverview } from "@shared/data-protocol.js";
 import type { TeachingStyle } from "@shared/protocol.js";
-import type { ShellPanels, SkillsPanelProps, ToolFocus } from "../../skins/contract.js";
+import type { SessionsView, ShellPanels, SkillsPanelProps, ToolFocus } from "../../skins/contract.js";
 import type { NewCourseRequest } from "./course-prompts.js";
 import { groupProgress } from "./progress-groups.js";
 import type { BoardResource } from "./use-resource.js";
@@ -54,6 +54,8 @@ export interface ShellPanelsInput {
   onStudyCourse(slug: string): void;
   onVerifyCourse(slug: string): void;
   onOpenControl: (() => void) | null;
+  /** The session list's groups + pick action, for the calendar's 「这天的会话」. */
+  sessions: SessionsView;
 }
 
 export function shellPanels(input: ShellPanelsInput): ShellPanels {
@@ -126,6 +128,8 @@ export function shellPanels(input: ShellPanelsInput): ShellPanels {
       courseTitles: input.courseTitles,
       cycleMonth: input.cycle.month.state,
       onEditDay: input.onEditDay,
+      daySessions: (date) => input.sessions.groups.find((group) => group.date === date)?.rows ?? [],
+      onOpenSession: input.sessions.onPick,
       onToday: () => {
         const today = dateKey(new Date());
         calendar.setMonth(today.slice(0, 7));

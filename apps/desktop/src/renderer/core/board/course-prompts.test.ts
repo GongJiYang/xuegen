@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultEndDate, editPlanPrompt, newCoursePrompt } from "./course-prompts.js";
+import { splitActionMarker } from "../chat/action-marker.js";
 
 describe("course prompts", () => {
   it("asks the course skill to create the course with every field the form collected", () => {
@@ -47,9 +48,12 @@ describe("course prompts", () => {
   });
 
   it("asks the course skill to change one course's plan", () => {
-    expect(editPlanPrompt({ slug: "ctm", title: "CTM 7 周学习计划" }, " 每天改成 40 分钟，往后推一周 ")).toBe(
-      "/skill:course 修改「CTM 7 周学习计划」的学习计划：每天改成 40 分钟，往后推一周。改完后告诉我新的本周安排，并刷新课程看板。（课程文件：wiki/courses/ctm.md，下次起点以此为准，不必先列目录或读看板）",
-    );
+    expect(splitActionMarker(editPlanPrompt({ slug: "ctm", title: "CTM 7 周学习计划" }, " 每天改成 40 分钟，往后推一周 "))).toEqual({
+      action: "plan",
+      slug: "ctm",
+      courseTitle: "CTM 7 周学习计划",
+      body: "/skill:course 修改「CTM 7 周学习计划」的学习计划：每天改成 40 分钟，往后推一周。改完后告诉我新的本周安排，并刷新课程看板。（课程文件：wiki/courses/ctm.md，下次起点以此为准，不必先列目录或读看板）",
+    });
   });
 
   it("plans a cycle course on the subject's days, not the form's dates", () => {

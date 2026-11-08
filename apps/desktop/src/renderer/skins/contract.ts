@@ -45,6 +45,8 @@ import type { ProgressGroups } from "../core/board/progress-groups.js";
 import type { ControlView } from "../core/board/bot-state.js";
 import type { Activity } from "../core/chat/activity.js";
 import type { PinBoard } from "../core/chat/pin-board.js";
+import type { ControlCardRow, ControlCardView } from "../core/board/control-card.js";
+import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
@@ -80,6 +82,22 @@ export interface ContextUsageView {
   compacting: boolean;
   /** Ask the agent to compact now (`/compact` through the host channel). */
   onCompact(): void;
+}
+
+/**
+ * The session list the Shell's title/… menu and the calendar open.
+ *
+ * `groups` are already day-grouped rows (today / yesterday / MM-DD 周X); the
+ * skin only decides how the list looks. `onPick` opens a transcript by file —
+ * the row's course, when known, becomes the active course.
+ */
+export interface SessionsView {
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  status: "loading" | "ready" | "error";
+  groups: SessionGroup[];
+  onPick(file: string): void;
+  onNew(): void;
 }
 
 export interface ShellProps {
@@ -145,8 +163,10 @@ export interface ShellProps {
   onSelectThinking(level: string): void;
   /** Start a fresh session. */
   onNewSession(): void;
-  /** Continue the most recent session for the working directory. */
-  onContinueSession(): void;
+  /** Open the session list (⋯ menu 「会话列表」). */
+  onOpenSessions(): void;
+  /** The session list behind the title/menu entry. */
+  sessions: SessionsView;
   /** Agent process lifecycle, so the Shell can show a status line. */
   agentStatus: AgentStatus;
   /** Notices (errors, missing login, fallbacks) for the Shell to surface. */
@@ -200,6 +220,8 @@ export interface ThreadNote {
 }
 
 export interface ThreadProps {
+  /** Rendered above the messages (the 总控 今日卡), or null. */
+  header: React.ReactNode | null;
   messages: ChatMessage[];
   /**
    * True while the last assistant block is still empty (thinking).
@@ -257,6 +279,12 @@ export interface UserMessageProps {
    * label here, so the transcript shows a tag instead of the raw prefix.
    */
   styleTag: string | null;
+  /**
+   * Set when the interface sent this message for the user (开课, 收课 …): a
+   * one-line label such as 「开今天的课 · 离散数学（Epp, 5th ed）」. The skin
+   * shows the label folded and reveals {@link body} only on demand.
+   */
+  actionLabel: string | null;
 }
 
 export interface AssistantMessageProps {
@@ -359,6 +387,15 @@ export interface ComposerProps {
    * the same question still triggers the skin's focus effect.
    */
   focusRequest: number;
+  /**
+   * 总结 · 制卡 · 收课 in a course session; empty elsewhere. Disabled while streaming.
+   *
+   * `hint` says what the click changes (hover text); `options` is the 「收课 ▾」
+   * menu — an action with options opens the menu instead of running directly.
+   */
+  lessonActions: { label: string; hint: string; run(): void; options: { label: string; run(): void }[] }[];
+  /** The label for the 「默认」 style: 「默认 · 细讲」 when the subject has a default, else 「默认」. */
+  defaultStyleLabel: string;
 }
 
 export interface ModelPickerProps {
@@ -548,6 +585,10 @@ export interface CalendarPanelProps extends ToolPanelProps {
   courseTitles: Record<string, string>;
   /** The displayed month's study-cycle day types; days outside every cycle are absent. */
   cycleMonth: AsyncState<CycleMonth>;
+  /** That day's sessions; empty when none or not loaded. */
+  daySessions(date: string): SessionRow[];
+  /** Open a transcript from the day's session list. */
+  onOpenSession(file: string): void;
 }
 
 export interface SkillsPanelProps extends ToolPanelProps {
@@ -612,6 +653,21 @@ export interface ToolDockProps {
   onOpenToday(): void;
 }
 
+/** The 总控 今日卡 above the 总控 session's transcript. */
+export interface ControlCardProps {
+  view: ControlCardView;
+  /** Run a row's button. */
+  onAction(row: ControlCardRow): void;
+  /** 「让总控说说」: ask the model for the brief (folded as 今日简报). */
+  onAskBrief(): void;
+  /** True while an answer streams or a 「读完了」 write runs: buttons disabled. */
+  busy: boolean;
+  /** A one-line error after a failed 「读完了」, else null. */
+  error: string | null;
+  /** The 「更早的对话」 row under the card, or null. */
+  older: { label: string; onToggle(): void } | null;
+}
+
 /** Every component a skin must provide. */
 export interface SkinSlots {
   Shell: ComponentType<ShellProps>;
@@ -644,6 +700,8 @@ export interface SkinSlots {
   SlashMenu: ComponentType<SlashMenuProps>;
   /** The local card shown the instant a course is opened. */
   CourseIntroCard: ComponentType<CourseIntroCardProps>;
+  /** The 总控 今日卡 (local data, no model call). */
+  ControlCard: ComponentType<ControlCardProps>;
 }
 
 /** The lazily-loaded module a skin id resolves to. */

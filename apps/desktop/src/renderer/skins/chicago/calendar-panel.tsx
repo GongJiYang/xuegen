@@ -9,6 +9,7 @@
 
 import type { CalendarDay } from "@shared/data-protocol.js";
 import type { CalendarPanelProps } from "../contract.js";
+import type { SessionRow } from "../../core/board/session-list.js";
 import { strings } from "../../core/strings.js";
 import { dayMarks } from "../../core/board/use-calendar.js";
 import { formatLogLine } from "../../core/board/calendar-log.js";
@@ -24,6 +25,8 @@ export function CalendarPanel({
   onSelectDay,
   onEditDay,
   courseTitles,
+  daySessions,
+  onOpenSession,
 }: CalendarPanelProps) {
   if (month.status === "loading") return <Loading />;
   if (month.status === "error") return <Failed message={month.message} />;
@@ -81,7 +84,14 @@ export function CalendarPanel({
         <br />
         <b>{strings.calendar.dblclickHint}</b>
       </div>
-      <DayDetail date={selected} entries={days[selected]} onEdit={() => onEditDay(selected)} courseTitles={courseTitles} />
+      <DayDetail
+        date={selected}
+        entries={days[selected]}
+        onEdit={() => onEditDay(selected)}
+        courseTitles={courseTitles}
+        sessions={daySessions(selected)}
+        onOpenSession={onOpenSession}
+      />
     </div>
   );
 }
@@ -94,11 +104,15 @@ function DayDetail({
   entries,
   onEdit,
   courseTitles,
+  sessions,
+  onOpenSession,
 }: {
   date: string;
   entries?: CalendarDay;
   onEdit(): void;
   courseTitles: Record<string, string>;
+  sessions: SessionRow[];
+  onOpenSession(file: string): void;
 }) {
   const [, monthNumber, dayNumber] = date.split("-");
   // Each row is 「类型 · 内容」, with the course name resolved from a slug so two
@@ -134,6 +148,18 @@ function DayDetail({
           {entries?.note ? strings.calendar.editNote : strings.calendar.writeNote}
         </button>
       </div>
+      {sessions.length > 0 && (
+        <>
+          <div className="chicago-daybox-head">{strings.sessions.dayHeading}</div>
+          {sessions.map((row) => (
+            <div key={row.file}>
+              <button type="button" className="chicago-btn" onClick={() => onOpenSession(row.file)}>
+                {row.time} · {row.tag} · {row.title} · {strings.sessions.count(row.count)}
+              </button>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

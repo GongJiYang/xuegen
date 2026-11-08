@@ -34,6 +34,8 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     onInput: vi.fn(),
     answering: null,
     focusRequest: 0,
+    lessonActions: [],
+    defaultStyleLabel: "默认",
     ...overrides,
   };
 }
@@ -84,6 +86,7 @@ describe("Bare Thread thinking indicator", () => {
       systemNotes: [],
       activity: null,
       pin: null,
+      header: null,
       renderMessage: (message, isThinking) => (
         <MessageRenderer
           slots={slots}

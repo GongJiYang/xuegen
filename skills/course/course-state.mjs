@@ -7,6 +7,7 @@
 //   node course-state.mjs verify <coursesDir> [看板文件]   校验锁、标记与必要段落；看板是否过期
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
+//   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报）
 import { readFile, writeFile, stat, chmod } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
@@ -94,6 +95,48 @@ async function loadCourses(dir) {
   return courses;
 }
 
+/**
+ * 「读完了」的确定性写入：把 `## Today` 里第一条未打勾、标签完全相等的
+ * 「- [ ] 讲后读 <标签>」打勾，并在行尾记「（用户自报，未检查，<date>）」。
+ * 解锁 → 写 → 上锁；写失败时恢复原权限。成功输出一行 JSON：
+ * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>}。
+ */
+async function afterRead(file, label, date) {
+  const target = resolve(file);
+  const text = await readFile(target, "utf8");
+  const lines = text.split("\n");
+  const start = lines.findIndex((line) => line.trim() === "## Today");
+  const end = start === -1 ? -1 : lines.findIndex((line, index) => index > start && /^##\s/.test(line));
+  const sectionEnd = start === -1 ? -1 : end === -1 ? lines.length : end;
+  const prefix = "- [ ] 讲后读 ";
+  let hit = -1;
+  for (let index = start === -1 ? lines.length : start + 1; index < sectionEnd; index += 1) {
+    const line = lines[index];
+    if (!line.startsWith(prefix)) continue;
+    const rest = line.slice(prefix.length);
+    const cut = rest.indexOf(" · ");
+    const lineLabel = (cut === -1 ? rest : rest.slice(0, cut)).trim();
+    if (lineLabel === label) {
+      hit = index;
+      break;
+    }
+  }
+  if (hit === -1) fail(`没有找到未打勾的讲后读：${label}`);
+  const originalMode = (await stat(target)).mode & 0o777;
+  await chmod(target, WRITABLE_MODE);
+  const next = lines.slice();
+  next[hit] = `${lines[hit].replace(/^- \[ \]/, "- [x]")}（用户自报，未检查，${date}）`;
+  try {
+    await writeFile(target, next.join("\n"), "utf8");
+  } catch (error) {
+    await chmod(target, originalMode).catch(() => {});
+    fail(error instanceof Error ? error.message : String(error));
+  }
+  await chmod(target, originalMode);
+  const reading = /\[\[reading\/([^\]|]+)/.exec(text)?.[1] ?? null;
+  process.stdout.write(`${JSON.stringify({ file: target, label, reading })}\n`);
+}
+
 async function mode(file) {
   return (await stat(file)).mode & 0o777;
 }
@@ -171,7 +214,7 @@ async function listCommand(coursesDir, json) {
 }
 
 const [command, ...args] = process.argv.slice(2);
-if (!command) fail("用法：lock|unlock|verify|dashboard|list");
+if (!command) fail("用法：lock|unlock|verify|dashboard|list|after-read");
 
 if (command === "lock" || command === "unlock") {
   if (args.length === 0) fail(`${command} 需要文件参数`);
@@ -179,6 +222,14 @@ if (command === "lock" || command === "unlock") {
 } else if (command === "list") {
   if (args.length === 0) fail("list 需要 courses 目录");
   await listCommand(resolve(args[0]), args.includes("--json"));
+} else if (command === "after-read") {
+  if (args.length < 2) fail("after-read 需要课程文件与标签");
+  const file = args[0];
+  const label = args[1];
+  const dateIndex = args.indexOf("--date");
+  const date = dateIndex === -1 ? localDate() : args[dateIndex + 1];
+  if (dateIndex !== -1 && (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))) fail(`--date 日期非法：${date ?? "缺值"}`);
+  await afterRead(file, label, date ?? localDate());
 } else if (command === "verify") {
   if (args.length === 0) fail("verify 需要 courses 目录");
   await verify(resolve(args[0]), args[1] ? resolve(args[1]) : null);

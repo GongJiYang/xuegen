@@ -33,10 +33,12 @@ import { ReadingPanel } from "./reading-panel.js";
 import { CardsPanel } from "./cards-panel.js";
 import { CalendarPanel } from "./calendar-panel.js";
 import { SkillsPanel } from "./skills-panel.js";
-import { ControlBot } from "./control-bot.js";
+import { SessionsButton } from "./sessions-popover.js";
+import { useDark } from "./use-dark.js";
 
 /** The paper colour the window should open with (anti-flash). */
 const BEAR_PAPER = "#fbfbfa";
+const BEAR_PAPER_DARK = "#161615";
 
 /** The drawer's 今天 tab value; tool tabs use their `ToolId`. */
 const TODAY_TAB = "today";
@@ -100,14 +102,15 @@ export function Shell(props: ShellProps) {
   const [picked, setPicked] = useState<{ tool: ToolId | null } | null>(null);
   const [lastTool, setLastTool] = useState<ToolId>(tools[0]?.id ?? "progress");
   const reduceMotion = useReducedMotion();
+  const dark = useDark();
 
   const open = requested || (activeTool !== null && activeTool !== dismissedFor);
   const tab = picked !== null && picked.tool === activeTool ? TODAY_TAB : (activeTool ?? lastTool);
 
   // Mirror the window background so it opens in the paper colour (anti-flash).
   useEffect(() => {
-    onWindowBackground(BEAR_PAPER);
-  }, [onWindowBackground]);
+    onWindowBackground(dark ? BEAR_PAPER_DARK : BEAR_PAPER);
+  }, [onWindowBackground, dark]);
 
   const openTool = useCallback(
     (tool: ToolId): void => {
@@ -174,10 +177,7 @@ export function Shell(props: ShellProps) {
     >
       <header className="bear-bar">
         {!focusMode && (
-          <span className="bear-title">
-            {props.control && <ControlBot mood={props.control.mood} />}
-            {props.sessionTitle ?? strings.chat.freeSession}
-          </span>
+          <SessionsButton sessions={props.sessions} control={props.control} title={props.sessionTitle} />
         )}
         <span className="bear-bar-gap" />
         {!focusMode && (
@@ -203,7 +203,7 @@ export function Shell(props: ShellProps) {
           thinkingLevels={props.thinkingLevels}
           onSelectThinking={props.onSelectThinking}
           onNewSession={props.onNewSession}
-          onContinueSession={props.onContinueSession}
+          onOpenSessions={props.onOpenSessions}
           focusMode={focusMode}
           onToggleFocus={props.onToggleFocus}
         />

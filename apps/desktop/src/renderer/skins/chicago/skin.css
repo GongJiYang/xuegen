@@ -1682,6 +1682,12 @@
   font: 12px / 16px var(--font-chrome);
 }
 
+/* The course-session buttons (总结 · 制卡 · 收课) beside the style row. */
+[data-skin="chicago"] .chicago-clessons {
+  display: inline-flex;
+  gap: 8px;
+}
+
 /* 「正在回答：第 N 题」: shown above the field after 「我来回答」. */
 [data-skin="chicago"] .chicago-answering {
   font: 12px / 16px var(--font-chrome);
@@ -1743,6 +1749,13 @@
 [data-skin="chicago"] .chicago-slash .chicago-c.chicago-hi {
   background: var(--ink);
   color: var(--paper);
+}
+
+/* ── folded user action ────────────────────────────────────── */
+[data-skin="chicago"] .chicago-you-action summary {
+  font: 12px / 20px var(--font-chrome);
+  cursor: default;
+  text-align: right;
 }
 
 /* ── user message style tag ────────────────────────────────── */
@@ -1836,4 +1849,48 @@
   padding: 6px 8px;
   white-space: pre-wrap;
   font: 12px / 16px var(--font-code);
+}
+
+/* 总控 今日卡：经典窗口框，黑白。 */
+[data-skin="chicago"] .chicago-cc {
+  border: 1px solid var(--ink);
+  margin: 0 0 10px;
+  padding: 4px 6px;
+}
+[data-skin="chicago"] .chicago-cc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 3px;
+}
+[data-skin="chicago"] .chicago-cc-rows {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+[data-skin="chicago"] .chicago-cc-rows li {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+[data-skin="chicago"] .chicago-cc-mark {
+  text-align: center;
+}
+[data-skin="chicago"] .chicago-cc-rows li[data-mark="faint"] {
+  color: var(--soft, #777);
+}
+[data-skin="chicago"] .chicago-cc-foot {
+  border-top: 1px solid var(--ink);
+  margin-top: 4px;
+  padding-top: 3px;
+  font-family: var(--font-chrome);
+}
+[data-skin="chicago"] .chicago-cc-error {
+  border: 1px solid var(--ink);
+  margin-top: 4px;
+  padding: 2px 6px;
 }

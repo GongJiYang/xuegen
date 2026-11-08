@@ -64,4 +64,16 @@ describe("historyFromEntries", () => {
     const { notes } = historyFromEntries(entries, "s");
     expect(notes).toEqual([{ beforeIndex: 2, kind: "compaction" }]);
   });
+
+  it("carries the entry's timestamp into the restored message's `at`", () => {
+    const { messages } = historyFromEntries(
+      [
+        { type: "message", timestamp: "2026-11-05T09:12:00.000Z", message: { role: "user", content: "q" } },
+        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "a" }] } },
+      ],
+      "s",
+    );
+    expect(messages[0]?.at).toBe("2026-11-05T09:12:00.000Z");
+    expect(messages[1]?.at).toBeUndefined();
+  });
 });

@@ -66,6 +66,13 @@ export function TodayPanel({
   onVerifyCourse,
   onOpenControl,
 }: TodayPanelProps) {
+  if (cycleToday.status === "loading") {
+    return (
+      <section className="bear-today" aria-label={strings.today.title}>
+        <p className="bear-muted">{strings.today.loading}</p>
+      </section>
+    );
+  }
   const cycleDay = cycleToday.status === "ready" ? cycleToday.value : null;
   const view = cycleDay
     ? cycleTodayView(cycleDay, cycleTomorrow.status === "ready" ? cycleTomorrow.value : null)

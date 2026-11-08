@@ -49,7 +49,8 @@ export function Shell(props: ShellProps) {
     thinkingLevels,
     onSelectThinking,
     onNewSession,
-    onContinueSession,
+    onOpenSessions,
+    sessions,
     agentStatus,
     notices,
     onDismissNotice,
@@ -160,7 +161,7 @@ export function Shell(props: ShellProps) {
         thinkingLevels={thinkingLevels}
         onSelectThinking={onSelectThinking}
         onNewSession={onNewSession}
-        onContinueSession={onContinueSession}
+        onOpenSessions={onOpenSessions}
         focus={focusMode}
         onToggleFocus={onToggleFocus}
         tools={tools}
@@ -172,6 +173,7 @@ export function Shell(props: ShellProps) {
         onSelectStyle={onSelectStyle}
         onEndToday={() => onPrompt(strings.topBar.todayDone)}
         onPrompt={onPrompt}
+        onResume={panels.today.onResume}
       />
 
       <main className={`chicago-desk chicago-desk-f ${focusMode ? "chicago-focus" : ""}`}>
@@ -253,6 +255,43 @@ export function Shell(props: ShellProps) {
           </>
         )}
       </main>
+
+      {sessions.open && (
+        <div className="chicago-win chicago-modeless chicago-show chicago-sessions" aria-label={strings.sessions.title}>
+          <div className="chicago-tb">
+            <button
+              type="button"
+              className="chicago-box chicago-box-close"
+              aria-label={strings.chat.dismiss}
+              onClick={() => sessions.onOpenChange(false)}
+            />
+            <span className="chicago-title">{strings.sessions.title}</span>
+          </div>
+          <div className="chicago-pane chicago-note">
+            <div className="chicago-row-btns">
+              <button type="button" className="chicago-btn" onClick={sessions.onNew}>
+                {strings.sessions.newSession}
+              </button>
+            </div>
+            {sessions.status === "loading" && <p>{strings.sessions.loading}</p>}
+            {sessions.status === "error" && <p role="alert">{strings.sessions.failed}</p>}
+            {sessions.status === "ready" && sessions.groups.length === 0 && <p>{strings.sessions.none}</p>}
+            {sessions.groups.map((group) => (
+              <div key={group.date}>
+                <div className="chicago-daybox-head">{group.label}</div>
+                {group.rows.map((row) => (
+                  <div key={row.file}>
+                    <button type="button" className="chicago-btn" onClick={() => sessions.onPick(row.file)}>
+                      {row.current ? "▸ " : ""}
+                      {row.time} · {row.tag} · {row.title} · {strings.sessions.count(row.count)}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {alertNotice && (
         <div className="chicago-scrim chicago-show">

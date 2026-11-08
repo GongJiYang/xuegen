@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { listSubjects, parseMaterial, parseSubject, stripLinks } from "./subjects.mjs";
+import { listSubjects, parseDefaultStyle, parseMaterial, parseSubject, stripLinks } from "./subjects.mjs";
 
 const run = promisify(execFile);
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "subjects.mjs");
@@ -126,6 +126,15 @@ test("parseSubject reads frontmatter, materials by type and courses", () => {
   const ai = parseSubject(AI, "ai-ml");
   assert.deepEqual(ai.courses, ["mi", "di"]);
   assert.equal(ai.materials[0]?.course, "mi");
+});
+
+test("parseDefaultStyle reads 「## 讲解偏好」的 - 默认风格 行", () => {
+  const withStyle = `${DISCRETE}\n## 讲解偏好\n- 默认风格：细讲（迁移自课程页「讲解风格」）\n- 例子要短\n`;
+  assert.equal(parseDefaultStyle(withStyle), "detailed");
+  assert.equal(parseSubject(withStyle, "discrete-math").defaultStyle, "detailed");
+  assert.equal(parseDefaultStyle(DISCRETE), null);
+  assert.equal(parseSubject(DISCRETE, "discrete-math").defaultStyle, null);
+  assert.equal(parseDefaultStyle("## 讲解偏好\n- 例子要短\n"), null);
 });
 
 test("listSubjects finds the current cycle, its aux line and the main subjects", async () => {

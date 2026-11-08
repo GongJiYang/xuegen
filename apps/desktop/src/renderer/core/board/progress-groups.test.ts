@@ -20,13 +20,14 @@ const OVERVIEW: SubjectsOverview = {
   date: "2026-11-06",
   cycle: { cycle: "C1", week: 1, weeks: 7, aux: "（空）；（空）——路线原定数据结构与算法" },
   subjects: [
-    { slug: "ai", title: "AI", layer: "C", route: "路线外", main: false, courses: ["mi", "gone"], materials: [] },
+    { slug: "ai", title: "AI", layer: "C", route: "路线外", main: false, defaultStyle: null, courses: ["mi", "gone"], materials: [] },
     {
       slug: "dm",
       title: "离散",
       layer: "A",
       route: "C1 主项",
       main: true,
+      defaultStyle: null,
       courses: ["epp"],
       materials: [
         { type: "书籍", mark: "now", status: "学习中", role: "主线", title: "Epp", course: "epp" },
@@ -39,10 +40,11 @@ const OVERVIEW: SubjectsOverview = {
       layer: "D",
       route: "C10 主项",
       main: false,
+      defaultStyle: null,
       courses: [],
       materials: [{ type: "文章", mark: "done", status: "已摄取", role: "参考", title: "Command", course: null }],
     },
-    { slug: "empty", title: "空科目", layer: "A", route: "C2 主项", main: false, courses: [], materials: [] },
+    { slug: "empty", title: "空科目", layer: "A", route: "C2 主项", main: false, defaultStyle: null, courses: [], materials: [] },
   ],
 };
 

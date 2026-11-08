@@ -150,6 +150,16 @@ export const SAMPLE_USER_MESSAGE: ChatMessage = {
   toolCalls: [],
 };
 
+/** A message the interface sent for the user: folds into a one-line action label. */
+export const SAMPLE_ACTION_MESSAGE: ChatMessage = {
+  id: "gallery-action",
+  role: "user",
+  markdown:
+    "开始今天的 离散数学（Epp, 5th ed），下次起点：§2.1（课程文件：wiki/courses/epp.md，下次起点以此为准，不必先列目录或读看板）\n⟦xuegen:open|epp|离散数学（Epp, 5th ed）⟧",
+  streaming: false,
+  toolCalls: [],
+};
+
 export const SAMPLE_ASSISTANT_MESSAGE: ChatMessage = {
   id: "gallery-assistant",
   role: "assistant",

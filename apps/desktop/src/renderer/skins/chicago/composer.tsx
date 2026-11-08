@@ -35,6 +35,8 @@ export function Composer({
   onInput,
   answering,
   focusRequest,
+  lessonActions,
+  defaultStyleLabel,
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
@@ -146,11 +148,35 @@ export function Composer({
                 value={entry.id}
                 checked={style === entry.id}
                 onChange={() => onStyle(entry.id)}
+                aria-label={entry.id === "default" ? defaultStyleLabel : entry.label}
               />
-              {entry.label}
+              {entry.id === "default" ? defaultStyleLabel : entry.label}
             </label>
           ))}
         </div>
+        {lessonActions.length > 0 && (
+          <span className="chicago-clessons">
+            {lessonActions.map((action) => (
+              <span key={action.label}>
+                <button type="button" className="chicago-btn" disabled={streaming} title={action.hint} onClick={action.run}>
+                  {action.label}
+                </button>
+                {action.options.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    className="chicago-btn"
+                    disabled={streaming}
+                    title={action.hint}
+                    onClick={option.run}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </span>
+            ))}
+          </span>
+        )}
         <span>{streaming ? strings.input.streaming : strings.input.slashHint}</span>
       </div>
       {answering !== null && (

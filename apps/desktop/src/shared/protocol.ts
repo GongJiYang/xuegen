@@ -55,6 +55,8 @@ export interface ChatMessage {
   toolCalls: ToolCallView[];
   /** Stop reason when the assistant message ended abnormally. */
   errorMessage?: string;
+  /** ISO time the session file recorded it (restored history only; live messages leave it unset). */
+  at?: string;
 }
 
 /**

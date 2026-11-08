@@ -257,6 +257,8 @@ export interface SubjectInfo {
   main: boolean;
   courses: string[];
   materials: SubjectMaterial[];
+  /** 「## 讲解偏好」里的默认风格，没写为 null。 */
+  defaultStyle: "plain" | "detailed" | "deep" | null;
 }
 
 /** Every subject plus the cycle the date falls in (null outside every cycle). */
@@ -291,6 +293,20 @@ export interface SkillReview {
   lint: { errors: string[]; warnings: string[] };
 }
 
+/** One session transcript, summarized for the session list (from the transcript file itself). */
+export interface SessionMeta {
+  /** Absolute path of the `.jsonl` transcript. */
+  file: string;
+  /** Start time in epoch ms, from the file name's timestamp. */
+  startedAt: number;
+  /** The first user message's text (raw, may carry `[风格：…]` and an action marker), "" when none. */
+  firstUser: string;
+  /** The first 「今日要点 · X」 title in an assistant message (「离散 D2」), or null. */
+  pin: string | null;
+  /** User + assistant text messages. */
+  count: number;
+}
+
 /** One source file that can still be added to the reading queue. */
 export interface ReadingSource {
   /** Vault-relative path under `raw/` or `Clippings/`, e.g. `raw/papers/x.pdf`. */
@@ -304,6 +320,7 @@ export interface ReadingSource {
 /** Requests the renderer sends on the data channel. */
 export type DataRequest =
   | { kind: "courses.list" }
+  | { kind: "course.afterRead"; slug: string; label: string; date: string }
   | { kind: "reading.today"; limit: number }
   | { kind: "reading.stats" }
   | { kind: "reading.sources" }
@@ -319,6 +336,7 @@ export type DataRequest =
   | { kind: "cycle.month"; month: string }
   | { kind: "cycle.overview"; date: string }
   | { kind: "subjects.list"; date: string }
+  | { kind: "sessions.list"; current: string }
   | { kind: "skills.list" }
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
   | { kind: "skills.fetch"; url: string }
@@ -331,6 +349,7 @@ export type DataRequest =
 /** The typed payload each request kind resolves to. */
 export interface DataResponseMap {
   "courses.list": CourseSummary[];
+  "course.afterRead": { label: string; reading: string | null };
   "reading.today": ReadingItem[];
   "reading.stats": ReadingStats;
   "reading.sources": ReadingSource[];
@@ -346,6 +365,7 @@ export interface DataResponseMap {
   "cycle.month": CycleMonth;
   "cycle.overview": CycleOverview;
   "subjects.list": SubjectsOverview;
+  "sessions.list": SessionMeta[];
   "skills.list": SkillInfo[];
   "skills.setEnabled": DesktopSettings;
   "skills.fetch": { skills: { name: string; path: string }[] };
@@ -428,6 +448,17 @@ export function isDataRequest(value: unknown): value is DataRequest {
     case "anki.status":
     case "skills.list":
       return true;
+    case "course.afterRead":
+      return (
+        typeof value.slug === "string" &&
+        /^[a-z0-9-]+$/.test(value.slug) &&
+        typeof value.label === "string" &&
+        value.label.length > 0 &&
+        value.label.length <= 200 &&
+        !value.label.includes("\n") &&
+        typeof value.date === "string" &&
+        isIsoDate(value.date)
+      );
     case "reading.today":
       return typeof value.limit === "number" && Number.isInteger(value.limit) && value.limit >= 0;
     case "reading.add":
@@ -459,6 +490,8 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return typeof value.month === "string" && isIsoMonth(value.month);
     case "subjects.list":
       return typeof value.date === "string" && isIsoDate(value.date);
+    case "sessions.list":
+      return typeof value.current === "string" && value.current.endsWith(".jsonl");
     case "skills.setEnabled":
       return typeof value.name === "string" && typeof value.enabled === "boolean";
     case "skills.fetch":

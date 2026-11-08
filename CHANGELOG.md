@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v0.6.0 — 2026-11-08
+
+- Desktop: 学根 opens on this cycle's 总控 session (once per run, sends nothing; startup's restored session does not block it). A 今日卡 at the top of the 总控 thread lists today from local data — lessons (开课 →), aux, missed lessons, 周核实, 讲后读 (读完了), books due, Anki — in all three skins (`ControlCard`, `ThreadProps.header`). The daily brief is no longer sent automatically: 「让总控说说」 sends it, folded as 「今日简报」. Chicago's 今天 window has 「总控 →」.
+- Desktop / scripts: 「读完了」 checks the 讲后读 line in the course page's `Today` without a model call (`course-state.mjs after-read`, `course.afterRead`), notes it in the book's reading page and rebuilds the course board.
+- Desktop: the `/` menu is grouped by task (风格 / 上课 / 会话 / 打开 / 技能) with `/默认` and `/收课`; skills show a Chinese name and one line; buttons read 「开课 →」 / 「回到这节课 →」.
+- Desktop: commands the UI sends carry an action marker and show as one folded line; course sessions offer 「总结 · 制卡 · 收课」 above the composer.
+- Desktop: a session list grouped by day (title ▾, `⋯`, `/会话列表`, all skins) and the calendar's 「这天的会话」.
+- Desktop: 「总结 · 制卡 · 收课」 appear only after 学根 has answered something in the course session.
+- Skills: `course` writes concept pages at 收课 instead of before the lesson (the lesson starts right after the 今日要点 box), with a filled example in `references/concept-page.md`; 收课 first checks the session actually taught something, does every write inside one unlock, follows `references/record.md` for the record (no reading script source) and checks `week.done` with `list`. `teach` follows.
+- Desktop: the answer-in-progress line shows elapsed time and step count (「正在动手：… · 11 秒 · 第 1 步」), amber past 3 minutes.
+- Desktop: the 总控 session shows only today's conversation under the 今日卡; earlier days fold into 「▸ 更早的对话 · MM-DD 起 · N 条」 (restored messages now carry their time).
+- Desktop: 「读完了」 waits 10 seconds with 「撤销 · N」 before writing; after 收课 the composer offers 「撤销这次收课 · 制卡」; 「收课 ▾」 adds 「收课，不写概念页」 and 「不记录，直接结束」; lesson and 今日卡 buttons say what they will change on hover.
+- Desktop: calendar legend adds 「读书 = 读原书」; Bear skill checkboxes match the skin. `instructions.md`: 学根 speaks plainly — no script names, commands or field names unless asked.
+- Desktop (Bear): one scale for type (12/14/16/18/24 with paired line heights), weights (400/500/600), spacing (4px base), radii (4/8) and a 12-step gray; secondary text and links darkened to ≥ 4.5:1 on every background step (the faintest gray is no longer used for text). Default UI text 13 → 14px.
+- Desktop (Bear): states filled in — a 2px focus ring that is visible on every background, a blue border on the focused composer and panel fields, a zero-specificity hover fallback for buttons, disabled buttons in a muted gray with a not-allowed cursor (no more half transparency), 「正在读取…」 in the 今天 and 日历 panels while loading, and a readable placeholder.
+- Desktop (Bear): the 总控 今日卡 uses UI type instead of growing with the body text, and its current row is the one loud thing; selected tabs and styles get a 2px accent underline; panels group by space instead of row lines and nested boxes; calendar cells are taller and the cycle start/end shows as a top line instead of a label over the date.
+- Desktop (Bear): course sessions — the folded pin chip no longer covers the first line, the old-session notice is one light row, pre-marker `/skill:` commands fold to 「旧指令 · name」, the composer row keeps styles left and 「总结 · 制卡 · 收课」 right without breaking labels; the `/` menu hides 「上课」 outside a course; menus and the session list use the gray scale (current session on a gray row, wider course column with the full name on hover); the reading panel's 「加入」 is the panel's one solid button.
+- Desktop (Bear): dark appearance that follows the macOS setting — the gray scale, accents and danger color have dark values that keep every text step ≥ 4.5:1; buttons with a solid accent flip their text color; the avatar and the window background follow too. When the pin rail folds into its chip, the chip sits on a bar the transcript scrolls under.
+
 ## v0.5.0 — 2026-11-08
 
 - Principles: `docs/platform/PRINCIPLES.md` — the vault holds four kinds (原料 / 知识 / 意图 / 进度), one fact lives in one place, teaching preferences are scoped (global `wiki/profile.md` → subject page `## 讲解偏好` → course → session, subjects isolated), sessions are disposable and context has a budget. `AGENTS.md` points every change at it.

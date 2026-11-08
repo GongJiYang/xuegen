@@ -2,8 +2,8 @@
  * The composer's `/` menu: the built-in command table and the pure functions
  * that filter and drive it.
  *
- * Commands are grouped the way the design lists them (风格 / 学习 / 阅读 / 卡片 /
- * 日历 / 技能). Built-in commands are fixed; the 技能 group also carries one entry
+ * Commands are grouped the way the design lists them (风格 / 上课 / 会话 / 打开 /
+ * 技能). Built-in commands are fixed; the 技能 group also carries one entry
  * per enabled agent skill (`/skill:<name>`). Filtering, selection movement, and
  * grouping are pure functions with tests; executing a command is left to the
  * caller, which owns the style store, the tool windows, and the composer.
@@ -12,9 +12,10 @@
 import type { CommandInfo } from "@shared/protocol.js";
 import type { TeachingStyle } from "@shared/protocol.js";
 import { strings } from "../strings.js";
+import { skillLabel } from "../board/skills-description.js";
 
 /** The groups the menu shows, in order. */
-export const COMMAND_GROUPS = ["风格", "学习", "阅读", "卡片", "日历", "技能"] as const;
+export const COMMAND_GROUPS = ["风格", "上课", "会话", "打开", "技能"] as const;
 
 export type CommandGroup = (typeof COMMAND_GROUPS)[number];
 
@@ -29,26 +30,28 @@ export interface SlashCommand {
 
 /** The built-in commands, in display order. */
 export const BUILTIN_COMMANDS: SlashCommand[] = [
+  { command: "/默认", group: "风格", description: strings.commands.styleDefault },
   { command: "/大白话", group: "风格", description: strings.commands.stylePlain },
   { command: "/细讲", group: "风格", description: strings.commands.styleDetailed },
   { command: "/深度", group: "风格", description: strings.commands.styleDeep },
-  { command: "/新会话", group: "学习", description: strings.commands.newSession },
-  { command: "/继续会话", group: "学习", description: strings.commands.continueSession },
-  { command: "/继续", group: "学习", description: strings.commands.resume },
-  { command: "/总控", group: "学习", description: strings.commands.control },
-  { command: "/总结", group: "学习", description: strings.commands.summarize },
-  { command: "/今天学到这里", group: "学习", description: strings.commands.endToday },
-  { command: "/进度", group: "学习", description: strings.commands.progress },
-  { command: "/技能", group: "学习", description: strings.commands.skills },
-  { command: "/加入阅读", group: "阅读", description: strings.commands.addReading },
-  { command: "/今天读什么", group: "阅读", description: strings.commands.readingToday },
-  { command: "/制卡", group: "卡片", description: strings.commands.makeCards },
-  { command: "/日历", group: "日历", description: strings.commands.calendar },
+  { command: "/总结", group: "上课", description: strings.commands.summarize },
+  { command: "/制卡", group: "上课", description: strings.commands.makeCards },
+  { command: "/收课", group: "上课", description: strings.commands.endToday },
+  { command: "/新会话", group: "会话", description: strings.commands.newSession },
+  { command: "/会话列表", group: "会话", description: strings.commands.sessionList },
+  { command: "/总控", group: "会话", description: strings.commands.control },
+  { command: "/进度", group: "打开", description: strings.commands.progress },
+  { command: "/日历", group: "打开", description: strings.commands.calendar },
+  { command: "/阅读", group: "打开", description: strings.commands.readingOpen },
+  { command: "/加入阅读", group: "打开", description: strings.commands.addReading },
+  { command: "/技能", group: "打开", description: strings.commands.skills },
 ];
 
 /** The style a `/风格` command selects, or null for a non-style command. */
 export function styleOfCommand(command: string): TeachingStyle | null {
   switch (command) {
+    case "/默认":
+      return "default";
     case "/大白话":
       return "plain";
     case "/细讲":
@@ -67,29 +70,43 @@ export function styleOfCommand(command: string): TeachingStyle | null {
  * `disabledSkills` filters the agent's list locally so turning a skill off
  * removes its `/skill:<name>` from the menu *immediately*, without waiting for
  * the agent to re-send its command list after the settings write.
+ *
+ * `inCourse` is false outside a course session (control, free chat): the 上课
+ * group (总结 / 制卡 / 收课) only makes sense while a lesson is running, so it
+ * is dropped from the menu there.
  */
-export function allCommands(agentCommands: CommandInfo[], disabledSkills: readonly string[] = []): SlashCommand[] {
+export function allCommands(
+  agentCommands: CommandInfo[],
+  disabledSkills: readonly string[] = [],
+  inCourse = true,
+): SlashCommand[] {
   const disabled = new Set(disabledSkills);
+  const builtins = inCourse ? BUILTIN_COMMANDS : BUILTIN_COMMANDS.filter((entry) => entry.group !== "上课");
   const skillCommands: SlashCommand[] = agentCommands
     .filter((entry) => !disabled.has(entry.name))
     .map((entry) => ({
       command: `/skill:${entry.name}`,
       group: "技能" as const,
-      description: entry.description || strings.commands.skillFallback,
+      description: (() => {
+        const label = skillLabel(entry.name, entry.description || strings.commands.skillFallback);
+        return `${label.title} · ${label.line}`;
+      })(),
     }));
-  return [...BUILTIN_COMMANDS, ...skillCommands];
+  return [...builtins, ...skillCommands];
 }
 
 /**
  * Filter commands by a query (the text typed after `/`).
  *
- * An empty query returns everything. A non-empty query matches when it appears
- * in the command, the description, or the group (case-insensitive), so typing
- * "阅读" surfaces the 阅读 group and typing "skill" surfaces every skill.
+ * An empty query returns everything except the 技能 group: the full skill list
+ * lives in the 「/技能」 window, so the menu stays short until the user types.
+ * A non-empty query matches when it appears in the command, the description, or
+ * the group (case-insensitive), so typing "阅读" surfaces the 阅读 commands and
+ * typing "skill" surfaces every skill.
  */
 export function filterCommands(commands: SlashCommand[], query: string): SlashCommand[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return commands;
+  if (!needle) return commands.filter((entry) => entry.group !== "技能");
   return commands.filter(
     (entry) =>
       entry.command.toLowerCase().includes(needle) ||
@@ -109,7 +126,7 @@ function commandName(entry: SlashCommand): string {
  * Lower is better. The order matters because the highlighted item is what Enter
  * runs: an exact name beats a name prefix, which beats a name substring, which
  * beats a description/group hit. Without this, typing `/进度` would run
- * 「/今天学到这里」 (whose description contains 进度 and comes first in the table).
+ * 「/总控」 (whose description contains 进度 and comes first in the table).
  */
 function rankCommand(entry: SlashCommand, needle: string): number | null {
   const name = commandName(entry);
@@ -130,12 +147,13 @@ function rankCommand(entry: SlashCommand, needle: string): number | null {
  *
  * Matches are ranked by how the query addresses the command: an exact name
  * match first, then a name prefix, then a name substring, then a description or
- * group hit. Ties keep the table order, so the result is stable. An empty query
- * returns the list unchanged.
+ * group hit. Ties keep the table order, so the result is stable. An empty
+ * query drops the 技能 group (the full skill list lives in 「/技能」; typed
+ * queries still search skills) and returns the rest in table order.
  */
 export function rankCommands(commands: SlashCommand[], query: string): SlashCommand[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return commands;
+  if (!needle) return commands.filter((entry) => entry.group !== "技能");
   const ranked: { entry: SlashCommand; rank: number; index: number }[] = [];
   commands.forEach((entry, index) => {
     const rank = rankCommand(entry, needle);

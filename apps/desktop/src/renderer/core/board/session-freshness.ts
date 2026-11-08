@@ -7,6 +7,16 @@
 const SESSION_STAMP = /(?:^|[\\/])(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z_[^\\/]*$/;
 
 /**
+ * The local day (YYYY-MM-DD) an epoch-ms instant falls on.
+ * @param tzOffsetMinutes `new Date().getTimezoneOffset()` (UTC − local, in minutes).
+ */
+export function localDayOf(epochMs: number, tzOffsetMinutes: number): string {
+  const local = new Date(epochMs - tzOffsetMinutes * 60_000);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`;
+}
+
+/**
  * The local day (YYYY-MM-DD) a session file was created, from its file name;
  * null when the name has no timestamp.
  * @param tzOffsetMinutes `new Date().getTimezoneOffset()` (UTC − local, in minutes).
@@ -17,10 +27,7 @@ export function sessionDay(file: string | null, tzOffsetMinutes: number): string
   if (!match) return null;
   // The regex matched, so all seven digit groups are present.
   const [, y, mo, d, h, mi, s, ms] = match.map(Number);
-  const utc = Date.UTC(y!, mo! - 1, d!, h!, mi!, s!, ms!);
-  const local = new Date(utc - tzOffsetMinutes * 60_000);
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}`;
+  return localDayOf(Date.UTC(y!, mo! - 1, d!, h!, mi!, s!, ms!), tzOffsetMinutes);
 }
 
 /**

@@ -33,6 +33,8 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     onInput: vi.fn(),
     answering: null,
     focusRequest: 0,
+    lessonActions: [],
+    defaultStyleLabel: "默认",
     ...overrides,
   };
 }

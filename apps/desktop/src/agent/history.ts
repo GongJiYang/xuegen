@@ -20,7 +20,7 @@ export interface HistoryReplay {
   notes: SystemNote[];
 }
 
-function messageFrom(value: unknown, id: string): ChatMessage | null {
+function messageFrom(value: unknown, id: string, at: string | undefined): ChatMessage | null {
   const message = value as { role?: string; content?: unknown } | undefined;
   if (!message || (message.role !== "user" && message.role !== "assistant")) return null;
   const markdown = textFromContent(message.content);
@@ -31,6 +31,7 @@ function messageFrom(value: unknown, id: string): ChatMessage | null {
     markdown,
     streaming: false,
     toolCalls: [],
+    ...(at !== undefined ? { at } : {}),
   };
 }
 
@@ -49,7 +50,8 @@ export function historyFromEntries(entries: readonly unknown[], idPrefix: string
       return;
     }
     if (record.type !== "message") return;
-    const message = messageFrom(record.message, `${idPrefix}-history-${index}`);
+    const timestamp = (entry as { timestamp?: unknown }).timestamp;
+    const message = messageFrom(record.message, `${idPrefix}-history-${index}`, typeof timestamp === "string" ? timestamp : undefined);
     if (message) messages.push(message);
   });
   return { messages, notes };
@@ -64,7 +66,7 @@ export function historyFromEntries(entries: readonly unknown[], idPrefix: string
 export function historyFromMessages(messages: readonly unknown[], idPrefix: string): ChatMessage[] {
   const result: ChatMessage[] = [];
   messages.forEach((entry, index) => {
-    const message = messageFrom(entry, `${idPrefix}-history-${index}`);
+    const message = messageFrom(entry, `${idPrefix}-history-${index}`, undefined);
     if (message) result.push(message);
   });
   return result;

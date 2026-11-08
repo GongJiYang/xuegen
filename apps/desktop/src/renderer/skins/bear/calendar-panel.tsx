@@ -12,6 +12,8 @@
 
 import type { CalendarDay, CycleDayType } from "@shared/data-protocol.js";
 import type { CalendarPanelProps } from "../contract.js";
+import type { SessionRow } from "../../core/board/session-list.js";
+import { SessionRowButton } from "./sessions-popover.js";
 import { cellAuxTag, cellFlag, cellReadingTag, cellTag, dayLessons, daySlotLine, hasAux, legendNames } from "../../core/board/plan-view.js";
 import { dateKey } from "../../core/board/use-calendar.js";
 import { dayTitle } from "../../core/format.js";
@@ -45,6 +47,8 @@ function DayDetail({
   lessons,
   slotType,
   isToday,
+  sessions,
+  onOpenSession,
 }: {
   date: string;
   day: CalendarDay | undefined;
@@ -54,6 +58,8 @@ function DayDetail({
   lessons: { name: string; id: string; content: string; aux: boolean }[];
   slotType: CycleDayType | null;
   isToday: boolean;
+  sessions: SessionRow[];
+  onOpenSession(file: string): void;
 }) {
   const titleOf = (slug: string): string => courseTitles[slug] ?? slug;
   return (
@@ -153,6 +159,18 @@ function DayDetail({
           )}
         </>
       )}
+      {sessions.length > 0 && (
+        <section>
+          <h4>{strings.sessions.dayHeading}</h4>
+          <ul className="bear-mcal-list">
+            {sessions.map((row) => (
+              <li key={row.file}>
+                <SessionRowButton row={row} onOpen={onOpenSession} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
@@ -169,6 +187,8 @@ export function CalendarPanel({
   onToday,
   courseTitles,
   cycleMonth,
+  daySessions,
+  onOpenSession,
 }: CalendarPanelProps) {
   const today = dateKey(new Date());
   const days = month.status === "ready" ? month.value.days : {};
@@ -194,6 +214,7 @@ export function CalendarPanel({
           </button>
         </span>
       </div>
+      {month.status === "loading" && <p className="bear-muted">{strings.today.loading}</p>}
       {month.status === "error" && <p role="alert">{month.message}</p>}
       <div className="bear-mcal-grid">
         {strings.calendar.weekday.map((label) => (
@@ -227,7 +248,7 @@ export function CalendarPanel({
               <span className="bear-mcal-num">{cell.day}</span>
               {slot || tag ? <span className="bear-mcal-tag">{tag}</span> : <Dots day={days[cell.date]} />}
               {auxTag && <span className="bear-mcal-aux">{auxTag}</span>}
-              {flag && <span className="bear-mcal-flag">{flag}</span>}
+              {flag && <span className="bear-mcal-flag" title={flag}>{flag}</span>}
               {(slot || tag) && days[cell.date]?.note && <i className="bear-mcal-notedot" aria-hidden="true" />}
               {(slot || tag) && readCount > 0 && <i className="bear-mcal-readdot" aria-hidden="true" />}
             </button>
@@ -265,6 +286,8 @@ export function CalendarPanel({
         lessons={dayLessons(cycle, selected)}
         slotType={selectedType}
         isToday={selected === today}
+        sessions={daySessions(selected)}
+        onOpenSession={onOpenSession}
       />
     </section>
   );

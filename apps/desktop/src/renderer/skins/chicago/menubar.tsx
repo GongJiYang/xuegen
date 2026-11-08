@@ -31,7 +31,7 @@ interface MenuBarProps {
   currentModel: ModelInfo | null;
   onSelectModel(provider: string, id: string): void;
   onNewSession(): void;
-  onContinueSession(): void;
+  onOpenSessions(): void;
   focus: boolean;
   onToggleFocus(): void;
   tools: ToolDescriptor[];
@@ -46,6 +46,8 @@ interface MenuBarProps {
   onSelectStyle(style: TeachingStyle): void;
   onEndToday(): void;
   onPrompt(text: string): void;
+  /** 开课 → in the 学习 menu: the same resume as the 今天 window's button. */
+  onResume(): void;
   /** The current thinking level, for the 思考强度 submenu's checkmark. */
   thinkingLevel: string | null;
   /** Levels the active model supports; unsupported ones stay visible but disabled. */
@@ -195,7 +197,7 @@ function buildMenus(
       title: strings.topBar.menuFile,
       items: [
         { key: "new", label: strings.topBar.newSession, shortcut: "⌘N", onSelect: run(props.onNewSession) },
-        { key: "continue", label: strings.topBar.continueSession, onSelect: run(props.onContinueSession) },
+        { key: "sessions", label: strings.topBar.sessionList, onSelect: run(props.onOpenSessions) },
       ],
     },
     {
@@ -211,7 +213,7 @@ function buildMenus(
       title: strings.topBar.menuLearn,
       items: [
         { key: "today", label: strings.topBar.todayDone, shortcut: "⌘E", onSelect: run(props.onEndToday) },
-        { key: "resume", label: strings.today.resume, onSelect: run(() => props.onPrompt(strings.today.resume)) },
+        { key: "resume", label: strings.today.resume, onSelect: run(props.onResume) },
         null,
         // 今天 is a window, not one of the five tools, so it gets its own entry
         // here and an icon in the dock: either reopens a collapsed 今天 (B3).

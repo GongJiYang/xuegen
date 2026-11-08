@@ -5,6 +5,7 @@ describe("isDataRequest", () => {
   it("accepts every valid request shape", () => {
     const valid = [
       { kind: "courses.list" },
+      { kind: "course.afterRead", slug: "discrete-math-epp", label: "§1.1–1.4 核心页", date: "2026-11-08" },
       { kind: "reading.stats" },
       { kind: "reading.sources" },
       { kind: "reading.queue" },
@@ -22,6 +23,7 @@ describe("isDataRequest", () => {
       { kind: "cycle.month", month: "2026-11" },
       { kind: "cycle.overview", date: "2026-11-06" },
       { kind: "subjects.list", date: "2026-11-06" },
+      { kind: "sessions.list", current: "/home/sessions/2026-11-08T09-00-00-000Z_a.jsonl" },
       { kind: "skills.setEnabled", name: "reading", enabled: false },
       { kind: "skills.fetch", url: "https://example.com/skill.git" },
       { kind: "update.check" },
@@ -41,6 +43,10 @@ describe("isDataRequest", () => {
       "courses.list",
       {},
       { kind: "unknown" },
+      { kind: "course.afterRead", slug: "Bad_Slug", label: "x", date: "2026-11-08" },
+      { kind: "course.afterRead", slug: "epp", label: "", date: "2026-11-08" },
+      { kind: "course.afterRead", slug: "epp", label: "换\n行", date: "2026-11-08" },
+      { kind: "course.afterRead", slug: "epp", label: "x", date: "2026-13-40" },
       { kind: "reading.today" },
       { kind: "reading.today", limit: -1 },
       { kind: "reading.today", limit: 1.5 },
@@ -57,6 +63,8 @@ describe("isDataRequest", () => {
       { kind: "cycle.month", month: "2026-13" },
       { kind: "subjects.list" },
       { kind: "subjects.list", date: "2026/11/06" },
+      { kind: "sessions.list" },
+      { kind: "sessions.list", current: "/home/sessions/notes.md" },
       { kind: "skills.setEnabled", name: "reading", enabled: "yes" },
       { kind: "skills.fetch", url: 9 },
     ];

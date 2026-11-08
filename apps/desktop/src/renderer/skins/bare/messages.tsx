@@ -37,6 +37,7 @@ export function Thread({
   renderMessage,
   intro,
   systemNotes,
+  header,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   const answerRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +56,7 @@ export function Thread({
         {note.text}
       </p>
     ));
-  if (messages.length === 0 && !card) {
+  if (messages.length === 0 && !card && !header) {
     return (
       <div data-slot="thread" role="log">
         <p>{noModels && modelsReason ? strings.chat.loginHint : strings.chat.empty}</p>
@@ -64,6 +65,7 @@ export function Thread({
   }
   return (
     <div data-slot="thread" role="log" ref={paneRef}>
+      {header}
       {messages.map((message, index) => (
         <Fragment key={message.id}>
           {notes(index)}
@@ -99,7 +101,15 @@ export function CourseIntroCard({ card }: CourseIntroCardProps) {
   );
 }
 
-export function UserMessage({ message, body, styleTag }: UserMessageProps) {
+export function UserMessage({ message, body, styleTag, actionLabel }: UserMessageProps) {
+  if (actionLabel) {
+    return (
+      <details data-role="user">
+        <summary>{actionLabel}</summary>
+        <p>{body || message.markdown}</p>
+      </details>
+    );
+  }
   return (
     <article data-role="user">
       {styleTag && <span data-slot="style-tag">[{styleTag}]</span>}
@@ -128,7 +138,9 @@ export function AssistantMessage({
       {nodes.map((node, index) => (
         <div key={index}>{renderContent(node, streaming)}</div>
       ))}
-      {thinking && <Thinking label={activity?.label ?? strings.chat.thinking} />}
+      {thinking && (
+        <Thinking label={activity?.meta ? `${activity.label} · ${activity.meta}` : (activity?.label ?? strings.chat.thinking)} />
+      )}
       {message.errorMessage && <p role="alert">{message.errorMessage}</p>}
       <button type="button" onClick={onCopy}>
         {copied ? strings.chat.copied : strings.chat.copy}
@@ -223,6 +235,8 @@ export function Composer({
   onInput,
   answering,
   focusRequest,
+  lessonActions,
+  defaultStyleLabel,
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const lastSendAt = useRef(0);
@@ -302,9 +316,22 @@ export function Composer({
               name="session-style"
               checked={style === entry.id}
               onChange={() => onStyle(entry.id)}
+              aria-label={entry.id === "default" ? defaultStyleLabel : entry.label}
             />
-            {entry.label}
+            {entry.id === "default" ? defaultStyleLabel : entry.label}
           </label>
+        ))}
+        {lessonActions.map((action) => (
+          <span key={action.label}>
+            <button type="button" disabled={streaming} title={action.hint} onClick={action.run}>
+              {action.label}
+            </button>
+            {action.options.map((option) => (
+              <button key={option.label} type="button" disabled={streaming} title={action.hint} onClick={option.run}>
+                {option.label}
+              </button>
+            ))}
+          </span>
         ))}
       </div>
       {commandsOpen && (

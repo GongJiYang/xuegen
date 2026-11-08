@@ -25,6 +25,11 @@ function firstInMonthCell() {
 }
 
 describe("Bear 日历 panel", () => {
+  it("shows the loading line while the month is loading", () => {
+    render(<CalendarPanel {...baseProps({ month: { status: "loading" } })} />);
+    expect(screen.getByText(strings.today.loading)).toBeTruthy();
+  });
+
   it("shows the month title and seven weekday labels", () => {
     render(<CalendarPanel {...baseProps()} />);
     const [year, month] = SAMPLE_PANELS.calendar.monthKey.split("-").map(Number);
@@ -122,6 +127,6 @@ describe("Bear 日历 panel", () => {
     render(<CalendarPanel {...baseProps({ selected: "2026-11-09" })} />);
     expect(screen.getByText(strings.plan.slotLine("C1", 1, "深度", false))).toBeTruthy();
     expect(screen.getByText("离散 D2")).toBeTruthy();
-    expect(screen.getByText(strings.plan.ankiItem)).toBeTruthy();
+    expect(screen.getAllByText(strings.plan.ankiItem).length).toBeGreaterThan(0);
   });
 });

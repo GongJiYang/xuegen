@@ -8,10 +8,12 @@
  * core pipeline and handed to the skin's content renderers.
  */
 
+import { strings } from "../strings.js";
 import { useMemo, useState, type ReactNode } from "react";
 import type { ChatMessage, ToolCallView } from "@shared/protocol.js";
 import { parseContent } from "../content/parse-content.js";
 import { activityOf } from "./activity.js";
+import { actionLabel, legacyCommandLabel, splitActionMarker } from "./action-marker.js";
 import { splitStyleTag } from "./style-prefix.js";
 import type { ContentNode } from "../content/nodes.js";
 import type { ContentRenderers, SkinSlots } from "../../skins/contract.js";
@@ -95,8 +97,11 @@ export function MessageRenderer({
   };
 
   if (message.role === "user") {
-    const { body, styleTag } = splitStyleTag(message.markdown);
-    return <slots.UserMessage message={message} body={body} styleTag={styleTag} />;
+    const { body: styled, styleTag } = splitStyleTag(message.markdown);
+    // The 「先重读课程页」 note is an instruction to 学根, not something the user wrote.
+    const marked = splitActionMarker(styled.startsWith(strings.chat.refreshNote) ? styled.slice(strings.chat.refreshNote.length).trimStart() : styled);
+    const label = marked.action ? actionLabel(marked.action, marked.courseTitle) : legacyCommandLabel(marked.body);
+    return <slots.UserMessage message={message} body={marked.body} styleTag={styleTag} actionLabel={label} />;
   }
 
   return (

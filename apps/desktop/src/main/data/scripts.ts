@@ -23,13 +23,11 @@ function scriptPath(relative: string): string {
   return join(repoRoot, "skills", relative);
 }
 
-/**
- * Run one skill script to completion and parse its `--json` stdout.
- *
- * Every failure mode (spawn error, timeout, non-zero exit, invalid JSON) is
- * reported as `{ok:false}` so callers never have to wrap this in try/catch.
- */
-export function runScript(relative: string, args: string[]): Promise<ScriptResult> {
+/** Spawn one skill script; resolves with its stdout/stderr, never rejects. */
+function spawn(
+  relative: string,
+  args: string[],
+): Promise<{ error: ExecFileException | null; stdout: string; stderr: string }> {
   const file = scriptPath(relative);
   return new Promise((resolvePromise) => {
     execFile(
@@ -40,19 +38,39 @@ export function runScript(relative: string, args: string[]): Promise<ScriptResul
         maxBuffer: 8 * 1024 * 1024,
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
       },
-      (error, stdout, stderr) => {
-        if (error) {
-          resolvePromise({ ok: false, code: "script-failed", error: scriptError(relative, stderr, error) });
-          return;
-        }
-        try {
-          resolvePromise({ ok: true, data: JSON.parse(stdout) });
-        } catch {
-          resolvePromise({ ok: false, code: "script-failed", error: `脚本 ${relative} 输出不是合法 JSON。` });
-        }
-      },
+      (error, stdout, stderr) => resolvePromise({ error, stdout, stderr }),
     );
   });
+}
+
+/**
+ * Run one skill script to completion and parse its `--json` stdout.
+ *
+ * Every failure mode (spawn error, timeout, non-zero exit, invalid JSON) is
+ * reported as `{ok:false}` so callers never have to wrap this in try/catch.
+ */
+export async function runScript(relative: string, args: string[]): Promise<ScriptResult> {
+  const { error, stdout, stderr } = await spawn(relative, args);
+  if (error) {
+    return { ok: false, code: "script-failed", error: scriptError(relative, stderr, error) };
+  }
+  try {
+    return { ok: true, data: JSON.parse(stdout) };
+  } catch {
+    return { ok: false, code: "script-failed", error: `脚本 ${relative} 输出不是合法 JSON。` };
+  }
+}
+
+/**
+ * Run one skill script that prints no JSON (e.g. `course-state.mjs dashboard`,
+ * `render-board.mjs`): a clean exit is success and stdout is ignored.
+ */
+export async function runScriptPlain(relative: string, args: string[]): Promise<ScriptResult> {
+  const { error, stderr } = await spawn(relative, args);
+  if (error) {
+    return { ok: false, code: "script-failed", error: scriptError(relative, stderr, error) };
+  }
+  return { ok: true, data: null };
 }
 
 /** Build a user-facing error message from a failed script run. */

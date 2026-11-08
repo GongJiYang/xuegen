@@ -200,7 +200,7 @@ export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, o
           </button>
           <button
             type="button"
-            className="bear-link bear-link-accent bear-read-submit"
+            className="bear-btn-primary bear-read-submit"
             disabled={!text}
             onClick={() => submit()}
           >

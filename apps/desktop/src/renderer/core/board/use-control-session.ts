@@ -1,23 +1,27 @@
 /**
  * The 总控 session: one session per study cycle, not tied to any course.
  *
- * Opening it switches to the cycle's remembered session (or a fresh one) and,
- * the first time each day, asks `cycle-plan` for the daily brief. Whether the
- * open session *is* the 总控 session is derived from the session file, so it is
- * never out of sync with what the agent actually has open.
+ * Opening it switches to the cycle's remembered session (or a fresh one). On
+ * the first `ready` of a run the app lands there on its own — without sending
+ * anything; the daily brief only goes out when the learner clicks 「让总控说说」
+ * (askBrief), folded as 「今日简报」 in the transcript. Whether the open session
+ * *is* the 总控 session is derived from the session file, so it is never out of
+ * sync with what the agent actually has open.
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { DesktopSettings } from "@shared/protocol.js";
 import type { ChatController } from "../chat/useChat.js";
 import { strings } from "../strings.js";
-import { dateKey } from "./use-calendar.js";
+import { withActionMarker } from "../chat/action-marker.js";
 
 export interface ControlSession {
   /** True while the open session is this cycle's 总控 session. */
   isControl: boolean;
   /** Open the 总控 session, or focus the composer when it is already open. Does nothing outside a cycle. */
   openControl(): void;
+  /** 「让总控说说」: send the daily-brief prompt, folded as 「今日简报」. */
+  askBrief(): void;
 }
 
 /** Whether `sessionFile` is the 总控 session of `cycleId`. */
@@ -36,6 +40,8 @@ export function useControlSession(
   cycleId: string | null,
   setActiveCourse: (slug: string | null) => void,
   requestFocus: () => void,
+  /** The agent can open a session (ready, not disabled). */
+  ready: boolean,
 ): ControlSession {
   const isControl = isControlSession(settings, cycleId, controller.sessionFile);
 
@@ -46,27 +52,42 @@ export function useControlSession(
       return;
     }
     const known = settings.controlSessions[cycleId] ?? null;
-    const today = dateKey(new Date());
     setActiveCourse(null);
     void controller.openSession(known).then((opened) => {
-      const patch: Partial<DesktopSettings> = {};
-      if (opened && opened !== known) patch.controlSessions = { ...settings.controlSessions, [cycleId]: opened };
-      const briefDue = settings.controlBriefOn[cycleId] !== today;
-      if (briefDue) patch.controlBriefOn = { ...settings.controlBriefOn, [cycleId]: today };
-      if (Object.keys(patch).length > 0) update(patch);
-      // A brief is an instruction, not a lesson: no style prefix.
-      if (briefDue) controller.sendCommand(strings.control.briefPrompt);
+      if (opened && opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
     });
-  }, [
-    controller,
-    cycleId,
-    isControl,
-    requestFocus,
-    setActiveCourse,
-    settings.controlBriefOn,
-    settings.controlSessions,
-    update,
-  ]);
+  }, [controller, cycleId, isControl, requestFocus, setActiveCourse, settings.controlSessions, update]);
 
-  return { isControl, openControl };
+  const askBrief = useCallback(() => {
+    if (cycleId === null) return;
+    // A brief is an instruction, not a lesson: sendCommand, folded as 「今日简报」.
+    const send = (): void => controller.sendCommand(withActionMarker(strings.control.briefPrompt, "brief"));
+    if (isControl) {
+      send();
+      return;
+    }
+    // Not in the 总控 session: switch over first, then send — the same
+    // openSession().then(...) shape as openControl.
+    const known = settings.controlSessions[cycleId] ?? null;
+    setActiveCourse(null);
+    void controller.openSession(known).then((opened) => {
+      if (!opened) return;
+      if (opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
+      send();
+    });
+  }, [controller, cycleId, isControl, setActiveCourse, settings.controlSessions, update]);
+
+  // Land on this cycle's 总控 session the first time the agent is ready — once
+  // per run. What is on screen at that moment never counts as a choice: startup
+  // restores the most recent session file, course session or not, and the agent
+  // is ready before the learner can click anything.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || !ready || cycleId === null || controller.streaming) return;
+    autoOpened.current = true;
+    // A microtask so the effect itself performs no synchronous setState.
+    void Promise.resolve().then(openControl);
+  }, [ready, cycleId, controller.streaming, openControl]);
+
+  return { isControl, openControl, askBrief };
 }

@@ -83,6 +83,7 @@ export function Thread({
   renderMessage,
   intro,
   systemNotes,
+  header,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -108,6 +109,7 @@ export function Thread({
   return (
     <div className="chicago-pane chicago-body" ref={paneRef} role="log">
       <div className="chicago-thread">
+        {header}
         {messages.length === 0 ? (
           card ?? (
             <p className="chicago-empty">
@@ -154,9 +156,21 @@ export function CourseIntroCard({ card }: CourseIntroCardProps) {
   );
 }
 
-export function UserMessage({ message, body, styleTag }: UserMessageProps) {
+export function UserMessage({ message, body, styleTag, actionLabel }: UserMessageProps) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const actionRef = useRef<HTMLDetailsElement | null>(null);
   useMotion(chicagoMotion, "appear", ref, [message.id]);
+  useMotion(chicagoMotion, "appear", actionRef, [message.id]);
+  if (actionLabel) {
+    return (
+      <details ref={actionRef} className="chicago-you-action">
+        <summary>{actionLabel}</summary>
+        <div className="chicago-you" {...{ [INTENT_ATTRIBUTE]: "print" }}>
+          {body || message.markdown}
+        </div>
+      </details>
+    );
+  }
   return (
     <div ref={ref} className="chicago-you" {...{ [INTENT_ATTRIBUTE]: "print" }}>
       {styleTag && <span className="chicago-style-tag">{styleTag}</span>}
@@ -168,6 +182,7 @@ export function UserMessage({ message, body, styleTag }: UserMessageProps) {
 export function AssistantMessage({
   message,
   thinking,
+  activity,
   onCopy,
   copied,
   onRetry,
@@ -187,7 +202,7 @@ export function AssistantMessage({
         <div key={index}>{renderContent(node, streaming)}</div>
       ))}
       {streaming && <span className="chicago-caret" aria-hidden="true" />}
-      {thinking && <Thinking label={strings.chat.thinking} />}
+      {thinking && <Thinking label={activity?.meta ? `${activity.label} · ${activity.meta}` : (activity?.label ?? strings.chat.thinking)} />}
       {message.errorMessage && <MessageError raw={message.errorMessage} />}
       <div className="chicago-answer-foot">
         <button type="button" className="chicago-btn chicago-copy" onClick={onCopy}>

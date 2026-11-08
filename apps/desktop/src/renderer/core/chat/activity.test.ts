@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ToolCallView } from "@shared/protocol.js";
-import { activityOf, turnActivity } from "./activity.js";
+import { activityOf, turnActivity, turnSteps, withTurnMeta } from "./activity.js";
 import { strings } from "../strings.js";
 
 function call(toolName: string, argsSummary: string, status: ToolCallView["status"]): ToolCallView {
@@ -14,7 +14,7 @@ function assistant(overrides: Partial<ChatMessage>): ChatMessage {
 describe("activityOf", () => {
   it("looks things up while a read-only tool runs", () => {
     const message = assistant({ toolCalls: [call("read", "wiki/courses/ctm.md", "running")] });
-    expect(activityOf(message, true)).toEqual({ mood: "searching", label: strings.chat.activitySearching("wiki/courses/ctm.md") });
+    expect(activityOf(message, true)).toEqual({ mood: "searching", label: strings.chat.activitySearching("wiki/courses/ctm.md"), meta: null, long: false });
   });
 
   it("works while any other tool runs, clipping a long detail", () => {
@@ -40,8 +40,8 @@ describe("activityOf", () => {
   });
 
   it("thinks on an empty block, writes while text streams, and is idle when done", () => {
-    expect(activityOf(assistant({}), true)).toEqual({ mood: "thinking", label: strings.chat.thinking });
-    expect(activityOf(assistant({ markdown: "第一句" }), false)).toEqual({ mood: "writing", label: strings.chat.activityWriting });
+    expect(activityOf(assistant({}), true)).toEqual({ mood: "thinking", label: strings.chat.thinking, meta: null, long: false });
+    expect(activityOf(assistant({ markdown: "第一句" }), false)).toEqual({ mood: "writing", label: strings.chat.activityWriting, meta: null, long: false });
     expect(activityOf(assistant({ markdown: "完了", streaming: false, toolCalls: [call("read", "x", "success")] }), false)).toBeNull();
   });
 
@@ -71,6 +71,41 @@ describe("turnActivity", () => {
     expect(turnActivity([USER_MESSAGE, STREAMING_TEXT_BLOCK], true, false)?.mood).toBe("writing");
   });
   it("keeps 正在思考 in the gap after a tool finished, instead of disappearing", () => {
-    expect(turnActivity([USER_MESSAGE, FINISHED_TOOL_BLOCK], true, false)).toEqual({ mood: "thinking", label: strings.chat.thinking });
+    expect(turnActivity([USER_MESSAGE, FINISHED_TOOL_BLOCK], true, false)).toEqual({ mood: "thinking", label: strings.chat.thinking, meta: null, long: false });
+  });
+});
+
+describe("turnSteps", () => {
+  it("counts the tool calls after the last user message", () => {
+    const first = assistant({ toolCalls: [call("read", "a", "success"), call("bash", "b", "success")] });
+    const second = assistant({ toolCalls: [call("edit", "c", "running")] });
+    expect(turnSteps([USER_MESSAGE, first, second])).toBe(3);
+  });
+
+  it("stops at the last user message, and counts everything without one", () => {
+    const before = assistant({ toolCalls: [call("read", "a", "success")] });
+    const after = assistant({ toolCalls: [call("read", "b", "success"), call("bash", "c", "running")] });
+    expect(turnSteps([before, USER_MESSAGE, after])).toBe(2);
+    expect(turnSteps([before, after])).toBe(3);
+    expect(turnSteps([USER_MESSAGE])).toBe(0);
+  });
+});
+
+describe("withTurnMeta", () => {
+  const thinking = turnActivity([USER_MESSAGE], true, false);
+
+  it("is null for a null activity, and hides the meta before the first second", () => {
+    expect(withTurnMeta(null, 3, 60)).toBeNull();
+    expect(withTurnMeta(thinking, 3, 0)).toEqual({ mood: "thinking", label: strings.chat.thinking, meta: null, long: false });
+  });
+
+  it("reads seconds under a minute, minutes and steps past it", () => {
+    expect(withTurnMeta(thinking, 0, 59)?.meta).toBe("59 秒");
+    expect(withTurnMeta(thinking, 6, 192)?.meta).toBe("3 分 12 秒 · 第 6 步");
+  });
+
+  it("flags the line long past three minutes", () => {
+    expect(withTurnMeta(thinking, 1, 179)?.long).toBe(false);
+    expect(withTurnMeta(thinking, 1, 180)?.long).toBe(true);
   });
 });

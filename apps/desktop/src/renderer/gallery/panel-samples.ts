@@ -6,10 +6,12 @@
  * are the real November-2026 grid, so the calendar sample matches the design.
  */
 
-import type { AnkiStatus, CardsStats, CourseSummary, CycleDay, CycleMonth, CycleOverview, ReadingItem, ReadingSource, ReadingStats, SkillInfo, SkillReview, SubjectsOverview } from "@shared/data-protocol.js";
+import type { AnkiStatus, CalendarMonth, CardsStats, CourseSummary, CycleDay, CycleMonth, CycleOverview, ReadingItem, ReadingSource, ReadingStats, SkillInfo, SkillReview, SubjectsOverview } from "@shared/data-protocol.js";
 import { groupProgress } from "../core/board/progress-groups.js";
 import { monthGrid } from "../core/board/use-calendar.js";
-import type { ShellPanels } from "../skins/contract.js";
+import { controlCard, withPendingRead, type ControlCardView } from "../core/board/control-card.js";
+import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
+import type { SessionsView, ShellPanels } from "../skins/contract.js";
 
 export const SAMPLE_READING: ReadingStats = {
   reading: { queued: 3, active: 2, paused: 0, done: 1 },
@@ -210,6 +212,7 @@ export const SAMPLE_SUBJECTS: SubjectsOverview = {
       layer: "A 数学与理论基础",
       route: "C1 主项",
       main: true,
+      defaultStyle: "detailed",
       courses: ["discrete-math-epp"],
       materials: [
         { type: "书籍", mark: "now", status: "学习中", role: "主线", title: "Discrete Mathematics and Its Applications", course: "discrete-math-epp" },
@@ -222,6 +225,7 @@ export const SAMPLE_SUBJECTS: SubjectsOverview = {
       layer: "A 数学与理论基础",
       route: "C1 主项",
       main: true,
+      defaultStyle: null,
       courses: ["ctm", "programming-paradigms"],
       materials: [
         { type: "书籍", mark: "now", status: "学习中", role: "主线", title: "CTM", course: "ctm" },
@@ -235,6 +239,7 @@ export const SAMPLE_SUBJECTS: SubjectsOverview = {
       layer: "D 工程与职业能力",
       route: "C10 主项",
       main: false,
+      defaultStyle: null,
       courses: [],
       materials: [{ type: "文章", mark: "done", status: "已摄取", role: "参考", title: "Command Pattern", course: null }],
     },
@@ -247,8 +252,101 @@ export const SAMPLE_GROUPS = groupProgress(SAMPLE_SUBJECTS, SAMPLE_COURSES, "202
 /** The real November-2026 grid, so the calendar sample matches the design. */
 export const SAMPLE_CALENDAR_CELLS = monthGrid("2026-11");
 
+/** Two day-groups of session rows, for the title list and the calendar's 这天的会话. */
+export const SAMPLE_SESSION_GROUPS: SessionGroup[] = [
+  {
+    date: "2026-11-05",
+    label: "今天 · 11-05 周四",
+    rows: [
+      { file: "/s/a.jsonl", time: "09:12", kind: "course", slug: "ctm", tag: "CTM", title: "D2 Ch2 §2.1–2.2：合一", count: 9, current: true },
+      { file: "/s/b.jsonl", time: "08:30", kind: "control", slug: null, tag: "总控", title: "今日简报", count: 3, current: false },
+    ],
+  },
+  {
+    date: "2026-11-04",
+    label: "昨天 · 11-04 周三",
+    rows: [
+      { file: "/s/c.jsonl", time: "21:02", kind: "course", slug: "discrete-math-epp", tag: "离散", title: "D1 Ch1 全章", count: 14, current: false },
+      { file: "/s/d.jsonl", time: "16:40", kind: "free", slug: null, tag: "自由", title: "帮我理解递归", count: 4, current: false },
+    ],
+  },
+];
+
+/** The 讲后读 rows the 总控 今日卡 reads out of the calendar month. */
+const CONTROL_CALENDAR: CalendarMonth = {
+  month: "2026-11",
+  days: {
+    "2026-11-10": {
+      records: [],
+      plans: [],
+      readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 Ch2 §2.2（CTM）" }],
+      log: [],
+      note: null,
+    },
+    "2026-11-11": {
+      records: [],
+      plans: [],
+      readingDue: [{ slug: "discrete-math-epp#讲后读-2", title: "讲后读 §1.1–1.4 核心页（离散数学（Epp, 5th ed））" }],
+      log: [],
+      note: null,
+    },
+  },
+};
+
+/** The samples below sit inside C1, so the card never comes back null. */
+function must(view: ControlCardView | null): ControlCardView {
+  if (view === null) throw new Error("controlCard sample is outside a cycle");
+  return view;
+}
+
+/** 今日卡 · 深度日：主项 + 辅助 + 没学 + 讲后读（逾期与今天）+ Anki。 */
+export const SAMPLE_CONTROL_CARD = must(controlCard({
+  today: "2026-11-11",
+  day: {
+    ...SAMPLE_CYCLE_DAY,
+    lessons: [
+      { course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误" },
+      { course: "effective-c", id: "D1", content: "Ch1 起步" },
+    ],
+    roles: { "discrete-math-epp": "main", ctm: "main", "effective-c": "aux" },
+    names: { "discrete-math-epp": "离散", ctm: "CTM", "effective-c": "Effective C" },
+  },
+  calendar: CONTROL_CALENDAR,
+  queue: [],
+}));
+
+/** 今日卡 · 低强度日：读书 + Anki。 */
+export const SAMPLE_CONTROL_CARD_LIGHT = must(controlCard({
+  today: "2026-11-11",
+  day: { ...SAMPLE_CYCLE_DAY, type: "低强度", subject: null, course: null, lessons: [], overdue: [] },
+  calendar: CONTROL_CALENDAR,
+  queue: SAMPLE_SOURCES,
+}));
+
+/** 今日卡 · 「读完了」等撤销：该行变 ✓ + 「撤销 · N」。 */
+export const SAMPLE_CONTROL_CARD_PENDING = withPendingRead(SAMPLE_CONTROL_CARD, {
+  slug: "discrete-math-epp",
+  label: "§1.1–1.4 核心页",
+  left: 7,
+});
+
 const noop = (): void => undefined;
 const noopAsync = (): Promise<null> => Promise.resolve(null);
+
+/** The SessionsView the Shell's title list and ⋯ menu open. */
+export const SAMPLE_SESSIONS: SessionsView = {
+  open: true,
+  onOpenChange: noop,
+  status: "ready",
+  groups: SAMPLE_SESSION_GROUPS,
+  onPick: noop,
+  onNew: noop,
+};
+
+/** The rows a sampled day shows in the calendar's 这天的会话. */
+const DAY_SESSIONS: Record<string, SessionRow[]> = {
+  "2026-11-05": SAMPLE_SESSION_GROUPS[0]?.rows ?? [],
+};
 
 /** The sample panel view models the Shell's side windows draw. */
 export const SAMPLE_PANELS: ShellPanels = {
@@ -334,6 +432,8 @@ export const SAMPLE_PANELS: ShellPanels = {
     onEditDay: noop,
     courseTitles: { ctm: "CTM 7 周", "programming-paradigms": "编程范式" },
     cycleMonth: { status: "ready", value: SAMPLE_CYCLE_MONTH },
+    daySessions: (date) => DAY_SESSIONS[date] ?? [],
+    onOpenSession: noop,
   },
   skills: {
     skills: { status: "ready", value: SAMPLE_SKILLS },

@@ -34,6 +34,7 @@ import { SkillsPanel } from "./skills-panel.js";
 import { DayEditor } from "./day-editor.js";
 import { SlashMenu } from "./slash-menu.js";
 import { UpdateBar } from "./update-bar.js";
+import { ControlCard } from "./control-card.js";
 import { BearContentNode } from "./content.js";
 import { bearMotion } from "./motion.js";
 import { BEAR_BODY_SCALE_STEPS } from "./body-scale.js";
@@ -62,6 +63,7 @@ const slots: SkinSlots = {
   DayEditor,
   SlashMenu,
   CourseIntroCard,
+  ControlCard,
 };
 
 /** The Bear skin, consumed by the registry's lazy loader. */

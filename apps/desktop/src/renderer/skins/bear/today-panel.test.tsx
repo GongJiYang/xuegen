@@ -31,6 +31,12 @@ function baseProps(overrides: Partial<TodayPanelProps> = {}): TodayPanelProps {
 }
 
 describe("Bear 今天 panel", () => {
+  it("shows the loading line while the cycle day is loading", () => {
+    render(<TodayPanel {...baseProps({ cycleToday: { status: "loading" } })} />);
+    expect(screen.getByText(strings.today.loading)).toBeTruthy();
+    expect(screen.queryByText(strings.today.todayPlan)).toBeNull();
+  });
+
   it("lists today's and tomorrow's plan rows", () => {
     render(<TodayPanel {...baseProps()} />);
     for (const item of [...SAMPLE_PANELS.today.todayPlan, ...SAMPLE_PANELS.today.tomorrowPlan]) {

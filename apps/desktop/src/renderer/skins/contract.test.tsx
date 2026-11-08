@@ -17,7 +17,7 @@ import { strings } from "../core/strings.js";
 import { toolDescriptors } from "./chicago/icons.js";
 import type { ContentNode } from "../core/content/nodes.js";
 import type { SkinModule } from "./contract.js";
-import { SAMPLE_PANELS } from "../gallery/panel-samples.js";
+import { SAMPLE_CONTROL_CARD, SAMPLE_PANELS, SAMPLE_SESSIONS } from "../gallery/panel-samples.js";
 import {
   SAMPLE_ASSISTANT_MESSAGE,
   SAMPLE_COURSE_INTRO,
@@ -103,7 +103,8 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
         thinkingLevels={["low", "medium", "high"]}
         onSelectThinking={noop}
         onNewSession={noop}
-        onContinueSession={noop}
+        onOpenSessions={noop}
+        sessions={SAMPLE_SESSIONS}
         agentStatus="ready"
         notices={[{ tone: "info", text: strings.chat.empty }]}
         onDismissNotice={noop}
@@ -119,6 +120,16 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
         panels={SAMPLE_PANELS}
       >
         <Thread
+          header={
+            <skin.slots.ControlCard
+              view={SAMPLE_CONTROL_CARD}
+              onAction={noop}
+              onAskBrief={noop}
+              busy={false}
+              error={strings.control.card.afterReadFailed}
+              older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: noop }}
+            />
+          }
           messages={[SAMPLE_USER_MESSAGE, SAMPLE_ASSISTANT_MESSAGE]}
           thinking={false}
           noModels={false}
@@ -130,6 +141,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           renderMessage={(message, thinking) => renderMessage(skin, message, thinking)}
         />
         <Thread
+          header={null}
           messages={[]}
           thinking={false}
           noModels
@@ -168,6 +180,17 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           onInput={noop}
           answering={null}
           focusRequest={0}
+          lessonActions={[
+            { label: strings.lesson.summary, hint: strings.lesson.summaryHint, run: noop, options: [] },
+            { label: strings.lesson.cards, hint: strings.lesson.cardsHint, run: noop, options: [] },
+            {
+              label: strings.lesson.close,
+              hint: strings.lesson.closeHint,
+              run: noop,
+              options: [{ label: strings.lesson.closeNoWiki, run: noop }],
+            },
+          ]}
+          defaultStyleLabel="默认 · 细讲"
         />
         <ModelPicker models={SAMPLE_MODELS} current={SAMPLE_MODELS[0] ?? null} onSelect={noop} disabled={false} />
         <Notice notice={{ tone: "error", text: strings.notice.agentCrashed }} onDismiss={noop} />

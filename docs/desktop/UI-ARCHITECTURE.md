@@ -106,7 +106,7 @@ export interface MotionPreset {
 
 - **契约测试**：遍历登记表中每个皮肤，用固定样例渲染所有插槽（jsdom + React Testing Library），断言不抛错、关键可访问性角色存在（按钮、输入框、对话框等）。
 - **画廊**：开发模式 `?gallery&skin=<id>` 渲染全部插槽与内容样例（表格、公式、代码、mermaid、检验题、工具运行中/成功/失败、错误、空状态）。验收截图在这里拍。
-- **新皮肤的完成定义**：契约测试通过；画廊中每个插槽都有设计；`docs/desktop/skins/<id>.md` 写明风格、令牌、组件映射与微交互；在 `skins/README.md` 登记。
+- **新皮肤的完成定义**：`SKIN-LEDGER.md` 第二节每一行都做到并在真实窗口验过；契约测试通过；画廊中每个插槽都有设计；`docs/desktop/skins/<id>.md` 写明风格、令牌、组件映射与微交互；在 `skins/README.md` 登记。
 
 ## 7. 命名
 

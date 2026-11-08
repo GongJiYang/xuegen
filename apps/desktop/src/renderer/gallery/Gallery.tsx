@@ -17,8 +17,9 @@ import { strings } from "../core/strings.js";
 import { MODEL_ERROR_SUMMARIES } from "../core/chat/model-error.js";
 import { allCommands, filterCommands, groupCommands } from "../core/commands/commands.js";
 import { toolDescriptors } from "../skins/chicago/icons.js";
-import { SAMPLE_PANELS } from "./panel-samples.js";
+import { SAMPLE_CONTROL_CARD, SAMPLE_CONTROL_CARD_LIGHT, SAMPLE_CONTROL_CARD_PENDING, SAMPLE_PANELS, SAMPLE_SESSIONS } from "./panel-samples.js";
 import {
+  SAMPLE_ACTION_MESSAGE,
   SAMPLE_ASSISTANT_MESSAGE,
   SAMPLE_COURSE_INTRO,
   SAMPLE_COURSE_INTRO_EMPTY,
@@ -31,6 +32,22 @@ import {
   SAMPLE_TOOL_SUCCESS,
   SAMPLE_USER_MESSAGE,
 } from "./samples.js";
+
+/** The composer action buttons a course session shows (labels from core strings). */
+const SAMPLE_LESSON_ACTIONS = [
+  { label: strings.lesson.summary, hint: strings.lesson.summaryHint, run: () => undefined, options: [] },
+  { label: strings.lesson.cards, hint: strings.lesson.cardsHint, run: () => undefined, options: [] },
+  {
+    label: strings.lesson.close,
+    hint: strings.lesson.closeHint,
+    run: () => undefined,
+    options: [
+      { label: strings.lesson.closePlain, run: () => undefined },
+      { label: strings.lesson.closeNoWiki, run: () => undefined },
+      { label: strings.lesson.closeNoRecord, run: () => undefined },
+    ],
+  },
+];
 
 export interface GalleryProps {
   slots: SkinSlots;
@@ -122,7 +139,8 @@ export function Gallery({
     thinkingLevels: ["low", "medium", "high"],
     onSelectThinking: () => undefined,
     onNewSession: () => undefined,
-    onContinueSession: () => undefined,
+    onOpenSessions: () => undefined,
+    sessions: SAMPLE_SESSIONS,
     agentStatus: "ready",
     notices: [],
     onDismissNotice: () => undefined,
@@ -151,7 +169,8 @@ export function Gallery({
         <section>
           <h2>Thread / UserMessage / AssistantMessage</h2>
           <slots.Thread
-            messages={[SAMPLE_USER_MESSAGE, SAMPLE_ASSISTANT_MESSAGE]}
+            header={null}
+            messages={[SAMPLE_USER_MESSAGE, SAMPLE_ACTION_MESSAGE, SAMPLE_ASSISTANT_MESSAGE]}
             thinking={false}
             noModels={false}
             modelsReason={null}
@@ -170,13 +189,14 @@ export function Gallery({
         <section>
           <h2>Streaming（思考中 + 流式文本）</h2>
           <slots.Thread
+            header={null}
             messages={[SAMPLE_STREAMING_MESSAGE]}
             thinking={false}
             noModels={false}
             modelsReason={null}
             intro={null}
             systemNotes={[]}
-            activity={{ mood: "thinking", label: strings.chat.thinking }}
+            activity={{ mood: "thinking", label: strings.chat.thinking, meta: strings.chat.activityMeta(192, 6), long: true }}
             pin={null}
             renderMessage={(message, thinking) => (
               <Message slots={slots} content={content} message={message} thinking={thinking} />
@@ -200,6 +220,7 @@ export function Gallery({
           <h2>错误 / 空对话 / 未登录</h2>
           <Message slots={slots} content={content} message={SAMPLE_ERROR_MESSAGE} />
           <slots.Thread
+            header={null}
             messages={[]}
             thinking={false}
             noModels={false}
@@ -211,6 +232,7 @@ export function Gallery({
             renderMessage={() => null}
           />
           <slots.Thread
+            header={null}
             messages={[]}
             thinking={false}
             noModels
@@ -258,6 +280,8 @@ export function Gallery({
             onInput={() => undefined}
             answering={null}
             focusRequest={0}
+            lessonActions={SAMPLE_LESSON_ACTIONS}
+            defaultStyleLabel="默认 · 细讲"
           />
           <slots.Composer
             streaming
@@ -276,6 +300,8 @@ export function Gallery({
             onInput={() => undefined}
             answering={1}
             focusRequest={0}
+            lessonActions={SAMPLE_LESSON_ACTIONS}
+            defaultStyleLabel="默认 · 细讲"
           />
           <slots.ModelPicker models={SAMPLE_MODELS} current={SAMPLE_MODELS[0] ?? null} onSelect={() => undefined} disabled={false} />
           <slots.ModelPicker models={[]} current={null} onSelect={() => undefined} disabled />
@@ -305,6 +331,47 @@ export function Gallery({
             savePath="2026-11-05"
             onSave={() => undefined}
             onCancel={() => undefined}
+          />
+        </section>
+
+        <section>
+          <h2>ControlCard（深度日 / 低强度日 / 更早的对话 + 撤销）</h2>
+          <slots.Thread
+            header={
+              <slots.ControlCard
+                view={SAMPLE_CONTROL_CARD}
+                onAction={() => undefined}
+                onAskBrief={() => undefined}
+                busy={false}
+                error={null}
+                older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: () => undefined }}
+              />
+            }
+            messages={[]}
+            thinking={false}
+            noModels={false}
+            modelsReason={null}
+            intro={null}
+            systemNotes={[]}
+            activity={null}
+            pin={null}
+            renderMessage={() => null}
+          />
+          <slots.ControlCard
+            view={SAMPLE_CONTROL_CARD_LIGHT}
+            onAction={() => undefined}
+            onAskBrief={() => undefined}
+            busy={false}
+            error={strings.control.card.afterReadFailed}
+            older={null}
+          />
+          <slots.ControlCard
+            view={SAMPLE_CONTROL_CARD_PENDING}
+            onAction={() => undefined}
+            onAskBrief={() => undefined}
+            busy={false}
+            error={null}
+            older={null}
           />
         </section>
 

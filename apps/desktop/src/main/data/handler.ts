@@ -11,11 +11,13 @@ import { join } from "node:path";
 import type { DataRequest, DataResponse } from "../../shared/data-protocol.js";
 import { assertNever, normalizeDesktopSettings } from "../../shared/protocol.js";
 import { readSettings, writeSettings } from "../settings.js";
-import { runScript } from "./scripts.js";
+import { runScript, runScriptPlain } from "./scripts.js";
 import { readVaultRoot } from "./vault.js";
 import { fetchAnkiStatus } from "./anki.js";
 import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
 import { listReadingSources } from "./sources.js";
+import { listSessions } from "./sessions.js";
+import { resolveHome } from "../../agent/environment.js";
 
 /** The vault root, or a failure response when it is not configured. */
 function requireVault(): { vault: string } | { failure: DataResponse } {
@@ -37,6 +39,8 @@ export async function handleDataRequest(request: DataRequest): Promise<DataRespo
   switch (request.kind) {
     case "anki.status":
       return { ok: true, data: await fetchAnkiStatus() };
+    case "sessions.list":
+      return { ok: true, data: listSessions(resolveHome(), request.current) };
     case "skills.list":
       return { ok: true, data: listSkills(readSettings().disabledSkills) };
     case "skills.setEnabled":
@@ -66,6 +70,7 @@ async function handleScriptRequest(
     {
       kind:
         | "anki.status"
+        | "sessions.list"
         | "skills.list"
         | "skills.setEnabled"
         | "skills.fetch"
@@ -83,6 +88,42 @@ async function handleScriptRequest(
   switch (request.kind) {
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
+    case "course.afterRead": {
+      // 「读完了」：先给课程页 Today 那行打勾；有阅读页时再记一行 Reading
+      // Log；最后重建两份派生看板。每一步失败都直接返回它的失败响应。
+      const courses = join(vault.vault, "wiki", "courses");
+      const marked = await runScript("course/course-state.mjs", [
+        "after-read",
+        join(courses, `${request.slug}.md`),
+        request.label,
+        "--date",
+        request.date,
+      ]);
+      if (!marked.ok) return marked;
+      const detail = marked.data as { reading?: unknown };
+      const reading = typeof detail.reading === "string" ? detail.reading : null;
+      if (reading !== null) {
+        const noted = await runScript("reading/reading-queue.mjs", [
+          "note",
+          vault.vault,
+          reading,
+          "--text",
+          `讲后读 ${request.label} 已读（用户自报）`,
+          "--today",
+          request.date,
+          "--json",
+        ]);
+        if (!noted.ok) return noted;
+      }
+      for (const step of [
+        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(vault.vault, "wiki", "courses.md")]),
+        runScriptPlain("course/render-board.mjs", [courses, join(vault.vault, "wiki", "courses.html")]),
+      ]) {
+        const done = await step;
+        if (!done.ok) return done;
+      }
+      return { ok: true, data: { label: request.label, reading } };
+    }
     case "reading.today":
       return runScript("reading/reading-queue.mjs", [
         "today",

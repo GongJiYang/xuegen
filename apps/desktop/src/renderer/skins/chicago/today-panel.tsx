@@ -61,13 +61,23 @@ export function TodayPanel({
   onResume,
   agentReady,
   cycleToday,
+  onOpenControl,
 }: TodayPanelProps) {
   const dueToday = readingDue.status === "ready" ? readingDue.value.dueToday : "—";
   const pending = cards.status === "ready" ? cards.value.unsynced : "—";
   const cycleLine = cycleToday.status === "ready" ? cycleHeadline(cycleToday.value) : null;
   return (
     <div className="chicago-pane-inner">
-      {cycleLine && <div className="chicago-small">{cycleLine}</div>}
+      {(cycleLine || onOpenControl) && (
+        <div className="chicago-count">
+          <span className="chicago-small">{cycleLine}</span>
+          {onOpenControl && (
+            <button type="button" className="chicago-btn" onClick={onOpenControl}>
+              {strings.control.open}
+            </button>
+          )}
+        </div>
+      )}
       <PlanCount label={strings.today.todayPlan} items={todayPlan} empty={strings.today.todayPlanEmpty} />
       <PlanCount label={strings.today.tomorrowPlan} items={tomorrowPlan} empty={strings.today.tomorrowPlanEmpty} />
       <Count label={strings.today.readingDue} value={dueToday} />

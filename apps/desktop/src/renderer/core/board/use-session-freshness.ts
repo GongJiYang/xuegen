@@ -16,6 +16,7 @@ import type { ChatController } from "../chat/useChat.js";
 import type { NoticeItem } from "../../skins/contract.js";
 import * as client from "../client.js";
 import { strings } from "../strings.js";
+import { withActionMarker } from "../chat/action-marker.js";
 import { checkpointPhase, needsRefresh, staleCourseSession } from "./session-freshness.js";
 import { dateKey } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
@@ -100,7 +101,7 @@ export function useSessionFreshness(
             action: {
               label: strings.notice.checkpointAction,
               run: () => {
-                controller.sendCommand(strings.chat.checkpointPrompt);
+                controller.sendCommand(withActionMarker(strings.chat.checkpointPrompt, "checkpoint"));
                 setSentFor(openSessionFile);
               },
             },
@@ -111,7 +112,11 @@ export function useSessionFreshness(
               text: strings.notice.checkpointSaved,
               action: {
                 label: strings.notice.checkpointSavedAction,
-                run: () => onContinueFresh(course.slug, strings.chat.checkpointResume),
+                run: () =>
+                  onContinueFresh(
+                    course.slug,
+                    withActionMarker(strings.chat.checkpointResume, "continue", { slug: course.slug, title: course.title }),
+                  ),
               },
             }
           : null;

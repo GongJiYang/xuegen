@@ -35,11 +35,13 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     onInput: vi.fn(),
     answering: null,
     focusRequest: 0,
+    lessonActions: [],
+    defaultStyleLabel: "默认",
     ...overrides,
   };
 }
 
-const NEW_SESSION: SlashCommand = { command: "/新会话", group: "学习", description: "开始一个新会话" };
+const NEW_SESSION: SlashCommand = { command: "/新会话", group: "会话", description: "开一个空白会话" };
 
 describe("Bear composer", () => {
   it("sends on Enter, not on Shift+Enter", async () => {
@@ -115,7 +117,7 @@ describe("Bear composer", () => {
         {...baseProps({
           commandsOpen: true,
           commands: [NEW_SESSION],
-          commandGroups: [{ group: "学习", commands: [NEW_SESSION] }],
+          commandGroups: [{ group: "会话", commands: [NEW_SESSION] }],
           selectedCommand: 0,
           onSelectCommand,
           onRunCommand,

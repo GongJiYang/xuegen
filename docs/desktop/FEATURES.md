@@ -1,5 +1,7 @@
 # 桌面版「可用」功能总表（2026-11-03 用户需求）
 
+> 已由 [`SKIN-LEDGER.md`](SKIN-LEDGER.md) 取代：现在的功能、用词与各皮肤进度以台账为准；本文只作历史（其中「风格按课程记住」已在 v0.5.0 改为「只管本次会话」）。
+
 用户的定义：每个功能都有**输入**和**输出**，输入位置一眼可见；在输入框打 `/` 能看到功能；每次会话可选讲解风格。视觉基准：`/Users/gjy/pi-learning/design/chicago/features.html`（仓库外，`?tool=progress|reading|cards|calendar|skills`、`?demo=slash`、`?demo=day` 看各状态），沿用已确认的 Chicago 皮肤（`chicago.md`）。
 
 ## 用户习惯（来自真实会话与库，决定设计）

@@ -10,8 +10,10 @@
 import type { BotMood } from "../../core/board/bot-state.js";
 import type { ActivityMood } from "../../core/chat/activity.js";
 import { GrokBotView } from "./vendor/grokbot-web/grokbot-web.js";
+import { useDark } from "./use-dark.js";
 
 const INK = { bodyColor: "#1f2124", eyeColor: "#fbfbfa", badgeColor: "#1f2124", particleColor: "#1aa3ff" };
+const INK_DARK = { bodyColor: "#ededeb", eyeColor: "#161615", badgeColor: "#ededeb", particleColor: "#1aa3ff" };
 
 /** True where a 2D canvas exists (Electron), false in jsdom. */
 function canDraw(): boolean {
@@ -19,9 +21,10 @@ function canDraw(): boolean {
 }
 
 export function MiniBot({ mood, size }: { mood: BotMood | ActivityMood; size: number }) {
+  const dark = useDark();
   return (
     <span className="bear-bot" aria-hidden="true" style={{ width: size, height: size }}>
-      {canDraw() && <GrokBotView state={mood} shape="blob" size={size} autoExpression theme={INK} />}
+      {canDraw() && <GrokBotView state={mood} shape="blob" size={size} autoExpression theme={dark ? INK_DARK : INK} />}
     </span>
   );
 }

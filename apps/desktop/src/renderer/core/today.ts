@@ -9,6 +9,7 @@
  */
 
 import type { CalendarDay, CourseSummary } from "@shared/data-protocol.js";
+import { withActionMarker } from "./chat/action-marker.js";
 
 /** The course to resume plus the point to resume from. */
 export interface ResumePoint {
@@ -100,7 +101,7 @@ export function resumePrompt(resume: ResumePoint): string {
   const prompt = resume.nextSession
     ? `继续 ${title}，从下次起点开始：${resume.nextSession}`
     : `继续 ${title}，从下次起点开始`;
-  return `${prompt}${courseFileHint(resume.course)}`;
+  return withActionMarker(`${prompt}${courseFileHint(resume.course)}`, "resume", resume.course);
 }
 
 /** The prompt that opens a course's session from the progress panel. */
@@ -108,5 +109,5 @@ export function studyPrompt(course: CourseSummary): string {
   const prompt = course.nextSession
     ? `开始今天的 ${course.title}，下次起点：${course.nextSession}`
     : `开始今天的 ${course.title}`;
-  return `${prompt}${courseFileHint(course)}`;
+  return withActionMarker(`${prompt}${courseFileHint(course)}`, "open", course);
 }

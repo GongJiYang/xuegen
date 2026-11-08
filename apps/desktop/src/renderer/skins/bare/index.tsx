@@ -23,6 +23,7 @@ import { ReadingPanel, TodayPanel, ToolDock } from "./panels.js";
 import { UpdateBar } from "./update-bar.js";
 import { ProgressPanel } from "./progress-panel.js";
 import { BoardPanel, CalendarPanel, CardsPanel, DayEditor, NotesPanel, SkillsPanel, SlashMenu } from "./panels-more.js";
+import { ControlCard } from "./control-card.js";
 import {
   AssistantMessage,
   Composer,
@@ -49,6 +50,7 @@ function Shell({
   notices,
   onDismissNotice,
   contextUsage,
+  sessions,
 }: ShellProps) {
   return (
     <div data-slot="shell">
@@ -56,6 +58,37 @@ function Shell({
         <h1>
           {strings.app.name} {strings.app.nameZh}
         </h1>
+        <button type="button" onClick={() => sessions.onOpenChange(!sessions.open)}>
+          {strings.sessions.title} ▾
+        </button>
+        {sessions.open && (
+          <div data-slot="sessions">
+            <button type="button" onClick={sessions.onNew}>
+              {strings.sessions.newSession}
+            </button>
+            {sessions.status === "loading" && <p>{strings.sessions.loading}</p>}
+            {sessions.status === "error" && <p role="alert">{strings.sessions.failed}</p>}
+            {sessions.status === "ready" && sessions.groups.length === 0 && <p>{strings.sessions.none}</p>}
+            {sessions.groups.map((group) => (
+              <section key={group.date}>
+                <h3>{group.label}</h3>
+                <ul>
+                  {group.rows.map((row) => (
+                    <li key={row.file}>
+                      <button
+                        type="button"
+                        aria-current={row.current ? "true" : undefined}
+                        onClick={() => sessions.onPick(row.file)}
+                      >
+                        {row.time} · {row.tag} · {row.title} · {strings.sessions.count(row.count)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
         <label>
           <span>{strings.topBar.appearance}</span>
           <select
@@ -151,6 +184,7 @@ const bareSlots: SkinSlots = {
   DayEditor,
   SlashMenu,
   CourseIntroCard,
+  ControlCard,
 };
 
 /** The bare skin module, consumed by the registry's named-export loader. */

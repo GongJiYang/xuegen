@@ -18,6 +18,7 @@ import type {
 } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { dayMarks } from "../../core/board/use-calendar.js";
+import { skillLabel } from "../../core/board/skills-description.js";
 
 export function CardsPanel({ cards, anki, onAdd, onRetryAnki, onDraft }: CardsPanelProps) {
   const [front, setFront] = useState("");
@@ -102,6 +103,8 @@ export function CalendarPanel({
   onSelectDay,
   onEditDay,
   courseTitles,
+  daySessions,
+  onOpenSession,
 }: CalendarPanelProps) {
   if (month.status === "loading") return <p>{strings.today.loading}</p>;
   if (month.status === "error") return <p role="alert">{month.message}</p>;
@@ -168,6 +171,20 @@ export function CalendarPanel({
       <button type="button" onClick={() => onEditDay(selected)}>
         {strings.calendar.writeNote}
       </button>
+      {daySessions(selected).length > 0 && (
+        <section data-slot="day-sessions">
+          <h4>{strings.sessions.dayHeading}</h4>
+          <ul>
+            {daySessions(selected).map((row) => (
+              <li key={row.file}>
+                <button type="button" onClick={() => onOpenSession(row.file)}>
+                  {row.time} · {row.tag} · {row.title} · {strings.sessions.count(row.count)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </section>
   );
 }
@@ -209,27 +226,34 @@ export function SkillsPanel({
       {skills.status === "error" && <p role="alert">{skills.message}</p>}
       {skills.status === "ready" && (
         <ul>
-          {skills.value.map((skill) => (
-            <li key={skill.name}>
-              {skill.source === "pending" ? (
-                <button type="button" onClick={() => onReview(skill.name)}>
-                  {strings.skills.review} {skill.name}
-                </button>
-              ) : (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={skill.enabled}
-                    onChange={(event) => onToggle(skill.name, event.target.checked)}
-                  />
-                  {skill.name}
-                </label>
-              )}
-              <p>
-                /skill:{skill.name} · {skill.description}
-              </p>
-            </li>
-          ))}
+          {skills.value.map((skill) => {
+            const label = skillLabel(skill.name, skill.description);
+            return (
+              <li key={skill.name}>
+                {skill.source === "pending" ? (
+                  <button type="button" onClick={() => onReview(skill.name)}>
+                    {strings.skills.review} {label.title}
+                  </button>
+                ) : (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={skill.enabled}
+                      onChange={(event) => onToggle(skill.name, event.target.checked)}
+                    />
+                    <b>{label.title}</b>
+                  </label>
+                )}
+                <p>{label.line}</p>
+                <details>
+                  <summary>{strings.skills.rawToggle}</summary>
+                  <p>
+                    /skill:{skill.name} · {skill.description}
+                  </p>
+                </details>
+              </li>
+            );
+          })}
         </ul>
       )}
       {review && (

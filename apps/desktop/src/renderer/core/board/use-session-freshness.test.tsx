@@ -11,6 +11,7 @@ import { DEFAULT_DESKTOP_SETTINGS, type DesktopSettings } from "@shared/protocol
 import type { CourseSummary } from "@shared/data-protocol.js";
 import type { ChatController } from "../chat/useChat.js";
 import { strings } from "../strings.js";
+import { splitActionMarker } from "../chat/action-marker.js";
 import { dateKey } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
 import { useSessionFreshness, type SessionFreshness } from "./use-session-freshness.js";
@@ -149,7 +150,9 @@ describe("useSessionFreshness — 存档提示", () => {
     expect(notice?.action?.label).toBe(strings.notice.checkpointAction);
     expect(notice?.text).toBe(strings.notice.checkpoint(65));
     act(() => notice?.action?.run());
-    expect(controller.sendCommand).toHaveBeenCalledWith(strings.chat.checkpointPrompt);
+    const sent = splitActionMarker(controller.sendCommand.mock.calls[0]?.[0] ?? "");
+    expect(sent.action).toBe("checkpoint");
+    expect(sent.body).toBe(strings.chat.checkpointPrompt);
   });
 });
 

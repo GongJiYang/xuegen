@@ -8,6 +8,8 @@
  * a run-on sentence still does not fill the row.
  */
 
+import { strings } from "../strings.js";
+
 /** The character count a two-line description holds before it is clipped. */
 export const DESCRIPTION_LINE_BUDGET = 60;
 
@@ -29,4 +31,11 @@ export function firstSentence(description: string): string {
 /** True when the description has more than its first sentence to reveal. */
 export function hasMoreThanFirstSentence(description: string): boolean {
   return firstSentence(description) !== description.trim();
+}
+
+/** The name and one line a skill shows: the Chinese pair for a known skill, else its own name and first sentence. */
+export function skillLabel(name: string, description: string): { title: string; line: string } {
+  const known = strings.skills.known[name];
+  if (known) return { title: known[0], line: known[1] };
+  return { title: name, line: firstSentence(description) };
 }

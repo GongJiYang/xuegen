@@ -1,0 +1,138 @@
+#!/usr/bin/env node
+// course-state.mjs after-read 的测试：node:test + node:assert，无第三方依赖。
+// 在 os.tmpdir() 下建临时课程文件，不触碰真实库。
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, writeFile, readFile, stat, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SCRIPT = join(HERE, "course-state.mjs");
+const READONLY = 0o444;
+
+/** 一份带「讲后读」的课程页：Today 里一条未打勾、一条已打勾，This Week 里另有一条同名未打勾。 */
+const COURSE = `<!-- xuegen:course-state -->
+
+# 离散数学学习计划
+
+## Key Facts
+
+- 当前周：W1 · 命题逻辑
+
+## This Week
+
+W1 · 命题逻辑
+
+- [ ] 讲后读 §9.9 别处同名行 · 2026-11-20 读
+
+## Today
+
+日期：2026-11-08
+
+- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-08 读
+- [x] 讲后读 §0.1 引言 · 2026-11-07 读
+- [ ] 继续 D2
+
+## Next Session
+
+[[reading/epp|离散数学（Epp, 5th ed）]] §2.1。
+
+## Learning Record
+
+### 2026-11-07-01
+
+- 记录。
+`;
+
+/** 跑 after-read；期望失败时拿到 stderr 而不是抛出的错误对象。 */
+async function afterRead(file, label, extra = []) {
+  try {
+    const { stdout } = await exec(process.execPath, [SCRIPT, "after-read", file, label, ...extra]);
+    return { ok: true, stdout };
+  } catch (error) {
+    return { ok: false, stderr: error.stderr ?? "", code: error.code };
+  }
+}
+
+async function freshCourse(text = COURSE) {
+  const dir = await mkdtemp(join(tmpdir(), "course-state-"));
+  const file = join(dir, "epp.md");
+  await writeFile(file, text, "utf8");
+  return { dir, file };
+}
+
+test("after-read 打勾 Today 里那条讲后读并追加自报说明，权限回到 0444", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    await exec(process.execPath, [SCRIPT, "lock", file]);
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-08"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.label, "§1.1–1.4 核心页");
+    assert.equal(out.file, file);
+    assert.equal(out.reading, "epp");
+
+    const text = await readFile(file, "utf8");
+    assert.match(text, /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-08 读（用户自报，未检查，2026-11-08）/);
+    // 其他行一个字节都不改：已打勾行与 This Week 同名行原样。
+    assert.match(text, /- \[x\] 讲后读 §0\.1 引言 · 2026-11-07 读\n/);
+    assert.match(text, /- \[ \] 讲后读 §9\.9 别处同名行 · 2026-11-20 读/);
+    assert.equal((await stat(file)).mode & 0o777, READONLY);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read 标签不匹配时失败且文件不变", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    await exec(process.execPath, [SCRIPT, "lock", file]);
+    const result = await afterRead(file, "§9.9 不存在");
+    assert.equal(result.ok, false);
+    assert.match(result.stderr, /没有找到未打勾的讲后读：§9\.9 不存在/);
+    assert.equal(await readFile(file, "utf8"), COURSE);
+    assert.equal((await stat(file)).mode & 0o777, READONLY);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read 已打勾的讲后读不再匹配", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    await exec(process.execPath, [SCRIPT, "lock", file]);
+    const result = await afterRead(file, "§0.1 引言");
+    assert.equal(result.ok, false);
+    assert.match(result.stderr, /没有找到未打勾的讲后读：§0\.1 引言/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read 只改 ## Today；This Week 的同名行不算命中", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    await exec(process.execPath, [SCRIPT, "lock", file]);
+    const result = await afterRead(file, "§9.9 别处同名行");
+    assert.equal(result.ok, false);
+    assert.equal(await readFile(file, "utf8"), COURSE);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read 没有 reading 链接时 reading 为 null", async () => {
+  const { dir, file } = await freshCourse(COURSE.replace("[[reading/epp|离散数学（Epp, 5th ed）]]", "无链接"));
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页");
+    assert.equal(result.ok, true, result.stderr);
+    assert.equal(JSON.parse(result.stdout.trim()).reading, null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

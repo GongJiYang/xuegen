@@ -9,7 +9,7 @@
 import { useState } from "react";
 import type { SkillsPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
-import { firstSentence, hasMoreThanFirstSentence } from "../../core/board/skills-description.js";
+import { skillLabel } from "../../core/board/skills-description.js";
 import { Caption, CheckBox, Field, InRow, Tag } from "./widgets.js";
 import { Failed, Loading, Note, sourceLabel } from "./panel-shared.js";
 import { SkillReviewDialog } from "./skill-review.js";
@@ -59,9 +59,11 @@ export function SkillsPanel({
           <Note>{strings.skills.empty}</Note>
         ) : (
           skills.value.map((skill) => {
-            const more = hasMoreThanFirstSentence(skill.description);
+            const label = skillLabel(skill.name, skill.description);
+            const raw = `/skill:${skill.name} · ${skill.description}`;
+            const more = raw !== label.line;
             const isExpanded = expanded[skill.name] ?? false;
-            const shown = isExpanded ? skill.description : firstSentence(skill.description);
+            const shown = isExpanded ? raw : label.line;
             return (
               <div className="chicago-skill" key={skill.name}>
                 {skill.source === "pending" ? (
@@ -69,7 +71,7 @@ export function SkillsPanel({
                 ) : (
                   <CheckBox
                     checked={skill.enabled}
-                    ariaLabel={skill.name}
+                    ariaLabel={label.title}
                     onChange={(enabled) => onToggle(skill.name, enabled)}
                   />
                 )}
@@ -80,7 +82,7 @@ export function SkillsPanel({
                     aria-expanded={more ? isExpanded : undefined}
                     onClick={() => more && setExpanded((state) => ({ ...state, [skill.name]: !isExpanded }))}
                   >
-                    {skill.name}
+                    {label.title}
                     {"　"}
                     <span className="chicago-small">/skill:{skill.name}</span>
                   </button>

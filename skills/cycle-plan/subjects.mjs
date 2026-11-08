@@ -37,7 +37,25 @@ export function parseMaterial(line, type) {
   };
 }
 
-/** 解析一个科目页：{ slug, title, layer, route, courses, materials }。 */
+const DEFAULT_STYLES = { 大白话: "plain", 细讲: "detailed", 深度: "deep" };
+
+/** 「## 讲解偏好」里 `- 默认风格：X` 的风格 id；没有这一节或这一行返回 null。 */
+export function parseDefaultStyle(text) {
+  let inSection = false;
+  for (const line of text.split("\n")) {
+    const h2 = /^##\s+(.+?)\s*$/.exec(line);
+    if (h2) {
+      inSection = h2[1] === "讲解偏好";
+      continue;
+    }
+    if (!inSection) continue;
+    const match = /^-\s*默认风格：\s*(大白话|细讲|深度)/.exec(line);
+    if (match) return DEFAULT_STYLES[match[1]];
+  }
+  return null;
+}
+
+/** 解析一个科目页：{ slug, title, layer, route, courses, materials, defaultStyle }。 */
 export function parseSubject(text, slug) {
   const fm = /^---\n([\s\S]*?)\n---/.exec(text);
   const field = (key) => {
@@ -78,6 +96,7 @@ export function parseSubject(text, slug) {
     route: field("route"),
     courses: [...new Set(courses)],
     materials,
+    defaultStyle: parseDefaultStyle(text),
   };
 }
 
