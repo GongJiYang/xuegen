@@ -23,6 +23,8 @@ export function styleLabel(style: TeachingStyle): string {
 export function withStylePrefix(style: TeachingStyle, text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return trimmed;
+  // 「默认」不加标签：学根按科目的讲解偏好取默认风格。
+  if (style === "default") return trimmed;
   if (/^\[风格[:：]/.test(trimmed)) return trimmed;
   const tag = `[风格：${styleLabel(style)}]`;
   // Pi only expands `/skill:<name>` when it is the very first token, so the tag

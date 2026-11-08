@@ -151,7 +151,7 @@ function NewCourseForm({
   const [endInput, setEndInput] = useState<string | null>(null);
   const endDate = endInput ?? defaultEndDate(startDate);
   const [rest, setRest] = useState<RestDays>("sun");
-  const [style, setStyle] = useState<TeachingStyle>("plain");
+  const [style, setStyle] = useState<TeachingStyle>("default");
 
   function submit(): void {
     const name = title.trim();
@@ -415,7 +415,7 @@ export function ProgressPanel({
       mark={mark}
       meta={meta}
       card={cards.get(course.slug) ?? null}
-      style={courseStyles[course.slug] ?? "plain"}
+      style={courseStyles[course.slug] ?? "default"}
       started={startedToday[course.slug] === true}
       onCourseStyle={(next) => onCourseStyle(course.slug, next)}
       onStudy={() => onStudy(course)}

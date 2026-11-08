@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.5.0 — 2026-11-08
+
+- Principles: `docs/platform/PRINCIPLES.md` — the vault holds four kinds (原料 / 知识 / 意图 / 进度), one fact lives in one place, teaching preferences are scoped (global `wiki/profile.md` → subject page `## 讲解偏好` → course → session, subjects isolated), sessions are disposable and context has a budget. `AGENTS.md` points every change at it.
+- Desktop: the teaching style picked in the UI holds only for that session (in memory, today only); a new 「默认」 choice (the default) sends no `[风格：…]` prefix so 学根 follows the subject's 讲解偏好. `desktop.json` no longer stores `courseStyles` / `sessionStyle`. The new-course request mentions a style only when one is picked.
+- Desktop: at 60% context in a course session a notice offers 「先存档 →」 (学根 writes a checkpoint into the course page's Next Session), then 「开新会话接着上 →」 opens a fresh session that continues from it.
+- Desktop (Bear) / calendar: 讲后读 lines in a course's `Today` count as reading due on their day; a 低强度 day with reading shows 「读书」 and reading days get a dot.
+- Skills: `course` has one ordered 开课顺序 (讲后读 check + recall question replace `teach`'s opening diagnosis), reads the course page whole once per session then by section, reads books ≤ 10 pages at a time, writes preferences only to its own subject after confirmation, archives older closing records past 2, keeps plan changes in `log.md` only, and hands whole-book reading to `reading`; screenshot and weekly-check details moved to `course/references/`. `teach`: default style from the preference layers; formulas and Mermaid render on desktop; aux 要点 2–4. `reading`: textbook reading (a `sources/` page as the source, `--every 14`, `--due <date>`, `note`). `cycle-plan`: 低强度 brief reads the reading queue; no time estimates. `calendar` no longer claims 「今天学什么」.
+- Scripts: `reading-queue.mjs` accepts `wiki/(知识/)sources/` pages as sources (links written without the prefix), fixed intervals (`--every`, keeps the rhythm on next/postpone), `--due YYYY-MM-DD` and `note`; `reading-queue.mjs` and `flashcards.mjs` read the knowledge folders from `wiki/知识/` when it exists, else `wiki/`.
+
 ## v0.4.1 — 2026-11-08
 
 - Desktop: 检查更新 reads the version from the `releases/latest` redirect (via `net.request`, since `net.fetch` hides the final URL) instead of the rate-limited GitHub API; the zip URL follows the fixed asset name and the notes come from the release's `notes.md` asset (optional). `RELEASE.md` uploads `notes.md` with each release.

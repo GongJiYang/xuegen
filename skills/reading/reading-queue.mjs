@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // Xuegen 渐进阅读队列维护：导入排程、今日清单、复习推进、暂停/恢复、统计与校验。
 // 无第三方依赖。<vault> 为 Wiki 库根目录，内含 raw/、Clippings/ 与 wiki/。
-//   node reading-queue.mjs add <vault> <原文相对路径> [--priority high|medium|low] [--slug s] [--due today|scheduled] [--due today|scheduled] [--today YYYY-MM-DD]
+//   node reading-queue.mjs add <vault> <原文相对路径> [--priority high|medium|low] [--slug s] [--due today|scheduled|YYYY-MM-DD] [--every N] [--today YYYY-MM-DD]
 //   node reading-queue.mjs today <vault> [--limit 3]
 //   node reading-queue.mjs list <vault>
 //   node reading-queue.mjs review <vault> <slug> --outcome next|postpone|done [--position ...] [--note ...]
+//   node reading-queue.mjs note <vault> <slug> --text ...
 //   node reading-queue.mjs pause|resume <vault> <slug>
 //   node reading-queue.mjs stats <vault>
 //   node reading-queue.mjs verify <vault>
 // 所有命令支持 --json；日期由 --today 注入，默认本地日期。
-// 路径：原文 = <vault>/<相对路径>；阅读页 = <vault>/wiki/reading/；摘录 = <vault>/wiki/extracts/；日志 = <vault>/wiki/log.md。
+// 路径：原文 = <vault>/<相对路径>；阅读页 = <vault>/wiki/reading/；摘录 = <知识目录>/extracts/（知识目录 = wiki/知识，不存在时为 wiki）；日志 = <vault>/wiki/log.md。
 import { readFile, writeFile, readdir, stat, rename, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, basename, relative, sep } from "node:path";
@@ -235,6 +236,12 @@ async function appendLog(vault, date, title, message) {
   await writeAtomic(logFile, `${existing}${separator}\n${block}`);
 }
 
+// 知识目录：迁移后为 <vault>/wiki/知识，迁移前为 <vault>/wiki（两种布局都支持）。
+function knowledgeDir(vault) {
+  const migrated = join(wikiDir(vault), "知识");
+  return existsSync(migrated) ? migrated : wikiDir(vault);
+}
+
 function readingDir(vault) {
   return join(wikiDir(vault), "reading");
 }
@@ -260,13 +267,13 @@ async function loadPage(vault, slug) {
   return { page: parsePage(text, file), file };
 }
 
-// 判断原文相对路径是否位于 raw/ 或 Clippings/ 下。
+// 原文位置：raw/、Clippings/，或知识目录下 sources/ 的登记页（教材通读用，脚本不读 PDF）。
 function validateSourceReachability(relPath) {
   const normalized = relPath.split(sep).join("/");
   const first = normalized.split("/")[0];
-  if (first !== "raw" && first !== "Clippings") {
-    fail(`原文必须位于 raw/ 或 Clippings/ 下：${relPath}`);
-  }
+  if (first === "raw" || first === "Clippings") return;
+  if (/^wiki\/(知识\/)?sources\/[^/]+\.md$/.test(normalized)) return;
+  fail(`原文必须位于 raw/、Clippings/ 或 wiki/知识/sources/ 下：${relPath}`);
 }
 
 async function commandAdd(vault, positional, options, today) {
@@ -292,17 +299,28 @@ async function commandAdd(vault, positional, options, today) {
   // --due today forces 「今天就读」: the item is scheduled for today even at a
   // lower priority (medium/low otherwise wait until tomorrow).
   const dueOption = options.due ?? "scheduled";
-  if (dueOption !== "today" && dueOption !== "scheduled") fail(`--due 非法：${dueOption}`);
-  const due = dueOption === "today" ? today : priority === "high" ? today : addDays(today, 1);
+  let due;
+  if (dueOption === "today") due = today;
+  else if (dueOption === "scheduled") due = priority === "high" ? today : addDays(today, 1);
+  else if (isDate(String(dueOption))) due = String(dueOption);
+  else fail(`--due 非法：${dueOption}（应为 today、scheduled 或 YYYY-MM-DD）`);
+
+  let every = null;
+  if (options.every !== undefined) {
+    const n = Number(options.every);
+    if (!Number.isInteger(n) || n < 1 || n > 365) fail(`--every 非法：${options.every}（应为 1–365 的整数）`);
+    every = n;
+  }
   const fields = [
     { key: "source", value: `[[${normalizeSourceLink(relPath)}]]` },
     { key: "priority", value: priority },
     { key: "status", value: "queued" },
     { key: "due", value: due },
-    { key: "interval_days", value: "1" },
+    { key: "interval_days", value: every === null ? "1" : String(every) },
     { key: "last_read", value: "" },
     { key: "position", value: "" },
   ];
+  if (every !== null) fields.splice(fields.findIndex((entry) => entry.key === "interval_days") + 1, 0, { key: "every", value: String(every) });
   const body = [
     "",
     `# ${title}`,
@@ -313,15 +331,19 @@ async function commandAdd(vault, positional, options, today) {
     "",
   ];
   await writeAtomic(file, renderPage(fields, body));
-  await appendLog(vault, today, title, "Added to queue (priority: " + priority + ").");
+  const logMessage = every === null
+    ? `Added to queue (priority: ${priority}).`
+    : `Added to queue (priority: ${priority}, every ${every} days).`;
+  await appendLog(vault, today, title, logMessage);
 
-  const result = { slug, title, priority, status: "queued", due };
+  const result = { slug, title, priority, status: "queued", due, every };
   output(options, result, `add: ${slug}（${title}）priority=${priority} due=${due}`);
 }
 
 function normalizeSourceLink(relPath) {
   let p = relPath.split(sep).join("/");
   p = p.replace(/\.[^./]+$/, "");
+  p = p.replace(/^wiki\/(知识\/)?(?=sources\/)/, "");
   return p;
 }
 
@@ -414,6 +436,14 @@ function pageTitle(page) {
   return "";
 }
 
+// 固定间隔：从原到期日起每 every 天一次，取今天之后的第一个；原到期日无效时从今天算。
+function nextFixedDue(due, every, today) {
+  if (!isDate(due)) return addDays(today, every);
+  let next = addDays(due, every);
+  while (next <= today) next = addDays(next, every);
+  return next;
+}
+
 async function commandReview(vault, positional, options, today) {
   const slug = positional[0];
   if (!slug) fail("review 需要 slug");
@@ -427,6 +457,7 @@ async function commandReview(vault, positional, options, today) {
     fail(`条目状态为 ${status}，无法 review：${slug}`);
   }
   const interval = Number(field(page, "interval_days")) || 1;
+  const every = Number(field(page, "every")) || 0;
   const priority = field(page, "priority");
   const note = options.note;
   const position = options.position;
@@ -434,17 +465,22 @@ async function commandReview(vault, positional, options, today) {
   let nextDue;
 
   if (outcome === "next") {
-    const factor = FACTORS[priority] ?? 2;
-    const nextInterval = Math.max(1, Math.round(interval * factor));
     setField(page, "status", "active");
     setField(page, "last_read", today);
-    setField(page, "interval_days", String(nextInterval));
-    nextDue = addDays(today, nextInterval);
+    if (every > 0) {
+      setField(page, "interval_days", String(every));
+      nextDue = nextFixedDue(field(page, "due"), every, today);
+    } else {
+      const factor = FACTORS[priority] ?? 2;
+      const nextInterval = Math.max(1, Math.round(interval * factor));
+      setField(page, "interval_days", String(nextInterval));
+      nextDue = addDays(today, nextInterval);
+    }
     setField(page, "due", nextDue);
     if (position !== undefined) setField(page, "position", String(position));
     logResult = "next";
   } else if (outcome === "postpone") {
-    nextDue = addDays(today, interval);
+    nextDue = every > 0 ? nextFixedDue(field(page, "due"), every, today) : addDays(today, interval);
     setField(page, "due", nextDue);
     logResult = "postpone";
   } else {
@@ -481,6 +517,18 @@ function appendReadingLog(body, date, message) {
   const copy = body.slice();
   copy.splice(insertAt, 0, line);
   return copy;
+}
+
+// 只追加一行 Reading Log，不改任何排程字段（讲后读等课内阅读用）。
+async function commandNote(vault, positional, options, today) {
+  const slug = positional[0];
+  if (!slug) fail("note 需要 slug");
+  const text = options.text;
+  if (typeof text !== "string" || text.trim() === "") fail("note 需要 --text");
+  const { page, file } = await loadPage(vault, slug);
+  page.body = appendReadingLog(page.body, today, text.trim());
+  await writeAtomic(file, renderPage(page.fields, page.body));
+  output(options, { slug, date: today, text: text.trim() }, `note: ${slug} ${today}`);
 }
 
 async function commandPauseOrResume(vault, positional, options, command, today) {
@@ -540,7 +588,7 @@ async function commandStats(vault, options) {
       }
     }
   }
-  const extractFiles = await walk(join(wikiDir(vault), "extracts"));
+  const extractFiles = await walk(join(knowledgeDir(vault), "extracts"));
   let cardsPending = 0;
   for (const file of extractFiles) {
     const text = await readFile(file, "utf8");
@@ -587,15 +635,16 @@ async function commandVerify(vault, options) {
     const source = knownValue(page, "source");
     const srcMatch = source.match(/\[\[([^\]|]+)/);
     if (srcMatch) {
-      // source 链接相对 <vault> 解析（如 [[raw/articles/x]] → <vault>/raw/articles/x.md）。
+      // source 链接依次相对 <vault>、知识目录、wiki/ 解析（如 [[raw/articles/x]]、[[sources/x]]）。
       const srcRel = `${srcMatch[1]}.md`;
-      if (!existsSync(join(vault, srcRel))) problems.push(`${slug}: source 指向的文件不存在 ${srcRel}`);
+      const candidates = [join(vault, srcRel), join(knowledgeDir(vault), srcRel), join(wikiDir(vault), srcRel)];
+      if (!candidates.some((file) => existsSync(file))) problems.push(`${slug}: source 指向的文件不存在 ${srcRel}`);
     } else if (source) {
       problems.push(`${slug}: source 格式非法 ${source}`);
     }
 
-    // Extracts 链接相对 <vault>/wiki 解析（如 [[extracts/a/x]] → <vault>/wiki/extracts/a/x.md）。
-    const extractBase = wikiDir(vault);
+    // Extracts 链接相对知识目录解析（如 [[extracts/a/x]] → <知识目录>/extracts/a/x.md）。
+    const extractBase = knowledgeDir(vault);
     for (const link of extractLinks(page.body)) {
       const rel = link.endsWith(".md") ? link : `${link}.md`;
       if (!existsSync(join(extractBase, rel))) problems.push(`${slug}: Extracts 链接的文件不存在 ${rel}`);
@@ -625,16 +674,17 @@ function usage() {
     "渐进阅读队列维护（reading-queue）",
     "",
     "用法：",
-    "  node reading-queue.mjs add <vault> <原文相对路径> [--priority high|medium|low] [--slug s]",
+    "  node reading-queue.mjs add <vault> <原文相对路径> [--priority high|medium|low] [--slug s] [--due today|scheduled|YYYY-MM-DD] [--every N]",
     "  node reading-queue.mjs today <vault> [--limit 3]",
     "  node reading-queue.mjs list <vault>",
     "  node reading-queue.mjs review <vault> <slug> --outcome next|postpone|done [--position ...] [--note ...]",
+    "  node reading-queue.mjs note <vault> <slug> --text ...",
     "  node reading-queue.mjs pause <vault> <slug>",
     "  node reading-queue.mjs resume <vault> <slug>",
     "  node reading-queue.mjs stats <vault>",
     "  node reading-queue.mjs verify <vault>",
     "",
-    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；原文位于其 raw/ 或 Clippings/ 下。",
+    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；原文位于 raw/、Clippings/，或 wiki/知识/sources/ 的登记页。",
     "",
     "选项：",
     "  --today YYYY-MM-DD  注入「今天」（测试用），默认本地日期",
@@ -671,6 +721,10 @@ async function main() {
     const vault = resolve(positional[0] ?? fail("review 需要 vault 路径"));
     requireVault(vault);
     await commandReview(vault, positional.slice(1), options, todayFrom(options));
+  } else if (command === "note") {
+    const vault = resolve(positional[0] ?? fail("note 需要 vault 路径"));
+    requireVault(vault);
+    await commandNote(vault, positional.slice(1), options, todayFrom(options));
   } else if (command === "pause" || command === "resume") {
     const vault = resolve(positional[0] ?? fail(`${command} 需要 vault 路径`));
     requireVault(vault);

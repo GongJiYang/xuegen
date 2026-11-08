@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Xuegen 闪卡统计与新增：扫描 wiki/flashcards/ 的 Obsidian_to_Anki 卡片块，并追加新卡。
-// 无第三方依赖。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）。
+// Xuegen 闪卡统计与新增：扫描 <知识目录>/flashcards/ 的 Obsidian_to_Anki 卡片块，并追加新卡。
+// 无第三方依赖。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；知识目录 = wiki/知识，不存在时为 wiki。
 //   node flashcards.mjs stats <vault> [--json]
 //   node flashcards.mjs add <vault> --deck <deck> --front <text> --back <text> [--json]
-// 只写 wiki/flashcards/ 下牌组的 inbox.md；其他位置只读。
+// 只写 <知识目录>/flashcards/ 下牌组的 inbox.md；其他位置只读。
 import { readFile, writeFile, readdir, rename, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, dirname, basename, sep } from "node:path";
@@ -45,6 +45,12 @@ function parseArgs(argv) {
 
 function wikiDir(vault) {
   return join(vault, "wiki");
+}
+
+// 知识目录：迁移后为 <vault>/wiki/知识，迁移前为 <vault>/wiki（两种布局都支持）。
+function knowledgeDir(vault) {
+  const migrated = join(wikiDir(vault), "知识");
+  return existsSync(migrated) ? migrated : wikiDir(vault);
 }
 
 function requireVault(vault) {
@@ -130,7 +136,7 @@ function isPendingExtract(text) {
 }
 
 async function commandStats(vault, options) {
-  const files = await walkMarkdown(join(wikiDir(vault), "flashcards"));
+  const files = await walkMarkdown(join(knowledgeDir(vault), "flashcards"));
   const decks = new Map();
   let total = 0;
   let synced = 0;
@@ -147,7 +153,7 @@ async function commandStats(vault, options) {
     entry.files.push(relativeToVault(vault, file));
     decks.set(key, entry);
   }
-  const extractFiles = await walkMarkdown(join(wikiDir(vault), "extracts"));
+  const extractFiles = await walkMarkdown(join(knowledgeDir(vault), "extracts"));
   let pendingExtracts = 0;
   for (const file of extractFiles) {
     if (isPendingExtract(await readFile(file, "utf8"))) pendingExtracts += 1;
@@ -186,10 +192,10 @@ function validateText(kind, text) {
  * - 牌组已有卡片：放在该牌组卡片所在目录的 `inbox.md`；若那个 `inbox.md` 已属于同目录的另一个牌组
  *   （如 `Link` 与 `Link::符号处理` 同在 `link/`），改用 `inbox-<牌组安全名>.md`，不混进同一文件；
  * - 牌组尚未存在：`flashcards/<牌组安全名>/inbox.md`。
- * 返回路径一定在 `wiki/flashcards/` 内。
+ * 返回路径一定在 `<知识目录>/flashcards/` 内。
  */
 async function deckInboxPath(vault, deck) {
-  const base = join(wikiDir(vault), "flashcards");
+  const base = join(knowledgeDir(vault), "flashcards");
   const safe = safeDeckName(deck);
   let target = join(base, safe, "inbox.md");
   for (const file of await walkMarkdown(base)) {
@@ -252,9 +258,9 @@ function usage() {
     "  node flashcards.mjs stats <vault> [--json]",
     "  node flashcards.mjs add <vault> --deck <deck> --front <text> --back <text> [--json]",
     "",
-    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）。",
-    "stats：卡片 = wiki/flashcards/ 下的 START…END 块；已同步 = 块内或块后有 <!--ID: 数字-->。",
-    "add：按 flashcard-rules.md 的 Basic 格式追加到该牌组 inbox.md，只写 wiki/flashcards/。",
+    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/知识，不存在时为 wiki。",
+    "stats：卡片 = <知识目录>/flashcards/ 下的 START…END 块；已同步 = 块内或块后有 <!--ID: 数字-->。",
+    "add：按 flashcard-rules.md 的 Basic 格式追加到该牌组 inbox.md，只写 <知识目录>/flashcards/。",
   ].join("\n");
 }
 

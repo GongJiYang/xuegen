@@ -6,6 +6,11 @@ describe("withStylePrefix", () => {
     expect(withStylePrefix("plain", "你好")).toBe("[风格：大白话] 你好");
   });
 
+  it("adds no tag for 「默认」, which defers to the subject's 讲解偏好", () => {
+    expect(withStylePrefix("default", "你好")).toBe("你好");
+    expect(withStylePrefix("default", "/skill:teach 你好")).toBe("/skill:teach 你好");
+  });
+
   it("keeps /skill: first so Pi can expand it, and tags the request instead", () => {
     expect(withStylePrefix("deep", "/skill:diagram 画个流程图")).toBe("/skill:diagram [风格：深度] 画个流程图");
     expect(withStylePrefix("plain", "/skill:diagram")).toBe("/skill:diagram [风格：大白话]");

@@ -12,7 +12,7 @@
 
 import type { CalendarDay, CycleDayType } from "@shared/data-protocol.js";
 import type { CalendarPanelProps } from "../contract.js";
-import { cellAuxTag, cellFlag, cellTag, dayLessons, daySlotLine, hasAux, legendNames } from "../../core/board/plan-view.js";
+import { cellAuxTag, cellFlag, cellReadingTag, cellTag, dayLessons, daySlotLine, hasAux, legendNames } from "../../core/board/plan-view.js";
 import { dateKey } from "../../core/board/use-calendar.js";
 import { dayTitle } from "../../core/format.js";
 import { strings } from "../../core/strings.js";
@@ -208,7 +208,8 @@ export function CalendarPanel({
           if (cell.date === selected) classes.push("is-sel");
           const slot = cycleDays[cell.date];
           if (slot?.type === "休息") classes.push("is-rest");
-          const tag = cell.out ? "" : cellTag(cycle, cell.date);
+          const readCount = days[cell.date]?.readingDue.length ?? 0;
+          const tag = cell.out ? "" : (cellReadingTag(cycle, cell.date, readCount) ?? cellTag(cycle, cell.date));
           const flag = cell.out ? null : cellFlag(cycle, cell.date);
           const auxTag = cell.out ? "" : cellAuxTag(cycle, cell.date);
           if (!cell.out && (cycle?.lessons[cell.date]?.length || slot?.type === "深度")) classes.push("is-deep");
@@ -228,6 +229,7 @@ export function CalendarPanel({
               {auxTag && <span className="bear-mcal-aux">{auxTag}</span>}
               {flag && <span className="bear-mcal-flag">{flag}</span>}
               {(slot || tag) && days[cell.date]?.note && <i className="bear-mcal-notedot" aria-hidden="true" />}
+              {(slot || tag) && readCount > 0 && <i className="bear-mcal-readdot" aria-hidden="true" />}
             </button>
           );
         })}

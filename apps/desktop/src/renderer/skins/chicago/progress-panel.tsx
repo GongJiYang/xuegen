@@ -51,7 +51,7 @@ function NewCourseForm({
   const [endInput, setEndInput] = useState<string | null>(null);
   const endDate = endInput ?? defaultEndDate(startDate);
   const [rest, setRest] = useState<RestDays>("sun");
-  const [style, setStyle] = useState<TeachingStyle>("plain");
+  const [style, setStyle] = useState<TeachingStyle>("default");
   const candidates = materialCandidates(material, sources);
 
   function submit(): void {
@@ -311,7 +311,7 @@ export function ProgressPanel({
           key={course.slug}
           course={course}
           isOpen={open === index}
-          style={courseStyles[course.slug] ?? "plain"}
+          style={courseStyles[course.slug] ?? "default"}
           started={startedToday[course.slug] === true}
           onToggle={() => setOpen(open === index ? -1 : index)}
           onCourseStyle={(style) => onCourseStyle(course.slug, style)}

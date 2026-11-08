@@ -12,8 +12,8 @@
 | `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。 |
 | `use-reload-on-answer.ts` | 流式 true → false 时刷新各面板（`useReloadOnAnswer`）；窗口获得焦点与过零点也刷新（`useReloadOnFocusAndDay`，焦点 5 秒一次上限）。 |
 | `use-board-reload.ts` | `useBoardReload`：把上述三个时机接到一组 `reload()` 资源上。 |
-| `session-freshness.ts` | 纯函数：从会话文件名解析创建日（`sessionDay`）、旧课程会话判断（`staleCourseSession`）、是否开新会话（`startsFresh`）、下条消息是否带「先重读」（`needsRefresh`）。 |
-| `use-session-freshness.ts` | `useSessionFreshness`：旧课程会话给「开今天的课」提示；课程页更新或本次运行未见过时给下条消息加 `chat.refreshNote`。 |
+| `session-freshness.ts` | 纯函数：从会话文件名解析创建日（`sessionDay`）、旧课程会话判断（`staleCourseSession`）、是否开新会话（`startsFresh`）、下条消息是否带「先重读」（`needsRefresh`）、存档阶段（`checkpointPhase`，60% 起提示）。 |
+| `use-session-freshness.ts` | `useSessionFreshness`：旧课程会话给「开今天的课」提示；课程页更新或本次运行未见过时给下条消息加 `chat.refreshNote`；上下文到 60% 提示「先存档」，存档答完后提示开新会话接着上。 |
 | `use-skills-panel.ts` | 技能面板的获取结果与待审阅状态（`useSkillsPanel`）。 |
 | `use-reading.ts` | `reading.today` / `reading.stats` / `reading.sources` + 加入、复习；`isWebUrl`、`clipPrompt` 纯函数。 |
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |

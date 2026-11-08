@@ -201,6 +201,22 @@ test("add：非库根目录拒绝", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+test("知识目录：wiki/知识/ 存在时读写其中的 flashcards", async () => {
+  const vault = await makeVault();
+  const kdir = join(vault, "wiki", "知识", "flashcards");
+  await mkdir(join(kdir, "math"), { recursive: true });
+  await writeFile(join(kdir, "math", "a.md"), `TARGET DECK\nMath\n\n${SYNCED_BLOCK}\n`, "utf8");
+  const res = await jsonFc(["stats", vault]);
+  assert.equal(res.total, 1);
+  assert.equal(res.unsynced, 0);
+  assert.equal(res.decks[0].files[0], join("wiki", "知识", "flashcards", "math", "a.md"));
+  const add = await jsonFc(["add", vault, "--deck", "Geo", "--front", "F", "--back", "B"]);
+  assert.equal(add.file, join(kdir, "Geo", "inbox.md"));
+  assert.ok(existsSync(add.file));
+  assert.ok(!existsSync(join(vault, "wiki", "flashcards")), "不应创建 wiki/flashcards/");
+  await rm(vault, { recursive: true, force: true });
+});
+
 test("原子写入：inbox 无残留临时文件", async () => {
   const vault = await makeVault();
   await fc(["add", vault, "--deck", "D", "--front", "F", "--back", "B"]);

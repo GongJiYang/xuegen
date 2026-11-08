@@ -82,11 +82,11 @@ export interface ChatController {
 
 /**
  * @param style Teaching style prefixed onto outgoing messages. Defaults to
- *   `plain` (大白话), the style the user has always used.
+ *   `default`: no prefix, so 学根 follows the subject's 讲解偏好.
  * @param disabledSkills Skills the user turned off; the agent filters these from
  *   its command list, and the list is re-requested whenever they change.
  */
-export function useChat(style: TeachingStyle = "plain", disabledSkills: readonly string[] = []): ChatController {
+export function useChat(style: TeachingStyle = "default", disabledSkills: readonly string[] = []): ChatController {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
   // Keep the latest style without re-creating `send`, so a style change never
   // forces child re-renders through a new callback identity. Updated in an

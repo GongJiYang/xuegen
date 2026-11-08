@@ -11,7 +11,7 @@ core 决定「是什么」：对话状态、设置、文案、内容解析、动
   - `useChat.ts`：命令式外壳，订阅 preload 事件并 `useReducer`；控制器位于皮肤之上，切换皮肤不重建。
   - `message-renderer.tsx`：唯一知道「一条消息如何映射到插槽」的地方；内容分类一次后交给皮肤的 `ContentRenderers`，`question` callout 路由到 `Exercise` 插槽；用户消息把 `[风格：X]` 前缀拆成 `styleTag` + `body`。
   - `style-prefix.ts`：`withStylePrefix`、`splitStyleTag`、`styleLabel` 纯函数。
-  - `style.ts`：`resolveStyle` —— 当前风格（课程 `courseStyles` → 会话 `sessionStyle` → 大白话）。
+  - `style.ts`：`resolveStyle` 等 —— 当天内存里的风格选择（按课程 / 自由对话），未选即「默认」，不保存。
 - `board/`：课程 / 阅读 / 卡片 / 日历 / 技能的视图模型与控制器，`AsyncState` 三态建模（见该目录 README）。
 - `commands/`：`/` 菜单的命令表、过滤、分组与选择（见该目录 README）。
 - `today.ts`：`resumePoint`（接着上次）、`resumePrompt`、`studyPrompt` 纯函数。

@@ -6,7 +6,6 @@ import {
   isHostToAgentMessage,
   isTeachingStyle,
   normalizeCourseStartedOn,
-  normalizeCourseStyles,
   normalizeDesktopSettings,
   normalizeDisabledSkills,
   normalizeSkinOptions,
@@ -127,27 +126,26 @@ describe("normalizeDesktopSettings", () => {
     expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1, windowBackground: "#fff" }).windowBackground).toBe("#fff");
   });
 
-  it("normalizes disabledSkills, courseStyles and sessionStyle", () => {
+  it("normalizes disabledSkills and ignores the dropped style fields", () => {
     const normalized = normalizeDesktopSettings({
       skin: "bare",
       bodyFont: "song",
       bodyScale: 1,
       disabledSkills: ["reading", "reading", 7, "  ", "calendar"],
-      courseStyles: { ctm: "plain", bad: "loud", "": "deep" },
-      sessionStyle: "detailed",
+      courseStyles: { ctm: "deep" },
+      sessionStyle: "deep",
     });
     expect(normalized.disabledSkills).toEqual(["reading", "calendar"]);
-    expect(normalized.courseStyles).toEqual({ ctm: "plain" });
-    expect(normalized.sessionStyle).toBe("detailed");
+    // `courseStyles` / `sessionStyle` are no longer settings: style picks live
+    // in memory only, so leftovers from an old desktop.json are dropped.
+    expect(normalized).not.toHaveProperty("courseStyles");
+    expect(normalized).not.toHaveProperty("sessionStyle");
   });
 
-  it("defaults the new fields when absent and rejects an unknown style", () => {
+  it("defaults the new fields when absent", () => {
     const normalized = normalizeDesktopSettings({ skin: "bare", bodyScale: 1 });
     expect(normalized.disabledSkills).toEqual([]);
-    expect(normalized.courseStyles).toEqual({});
     expect(normalized.courseStartedOn).toEqual({});
-    expect(normalized.sessionStyle).toBe(DEFAULT_DESKTOP_SETTINGS.sessionStyle);
-    expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1, sessionStyle: "loud" }).sessionStyle).toBe("plain");
   });
 
   it("keeps only real dates in courseStartedOn", () => {
@@ -180,15 +178,14 @@ describe("normalizeCourseStartedOn", () => {
   });
 });
 
-describe("normalizeDisabledSkills / normalizeCourseStyles / isTeachingStyle", () => {
-  it("returns empty for non-array / non-object inputs", () => {
+describe("normalizeDisabledSkills / isTeachingStyle", () => {
+  it("returns empty for non-array inputs", () => {
     expect(normalizeDisabledSkills("reading")).toEqual([]);
     expect(normalizeDisabledSkills(null)).toEqual([]);
-    expect(normalizeCourseStyles(["plain"])).toEqual({});
   });
 
-  it("recognizes only the three teaching styles", () => {
-    for (const style of ["plain", "detailed", "deep"]) expect(isTeachingStyle(style)).toBe(true);
+  it("recognizes the four teaching styles, including default", () => {
+    for (const style of ["default", "plain", "detailed", "deep"]) expect(isTeachingStyle(style)).toBe(true);
     for (const value of ["loud", "", null, 1]) expect(isTeachingStyle(value)).toBe(false);
   });
 });

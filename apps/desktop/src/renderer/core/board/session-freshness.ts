@@ -68,3 +68,26 @@ export function needsRefresh(
   if (last === undefined) return true;
   return changedAt !== undefined && changedAt > last;
 }
+
+/** At or above this context percent a course session offers 「先存档」. */
+export const CHECKPOINT_PERCENT = 60;
+
+export type CheckpointPhase = "none" | "offer" | "saving" | "saved";
+
+/**
+ * Where the open course session stands on the 存档 → 新会话 path. `sentFor` is
+ * the session file the 存档 prompt went to; `doneFor` the file whose 存档 answer
+ * has ended.
+ */
+export function checkpointPhase(
+  activeCourse: string | null,
+  sessionFile: string | null,
+  percent: number | null,
+  sentFor: string | null,
+  doneFor: string | null,
+): CheckpointPhase {
+  if (!activeCourse || !sessionFile) return "none";
+  if (doneFor === sessionFile) return "saved";
+  if (sentFor === sessionFile) return "saving";
+  return percent !== null && percent >= CHECKPOINT_PERCENT ? "offer" : "none";
+}

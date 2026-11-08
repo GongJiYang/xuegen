@@ -183,6 +183,14 @@ export function cellTag(month: CycleMonth | null, date: string): string {
   return strings.plan.tag[slot.type];
 }
 
+/** A 低强度 day with reading due and no main lesson says 「读书」 instead of its type tag; else null. */
+export function cellReadingTag(month: CycleMonth | null, date: string, readingCount: number): string | null {
+  if (!month || readingCount <= 0) return null;
+  if (month.days[date]?.type !== "低强度") return null;
+  const main = (month.lessons[date] ?? []).some((item) => month.roles[item.course] !== "aux");
+  return main ? null : strings.plan.tagRead;
+}
+
 /** The cell's second line: the aux lesson's short course name, else the day's aux subject short name, else "". */
 export function cellAuxTag(month: CycleMonth | null, date: string): string {
   if (!month) return "";

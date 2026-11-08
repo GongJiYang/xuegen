@@ -232,3 +232,26 @@ test("write：原子写入无残留临时文件", async () => {
   assert.ok(entries.every((name) => !name.includes(".tmp-")), `残留：${entries}`);
   await rm(vault, { recursive: true, force: true });
 });
+
+test("讲后读：Today 里未勾选的讲后读进当天 readingDue", async () => {
+  const vault = await makeVault();
+  await writeCourse(
+    vault,
+    "mono",
+    [
+      "## Today",
+      "",
+      "- 日期：2026-11-08",
+      "",
+      "- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.1–5）",
+      "- [x] 讲后读 §0 · 2026-11-09 读",
+    ].join("\n"),
+  );
+
+  const day = await jsonCal(["get", vault, "2026-11-10"]);
+  assert.deepEqual(day.readingDue, [{ slug: "mono#讲后读-1", title: "讲后读 §1.1–1.4 核心页（mono）" }]);
+
+  const prev = await jsonCal(["get", vault, "2026-11-09"]);
+  assert.deepEqual(prev.readingDue, []);
+  await rm(vault, { recursive: true, force: true });
+});

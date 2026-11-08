@@ -169,7 +169,7 @@ export interface ShellProps {
 
   /** The current teaching style of the session (single source for the UI). */
   style: TeachingStyle;
-  /** Change the style; persists to the course or session default. */
+  /** Change the style; holds in memory for the running session, today only. */
   onSelectStyle(style: TeachingStyle): void;
   /** The course whose style is being edited, or null for a course-less session. */
   styleCourse: string | null;
@@ -464,9 +464,9 @@ export interface TodayPanelProps {
 
 export interface ProgressPanelProps extends ToolPanelProps {
   courses: AsyncState<CourseSummary[]>;
-  /** The current style per course slug, so each row's radio reflects it. */
+  /** The style picked per course slug today, so each row's radio reflects it. */
   courseStyles: Record<string, TeachingStyle>;
-  /** Change one course's remembered style. */
+  /** Change one course's style pick (today only, not persisted). */
   onCourseStyle(slug: string, style: TeachingStyle): void;
   /** Courses already opened today, so a row's button can read 「回到这门课」. */
   startedToday: Record<string, boolean>;

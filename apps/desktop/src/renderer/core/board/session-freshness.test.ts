@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsRefresh, sessionDay, staleCourseSession, startsFresh } from "./session-freshness.js";
+import { checkpointPhase, needsRefresh, sessionDay, staleCourseSession, startsFresh } from "./session-freshness.js";
 
 /** The session-file stamp for a local day at local noon, in the file-name format. */
 function stampFor(localDay: string): string {
@@ -99,5 +99,33 @@ describe("needsRefresh", () => {
 
   it("is false once seen even without a changedAt", () => {
     expect(needsRefresh(file, "ctm", 3, undefined, { [file]: 100 })).toBe(false);
+  });
+});
+
+describe("checkpointPhase", () => {
+  const file = "/sessions/2026-11-08T12-00-00-000Z_abc.jsonl";
+
+  it("is none without a course or a session file", () => {
+    expect(checkpointPhase(null, file, 80, null, null)).toBe("none");
+    expect(checkpointPhase("ctm", null, 80, null, null)).toBe("none");
+  });
+
+  it("is none below 60% and offer at 60%", () => {
+    expect(checkpointPhase("ctm", file, 59, null, null)).toBe("none");
+    expect(checkpointPhase("ctm", file, 60, null, null)).toBe("offer");
+    expect(checkpointPhase("ctm", file, null, null, null)).toBe("none");
+  });
+
+  it("is saving once the 存档 prompt went to this file", () => {
+    expect(checkpointPhase("ctm", file, 65, file, null)).toBe("saving");
+  });
+
+  it("is saved once the 存档 answer for this file ended", () => {
+    expect(checkpointPhase("ctm", file, 65, file, file)).toBe("saved");
+  });
+
+  it("rejudges by percent when the open file is a different one", () => {
+    expect(checkpointPhase("ctm", file, 65, "/sessions/old.jsonl", "/sessions/old.jsonl")).toBe("offer");
+    expect(checkpointPhase("ctm", file, 30, "/sessions/old.jsonl", null)).toBe("none");
   });
 });

@@ -177,7 +177,7 @@ export function PlanProgress(props: PlanProgressProps) {
       key={card.slug}
       card={card}
       course={bySlug.get(card.slug) ?? null}
-      style={props.courseStyles[card.slug] ?? "plain"}
+      style={props.courseStyles[card.slug] ?? "default"}
       started={props.startedToday[card.slug] === true}
       defaultOpen={index === 0}
       onStyle={(style) => props.onCourseStyle(card.slug, style)}

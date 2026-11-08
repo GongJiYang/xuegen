@@ -17,6 +17,7 @@
 | `docs/desktop/RELEASE.md` | 发版步骤：打包、GitHub Release、程序内更新、首次安装。 |
 | `docs/desktop/skins/README.md` | 皮肤登记表（id、版本、状态）。 |
 | `docs/desktop/skins/chicago.md` | Chicago 皮肤的视觉与交互规范。 |
+| `docs/platform/PRINCIPLES.md` | 学根准则：库的四类划分、记忆分层、上下文预算、读原书；所有改动先对照。 |
 | `docs/platform/ROADMAP.md` | 平台能力（skill 仓库、RAG）路线。 |
 | `docs/skills/AUTHORING.md` | 学习 skill 的编写规范。 |
 

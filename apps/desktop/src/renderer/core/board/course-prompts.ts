@@ -63,7 +63,12 @@ export function defaultEndDate(startDate: string): string {
   return `${end.getUTCFullYear()}-${pad(end.getUTCMonth() + 1)}-${pad(end.getUTCDate())}`;
 }
 
-const STYLE_NAMES: Record<TeachingStyle, string> = { plain: "大白话", detailed: "细讲", deep: "深度" };
+const STYLE_NAMES: Record<TeachingStyle, string> = { default: "默认", plain: "大白话", detailed: "细讲", deep: "深度" };
+
+/** 「默认」不写风格；选了别的就请学根按讲解偏好规则写进科目页（先确认）。 */
+function styleClause(style: TeachingStyle): string {
+  return style === "default" ? "" : `，默认讲解风格「${STYLE_NAMES[style]}」（按 course 的讲解偏好写进科目页，先问我确认）`;
+}
 
 /** The request that binds material, creates the course file and a day-by-day plan to the deadline. */
 export function newCoursePrompt(request: NewCourseRequest): string {
@@ -80,7 +85,7 @@ export function newCoursePrompt(request: NewCourseRequest): string {
     return [
       `/skill:course 新建课程「${request.title.trim()}」。`,
       material,
-      `这是 ${placement.cycle} ${role}课（科目：${placement.subjectName}），只排在${placement.days.join("、")}，${length}，从今天之后第一个上课日排到 ${placement.end}（${placement.cycle} 结束），排不下的留到下个周期；原书「${READING_NAMES[request.reading]}」，讲解风格「${STYLE_NAMES[request.style]}」。`,
+      `这是 ${placement.cycle} ${role}课（科目：${placement.subjectName}），只排在${placement.days.join("、")}，${length}，从今天之后第一个上课日排到 ${placement.end}（${placement.cycle} 结束），排不下的留到下个周期；原书「${READING_NAMES[request.reading]}」${styleClause(request.style)}。`,
       "按 course 技能「学习周期里的课」排期（--days 用这几天，--reviews anki），建好后在科目页资料行补短名链接，并跑 cycle.mjs check。",
       "建好后先用三五行告诉我本周期能学到哪里，再开始第一课。",
     ].join("");
@@ -88,7 +93,7 @@ export function newCoursePrompt(request: NewCourseRequest): string {
   return [
     `/skill:course 新建课程「${request.title.trim()}」。`,
     material,
-    `从 ${request.startDate} 开始，${request.endDate} 前学完，${REST_NAMES[request.rest]}，原书「${READING_NAMES[request.reading]}」，讲解风格「${STYLE_NAMES[request.style]}」。`,
+    `从 ${request.startDate} 开始，${request.endDate} 前学完，${REST_NAMES[request.rest]}，原书「${READING_NAMES[request.reading]}」${styleClause(request.style)}。`,
     "每节时长由你按资料难度和篇幅估，写在每个课次里；教材有目录就按目录切课次。",
     `请绑定资料、建课程文件，列出课次后用 course-schedule.mjs 排出到截止日期的逐日计划（--start ${request.startDate} --end ${request.endDate} --rest ${request.rest}，含间隔复习），并刷新课程看板；`,
     "建好后先用三五行告诉我第一周安排和截止日期，再开始第一课。",

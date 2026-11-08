@@ -13,7 +13,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
-import type { TeachingStyle } from "@shared/protocol.js";
 import { useChat } from "./core/chat/useChat.js";
 import { MessageRenderer } from "./core/chat/message-renderer.js";
 import { useSettings } from "./core/settings/use-settings.js";
@@ -40,7 +39,7 @@ import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
 import type { SlashCommand } from "./core/commands/commands.js";
 import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
-import { resolveStyle, styleWriteTarget } from "./core/chat/style.js";
+import { useSessionStyle } from "./core/chat/use-session-style.js";
 import { dayTitle } from "./core/format.js";
 import { resumePoint, todayPlanItems } from "./core/today.js";
 import { useUpdate } from "./core/update/use-update.js";
@@ -78,8 +77,6 @@ export function App() {
   const skills = useSkills();
   const skillsPanel = useSkillsPanel(skills, apply);
 
-  // The style for the whole session: the remembered per-course style when the
-  // most-recent course is known, else the session default.
   const resume = useMemo(
     () => (courses.state.status === "ready" ? resumePoint(courses.state.value) : null),
     [courses.state],
@@ -110,8 +107,10 @@ export function App() {
   const [focusRequest, setFocusRequest] = useState(0);
   const { activeCourse, openSessionFile, setActiveCourse, setOpenSessionFile } =
     useActiveCourse(settings);
-  const style = resolveStyle(settings, activeCourse);
-  const controller = useChat(style, settings.disabledSkills);
+  const sessionStyle = useSessionStyle(activeCourse);
+  // Destructured so runCommand can name it in its dependency array.
+  const selectStyle = sessionStyle.select;
+  const controller = useChat(sessionStyle.style, settings.disabledSkills);
   if (controller.sessionFile !== openSessionFile) setOpenSessionFile(controller.sessionFile);
   const slash = useSlash(controller.commands, settings.disabledSkills);
   const {
@@ -120,12 +119,13 @@ export function App() {
     handleStudy,
     handleResume,
     handleStartSession,
+    handleContinueFresh,
     handleNewCourse,
     handleEditPlan,
     handleNewSession,
     handleContinueSession,
   } = useCourseSessions(controller, settings, update, courses, resume, activeCourse, setActiveCourse, () => setFocusRequest((value) => value + 1));
-  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, handleStudy);
+  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, handleStudy, handleContinueFresh);
   const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
   const control = useControlSession(controller, settings, update, cycleId, setActiveCourse, () =>
     setFocusRequest((value) => value + 1),
@@ -172,28 +172,6 @@ export function App() {
 
   useBodyScaleShortcuts(skin, settings.bodyFont, settings.bodyScale, update);
 
-  const setCourseStyle = useCallback(
-    (slug: string, next: TeachingStyle) => {
-      update({ courseStyles: { ...settings.courseStyles, [slug]: next } });
-    },
-    [update, settings.courseStyles],
-  );
-
-  const handleSelectStyle = useCallback(
-    (next: TeachingStyle) => {
-      // Only a course whose session is running owns the style; otherwise it is
-      // the session default. `/细讲` on a fresh window must not write into the
-      // 接着上次 course's `courseStyles`.
-      const target = styleWriteTarget(activeCourse);
-      if (target.kind === "course") {
-        update({ courseStyles: { ...settings.courseStyles, [target.slug]: next } });
-      } else {
-        update({ sessionStyle: next });
-      }
-    },
-    [update, settings.courseStyles, activeCourse],
-  );
-
   const handleReadingAdd = useCallback(
     async (source: string, priority: ReadingPriority, due: ReadingDue) => {
       const result = await reading.add(source, priority, due);
@@ -232,7 +210,7 @@ export function App() {
       const effect = commandEffect(command.command);
       switch (effect.kind) {
         case "style":
-          return handleSelectStyle(effect.style);
+          return selectStyle(effect.style);
         case "tool": {
           setActiveTool(effect.tool);
           // A command that names a field (e.g. /加入阅读) focuses it once the
@@ -259,7 +237,7 @@ export function App() {
           return;
       }
     },
-    [slash, handleSelectStyle, handleResume, handleNewSession, handleContinueSession, controller, control],
+    [slash, selectStyle, handleResume, handleNewSession, handleContinueSession, controller, control],
   );
 
   if (!skin) {
@@ -302,14 +280,14 @@ export function App() {
     todayPlan,
     tomorrowPlan,
     courseTitles,
-    courseStyles: settings.courseStyles,
+    courseStyles: sessionStyle.courseStyles,
     startedToday,
     resume,
     agentReady: controller.agentStatus === "ready" && !controller.disabled,
     focus: pendingFocus,
     onFocusHandled: () => setPendingFocus(null),
     onResume: handleResume,
-    onCourseStyle: setCourseStyle,
+    onCourseStyle: sessionStyle.setCourse,
     onStudy: handleStudy,
     onNewCourse: handleNewCourse,
     onEditPlan: handleEditPlan,
@@ -368,8 +346,8 @@ export function App() {
           disabled={controller.disabled}
           onSend={(text) => controller.send(answering === null ? text : strings.content.exerciseAnswerPrefix(answering, text))}
           onStop={controller.stop}
-          style={style}
-          onStyle={handleSelectStyle}
+          style={sessionStyle.style}
+          onStyle={sessionStyle.select}
           commandsOpen={slash.open}
           commandGroups={slash.groups}
           commands={slash.commands}
@@ -417,8 +395,8 @@ export function App() {
     },
     focusMode,
     onToggleFocus: () => setFocusMode((value) => !value),
-    style,
-    onSelectStyle: handleSelectStyle,
+    style: sessionStyle.style,
+    onSelectStyle: sessionStyle.select,
     styleCourse: activeCourse,
     onPrompt: controller.send,
     panels,

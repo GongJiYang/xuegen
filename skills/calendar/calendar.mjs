@@ -92,6 +92,21 @@ function collectCoursePlans(course) {
     .map((entry) => ({ date: entry.date, course: course.slug, label: entry.label }));
 }
 
+// 课程页 `## Today` 里没打勾的「讲后读 … · YYYY-MM-DD 读」→ 当天的 readingDue。
+function collectAfterReads(course) {
+  const lines = course.text.split("\n");
+  const start = lines.findIndex((line) => /^##\s+Today\s*$/.test(line));
+  if (start === -1) return [];
+  const found = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^##\s/.test(line)) break;
+    const match = line.match(/^- \[ \] 讲后读 (.+?) · (\d{4}-\d{2}-\d{2}) 读/);
+    if (!match || !isDate(match[2])) continue;
+    found.push({ date: match[2], slug: `${course.slug}#讲后读-${found.length + 1}`, title: `讲后读 ${match[1].trim()}（${course.title}）` });
+  }
+  return found;
+}
+
 async function loadCourses(vault) {
   const dir = join(wikiDir(vault), "courses");
   if (!existsSync(dir)) return [];
@@ -99,7 +114,7 @@ async function loadCourses(vault) {
   const courses = [];
   for (const name of names.filter((n) => n.endsWith(".md") && !n.startsWith(".")).sort()) {
     const text = await readFile(join(dir, name), "utf8");
-    courses.push(parseCourse(text, basename(name, ".md")));
+    courses.push({ ...parseCourse(text, basename(name, ".md")), text });
   }
   return courses;
 }
@@ -193,7 +208,8 @@ async function collectMonth(vault, month) {
   };
   const inMonth = (date) => date.startsWith(month);
 
-  for (const course of await loadCourses(vault)) {
+  const courses = await loadCourses(vault);
+  for (const course of courses) {
     for (const record of collectCourseRecords(course)) {
       if (inMonth(record.date)) bucket(record.date).records.push({ course: record.course, heading: record.heading });
     }
@@ -203,6 +219,11 @@ async function collectMonth(vault, month) {
   }
   for (const item of await collectReadingDue(vault)) {
     if (inMonth(item.date)) bucket(item.date).readingDue.push({ slug: item.slug, title: item.title });
+  }
+  for (const course of courses) {
+    for (const item of collectAfterReads(course)) {
+      if (inMonth(item.date)) bucket(item.date).readingDue.push({ slug: item.slug, title: item.title });
+    }
   }
   for (const item of await collectLog(vault)) {
     if (inMonth(item.date)) bucket(item.date).log.push(item.text);
@@ -336,7 +357,7 @@ function usage() {
     "  node calendar.mjs write <vault> <YYYY-MM-DD> (--text <string> | --stdin)",
     "",
     "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）。",
-    "month/get 聚合：课程学习记录、课程计划表日期行、阅读页 due、wiki/log.md、wiki/calendar/ 笔记。",
+    "month/get 聚合：课程学习记录、课程计划表日期行、阅读页 due、课程页 Today 里的讲后读、wiki/log.md、wiki/calendar/ 笔记。",
     "write 只写 wiki/calendar/；正文为空则删除该文件。",
   ].join("\n");
 }

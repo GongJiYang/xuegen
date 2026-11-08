@@ -46,7 +46,9 @@ function fakeController(streaming = false, messageCount = 1) {
     streaming,
     messages: Array.from({ length: messageCount }, (_, index) => ({ id: `m${index}` })),
     setRefreshNote: vi.fn(),
-  } as unknown as ChatController & { setRefreshNote: ReturnType<typeof vi.fn> };
+    sendCommand: vi.fn(),
+    contextUsage: null,
+  } as unknown as ChatController & { setRefreshNote: ReturnType<typeof vi.fn>; sendCommand: ReturnType<typeof vi.fn> };
 }
 
 const course = {
@@ -64,6 +66,7 @@ function Harness({
   openSessionFile,
   settings = DEFAULT_DESKTOP_SETTINGS,
   onStudy = () => undefined,
+  onContinueFresh = () => undefined,
 }: {
   controller: ChatController;
   courses: CoursesResource;
@@ -71,8 +74,9 @@ function Harness({
   openSessionFile: string | null;
   settings?: DesktopSettings;
   onStudy?: (course: CourseSummary) => void;
+  onContinueFresh?: (slug: string, text: string) => void;
 }) {
-  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, onStudy);
+  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, onStudy, onContinueFresh);
   useEffect(() => {
     captured = freshness;
   });
@@ -123,6 +127,29 @@ describe("useSessionFreshness — stale session notice", () => {
       />,
     );
     expect(captured?.notice).toBeNull();
+  });
+});
+
+describe("useSessionFreshness — 存档提示", () => {
+  it("contextUsage 到 60% 以上时提示「先存档」，点了发存档指令", () => {
+    const file = stampFor(TODAY);
+    const controller = fakeController();
+    controller.contextUsage = { tokens: 65_000, contextWindow: 100_000, percent: 65 };
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        activeCourse="ctm"
+        openSessionFile={file}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    const notice = captured?.notice;
+    expect(notice?.action?.label).toBe(strings.notice.checkpointAction);
+    expect(notice?.text).toBe(strings.notice.checkpoint(65));
+    act(() => notice?.action?.run());
+    expect(controller.sendCommand).toHaveBeenCalledWith(strings.chat.checkpointPrompt);
   });
 });
 

@@ -1,5 +1,6 @@
 # Xuegen 仓库约定（所有 agent 必读）
 
+- 改动前先读 `docs/platform/PRINCIPLES.md`（四类划分、一件事一个地方、记忆分层、上下文预算）；与之冲突的改动不做，先报告。
 - 先读 `ARCHITECTURE.md`（六层模型）。新需求先归类到层，再决定实现位置。
 - 不 fork、不修改 Pi 运行时；只通过 Extension / SDK / 上游 API 扩展。
 - Markdown 是学习状态的唯一真相源；不新增数据库或第二套状态。

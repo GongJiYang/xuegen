@@ -4,6 +4,7 @@ import {
   auxRows,
   cellAuxTag,
   cellFlag,
+  cellReadingTag,
   cellTag,
   courseCards,
   cyclePlacement,
@@ -170,6 +171,14 @@ describe("calendar cells", () => {
     expect(cellTag(MONTH, "2026-12-30")).toBe("恢复");
     expect(cellTag(MONTH, "2026-12-31")).toBe("");
     expect(cellTag(null, "2026-12-21")).toBe("");
+  });
+  it("cellReadingTag: a 低强度 day with reading due says 「读书」", () => {
+    expect(cellReadingTag(MONTH, "2026-12-19", 1)).toBe("读书");
+    expect(cellReadingTag(MONTH, "2026-12-19", 0)).toBeNull();
+    expect(cellReadingTag(MONTH, "2026-12-21", 1)).toBeNull();
+    expect(cellReadingTag(null, "2026-12-19", 1)).toBeNull();
+    const withMain = { ...MONTH, lessons: { "2026-12-19": [{ course: "epp", id: "D15", content: "x" }] } };
+    expect(cellReadingTag(withMain, "2026-12-19", 1)).toBeNull();
   });
   it("cellFlag marks a cycle's first and last day", () => {
     expect(cellFlag(MONTH, "2026-12-24")).toBe("C1 完");

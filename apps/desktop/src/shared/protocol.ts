@@ -241,10 +241,6 @@ export interface DesktopSettings {
   windowBackground: string;
   /** Skills the user turned off; the agent excludes them from its command list. */
   disabledSkills: string[];
-  /** Per-course teaching style, keyed by course slug. */
-  courseStyles: Record<string, TeachingStyle>;
-  /** Teaching style for sessions not tied to a course. */
-  sessionStyle: TeachingStyle;
   /** The session file each course studies in, keyed by course slug. */
   courseSessions: Record<string, string>;
   /**
@@ -261,8 +257,8 @@ export interface DesktopSettings {
   controlBriefOn: Record<string, string>;
 }
 
-/** Teaching style ids sent to the agent as a `[风格：X]` message prefix. */
-export type TeachingStyle = "plain" | "detailed" | "deep";
+/** Teaching style ids. `default` sends no prefix: 学根 then follows the subject's 讲解偏好. */
+export type TeachingStyle = "default" | "plain" | "detailed" | "deep";
 
 /**
  * A thinking-level id, matching Pi's `ThinkingLevel`.
@@ -285,6 +281,7 @@ export function isThinkingLevel(value: unknown): value is ThinkingLevel {
 
 /** Teaching style labels, in the order the UI offers them. */
 export const TEACHING_STYLE_LABELS: { id: TeachingStyle; label: string }[] = [
+  { id: "default", label: "默认" },
   { id: "plain", label: "大白话" },
   { id: "detailed", label: "细讲" },
   { id: "deep", label: "深度" },
@@ -294,7 +291,7 @@ export const TEACHING_STYLE_LABELS: { id: TeachingStyle; label: string }[] = [
 export const TEACHING_STYLES: TeachingStyle[] = TEACHING_STYLE_LABELS.map((entry) => entry.id);
 
 export function isTeachingStyle(value: unknown): value is TeachingStyle {
-  return value === "plain" || value === "detailed" || value === "deep";
+  return value === "default" || value === "plain" || value === "detailed" || value === "deep";
 }
 
 /** The value range `bodyScale` is clamped to on write. */
@@ -313,13 +310,10 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   skinOptions: {},
   windowBackground: "",
   disabledSkills: [],
-  courseStyles: {},
   courseSessions: {},
   courseStartedOn: {},
   controlSessions: {},
   controlBriefOn: {},
-  // The user has only ever used 大白话, so that is the default (see FEATURES.md).
-  sessionStyle: "plain",
 };
 
 /**
@@ -438,16 +432,6 @@ export function normalizeDisabledSkills(value: unknown): string[] {
   return [...seen];
 }
 
-/** Coerce a persisted `courseStyles` value into `{ slug: style }`, dropping unknowns. */
-export function normalizeCourseStyles(value: unknown): Record<string, TeachingStyle> {
-  if (!isRecord(value)) return {};
-  const result: Record<string, TeachingStyle> = {};
-  for (const [slug, style] of Object.entries(value)) {
-    if (slug.trim() !== "" && isTeachingStyle(style)) result[slug] = style;
-  }
-  return result;
-}
-
 /** Coerce a persisted `courseSessions` value into `{ slug: sessionFile }`. */
 export function normalizeCourseSessions(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
@@ -498,10 +482,6 @@ export function normalizeDesktopSettings(value: unknown): DesktopSettings {
     skinOptions: normalizeSkinOptions(record.skinOptions),
     windowBackground: normalizeBackgroundColor(record.windowBackground),
     disabledSkills: normalizeDisabledSkills(record.disabledSkills),
-    courseStyles: normalizeCourseStyles(record.courseStyles),
-    sessionStyle: isTeachingStyle(record.sessionStyle)
-      ? record.sessionStyle
-      : DEFAULT_DESKTOP_SETTINGS.sessionStyle,
     courseSessions: normalizeCourseSessions(record.courseSessions),
     courseStartedOn: normalizeCourseStartedOn(record.courseStartedOn),
     controlSessions: normalizeCourseSessions(record.controlSessions),

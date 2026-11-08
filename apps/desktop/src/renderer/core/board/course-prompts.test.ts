@@ -18,7 +18,8 @@ describe("course prompts", () => {
     expect(text).toContain("原书「先读后讲」");
     expect(text).toContain("每节时长由你按资料难度和篇幅估");
     expect(text).not.toContain("每天学");
-    expect(text).toContain("「大白话」");
+    expect(text).toContain("默认讲解风格「大白话」");
+    expect(text).toContain("先问我确认");
     expect(text).toContain("2026-12-08 前学完，周六日休息");
     expect(text).toContain("course-schedule.mjs");
     expect(text).toContain("--start 2026-11-10 --end 2026-12-08 --rest sat,sun");
@@ -35,6 +36,14 @@ describe("course prompts", () => {
     expect(text).toContain("先问我要用什么资料");
     expect(text).toContain("原书「带读」");
     expect(text).toContain("「深度」");
+  });
+
+  it("leaves the style out for 「默认」 and asks confirmation otherwise", () => {
+    const base = { title: "x", material: "", reading: "guided" as const, startDate: "2026-11-05", endDate: "2026-12-03", rest: "none" as const };
+    const silent = newCoursePrompt({ ...base, style: "default" });
+    expect(silent).not.toContain("讲解风格");
+    const named = newCoursePrompt({ ...base, style: "deep" });
+    expect(named).toContain("默认讲解风格「深度」");
   });
 
   it("asks the course skill to change one course's plan", () => {

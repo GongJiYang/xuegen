@@ -203,7 +203,6 @@ describe("useCourseSessions", () => {
     expect(setActiveCourse).toHaveBeenCalledWith("algebra");
     expect(update).toHaveBeenCalledWith({
       courseSessions: { algebra: "/home/sessions/fresh.jsonl" },
-      courseStyles: { algebra: "deep" },
     });
   });
 });

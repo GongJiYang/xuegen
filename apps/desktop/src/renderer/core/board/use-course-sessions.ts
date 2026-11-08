@@ -81,6 +81,8 @@ export interface CourseSessionActions {
    * remember the file, then send.
    */
   handleStartSession(slug: string, text: string): void;
+  /** Continue a course in a fresh session today (after a 存档), sending `text`. */
+  handleContinueFresh(slug: string, text: string): void;
   handleNewCourse(request: NewCourseRequest): void;
   handleEditPlan(course: CourseSummary, change: string): void;
   handleNewSession(): void;
@@ -205,6 +207,11 @@ export function useCourseSessions(
     [startSession],
   );
 
+  const handleContinueFresh = useCallback(
+    (slug: string, text: string) => startSession(slug, text, null, null, false, true),
+    [startSession],
+  );
+
   const handleStudy = useCallback(
     (course: CourseSummary) => openCourse(course.slug, studyPrompt(course), courseIntro(course)),
     [openCourse],
@@ -253,10 +260,9 @@ export function useCourseSessions(
       setActiveCourse(slug);
       update({
         courseSessions: { ...settings.courseSessions, [slug]: pending.sessionFile },
-        courseStyles: { ...settings.courseStyles, [slug]: pending.request.style },
       });
     });
-  }, [courses.state, settings.courseSessions, settings.courseStyles, update, setActiveCourse]);
+  }, [courses.state, settings.courseSessions, update, setActiveCourse]);
 
   const handleNewSession = useCallback(() => {
     setIntro(null);
@@ -276,6 +282,7 @@ export function useCourseSessions(
     handleStudy,
     handleResume,
     handleStartSession,
+    handleContinueFresh,
     handleNewCourse,
     handleEditPlan,
     handleNewSession,

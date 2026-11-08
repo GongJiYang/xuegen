@@ -1,42 +1,46 @@
 /**
- * Teaching-style resolution for the active session.
+ * Teaching-style choices for today's sessions.
  *
- * The user's style is chosen per course and remembered (`desktop.json`
- * `courseStyles`), falling back to the session default (`sessionStyle`), then to
- * 大白话 (`plain`) — the style they have always used. Keeping the precedence in
- * one pure function means the composer, the menu, and the progress panel all
- * agree on what "the current style" is.
- *
- * The style marker itself is built by `chat/style-prefix.ts`; this module only
- * decides which style is in effect.
+ * A style picked in the UI holds only for the session it was picked in (see
+ * docs/platform/PRINCIPLES.md §5): it lives in memory, per course and for the
+ * free chat, and only for the day it was picked. Anything else is 「默认」, which
+ * sends no prefix so 学根 follows the subject's 讲解偏好. Pure: the caller passes today.
  */
 
-import type { DesktopSettings, TeachingStyle } from "@shared/protocol.js";
+import type { TeachingStyle } from "@shared/protocol.js";
 
-/**
- * The style for a course, or the session default when the course has none.
- *
- * `courseSlug` is null for a session not tied to a course (e.g. a free chat),
- * which uses `sessionStyle`.
- */
-export function resolveStyle(settings: DesktopSettings, courseSlug: string | null): TeachingStyle {
-  if (courseSlug) {
-    const perCourse = settings.courseStyles[courseSlug];
-    if (perCourse) return perCourse;
-  }
-  return settings.sessionStyle;
+export interface SessionStyles {
+  /** The local day (YYYY-MM-DD) the choices were made on. */
+  date: string;
+  /** Style picked per course slug today. */
+  byCourse: Record<string, TeachingStyle>;
+  /** Style picked for the chat not tied to a course. */
+  free: TeachingStyle;
 }
 
-/**
- * Where a style change should be written.
- *
- * A course owns its style only once its session is running (`activeCourse` is
- * its slug); otherwise the change belongs to the session default. This keeps a
- * `/细讲` on a fresh window from silently editing the 接着上次 course's remembered
- * style.
- */
-export type StyleWriteTarget = { kind: "course"; slug: string } | { kind: "session" };
+export function emptySessionStyles(date: string): SessionStyles {
+  return { date, byCourse: {}, free: "default" };
+}
 
-export function styleWriteTarget(activeCourse: string | null): StyleWriteTarget {
-  return activeCourse ? { kind: "course", slug: activeCourse } : { kind: "session" };
+/** The style in effect for `courseSlug` (null = free chat) on `today`. */
+export function resolveStyle(styles: SessionStyles, today: string, courseSlug: string | null): TeachingStyle {
+  if (styles.date !== today) return "default";
+  if (courseSlug) return styles.byCourse[courseSlug] ?? "default";
+  return styles.free;
+}
+
+/** Record a pick for `courseSlug` (null = free chat); choices from an earlier day are dropped. */
+export function withStyleChoice(
+  styles: SessionStyles,
+  today: string,
+  courseSlug: string | null,
+  next: TeachingStyle,
+): SessionStyles {
+  const base = styles.date === today ? styles : emptySessionStyles(today);
+  return courseSlug ? { ...base, byCourse: { ...base.byCourse, [courseSlug]: next } } : { ...base, free: next };
+}
+
+/** Today's per-course picks, for the course cards. */
+export function courseStylesOf(styles: SessionStyles, today: string): Record<string, TeachingStyle> {
+  return styles.date === today ? styles.byCourse : {};
 }

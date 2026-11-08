@@ -6,6 +6,7 @@
  * - The course page changed since this session's last answer, or nothing was
  *   seen yet in this app run (relaunch / update) → the next prompt carries
  *   `strings.chat.refreshNote` so 学根 re-reads the page and skills.
+ * - 上下文到 60%：提示先存档，存档答完后提示开新会话接着上
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,7 +16,7 @@ import type { ChatController } from "../chat/useChat.js";
 import type { NoticeItem } from "../../skins/contract.js";
 import * as client from "../client.js";
 import { strings } from "../strings.js";
-import { needsRefresh, staleCourseSession } from "./session-freshness.js";
+import { checkpointPhase, needsRefresh, staleCourseSession } from "./session-freshness.js";
 import { dateKey } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
 
@@ -33,6 +34,7 @@ export function useSessionFreshness(
   openSessionFile: string | null,
   settings: DesktopSettings,
   onStudy: (course: CourseSummary) => void,
+  onContinueFresh: (slug: string, text: string) => void,
 ): SessionFreshness {
   const today = dateKey(new Date());
   const tz = new Date().getTimezoneOffset();
@@ -44,18 +46,24 @@ export function useSessionFreshness(
   // timing could record a later change as already seen).
   const seen = useRef<Record<string, number>>({});
   const [seenVersion, setSeenVersion] = useState(0);
+  // The session file the 存档 prompt went to, and the one whose 存档 answer ended.
+  const [sentFor, setSentFor] = useState<string | null>(null);
+  const [doneFor, setDoneFor] = useState<string | null>(null);
   const wasStreaming = useRef(controller.streaming);
   useEffect(() => {
     const ended = wasStreaming.current && !controller.streaming;
     wasStreaming.current = controller.streaming;
     if (!ended || !openSessionFile || !activeCourse) return;
     const file = openSessionFile;
+    if (sentFor === file) {
+      void Promise.resolve().then(() => setDoneFor(file));
+    }
     void client.data({ kind: "courses.list" }).then((result) => {
       if (!result.ok) return;
       seen.current[file] = result.data.find((item) => item.slug === activeCourse)?.changedAt ?? 0;
       setSeenVersion((value) => value + 1);
     });
-  }, [controller.streaming, openSessionFile, activeCourse]);
+  }, [controller.streaming, openSessionFile, activeCourse, sentFor]);
 
   // The refresh note is decided in an effect: `seen.current` may not be read
   // during render, and it reruns when an answer's record lands (`seenVersion`) or the list reloads.
@@ -74,14 +82,38 @@ export function useSessionFreshness(
 
   const [dismissed, setDismissed] = useState<string | null>(null);
   const stale = staleCourseSession(activeCourse, openSessionFile, settings.courseSessions, today, tz);
-  const dismiss = useCallback(() => setDismissed(openSessionFile), [openSessionFile]);
+  const percent = controller.contextUsage?.percent ?? null;
+  const phase = checkpointPhase(activeCourse, openSessionFile, percent, sentFor, doneFor);
+  const key = stale ? `stale:${openSessionFile}` : phase === "offer" || phase === "saved" ? `${phase}:${openSessionFile}` : null;
+  const dismiss = useCallback(() => setDismissed(key), [key]);
   const notice: NoticeItem | null =
-    stale && course && dismissed !== openSessionFile
+    stale && course && dismissed !== key
       ? {
           tone: "info",
           text: strings.notice.staleSession(stale.day.slice(5), course.title),
           action: { label: strings.notice.staleSessionAction, run: () => onStudy(course) },
         }
-      : null;
+      : phase === "offer" && course && dismissed !== key
+        ? {
+            tone: "info",
+            text: strings.notice.checkpoint(Math.round(percent ?? 0)),
+            action: {
+              label: strings.notice.checkpointAction,
+              run: () => {
+                controller.sendCommand(strings.chat.checkpointPrompt);
+                setSentFor(openSessionFile);
+              },
+            },
+          }
+        : phase === "saved" && course && dismissed !== key
+          ? {
+              tone: "info",
+              text: strings.notice.checkpointSaved,
+              action: {
+                label: strings.notice.checkpointSavedAction,
+                run: () => onContinueFresh(course.slug, strings.chat.checkpointResume),
+              },
+            }
+          : null;
   return { notice, dismiss };
 }

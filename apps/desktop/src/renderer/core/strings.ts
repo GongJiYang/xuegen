@@ -102,6 +102,8 @@ export const strings = {
     compactionNote: "较早的对话已压缩为摘要（课程进度保存在课程文件里，不受影响）",
     compactionFailed: (reason: string): string => `压缩失败：${reason}`,
     refreshNote: "[课程页或技能可能已更新：先重读课程页和要用的技能，以文件为准]",
+    checkpointPrompt: "[上下文快满：按 course「长会话先存档」把存档点写进课程页 Next Session（当前题目原文、我答到哪、下一步讲什么），写好后用一句话告诉我]",
+    checkpointResume: "[接着上一个会话的存档点继续：先读课程页 Next Session 里的存档点，从那里接着上，不重新开课]",
   },
   input: {
     placeholder: "发消息…（Enter 发送，Shift+Enter 换行）",
@@ -249,6 +251,7 @@ export const strings = {
     planMaterial: "排课",
     tag: { 深度: "", 整合: "整合", 低强度: "Anki", 休息: "" } as Record<CycleDayType, string>,
     tagRecovery: "恢复",
+    tagRead: "读书",
     flagStart: (cycle: string): string => `${cycle} 起`,
     flagEnd: (cycle: string): string => `${cycle} 完`,
     slotLine: (cycle: string, week: number, type: CycleDayType, last: boolean): string =>
@@ -515,6 +518,10 @@ export const strings = {
     unknownSkin: "未知皮肤，已回退到 Bare。",
     staleSession: (day: string, title: string): string => `这是 ${day} 的「${title}」会话。`,
     staleSessionAction: "开今天的课 →",
+    checkpoint: (percent: number): string => `这节课的上下文已用 ${percent}%。先把当前进度存档，再开新会话接着上。`,
+    checkpointAction: "先存档 →",
+    checkpointSaved: "存档好了：开一个新会话，从存档点接着上。",
+    checkpointSavedAction: "开新会话接着上 →",
     actionTitle: "提示",
   },
   panels: {
@@ -538,6 +545,7 @@ export const strings = {
     },
     /** Label for each teaching style; kept in sync with TEACHING_STYLE_LABELS. */
     styles: {
+      default: "默认",
       plain: "大白话",
       detailed: "细讲",
       deep: "深度",
