@@ -21,6 +21,7 @@ import type {
 } from "@shared/protocol.js";
 import { assertNever } from "@shared/protocol.js";
 import { strings } from "../strings.js";
+import { MODEL_ERROR_SUMMARIES, translateModelError } from "./model-error.js";
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -82,8 +83,16 @@ function applyModels(state: ChatState, payload: ModelListPayload): ChatState {
   return { ...state, models: payload.models, modelsReason: payload.reason ?? null };
 }
 
+/** Same kind of model error (rate limit, balance…), or the same raw text when unrecognised. */
+function errorKey(error: string): string {
+  const { summary } = translateModelError(error);
+  return summary === MODEL_ERROR_SUMMARIES.generic ? error.trim() : summary;
+}
+
+/** Add an error; a repeat of one already shown replaces it, so each shows once (with the latest detail). */
 function appendError(state: ChatState, error: string): ChatState {
-  return { ...state, errors: [...state.errors, error] };
+  const key = errorKey(error);
+  return { ...state, errors: [...state.errors.filter((entry) => errorKey(entry) !== key), error] };
 }
 
 function upsertMessage(state: ChatState, message: ChatMessage): ChatState {

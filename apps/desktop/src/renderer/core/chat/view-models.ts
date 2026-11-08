@@ -61,3 +61,13 @@ function lifecycleNotice(status: AgentStatus): NoticeItem | null {
 export function isComposerDisabled(state: ChatState): boolean {
   return state.models.length === 0;
 }
+
+/** What closing the notice at `index` of the shell's list means: [skin notices…, chat notices…, freshness notice?]. */
+export type NoticeDismiss = { kind: "none" } | { kind: "chat"; index: number } | { kind: "freshness" };
+
+export function routeDismiss(index: number, skinCount: number, chatCount: number, hasFreshness: boolean): NoticeDismiss {
+  if (index < skinCount) return { kind: "none" };
+  if (index < skinCount + chatCount) return { kind: "chat", index: index - skinCount };
+  if (hasFreshness && index === skinCount + chatCount) return { kind: "freshness" };
+  return { kind: "none" };
+}

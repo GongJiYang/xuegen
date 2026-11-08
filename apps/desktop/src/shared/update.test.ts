@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareVersions, pickRelease, releaseNotes } from "./update.js";
+import { compareVersions, notesUrl, pickRelease, releaseFromTagUrl, releaseNotes, versionFromTagUrl } from "./update.js";
 
 const ASSET = "https://github.com/GongJiYang/xuegen/releases/download/v0.3.0/xuegen-0.3.0-arm64-mac.zip";
 const RELEASE = {
@@ -39,5 +39,25 @@ describe("update helpers", () => {
     ).toBeNull();
     expect(pickRelease({ ...RELEASE, assets: [] }, "0.2.0", "arm64")).toBeNull();
     expect(pickRelease(null, "0.2.0", "arm64")).toBeNull();
+  });
+  it("versionFromTagUrl reads the version from this repo's tag URL only", () => {
+    expect(versionFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4.0")).toBe("0.4.0");
+    expect(versionFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4.0/")).toBe("0.4.0");
+    expect(versionFromTagUrl("https://github.com/GongJiYang/xuegen/releases")).toBeNull();
+    expect(versionFromTagUrl("https://github.com/other/repo/releases/tag/v0.4.0")).toBeNull();
+    expect(versionFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4")).toBeNull();
+  });
+  it("releaseFromTagUrl builds the asset URL for a newer release only", () => {
+    expect(releaseFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4.0", "0.3.0", "arm64")).toEqual({
+      version: "0.4.0",
+      notes: [],
+      assetUrl: "https://github.com/GongJiYang/xuegen/releases/download/v0.4.0/xuegen-0.4.0-arm64-mac.zip",
+      size: 0,
+    });
+    expect(releaseFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4.0", "0.4.0", "arm64")).toBeNull();
+    expect(releaseFromTagUrl("https://github.com/GongJiYang/xuegen/releases/tag/v0.4.0", "0.5.0", "arm64")).toBeNull();
+  });
+  it("notesUrl points at the release's notes.md asset", () => {
+    expect(notesUrl("0.4.0")).toBe("https://github.com/GongJiYang/xuegen/releases/download/v0.4.0/notes.md");
   });
 });

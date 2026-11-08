@@ -235,7 +235,7 @@ export function useCourseSessions(
     (course: CourseSummary, change: string) => {
       // A plan change belongs to the course's own session, like 开始学习, but it
       // is not an opening: no intro card, and it never marks the day as started.
-      startSession(course.slug, editPlanPrompt(course.title, change), null, null, true);
+      startSession(course.slug, editPlanPrompt(course, change), null, null, true);
     },
     [startSession],
   );

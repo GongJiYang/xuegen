@@ -40,6 +40,8 @@ export interface CourseSummary {
   styleHint: string | null;
   /** The course file's modification time (ms since epoch), from `course-state.mjs list`. */
   changedAt?: number;
+  /** The course file's absolute path, from `course-state.mjs list`. */
+  file?: string;
 }
 
 /** One due reading item as returned by `reading-queue.mjs today --json`. */

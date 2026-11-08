@@ -34,6 +34,7 @@ import { shellPanels } from "./core/board/shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
 import { turnActivity } from "./core/chat/activity.js";
 import { pinBoard } from "./core/chat/pin-board.js";
+import { routeDismiss } from "./core/chat/view-models.js";
 import { useSkills } from "./core/board/use-skills.js";
 import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
@@ -403,7 +404,11 @@ export function App() {
     onContinueSession: handleContinueSession,
     agentStatus: controller.agentStatus,
     notices,
-    onDismissNotice: (index) => (freshness.notice && index === notices.length - 1 ? freshness.dismiss() : controller.dismissNotice(index)),
+    onDismissNotice: (index) => {
+      const target = routeDismiss(index, notice ? 1 : 0, controller.notices.length, freshness.notice !== null);
+      if (target.kind === "chat") controller.dismissNotice(target.index);
+      else if (target.kind === "freshness") freshness.dismiss();
+    },
     tools: toolDescriptors(),
     activeTool,
     onOpenTool: (tool) => {

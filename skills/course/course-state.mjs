@@ -151,8 +151,9 @@ async function listCommand(coursesDir, json) {
   const courses = await listCourses(coursesDir);
   const entries = [];
   for (const course of courses) {
-    const changedAt = (await stat(join(coursesDir, `${course.slug}.md`))).mtimeMs;
-    entries.push({ ...toListEntry(course), changedAt: Math.floor(changedAt) });
+    const file = join(coursesDir, `${course.slug}.md`);
+    const changedAt = (await stat(file)).mtimeMs;
+    entries.push({ ...toListEntry(course), changedAt: Math.floor(changedAt), file });
   }
   if (json) {
     process.stdout.write(`${JSON.stringify(entries, null, 2)}\n`);

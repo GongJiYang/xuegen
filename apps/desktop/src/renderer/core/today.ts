@@ -84,15 +84,14 @@ export function resumePoint(courses: CourseSummary[]): ResumePoint | null {
   return { course: best, nextSession: best.nextSession };
 }
 
-/**
- * The course file hint appended to every opening prompt.
- *
- * The file is the single source of truth (`course-state.mjs` also derives the
- * slug from the file name), so naming it here saves the agent a directory scan
- * and a board read before it can start teaching.
- */
-function courseFileHint(slug: string): string {
-  return `（课程文件：wiki/courses/${slug}.md，下次起点以此为准，不必先列目录或读看板）`;
+/** Where the course file is: its absolute path and the vault root when known, else the vault-relative path. */
+export function courseFileHint(course: Pick<CourseSummary, "slug" | "file">): string {
+  const file = course.file;
+  const root = file && file.endsWith(`/wiki/courses/${course.slug}.md`) ? file.slice(0, -`/wiki/courses/${course.slug}.md`.length) : null;
+  if (file && root) {
+    return `（课程文件：${file}；库根：${root}。下次起点以此为准，不必先找库、列目录或读看板）`;
+  }
+  return `（课程文件：wiki/courses/${course.slug}.md，下次起点以此为准，不必先列目录或读看板）`;
 }
 
 /** The prompt the "继续学习" button sends for a resume point. */
@@ -101,7 +100,7 @@ export function resumePrompt(resume: ResumePoint): string {
   const prompt = resume.nextSession
     ? `继续 ${title}，从下次起点开始：${resume.nextSession}`
     : `继续 ${title}，从下次起点开始`;
-  return `${prompt}${courseFileHint(resume.course.slug)}`;
+  return `${prompt}${courseFileHint(resume.course)}`;
 }
 
 /** The prompt that opens a course's session from the progress panel. */
@@ -109,5 +108,5 @@ export function studyPrompt(course: CourseSummary): string {
   const prompt = course.nextSession
     ? `开始今天的 ${course.title}，下次起点：${course.nextSession}`
     : `开始今天的 ${course.title}`;
-  return `${prompt}${courseFileHint(course.slug)}`;
+  return `${prompt}${courseFileHint(course)}`;
 }

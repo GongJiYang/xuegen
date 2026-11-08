@@ -74,6 +74,15 @@ describe("prompts", () => {
       "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
   });
+
+  it("names the course file's absolute path and vault root when known", () => {
+    expect(studyPrompt(course({ slug: "a", title: "CTM", file: "/Users/x/V/wiki/courses/a.md" }))).toBe(
+      "开始今天的 CTM（课程文件：/Users/x/V/wiki/courses/a.md；库根：/Users/x/V。下次起点以此为准，不必先找库、列目录或读看板）",
+    );
+    expect(studyPrompt(course({ slug: "a", title: "CTM", file: "/elsewhere/a.md" }))).toBe(
+      "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
+    );
+  });
 });
 
 describe("todayPlanItems", () => {

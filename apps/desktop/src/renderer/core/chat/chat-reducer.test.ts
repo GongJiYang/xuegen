@@ -116,6 +116,18 @@ describe("chatReducer agent events", () => {
     expect(second.errors).toEqual(["boom", "crash"]);
   });
 
+  it("shows a repeated error once, keeping the latest", () => {
+    const limit = (id: string): string =>
+      `429: {"message":"您已达到请求数限制：1分钟内最多请求1000次 (request id: ${id})"}`;
+    const three = [limit("a"), limit("b"), limit("c")].reduce(
+      (state, error) => reduce(state, { type: "error", error }),
+      initialChatState,
+    );
+    expect(three.errors).toEqual([limit("c")]);
+    const mixed = reduce(reduce(three, { type: "error", error: "boom" }), { type: "error", error: "boom" });
+    expect(mixed.errors).toEqual([limit("c"), "boom"]);
+  });
+
   it("does not mutate the previous state", () => {
     const started = reduce(initialChatState, { type: "message-start", message: assistantMessage });
     reduce(started, { type: "message-delta", messageId: "assistant-1", text: "x" });

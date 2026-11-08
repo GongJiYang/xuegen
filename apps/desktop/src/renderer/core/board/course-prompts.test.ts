@@ -38,8 +38,8 @@ describe("course prompts", () => {
   });
 
   it("asks the course skill to change one course's plan", () => {
-    expect(editPlanPrompt("CTM 7 周学习计划", " 每天改成 40 分钟，往后推一周 ")).toBe(
-      "/skill:course 修改「CTM 7 周学习计划」的学习计划：每天改成 40 分钟，往后推一周。改完后告诉我新的本周安排，并刷新课程看板。",
+    expect(editPlanPrompt({ slug: "ctm", title: "CTM 7 周学习计划" }, " 每天改成 40 分钟，往后推一周 ")).toBe(
+      "/skill:course 修改「CTM 7 周学习计划」的学习计划：每天改成 40 分钟，往后推一周。改完后告诉我新的本周安排，并刷新课程看板。（课程文件：wiki/courses/ctm.md，下次起点以此为准，不必先列目录或读看板）",
     );
   });
 

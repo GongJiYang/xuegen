@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.4.1 — 2026-11-08
+
+- Desktop: 检查更新 reads the version from the `releases/latest` redirect (via `net.request`, since `net.fetch` hides the final URL) instead of the rate-limited GitHub API; the zip URL follows the fixed asset name and the notes come from the release's `notes.md` asset (optional). `RELEASE.md` uploads `notes.md` with each release.
+- Desktop: a repeated error (e.g. the same 429 rate limit on every retry) shows once, with the latest detail; unrecognised errors are still told apart by their text.
+- Desktop: closing a notice closes that notice (skin notices first, then chat errors, then the stale-session notice), not a neighbour.
+- Desktop: opening and resuming a course, and 改计划, name the course file by absolute path and the vault root, so 学根 no longer searches for the vault. `course-state.mjs list` reports each course's `file`.
+
 ## v0.4.0 — 2026-11-06
 
 - Desktop: a course session from an earlier day (after a relaunch, or left open overnight) shows 「这是 11-04 的「…」会话。开今天的课 →」; the button starts today's lesson in a fresh session. Notices can carry a button (`NoticeItem.action`), implemented in bare, Bear and Chicago.

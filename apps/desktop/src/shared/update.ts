@@ -68,3 +68,33 @@ export function pickRelease(json: unknown, current: string, arch: string): Relea
     size: typeof asset.size === "number" ? asset.size : 0,
   };
 }
+
+/** The repository's 「latest release」 page; it redirects to `…/releases/tag/v<version>`. */
+export const LATEST_RELEASE_PAGE = "https://github.com/GongJiYang/xuegen/releases/latest";
+
+/** The version in a `…/releases/tag/v1.2.3` URL, or null. */
+export function versionFromTagUrl(url: string): string | null {
+  const match = /\/GongJiYang\/xuegen\/releases\/tag\/v(\d+\.\d+\.\d+)\/?$/.exec(url);
+  return match ? match[1]! : null;
+}
+
+/**
+ * The newer release named by the latest-release redirect, or null when the
+ * redirect names no release or not a newer one. The asset URL follows the
+ * fixed naming `xuegen-<version>-<arch>-mac.zip`; notes come separately.
+ */
+export function releaseFromTagUrl(url: string, current: string, arch: string): ReleaseInfo | null {
+  const version = versionFromTagUrl(url);
+  if (!version || compareVersions(version, current) <= 0) return null;
+  return {
+    version,
+    notes: [],
+    assetUrl: `${RELEASE_ASSET_PREFIX}v${version}/xuegen-${version}-${arch}-mac.zip`,
+    size: 0,
+  };
+}
+
+/** Where a release's `notes.md` asset lives. */
+export function notesUrl(version: string): string {
+  return `${RELEASE_ASSET_PREFIX}v${version}/notes.md`;
+}

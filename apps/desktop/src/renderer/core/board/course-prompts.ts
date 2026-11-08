@@ -7,6 +7,8 @@
  */
 
 import type { TeachingStyle } from "@shared/protocol.js";
+import type { CourseSummary } from "@shared/data-protocol.js";
+import { courseFileHint } from "../today.js";
 
 /** Where a course sits in the current study cycle, when it is planned from the cycle view. */
 export interface CyclePlacement {
@@ -94,6 +96,6 @@ export function newCoursePrompt(request: NewCourseRequest): string {
 }
 
 /** The request that changes an existing course's plan. */
-export function editPlanPrompt(courseTitle: string, change: string): string {
-  return `/skill:course 修改「${courseTitle}」的学习计划：${change.trim()}。改完后告诉我新的本周安排，并刷新课程看板。`;
+export function editPlanPrompt(course: Pick<CourseSummary, "slug" | "title" | "file">, change: string): string {
+  return `/skill:course 修改「${course.title}」的学习计划：${change.trim()}。改完后告诉我新的本周安排，并刷新课程看板。${courseFileHint(course)}`;
 }
