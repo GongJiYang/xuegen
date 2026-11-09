@@ -226,3 +226,39 @@ test("after-read：有书房链接但行里没有「核心页已定」时 pages 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ---- 书房链接布局（新 shelf，旧 书房） ----
+
+/** 把 BOOK_COURSE 的书房链接换成给定前缀，其余不变。 */
+function withShelf(prefix) {
+  return BOOK_COURSE.replace("[[书房/epp|Epp]]", `[[${prefix}/epp|Epp]]`);
+}
+
+test("after-read：[[shelf/epp]] 新布局也识别 book（不要求 书房/）", async () => {
+  const { dir, file } = await freshCourse(withShelf("shelf"));
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.book, "epp");
+    assert.equal(out.course, "epp");
+    assert.equal(out.pages, "1–5、7–12、17–21、24–27、31");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：新旧书房链接都存在时仍取书 slug（不报错）", async () => {
+  const text = BOOK_COURSE.replace(
+    "## Next Session\n\n",
+    "## Next Session\n\n参考 [[shelf/epp|Epp]] 与 [[书房/epp|旧链接]] 同一本书。\n\n",
+  );
+  const { dir, file } = await freshCourse(text);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    assert.equal(JSON.parse(result.stdout.trim()).book, "epp");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -5,9 +5,9 @@
 // 作为脚本直接运行时给出用法说明：
 //   node course-parse.mjs --help
 import { readFile, readdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { basename, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 /** 状态文件首行标记；脚本据此识别课程状态文件。 */
 export const STATE_MARKER = "xuegen:course-state";
@@ -270,8 +270,17 @@ export function findSection(sections, name) {
   );
 }
 
-/** 作为脚本直接运行 `node course-parse.mjs --help` 时给出说明（非命令）。 */
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+/** 作为脚本直接运行 `node course-parse.mjs --help` 时给出说明（非命令）。
+ * 主模块判定必须比真实路径，否则经符号链接调用时静默不执行（见 docs/skills/AUTHORING.md）。 */
+function isMain() {
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "");
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   process.stdout.write(
     [
       "课程状态文件共享解析（course-parse）",

@@ -1,11 +1,11 @@
 /**
- * Reading sources: the原件 under `raw/` and `Clippings/` that can still be added
- * to the reading queue.
+ * Reading sources: the原件 under `raw/` and `clippings/`（旧库 `Clippings/`）that
+ * can still be added to the reading queue.
  *
- * `reading-queue.mjs add` only accepts原文 inside `raw/` or `Clippings/`, so the
- * composer's "加入阅读" field offers exactly those files. A file already linked
- * from a reading page's `source` frontmatter is excluded, because adding it again
- * would fail on the existing slug.
+ * `reading-queue.mjs add` only accepts原文 inside `raw/` or `clippings/`（旧库
+ * `Clippings/`）, so the composer's "加入阅读" field offers exactly those files. A
+ * file already linked from a reading page's `source` frontmatter is excluded,
+ * because adding it again would fail on the existing slug.
  *
  * The main process owns the filesystem, so this listing happens here rather than
  * in a skill script: it is a cheap directory walk with no state of its own.
@@ -16,8 +16,12 @@ import { existsSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import type { ReadingSource } from "../../shared/data-protocol.js";
 
-/** The two directories a reading source may live in, per `reading-queue.mjs`. */
-const SOURCE_ROOTS = ["raw", "Clippings"] as const;
+/**
+ * The directories a reading source may live in, per `reading-queue.mjs`.
+ * `clippings/` is the renamed layout and `Clippings/` the legacy one; when both
+ * exist, both are listed.
+ */
+const SOURCE_ROOTS = ["raw", "clippings", "Clippings"] as const;
 
 /** Extensions the reading queue accepts as原文. */
 const SOURCE_EXTENSIONS = [".md", ".pdf"] as const;
@@ -77,7 +81,7 @@ function queuedPaths(vault: string): Set<string> {
 }
 
 /**
- * List candidate原文 files under `raw/` and `Clippings/`.
+ * List candidate原文 files under `raw/` and `clippings/`（旧库 `Clippings/`）.
  *
  * Newest modification time first, capped at {@link MAX_SOURCES}. Files already
  * linked from a reading page are omitted so the list only contains what the
@@ -86,7 +90,13 @@ function queuedPaths(vault: string): Set<string> {
 export function listReadingSources(vault: string): ReadingSource[] {
   const queued = queuedPaths(vault);
   const found: ReadingSource[] = [];
-  for (const root of SOURCE_ROOTS) {
+  if (!existsSync(vault)) return found;
+  // Walk the roots that actually exist, by their on-disk spelling: on a
+  // case-insensitive volume `clippings`/`Clippings` are the same directory, so
+  // matching by lowercase avoids double-listing it under both spellings.
+  const wanted = new Set(SOURCE_ROOTS.map((root) => root.toLowerCase()));
+  const roots = readdirSync(vault).filter((name) => wanted.has(name.toLowerCase()));
+  for (const root of roots) {
     for (const file of walk(join(vault, root))) {
       const path = toPosix(relative(vault, file));
       if (queued.has(path.replace(/\.[^./]+$/, ""))) continue;

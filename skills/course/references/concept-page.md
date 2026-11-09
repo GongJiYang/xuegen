@@ -2,13 +2,14 @@
 
 照这个样子写，不用再去库里翻别的概念页找格式。章节名以库根 `AGENTS.md`「Concept Page」为准（与下面相同）。
 
-- 位置：该科目的概念目录，如 `wiki/知识/concepts/math/`；文件名 `<三位序号>-<术语>.md`，序号接着目录里已有的最大号往后排（`ls` 一次即可）。
+- 位置：该科目的概念目录 `wiki/knowledge/concepts/<subject>/`（旧库：`wiki/知识/concepts/<缩写>/`），一个科目里有几套各自成体系的内容时再分一层主题目录 `<topic>/`；文件名 `<三位编号>-<英文名>.md`，编号接着目录里已有的最大号往后排、按 10 递增（`ls` 一次即可），英文名 kebab-case，H1 写中文术语。
+- 链接一律写从 `wiki/` 起的完整路径（如 `[[knowledge/concepts/discrete-math/020-set-elements-and-subsets|集合元素与子集]]`），不靠 Obsidian 后缀解析。
 - 已有同名或同义页就补充，不重建。
 - 一个术语一页；定义用自己的话写，不抄原书大段原文。
 
 ```markdown
 ---
-sources: ["[[2026-11-05-epp-discrete-mathematics]] §1.2 pp.7–12"]
+sources: ["[[knowledge/sources/2026-11-05-epp-discrete-mathematics]] §1.2 pp.7–12"]
 ---
 
 # 幂集与笛卡尔积
@@ -27,10 +28,10 @@ sources: ["[[2026-11-05-epp-discrete-mathematics]] §1.2 pp.7–12"]
 - 关系是笛卡尔积的子集（D1 §1.3）。
 
 ## Related Concepts
-- [[020-集合元素与子集]]、[[040-关系与函数]]
+- [[knowledge/concepts/discrete-math/020-set-elements-and-subsets|集合元素与子集]]、[[knowledge/concepts/discrete-math/040-relations-and-functions|关系与函数]]
 
 ## Sources
-- [[2026-11-05-epp-discrete-mathematics]] §1.2 pp.7–12
+- [[knowledge/sources/2026-11-05-epp-discrete-mathematics]] §1.2 pp.7–12
 ```
 
 写完在 `wiki/index.md` 对应目录下补一行链接，`wiki/log.md` 记一条 `wiki`。

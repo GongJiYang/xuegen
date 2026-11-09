@@ -394,7 +394,7 @@ export interface SessionMeta {
 
 /** One source file that can still be added to the reading queue. */
 export interface ReadingSource {
-  /** Vault-relative path under `raw/` or `Clippings/`, e.g. `raw/papers/x.pdf`. */
+  /** Vault-relative path under `raw/` or `clippings/`（旧库 `Clippings/`）, e.g. `raw/papers/x.pdf`. */
   path: string;
   /** Display name (file name without its extension). */
   name: string;
@@ -419,6 +419,7 @@ export type DataRequest =
   | { kind: "shelf.card"; slug: string; indexes: number[]; today: string }
   | { kind: "cards.stats" }
   | { kind: "cards.add"; deck: string; front: string; back: string }
+  | { kind: "cards.sync"; dryRun: boolean }
   | { kind: "anki.status" }
   | { kind: "calendar.month"; month: string }
   | { kind: "calendar.write"; date: string; text: string }
@@ -453,6 +454,14 @@ export interface DataResponseMap {
   "shelf.card": { slug: string; marked: number[]; skipped: number[] };
   "cards.stats": CardsStats;
   "cards.add": { file: string; deck: string };
+  "cards.sync": {
+    added: number;
+    duplicates: unknown[];
+    failed: unknown[];
+    skipped: unknown[];
+    decks: string[];
+    presetMissing: boolean;
+  };
   "anki.status": AnkiStatus;
   "calendar.month": CalendarMonth;
   "calendar.write": { date: string; file: string | null; wrote: boolean };
@@ -610,6 +619,8 @@ export function isDataRequest(value: unknown): value is DataRequest {
         typeof value.front === "string" &&
         typeof value.back === "string"
       );
+    case "cards.sync":
+      return typeof value.dryRun === "boolean";
     case "calendar.month":
       return typeof value.month === "string" && isIsoMonth(value.month);
     case "calendar.write":

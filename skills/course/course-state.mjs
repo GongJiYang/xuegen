@@ -140,7 +140,7 @@ async function afterRead(file, label, date) {
   }
   await chmod(target, originalMode);
   const reading = /\[\[reading\/([^\]|]+)/.exec(text)?.[1] ?? null;
-  const book = /\[\[书房\/([^\]|]+)/.exec(text)?.[1] ?? null;
+  const book = /\[\[(?:shelf|书房)\/([^\]|]+)/.exec(text)?.[1] ?? null;
   const course = basename(target, ".md");
   process.stdout.write(`${JSON.stringify({ file: target, label, reading, book, course, pages })}\n`);
 }

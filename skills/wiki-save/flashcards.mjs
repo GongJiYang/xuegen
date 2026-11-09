@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Xuegen 闪卡统计与新增：扫描 <知识目录>/flashcards/ 的 Obsidian_to_Anki 卡片块，并追加新卡。
-// 无第三方依赖。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；知识目录 = wiki/知识，不存在时为 wiki。
+// 无第三方依赖。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；知识目录 = wiki/knowledge（旧库：wiki/知识，再旧：wiki）。
 //   node flashcards.mjs stats <vault> [--json]
 //   node flashcards.mjs add <vault> --deck <deck> --front <text> --back <text> [--json]
 // 只写 <知识目录>/flashcards/ 下牌组的 inbox.md；其他位置只读。
@@ -47,10 +47,15 @@ function wikiDir(vault) {
   return join(vault, "wiki");
 }
 
-// 知识目录：迁移后为 <vault>/wiki/知识，迁移前为 <vault>/wiki（两种布局都支持）。
+// 知识目录候选：新布局 wiki/knowledge 优先，旧库 wiki/知识，再旧退到 wiki（三种布局都支持）。
+const KNOWLEDGE_DIRS = ["knowledge", "知识"];
+
 function knowledgeDir(vault) {
-  const migrated = join(wikiDir(vault), "知识");
-  return existsSync(migrated) ? migrated : wikiDir(vault);
+  for (const name of KNOWLEDGE_DIRS) {
+    const dir = join(wikiDir(vault), name);
+    if (existsSync(dir)) return dir;
+  }
+  return wikiDir(vault);
 }
 
 function requireVault(vault) {
@@ -258,7 +263,7 @@ function usage() {
     "  node flashcards.mjs stats <vault> [--json]",
     "  node flashcards.mjs add <vault> --deck <deck> --front <text> --back <text> [--json]",
     "",
-    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/知识，不存在时为 wiki。",
+    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge（旧库：wiki/知识，再旧：wiki）。",
     "stats：卡片 = <知识目录>/flashcards/ 下的 START…END 块；已同步 = 块内或块后有 <!--ID: 数字-->。",
     "add：按 flashcard-rules.md 的 Basic 格式追加到该牌组 inbox.md，只写 <知识目录>/flashcards/。",
   ].join("\n");

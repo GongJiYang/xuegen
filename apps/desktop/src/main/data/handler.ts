@@ -12,12 +12,18 @@ import type { DataRequest, DataResponse } from "../../shared/data-protocol.js";
 import { assertNever, normalizeDesktopSettings } from "../../shared/protocol.js";
 import { readSettings, writeSettings } from "../settings.js";
 import { runScript, runScriptPlain } from "./scripts.js";
-import { readVaultRoot } from "./vault.js";
+import { generatedDir, readVaultRoot } from "./vault.js";
 import { fetchAnkiStatus } from "./anki.js";
 import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
 import { listReadingSources } from "./sources.js";
 import { listSessions } from "./sessions.js";
 import { resolveHome } from "../../agent/environment.js";
+
+/**
+ * A first full Anki sync writes hundreds of notes one round-trip at a time, so it
+ * needs far more than the default 15 seconds; every other request keeps the default.
+ */
+const CARDS_SYNC_TIMEOUT_MS = 120_000;
 
 /** The vault root, or a failure response when it is not configured. */
 function requireVault(): { vault: string } | { failure: DataResponse } {
@@ -89,10 +95,10 @@ async function handleScriptRequest(
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
     case "course.afterRead": {
-      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[书房/<书>]]）
-      // 时记进书页（bookshelf.mjs lecture，可带上「核心页已定」的页码）；还链着
-      // 旧阅读页（[[reading/<页>]]，迁库前的课程页）时照旧记一行 Reading Log。
-      // 最后重建两份派生看板。每一步失败都直接返回它的失败响应。
+      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[shelf/<书>]]，
+      // 旧库 [[书房/<书>]]）时记进书页（bookshelf.mjs lecture，可带上「核心页已定」
+      // 的页码）；还链着旧阅读页（[[reading/<页>]]，迁库前的课程页）时照旧记一行
+      // Reading Log。最后重建两份派生看板。每一步失败都直接返回它的失败响应。
       const courses = join(vault.vault, "wiki", "courses");
       const marked = await runScript("course/course-state.mjs", [
         "after-read",
@@ -139,9 +145,10 @@ async function handleScriptRequest(
         ]);
         if (!noted.ok) return noted;
       }
+      const generated = generatedDir(vault.vault);
       for (const step of [
-        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(vault.vault, "wiki", "courses.md")]),
-        runScriptPlain("course/render-board.mjs", [courses, join(vault.vault, "wiki", "courses.html")]),
+        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(generated, "courses.md")]),
+        runScriptPlain("course/render-board.mjs", [courses, join(generated, "courses.html")]),
       ]) {
         const done = await step;
         if (!done.ok) return done;
@@ -244,6 +251,12 @@ async function handleScriptRequest(
         request.back,
         "--json",
       ]);
+    case "cards.sync": {
+      // 直连 AnkiConnect 把未同步卡片写进 Anki 并回填 <!--ID:-->；dryRun 只扫描。
+      const args = ["push", vault.vault, "--json"];
+      if (request.dryRun) args.push("--dry-run");
+      return runScript("wiki-save/anki-sync.mjs", args, { timeoutMs: CARDS_SYNC_TIMEOUT_MS });
+    }
     case "calendar.month":
       return runScript("calendar/calendar.mjs", ["month", vault.vault, request.month, "--json"]);
     case "calendar.write":

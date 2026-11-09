@@ -682,3 +682,54 @@ test("知识目录：wiki/知识/ 存在时 stats 与 verify 用它", async () =
   assert.equal(stats.cardsPending, 1);
   await rm(wiki, { recursive: true, force: true });
 });
+
+// ---- 知识目录布局（新 wiki/knowledge，旧 wiki/知识，再旧 wiki 根） ----
+
+async function statsOf(vault, today = "2026-11-10") {
+  return jsonQ(["stats", vault, "--today", today]);
+}
+
+test("布局：只有新 wiki/knowledge 时 stats 与 verify 用它", async () => {
+  const wiki = await makeWiki();
+  await writeSource(wiki, "raw/a.md", "A");
+  await q(["add", wiki, "raw/a.md", "--priority", "high"]);
+  const file = join(wiki, "wiki", "reading", "a.md");
+  const text = await readFile(file, "utf8");
+  await writeFile(file, text.replace("## Extracts\n", "## Extracts\n- [[extracts/a/x]]\n"), "utf8");
+  await mkdir(join(wiki, "wiki", "knowledge", "extracts", "a"), { recursive: true });
+  await writeFile(
+    join(wiki, "wiki", "knowledge", "extracts", "a", "x.md"),
+    "---\ncards: pending\n---\n# X\n",
+    "utf8",
+  );
+  const ok = await q(["verify", wiki]);
+  assert.match(ok.stdout, /verify: OK/);
+  assert.equal((await statsOf(wiki)).cardsPending, 1);
+  await rm(wiki, { recursive: true, force: true });
+});
+
+test("布局：新旧知识目录都有时用 wiki/knowledge，旧的不混进来", async () => {
+  const wiki = await makeWiki();
+  await writeSource(wiki, "raw/a.md", "A");
+  await q(["add", wiki, "raw/a.md", "--priority", "high"]);
+  for (const dir of ["knowledge", "知识"]) {
+    await mkdir(join(wiki, "wiki", dir, "extracts", "a"), { recursive: true });
+    await writeFile(
+      join(wiki, "wiki", dir, "extracts", "a", "x.md"),
+      "---\ncards: pending\n---\n# X\n",
+      "utf8",
+    );
+  }
+  assert.equal((await statsOf(wiki)).cardsPending, 1, "只数新目录下的摘录");
+  await rm(wiki, { recursive: true, force: true });
+});
+
+test("布局：两种知识目录都没有时退回 wiki 根（只有 wiki/ 的旧库）", async () => {
+  const wiki = await makeWiki();
+  await writeSource(wiki, "raw/a.md", "A");
+  await q(["add", wiki, "raw/a.md", "--priority", "high"]);
+  await mkdir(join(wiki, "wiki", "extracts", "a"), { recursive: true });
+  await writeFile(join(wiki, "wiki", "extracts", "a", "x.md"), "---\ncards: pending\n---\n# X\n", "utf8");
+  assert.equal((await statsOf(wiki)).cardsPending, 1);
+  await rm(wiki, { recursive: true, force: true });
+});

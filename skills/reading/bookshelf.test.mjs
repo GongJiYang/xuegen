@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,7 @@ import {
   parseExtracts,
   parsePageList,
   parseSegments,
+  queueEnds,
 } from "./bookshelf.mjs";
 
 const run = promisify(execFile);
@@ -449,7 +451,9 @@ test("index --write：在读 / 排队 / 读完 三组归类正确", async () => 
 
   const queueSection = index.slice(index.indexOf("## 排队"), index.indexOf("## 读完"));
   assert.ok(queueSection.includes("[[书房/queued-book|Q]]"), queueSection);
-  assert.ok(queueSection.includes("预计 2026-11-12 读完"), queueSection);
+  // 在读的 11-16 读完，排队书从 11-17 起、3 段 → 11-19；不能从今天（11-10）算。
+  assert.ok(queueSection.includes("预计 2026-11-19 读完"), queueSection);
+  assert.doesNotMatch(queueSection, /2026-11-12/, "排队书日期不应与在读的书重叠");
 
   const doneSection = index.slice(index.indexOf("## 读完"));
   assert.ok(doneSection.includes("[[书房/done-book|Epp]]"), doneSection);
@@ -1066,5 +1070,238 @@ test("lecture：书页没有 `## 读书记录` 时补一节，核心页已读排
   assert.ok(page.indexOf("## 核心页已读") < page.indexOf("## 读书记录"));
   assert.match(page, /^position: 3$/m, "lecture 不动 position");
   assert.doesNotMatch(page, /\n\n\n/, page);
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- queueEnds：排队书的预计读完（从在读书之后串起来，不从今天算）----
+
+/** 造一个 loadBooks 返回形状的条目（queueEnds 的入参）。 */
+function shelfEntry(slug, fields, body) {
+  return {
+    slug,
+    file: `${slug}.md`,
+    page: {
+      slug,
+      fields: fields.map(([key, value]) => ({ key, value })),
+      body: body.split("\n"),
+    },
+  };
+}
+
+/** 一本 planned 排队书：segments 决定块数（29 页 → 3 块，36+29 页 → 7 块）。 */
+function queuedEntry(slug, order, pages = 29) {
+  return shelfEntry(
+    slug,
+    [
+      ["kind", "book"],
+      ["slot", "planned"],
+      ...(order === null ? [] : [["order", String(order)]]),
+      ["status", "queued"],
+      ["title", `"${slug}"`],
+      ["short", `"${slug}"`],
+      ["started", '""'],
+      ["position", "0"],
+    ],
+    `# ${slug}\n\n## 分段\n1. S pp.1–${pages}\n`,
+  );
+}
+
+/** 一本 planned 在读的书：started 11-09、7 块 → 11-15 读完。 */
+function readingEntry(slug, order = 1) {
+  return shelfEntry(
+    slug,
+    [
+      ["kind", "book"],
+      ["slot", "planned"],
+      ["order", String(order)],
+      ["status", "reading"],
+      ["title", `"${slug}"`],
+      ["short", `"${slug}"`],
+      ["started", "2026-11-09"],
+      ["position", "0"],
+    ],
+    `# ${slug}\n\n## 分段\n1. Ch1 pp.1–36\n2. Ch2 pp.37–65\n`,
+  );
+}
+
+test("queueEnds：三本排队书按 order 串接，第一本从在读书读完次日起", () => {
+  // 在读书 11-09 起 7 块 → 11-15 读完；排队三本 3/4/2 块。
+  const ends = queueEnds(
+    [
+      readingEntry("reading-book", 1),
+      queuedEntry("q1", 2, 29), // 3 块
+      queuedEntry("q2", 3, 40), // 4 块
+      queuedEntry("q3", 4, 11), // 2 块
+    ],
+    "2026-11-09",
+  );
+  assert.deepEqual([...ends.keys()], ["q1", "q2", "q3"]);
+  assert.equal(ends.get("q1"), "2026-11-18", "11-16 起 3 块 → 11-18");
+  assert.equal(ends.get("q2"), "2026-11-22", "11-19 起 4 块 → 11-22");
+  assert.equal(ends.get("q3"), "2026-11-24", "11-23 起 2 块 → 11-24");
+  assert.ok(!ends.has("reading-book"), "在读的书不在 Map 里");
+});
+
+test("queueEnds：没有在读的书时从 today 起", () => {
+  const ends = queueEnds([queuedEntry("q1", 1, 29), queuedEntry("q2", 2, 11)], "2026-11-20");
+  assert.equal(ends.get("q1"), "2026-11-22", "11-20 起 3 块 → 11-22");
+  assert.equal(ends.get("q2"), "2026-11-24", "11-23 起 2 块 → 11-24");
+});
+
+test("queueEnds：order 为空排最后；free / done 的书不算", () => {
+  const freeReading = shelfEntry(
+    "free-book",
+    [
+      ["kind", "book"],
+      ["slot", "free"],
+      ["status", "reading"],
+      ["title", '"F"'],
+      ["short", '"F"'],
+      ["started", "2026-11-09"],
+      ["position", "0"],
+    ],
+    "# F\n\n## 分段\n1. S pp.1–29\n",
+  );
+  const ends = queueEnds(
+    [queuedEntry("no-order", null, 11), queuedEntry("second", 2, 11), freeReading],
+    "2026-11-20",
+  );
+  // 没有在读的 planned 书 → 从 today 起；order 2 在前、null 最后。
+  assert.deepEqual([...ends.keys()], ["second", "no-order"]);
+  assert.equal(ends.get("second"), "2026-11-21", "11-20 起 2 块 → 11-21");
+  assert.equal(ends.get("no-order"), "2026-11-23", "11-22 起 2 块 → 11-23");
+  assert.ok(!ends.has("free-book"));
+});
+
+test("index --write：排队书的日期在在读的书之后", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "reading-book", EPP_FIELDS, EPP_BODY);
+  await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Queued"', short: '"Q"', started: '""', position: 0 },
+    "# Queued\n\n## 分段\n1. S pp.1–29\n",
+  );
+  const file = join(vault, "wiki", "书房", "index.md");
+  await b(["index", vault, "--today", "2026-11-10", "--write"]);
+  const index = await readFile(file, "utf8");
+  const readingEnd = index.match(/\[\[书房\/reading-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
+  const queuedEnd = index.match(/\[\[书房\/queued-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
+  assert.ok(readingEnd !== null && queuedEnd !== null, index);
+  assert.equal(readingEnd[1], "2026-11-16");
+  assert.equal(queuedEnd[1], "2026-11-19", "从在读书读完（11-16）的次日起 3 块");
+  assert.ok(queuedEnd[1] > readingEnd[1], "排队书不能比在读书早读完");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list：排队书的 upcoming 为 []、end 与排队串接一致", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "reading-book", EPP_FIELDS, EPP_BODY);
+  await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Queued"', short: '"Q"', started: '""', position: 0 },
+    "# Queued\n\n## 分段\n1. S pp.1–29\n",
+  );
+  const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  const queued = list.find((item) => item.slug === "queued-book");
+  const reading = list.find((item) => item.slug === "reading-book");
+  assert.deepEqual(queued.upcoming, [], "排队书还没开始，没有日程");
+  assert.equal(reading.end, "2026-11-16");
+  assert.equal(queued.end, "2026-11-19");
+  assert.ok(queued.end > reading.end);
+  assert.equal(queued.status, "queued");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("plan：对 queued / done 的书报错，且不写文件", async () => {
+  const vault = await makeVault();
+  const queuedFile = await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 1, status: "queued", title: '"Q"', short: '"Q"', started: '""', position: 0 },
+    "# Q\n\n## 分段\n1. S pp.1–1\n",
+  );
+  const doneFile = await writeBook(
+    vault,
+    "done-book",
+    { ...EPP_FIELDS, status: "done", position: 1 },
+    "# Done\n\n## 分段\n1. S pp.1–1\n",
+  );
+  for (const [slug, file] of [
+    ["queued-book", queuedFile],
+    ["done-book", doneFile],
+  ]) {
+    const before = await readFile(file, "utf8");
+    const fail = await b(["plan", vault, slug, "--today", "2026-11-10", "--write"], { expectFail: true });
+    assert.match(fail.stderr, /还在排队（或已读完），开始读时会自动排期/, slug);
+    assert.equal(await readFile(file, "utf8"), before, `${slug} 不应被改动`);
+  }
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("经符号链接调用 --help 有输出（主模块判定比真实路径）", async () => {
+  // ~/.xuegen/app 这类符号链接下，argv[1] 与 import.meta.url 字面不同；只比字面会静默 exit 0。
+  const dir = await mkdtemp(join(tmpdir(), "bookshelf-link-"));
+  try {
+    const link = join(dir, "app");
+    await symlink(HERE, link, "dir");
+    const { stdout } = await run("node", [join(link, "bookshelf.mjs"), "--help"], { encoding: "utf8" });
+    assert.match(stdout, /书房：整本书通读的排期与进度/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- 新旧布局（新 wiki/shelf，旧 wiki/书房，都有时用新） ----
+
+async function writeBookAt(dir, slug, fields, body) {
+  const file = join(dir, `${slug}.md`);
+  await mkdir(dir, { recursive: true });
+  const fm = Object.entries(fields).map(([key, value]) => `${key}: ${value}`);
+  const text = ["---", ...fm, "---", "", body].join("\n");
+  await writeFile(file, `${text}${text.endsWith("\n") ? "" : "\n"}`, "utf8");
+  return file;
+}
+
+test("布局：只有新 wiki/shelf 时 list 与 index 用 shelf 前缀", async () => {
+  const vault = await makeVault();
+  const shelf = join(vault, "wiki", "shelf");
+  await writeBookAt(shelf, "epp", EPP_FIELDS, EPP_BODY);
+  const list = await jsonB(["list", vault]);
+  assert.deepEqual(
+    list.map((item) => item.slug),
+    ["epp"],
+  );
+  const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
+  assert.equal(result.file, join(shelf, "index.md"));
+  const index = await readFile(result.file, "utf8");
+  assert.ok(index.includes("[[shelf/epp|Epp]]"), index);
+  assert.ok(!index.includes("[[书房/"), index);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("布局：只有旧 wiki/书房 时照旧工作（不建 shelf）", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
+  assert.equal(result.file, join(vault, "wiki", "书房", "index.md"));
+  assert.ok((await readBook(vault, "epp")).includes("Epp"));
+  assert.ok(!existsSync(join(vault, "wiki", "shelf")), "旧库里不该新建 shelf 目录");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("布局：新旧都有时用新 wiki/shelf，旧目录的书不混进来", async () => {
+  const vault = await makeVault();
+  const shelf = join(vault, "wiki", "shelf");
+  await writeBookAt(shelf, "new-book", { ...EPP_FIELDS, short: '"New"' }, EPP_BODY);
+  await writeBook(vault, "old-book", { ...EPP_FIELDS, short: '"Old"' }, EPP_BODY);
+  const list = await jsonB(["list", vault]);
+  assert.deepEqual(
+    list.map((item) => item.slug),
+    ["new-book"],
+  );
+  const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
+  assert.equal(result.file, join(shelf, "index.md"));
   await rm(vault, { recursive: true, force: true });
 });

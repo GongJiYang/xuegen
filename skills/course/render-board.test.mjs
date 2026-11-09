@@ -119,3 +119,71 @@ test("渲染看板：跳过无标记文件，未命中课程时非零退出", as
   assert.match(failure.stderr, /未找到课程状态文件/);
   await rm(coursesDir, { recursive: true, force: true });
 });
+
+// ---- 生成物位置（新 wiki/_generated，旧 wiki 根） ----
+
+/** 建 <wiki>/courses 下带标记的课程，返回 { wikiDir, coursesDir }。 */
+async function makeWikiWithCourses(name = "wiki") {
+  const root = await mkdtemp(join(tmpdir(), "render-board-layout-"));
+  const wikiDir = join(root, name);
+  const coursesDir = join(wikiDir, "courses");
+  await mkdir(coursesDir, { recursive: true });
+  await writeFile(join(coursesDir, "ctm.md"), COURSE, "utf8");
+  return { root, wikiDir, coursesDir };
+}
+
+test("布局：有 wiki/_generated 时看板与 courses.md 都写它", async () => {
+  const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
+  try {
+    await mkdir(join(wikiDir, "_generated"), { recursive: true });
+    const out = join(root, "board.html");
+    const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
+    const meta = JSON.parse(stdout);
+    assert.equal(meta.verify, null, "没有 dashboard 时 verify 为 null");
+    const html = await readFile(out, "utf8");
+    assert.ok(html.includes(join(wikiDir, "_generated", "courses.html")), "重新生成命令应指向 _generated");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("布局：没有 _generated 时退回 wiki 根（旧库）", async () => {
+  const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
+  try {
+    const out = join(root, "board.html");
+    const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
+    const meta = JSON.parse(stdout);
+    assert.equal(meta.courses.length, 1);
+    const html = await readFile(out, "utf8");
+    assert.ok(html.includes(join(wikiDir, "courses.html")), "旧库生成物在 wiki 根");
+    assert.ok(!html.includes("_generated"), html.slice(-400));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("布局：_generated 与旧位置都有时用 _generated 校验 dashboard", async () => {
+  const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
+  try {
+    // 新位置的 dashboard 正常生成；旧位置放一个空文件，校验应仍通过（走新位置）。
+    await mkdir(join(wikiDir, "_generated"), { recursive: true });
+    await run("node", [
+      join(HERE, "course-state.mjs"),
+      "dashboard",
+      coursesDir,
+      join(wikiDir, "_generated", "courses.md"),
+    ]);
+    await writeFile(join(wikiDir, "courses.md"), "旧的看板\n", "utf8");
+    // 收课后的只读锁：校验只在这一状态下通过。
+    await chmod(join(coursesDir, "ctm.md"), 0o444);
+    await chmod(coursesDir, 0o555);
+    const out = join(root, "board.html");
+    const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
+    const meta = JSON.parse(stdout);
+    assert.equal(meta.verify, true);
+  } finally {
+    await chmod(coursesDir, 0o755);
+    await chmod(join(coursesDir, "ctm.md"), 0o644);
+    await rm(root, { recursive: true, force: true });
+  }
+});

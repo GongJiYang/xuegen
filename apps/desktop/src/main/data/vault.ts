@@ -6,7 +6,7 @@
  * individual skills own (e.g. `wiki/calendar/`), and only via those scripts.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveHome } from "../../agent/environment.js";
 
@@ -25,4 +25,14 @@ export function readVaultRoot(): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Where generated boards (courses.md / courses.html) live in this vault:
+ * `wiki/_generated/` when that directory exists (renamed layout), `wiki/`
+ * otherwise (legacy layout). Nothing is created here — the caller writes.
+ */
+export function generatedDir(vault: string): string {
+  const generated = join(vault, "wiki", "_generated");
+  return existsSync(generated) ? generated : join(vault, "wiki");
 }

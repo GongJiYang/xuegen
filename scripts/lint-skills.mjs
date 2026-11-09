@@ -18,6 +18,10 @@ const PERSONAL_PATH_PATTERNS = [
 ];
 const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
+// 主模块判定必须比真实路径：Node 把主模块解析成真实路径，字面比较会让经符号链接
+// 调用（~/.xuegen/app → 仓库、/tmp → /private/tmp）的脚本静默不执行（exit 0）。
+const MAIN_CHECK_RE = /resolve\(\s*process\.argv\[1\]\s*\)/;
+const REALPATH_MAIN_RE = /realpathSync\(\s*fileURLToPath\(\s*import\.meta\.url\s*\)\s*\)/;
 
 function parseArgs(argv) {
   const options = { json: false, dir: null };
@@ -89,6 +93,22 @@ async function walkFiles(dir) {
   return out;
 }
 
+// 技能脚本里「是否直接运行」的判定：出现 resolve(process.argv[1]) 这类字面比较即报错；
+// 比较了 import.meta.url 与 argv[1] 却没过 realpathSync 的也报。返回 [{line, text}]。
+export function findUnsafeMainChecks(text) {
+  const lines = text.split(/\r?\n/);
+  const hits = [];
+  const comparesWithImportUrl =
+    /import\.meta\.url/.test(text) && /argv\[1\]/.test(text) && !REALPATH_MAIN_RE.test(text);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const unsafeResolve = MAIN_CHECK_RE.test(line);
+    const unsafeUrlCompare = comparesWithImportUrl && /argv\[1\]/.test(line) && /import\.meta\.url/.test(line);
+    if (unsafeResolve || unsafeUrlCompare) hits.push({ line: i + 1, text: line.trim() });
+  }
+  return hits;
+}
+
 async function checkSkill(skillsDir, name) {
   const dir = join(skillsDir, name);
   const problems = [];
@@ -143,6 +163,13 @@ async function checkSkill(skillsDir, name) {
     const testFile = script.replace(/\.mjs$/, ".test.mjs");
     if (!existsSync(testFile)) {
       push("warning", "script-has-test", `${relative(skillsDir, script)}: 缺少同名测试 ${basename(testFile)}`);
+    }
+    for (const hit of findUnsafeMainChecks(await readFile(script, "utf8"))) {
+      push(
+        "error",
+        "script-main-check",
+        `${relative(skillsDir, script)}:${hit.line} 主模块判定未用 realpathSync（经符号链接调用会静默不执行）：${hit.text}`,
+      );
     }
   }
 

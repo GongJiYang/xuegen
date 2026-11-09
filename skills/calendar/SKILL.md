@@ -53,5 +53,5 @@ node "$C" write "$W" 2026-11-05 --stdin   # 从标准输入写
 ## 边界与返回
 
 - 不写入 `wiki/courses/`、`wiki/reading/`、`wiki/log.md`；它们是只读来源。要改阅读排程用 `reading`，要收课用 `course`。
-- `raw/`、`Clippings/`、`wiki/prompts/`、凭据目录一律只读。
+- `raw/`、`clippings/`（旧库：`Clippings/`）、`wiki/prompts/`、凭据目录一律只读。
 - 回复简短：本次是「查看」还是「写入」、涉及哪些日期、来源各命中几条；写笔记时给出实际保存路径。

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Xuegen 书房：自己读的整本书的排期与进度。无第三方依赖。
-// <vault> 为 Wiki 库根目录；书页在 <vault>/wiki/书房/<slug>.md，目录页是 index.md。
+// <vault> 为 Wiki 库根目录；书页在 <vault>/wiki/shelf/<slug>.md（旧库：wiki/书房/），目录页是 index.md。
 //   node bookshelf.mjs list <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs today <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs done <vault> <slug> [--today YYYY-MM-DD] [--json]
@@ -17,11 +17,12 @@
 // 规则：每天一段（每块 ≤ 10 页），计划内一次只读一本，
 // 读完自动开 order 最小的 queued；计划外同时最多一本在读。只排页码与日期，不估时长。
 import { readFile, writeFile, readdir, rename, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SHELF_DIR = "书房";
+// 书房目录候选：新布局 wiki/shelf 优先，旧库 wiki/书房 兜底。
+const SHELF_DIRS = ["shelf", "书房"];
 const INDEX_FILE = "index.md";
 const PLAN_START = "<!-- xuegen:shelf:start -->";
 const PLAN_END = "<!-- xuegen:shelf:end -->";
@@ -224,8 +225,18 @@ function requireVault(vault) {
   return dir;
 }
 
+// 书房目录：有新的用新的，没有用旧的；两个都没有时按新名返回（由调用方决定是否创建）。
 function shelfDir(vault) {
-  return join(wikiDir(vault), SHELF_DIR);
+  for (const name of SHELF_DIRS) {
+    const dir = join(wikiDir(vault), name);
+    if (existsSync(dir)) return dir;
+  }
+  return join(wikiDir(vault), SHELF_DIRS[0]);
+}
+
+// index.md 里 [[…]] 链接的前缀就是实际书房目录名（shelf 或 书房）。
+function shelfName(vault) {
+  return basename(shelfDir(vault));
 }
 
 // ---- 书页字段访问（frontmatter 原样是字符串，这里统一落成可用值）----
@@ -413,6 +424,28 @@ export function bookView(page, today) {
   };
 }
 
+// 计划内排队书的预计读完日期（入参是 loadBooks 的结果）：按 order 升序（无 order 排最后）
+// 串起来，第一本从在读的计划内书 end 的次日起（没有在读的从 today 起），
+// 每本 end = start + total - 1，下一本接着前一本。只算 slot: planned 且 status: queued。
+// 排队书还没开始读，日期不能从今天算——否则会和在读的书重叠。
+// 返回 Map<slug, end>；非排队书不出现在 Map 里。
+export function queueEnds(books, today) {
+  const ends = new Map();
+  const planned = books
+    .filter(({ page }) => bookSlot(page) === "planned")
+    .map(({ slug, page }) => ({ slug, page, status: bookStatus(page), order: bookOrder(page) }))
+    .sort(compareBooks);
+  const inProgress = planned.find((book) => book.status === "reading");
+  let start = inProgress === undefined ? today : addDays(bookView(inProgress.page, today).end, 1);
+  for (const { slug, page } of planned.filter((book) => book.status === "queued")) {
+    const total = chunksOf(parseSegments(page.body)).length;
+    const end = addDays(start, Math.max(total - 1, 0));
+    ends.set(slug, end);
+    start = addDays(end, 1);
+  }
+  return ends;
+}
+
 // `## 读书记录` 最后一条记录的日期；没有记录返回 null。
 function lastRecordDate(body) {
   const range = sectionRange(body, "## 读书记录");
@@ -557,23 +590,27 @@ function compareBooks(a, b) {
 
 async function commandList(vault, options, today) {
   const books = await loadBooks(vault);
+  const queue = queueEnds(books, today);
   const items = books.map(({ slug, page }) => {
     const view = bookView(page, today);
+    const status = bookStatus(page);
     return {
       slug,
       title: view.title,
       short: view.short,
       slot: view.slot,
       order: bookOrder(page),
-      status: bookStatus(page),
+      status,
       total: view.total,
       position: view.position,
       started: bookStarted(page),
-      end: view.end,
+      // 排队书的预计读完日期由 queueEnds 串接得出，不是从今天算。
+      end: queue.get(slug) ?? view.end,
       extracts: parseExtracts(page.body),
       coreRead: parseCoreRead(page.body),
+      // 排队书还没开始读，没有日程。
       upcoming:
-        bookStatus(page) === "done"
+        status === "done" || status === "queued"
           ? []
           : planRows(page, today)
               .rows.filter((row) => row.index > bookPosition(page))
@@ -722,6 +759,10 @@ async function commandPlan(vault, positional, options, today) {
   const slug = positional[0];
   if (!slug) fail("plan 需要 slug");
   const { page, file } = await loadBook(vault, slug);
+  const status = bookStatus(page);
+  if (status !== "reading") {
+    fail(`${slug} 还在排队（或已读完），开始读时会自动排期`);
+  }
   if (bookStarted(page) === "") setField(page, "started", today);
   const { started, rows } = planRows(page, today);
   const table = renderPlanTable(rows);
@@ -840,17 +881,20 @@ async function commandCard(vault, positional, options, today) {
 
 // ---- index.md ----
 
-function indexLine(view, status) {
-  const prefix = `- [[书房/${view.slug}|${view.short}]] · ${view.title} · ${view.position}/${view.total} 段`;
-  return status === "done" ? `${prefix} · ${view.end} 读完` : `${prefix} · 预计 ${view.end} 读完`;
+function indexLine(view, status, end, shelfName) {
+  const prefix = `- [[${shelfName}/${view.slug}|${view.short}]] · ${view.title} · ${view.position}/${view.total} 段`;
+  return status === "done" ? `${prefix} · ${end} 读完` : `${prefix} · 预计 ${end} 读完`;
 }
 
-function renderIndex(books, today) {
+function renderIndex(books, today, shelfName) {
+  const queue = queueEnds(books, today);
   const groups = { reading: [], queued: [], done: [] };
   for (const { slug, page } of books) {
     const status = bookStatus(page);
     const view = bookView(page, today);
-    groups[status].push({ slug, order: bookOrder(page), status, line: indexLine(view, status) });
+    // 排队书用 queueEnds 的串接日期（等在读的读完再算），其余用 bookView 的 end。
+    const end = status === "queued" ? (queue.get(slug) ?? view.end) : view.end;
+    groups[status].push({ slug, order: bookOrder(page), status, line: indexLine(view, status, end, shelfName) });
   }
   const blocks = ["# 书房"];
   for (const [status, heading] of [
@@ -871,12 +915,12 @@ async function writeIndex(vault, today) {
   const books = await loadBooks(vault);
   const dir = shelfDir(vault);
   await mkdir(dir, { recursive: true });
-  await writeAtomic(join(dir, INDEX_FILE), renderIndex(books, today));
+  await writeAtomic(join(dir, INDEX_FILE), renderIndex(books, today, shelfName(vault)));
 }
 
 async function commandIndex(vault, options, today) {
   const books = await loadBooks(vault);
-  const text = renderIndex(books, today);
+  const text = renderIndex(books, today, shelfName(vault));
   const file = join(shelfDir(vault), INDEX_FILE);
   if (options.write) {
     await mkdir(shelfDir(vault), { recursive: true });
@@ -910,11 +954,11 @@ function usage() {
     "  node bookshelf.mjs extract <vault> <slug> --page <n> --text <原句> [--today YYYY-MM-DD] [--json]",
     "  node bookshelf.mjs card <vault> <slug> --index <逗号分隔的序号> [--today YYYY-MM-DD] [--json]",
     "",
-    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；书页在 wiki/书房/<slug>.md。",
+    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；书页在 wiki/shelf/<slug>.md（旧库：wiki/书房/）。",
     "done：记完一段（position+1、追加读书记录）；读完时置 done，计划内的书自动开",
     "order 最小的 queued（明天起读），最后重写 index.md。",
     "plan：生成/重写 `## 排期` 的排期表（不带 --write 只打印）。",
-    "index：生成/重写 wiki/书房/index.md（不带 --write 只打印）。",
+    "index：生成/重写 wiki/shelf/index.md（旧库：wiki/书房/index.md；不带 --write 只打印）。",
     "lecture：讲后读读完——追加读书记录，给了 --pages 再记一行 `## 核心页已读`；不改 position/status。",
     "extract：在 `## 摘录` 末尾存一句摘录（行尾标 `#待做卡`）。",
     "card：把 `## 摘录` 里指定序号的 `#待做卡` 改成 `#卡/<today>`。",
@@ -978,8 +1022,17 @@ async function main() {
 }
 
 // 只有直接运行时才进入 CLI；测试 import 纯函数不触发 main。
-const invoked = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (invoked) {
+// 两边都取真实路径再比：经符号链接调用（~/.xuegen/app、/tmp → /private/tmp）时
+// argv[1] 与 import.meta.url 字面不同，只比字面路径会静默不执行。
+function isMain() {
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "");
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   main().catch((error) => {
     fail(error instanceof Error ? error.message : String(error));
   });

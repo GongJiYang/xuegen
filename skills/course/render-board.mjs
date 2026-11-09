@@ -269,6 +269,12 @@ function renderCourse(c, rank) {
 </article>`;
 }
 
+// 生成物放哪：<wiki>/_generated 存在就用它（新布局），否则退回 <wiki> 根（旧库）。
+function generatedDir(wikiDir) {
+  const generated = join(wikiDir, "_generated");
+  return existsSync(generated) ? generated : wikiDir;
+}
+
 function verifyStatus(coursesDir, dash) {
   const script = join(here, "course-state.mjs");
   if (!existsSync(script) || !existsSync(dash)) return { ok: null, text: "未生成 Markdown 看板" };
@@ -304,7 +310,9 @@ function main() {
     process.exit(1);
   }
 
-  const dash = join(dirname(coursesDir), "courses.md");
+  // 生成物目录：wiki/_generated（旧库为 wiki/ 根下，两种布局都认）。
+  const dashDir = generatedDir(dirname(coursesDir));
+  const dash = join(dashDir, "courses.md");
   const verify = verifyStatus(coursesDir, dash);
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -405,7 +413,7 @@ footer{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.7;borde
   <footer>
     <p>本页是只读视图：没有表单、按钮或任何编辑入口，也不能在这里改计划或打勾。状态只存在于 <code>wiki/courses/*.md</code>（只读锁 0444，目录 0555），由学习会话在明确收课请求后解锁写入、再重新上锁。</p>
     <p>数字是「已核实的计划项」，不是掌握率；“用户自报，未检查”表示完成依据来自你的陈述而非当场核对。</p>
-    <p>重新生成：<code>node render-board.mjs wiki/courses wiki/courses.html</code>${skipped.length ? `　已跳过无标记文件：${esc(skipped.join("、"))}` : ""}</p>
+    <p>重新生成：<code>node render-board.mjs ${esc(coursesDir)} ${esc(join(dashDir, "courses.html"))}</code>${skipped.length ? `　已跳过无标记文件：${esc(skipped.join("、"))}` : ""}</p>
   </footer>
 </div>
 </body>

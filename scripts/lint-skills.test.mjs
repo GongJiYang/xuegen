@@ -3,7 +3,7 @@
 // 每个用例在 os.tmpdir() 下的临时目录构造 skill，不触碰真实仓库。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -223,6 +223,77 @@ test("非 --json 输出逐条问题与汇总", async () => {
     assert.equal(code, 1);
     assert.match(stdout, /\[错误\]/);
     assert.match(stdout, /1 个错误/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("技能脚本主模块判定未用 realpathSync 报错（经符号链接调用会静默不执行）", async () => {
+  const root = await makeSkills();
+  try {
+    // 反例：字面比较 argv[1] 与 import.meta.url。
+    await writeSkill(root, "bad", {
+      files: {
+        "tool.mjs":
+          'if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {\n  main();\n}\n',
+        "tool.test.mjs": "// test\n",
+      },
+    });
+    // 反例：比 url 但没过 realpathSync。
+    await writeSkill(root, "bad-url", {
+      files: {
+        "tool.mjs": 'if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {\n  main();\n}\n',
+        "tool.test.mjs": "// test\n",
+      },
+    });
+    // 正例：两边都取真实路径。
+    await writeSkill(root, "good", {
+      files: {
+        "tool.mjs":
+          'function isMain() {\n  try {\n    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "");\n  } catch {\n    return false;\n  }\n}\n',
+        "tool.test.mjs": "// test\n",
+      },
+    });
+    const { code, stdout } = await lint(root, { json: true });
+    assert.equal(code, 1);
+    const report = JSON.parse(stdout);
+    const errors = report.errors.filter((e) => e.rule === "script-main-check");
+    assert.equal(errors.filter((e) => e.skill === "bad").length, 1, JSON.stringify(errors));
+    assert.equal(errors.filter((e) => e.skill === "bad-url").length, 1, JSON.stringify(errors));
+    assert.equal(errors.filter((e) => e.skill === "good").length, 0, JSON.stringify(errors));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("realpathSync 比较的脚本经符号链接调用仍能进入 CLI", async () => {
+  // 防回归：仓库里的脚本必须能在 ~/.xuegen/app 这类符号链接下正常执行。
+  const root = await makeSkills();
+  try {
+    const skillDir = join(root, "linked");
+    await mkdir(skillDir, { recursive: true });
+    await writeSkill(root, "linked", {
+      files: {
+        "tool.mjs": [
+          'import { realpathSync } from "node:fs";',
+          'import { fileURLToPath } from "node:url";',
+          "function isMain() {",
+          "  try {",
+          '    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "");',
+          "  } catch {",
+          "    return false;",
+          "  }",
+          "}",
+          'if (isMain()) process.stdout.write("用法说明\\n");',
+          "",
+        ].join("\n"),
+        "tool.test.mjs": "// test\n",
+      },
+    });
+    const link = join(root, "app");
+    await symlink(skillDir, link, "dir");
+    const { stdout } = await run("node", [join(link, "tool.mjs")], { encoding: "utf8" });
+    assert.match(stdout, /用法说明/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

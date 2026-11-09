@@ -1,6 +1,6 @@
 # 标准计划输出
 
-每门课一份 `wiki/courses/<course-slug>.md`，段落顺序固定为下面七段。`render-board.mjs` 按同一顺序渲染 `wiki/courses.html`，所以 Markdown 怎么写，网页就怎么显示；不需要为网页另写一份内容。
+每门课一份 `wiki/courses/<course-slug>.md`，段落顺序固定为下面七段。`render-board.mjs` 按同一顺序渲染 `wiki/_generated/courses.html`（旧库：`wiki/courses.html`），所以 Markdown 怎么写，网页就怎么显示；不需要为网页另写一份内容。
 
 ```
 1 定位      标题 / 当前周 / 当前位置 / 状态源
@@ -89,4 +89,4 @@ W1 · 视觉电路起源＋课题第 0 步｜日期范围：未设定（等待�
 - 尚未开始学习；无作答或阅读证据。
 ```
 
-对应网页看板：`wiki/courses.html#course-mech-interp` — 顶部是「下次起点」，接着本周 x/y、今日 x/y、总目标 x/y，再是完整计划表与可折叠的学习记录；页面没有输入框或按钮。
+对应网页看板：`wiki/_generated/courses.html#course-mech-interp` — 顶部是「下次起点」，接着本周 x/y、今日 x/y、总目标 x/y，再是完整计划表与可折叠的学习记录；页面没有输入框或按钮。

@@ -2,9 +2,10 @@
  * Read-only AnkiConnect client.
  *
  * The app only ever reads Anki state so the cards panel can show sync status.
- * Writing actions (`addNote`, `deleteNotes`, `sync`, …) are refused by design:
- * cards are synced by the user's Obsidian-to-Anki plugin, never by Xuegen, and
- * a stray write here would corrupt the user's collection.
+ * Writing actions (`addNote`, `deleteNotes`, `sync`, …) are refused by design
+ * in this client: pushing cards to Anki is `cards.sync`, which runs the
+ * standalone `skills/wiki-save/anki-sync.mjs` script instead — a stray write
+ * here would corrupt the user's collection.
  */
 
 import type { AnkiStatus } from "../../shared/data-protocol.js";
