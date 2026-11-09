@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Scripts / desktop: cards now sync straight into Anki via `wiki-save/anki-sync.mjs push` (AnkiConnect `addNote` with the file's tags, `<!--ID:-->` written back so Obsidian_to_Anki skips them, `书房::*` decks get the 「书房」 preset); the data channel gains `cards.sync` (no UI wired yet).
+- Scripts: `bin/xuegen-data-root.mjs <数据根>` wires a new machine to the data root — `sessions`/`learning` symlinks and `wiki.json`, refusing to overwrite existing links or real directories (`--dry-run` to preview).
+- Scripts: 书房 — queued books' finish dates in `书房/index.md` and `list` chain after the book being read (they used to count from today); `plan` refuses a book that is not being read instead of writing today as its start.
+
 ## v0.7.0 — 2026-11-09
 
 - Desktop / scripts: 书房 — whole books live in `wiki/书房/` (one page per book, `bookshelf.mjs`): every day one block of ≤ 10 pages, one planned book at a time (the next starts automatically), one free book. The 今日卡 shows the block (「第 n / 81 天」, amber with 「晚了 N 天，读完日期顺延到 …」 when behind, 「其中 pp.… 讲后读读过，照读」 on overlap) with 「读完这段」 (10-second undo); a read block shows 「已记下，明天 …」 and 「摘几句」, an inline form that saves one sentence and its page into the book page without a model call. The reading panel gets a 书房 section above the queue: progress, next block, 接下来几天, 核心页已读, 摘录 with 「把 N 句做成卡 →」 (学根 drafts, you approve, cards go to the 「书房::<书>」 deck), the queue with chained finish dates, and the free slot.

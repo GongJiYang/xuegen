@@ -71,6 +71,7 @@ xuegen
 | 位置 | 内容 | 是否进入仓库 |
 | --- | --- | --- |
 | `bin/xuegen.mjs` | 启动器与终端身份 | 是 |
+| `bin/xuegen-data-root.mjs` | 新电脑接数据根（链接 sessions/learning、写 wiki.json） | 是 |
 | `instructions.md` | 学习 agent 的默认职责 | 是 |
 | `skills/` | 可版本管理的学习能力 | 是 |
 | `defaults/settings.json` | 不含账号和模型绑定的初始设置 | 是 |
@@ -92,6 +93,15 @@ xuegen
 ```bash
 xuegen --append-system-prompt ./AGENTS.md
 ```
+
+学习数据（库、会话、工作区）集中放在一个数据根目录下时，换新电脑后一条命令接好：
+
+```bash
+node bin/xuegen-data-root.mjs <数据根>          # 数据根下须有 库/ 会话/ 工作区/
+node bin/xuegen-data-root.mjs <数据根> --dry-run # 只打印要做什么
+```
+
+它会建 `~/.xuegen/sessions` 与 `~/learning` 两个链接并写入 `wiki.json`；已有链接或真实目录不会被覆盖。
 
 ## 按需整理到 Wiki
 
