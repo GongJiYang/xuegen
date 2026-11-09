@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionMeta } from "@shared/data-protocol.js";
-import { sessionGroups, type SessionListContext } from "./session-list.js";
+import { sessionGroups, roleOfRow, type SessionListContext } from "./session-list.js";
 
 const DIR = "/home/sessions";
 
@@ -26,6 +26,29 @@ const BASE_CTX: SessionListContext = {
 function ctx(overrides: Partial<SessionListContext> = {}): SessionListContext {
   return { ...BASE_CTX, ...overrides };
 }
+
+describe("roleOfRow", () => {
+  const rows = sessionGroups(
+    [
+      meta("2026-11-08T09-00-00-000Z_ctrl.jsonl", Date.UTC(2026, 10, 8, 9, 0), "/skill:cycle-plan 给出今天的简报", null, 4),
+      meta("2026-11-08T10-00-00-000Z_epp.jsonl", Date.UTC(2026, 10, 8, 10, 0), "⟦xuegen:resume|epp|离散⟧", "离散 D2", 9),
+      meta("2026-11-07T18-00-00-000Z_free.jsonl", Date.UTC(2026, 10, 7, 18, 0), "帮我理解递归", null, 2),
+    ],
+    ctx(),
+  ).flatMap((group) => group.rows);
+
+  it("opens 总控 rows as control and course rows as that course", () => {
+    expect(roleOfRow(rows.find((row) => row.kind === "control"))).toEqual({ kind: "control" });
+    expect(roleOfRow(rows.find((row) => row.kind === "course"))).toEqual({ kind: "course", slug: "epp" });
+    expect(roleOfRow(rows.find((row) => row.kind === "free"))).toEqual({ kind: "free" });
+  });
+
+  it("refuses to guess: an unknown or unpinned row is free", () => {
+    const unpinned = { ...rows[0]!, kind: "course" as const, slug: null };
+    expect(roleOfRow(undefined)).toEqual({ kind: "free" });
+    expect(roleOfRow(unpinned)).toEqual({ kind: "free" });
+  });
+});
 
 describe("sessionGroups", () => {
   const metas: SessionMeta[] = [

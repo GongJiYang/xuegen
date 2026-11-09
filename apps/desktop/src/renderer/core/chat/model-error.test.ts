@@ -32,6 +32,19 @@ describe("translateModelError", () => {
     expect(translateModelError("connect ECONNREFUSED 127.0.0.1:443").summary).toBe(MODEL_ERROR_SUMMARIES.network);
   });
 
+  it("recognises a connection cut by a proxy or relay", () => {
+    for (const raw of [
+      "terminated",
+      "TypeError: terminated",
+      "premature close",
+      "other side closed",
+      "ECONNABORTED",
+      "read EPIPE",
+    ]) {
+      expect(translateModelError(raw).summary).toBe(MODEL_ERROR_SUMMARIES.network);
+    }
+  });
+
   it("falls back to a generic summary but keeps the detail", () => {
     const result = translateModelError("model returned an unexpected stop reason");
     expect(result.summary).toBe(MODEL_ERROR_SUMMARIES.generic);

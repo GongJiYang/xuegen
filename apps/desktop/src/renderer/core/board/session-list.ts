@@ -7,6 +7,7 @@
  */
 
 import type { CycleLesson, SessionMeta } from "@shared/data-protocol.js";
+import type { SessionRole } from "@shared/protocol.js";
 import { strings } from "../strings.js";
 import { isoDate } from "../format.js";
 import { splitActionMarker, type ActionKind } from "../chat/action-marker.js";
@@ -89,6 +90,15 @@ function slugOf(meta: SessionMeta, markerSlug: string | null, ctx: SessionListCo
 /** The pin's first word — the course short name (「离散 D2」→「离散」). */
 function pinHead(pin: string): string {
   return pin.split(/\s/, 1)[0] ?? pin;
+}
+
+/** The guard role a row's session opens with (see `SessionRole` in shared/protocol). */
+export function roleOfRow(row: SessionRow | undefined): SessionRole {
+  if (row?.kind === "control") return { kind: "control" };
+  if (row?.kind === "course" && row.slug !== null) return { kind: "course", slug: row.slug };
+  // A transcript nothing identifies (总控/course lists not loaded, or a plain
+  // question) must not inherit 总控's permissions: everything unknown is free.
+  return { kind: "free" };
 }
 
 /** The row title, per the list's rules: 总控 = 今日简报, course = 课次 + 内容, free = first line. */

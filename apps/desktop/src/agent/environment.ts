@@ -7,7 +7,7 @@
  * `AI_AGENT` marker, and no `PI_*` overrides leaking in from the shell.
  */
 
-import { constants, copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readlinkSync, renameSync, rmSync, symlinkSync, type Stats } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +46,56 @@ export function findRepoRoot(): string {
 }
 
 export const repoRoot = findRepoRoot();
+
+/**
+ * A stable path for the repository files that follows the *installation*, not
+ * the version.
+ *
+ * Pi writes the skill directories into the system prompt, so a session's
+ * transcript keeps replaying whatever path it was started with. In a packaged
+ * app that path is `<app>.app/Contents/Resources/xuegen/skills`, which changes
+ * whenever the app is reinstalled or a new version lands somewhere else — and
+ * an old session then tries to read a path that no longer exists before it
+ * gives up and looks around. Pointing `<home>/app` at the current root keeps
+ * the path Pi sees constant across versions; the link is refreshed when the
+ * install moves. A plain directory or file at `<home>/app` is left alone (it
+ * is not ours), and any failure falls back to the root itself so the agent
+ * still starts.
+ */
+export function stableRoot(home: string, root: string = repoRoot): string {
+  const appPath = join(home, "app");
+  try {
+    mkdirSync(home, { recursive: true, mode: 0o700 });
+    const existing = lstatOrNull(appPath);
+    if (existing && !existing.isSymbolicLink()) return root;
+    if (existing) {
+      // A relative link target is resolved against the directory holding the link.
+      if (resolve(home, readlinkSync(appPath)) === resolve(root)) return appPath;
+    }
+    pointAt(appPath, root);
+    return appPath;
+  } catch {
+    return root;
+  }
+}
+
+/** `lstat` that reports a missing path as null instead of throwing. */
+function lstatOrNull(path: string): Stats | null {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Replace `<home>/app` with a symlink to `root`, atomically via a temp link. */
+function pointAt(appPath: string, root: string): void {
+  const temporary = `${appPath}.tmp-${process.pid}`;
+  rmSync(temporary, { force: true });
+  symlinkSync(resolve(root), temporary);
+  renameSync(temporary, appPath);
+}
 
 /** Where the user's Xuegen state lives, shared with the CLI. */
 export function resolveHome(): string {

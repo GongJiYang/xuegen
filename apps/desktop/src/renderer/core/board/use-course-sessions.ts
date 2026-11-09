@@ -147,7 +147,7 @@ export function useCourseSessions(
       // file anew instead of answering from an older session's memory.
       const known = freshNow ? null : (settings.courseSessions[slug] ?? null);
       setActiveCourse(slug);
-      void controller.openSession(known).then((opened) => {
+      void controller.openSession(known, { kind: "course", slug }).then((opened) => {
         const patch: Partial<DesktopSettings> = {};
         if (opened && opened !== known) {
           patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
@@ -181,7 +181,7 @@ export function useCourseSessions(
       setIntro(null);
       setActiveCourse(slug);
       if (!known) return;
-      void controller.openSession(known).then((opened) => {
+      void controller.openSession(known, { kind: "course", slug }).then((opened) => {
         const patch: Partial<DesktopSettings> = {};
         if (opened && opened !== known) {
           patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
@@ -250,7 +250,11 @@ export function useCourseSessions(
         courses.state.status === "ready" ? courses.state.value.map((course) => course.slug) : null;
       setIntro(null);
       setActiveCourse(null);
-      void controller.openSession(null).then((opened) => {
+      // Creating a course is plan-level work (it writes wiki/courses/*.md), so
+      // the session opens with the 总控 role. The claim below only remembers the
+      // file; the first lesson reopens it as that course's session (see
+      // startSession), which is when the course role applies.
+      void controller.openSession(null, { kind: "control" }).then((opened) => {
         if (!opened) return;
         if (before) pendingNewCourse.current = { request, sessionFile: opened, before };
         controller.sendCommand(newCoursePrompt(request));

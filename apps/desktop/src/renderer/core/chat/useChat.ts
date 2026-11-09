@@ -17,6 +17,7 @@ import type {
   CommandInfo,
   ContextUsagePayload,
   ModelInfo,
+  SessionRole,
   TeachingStyle,
 } from "@shared/protocol.js";
 import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
@@ -79,8 +80,9 @@ export interface ChatController {
   /**
    * Switch to a course's own session (its earlier file, or null for a new one);
    * resolves with the session file now active once the agent has switched.
+   * `role` names the guard's permission set for the session being opened.
    */
-  openSession(sessionFile: string | null): Promise<string | null>;
+  openSession(sessionFile: string | null, role: SessionRole): Promise<string | null>;
   /** The active session's transcript file, or null before one exists. */
   sessionFile: string | null;
   setModel(provider: string, id: string): void;
@@ -125,6 +127,14 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     disabledSkillsRef.current = disabledSkills;
   }, [disabledSkills]);
 
+  // The session the next session-scoped request targets, kept in a ref (like
+  // `styleRef`) so the send callbacks stay identity-stable. It is written from
+  // the event listener, not from an effect over `state.session`: a send right
+  // after `ready`/`state` must already carry the new id, and an effect could
+  // still be holding a snapshot the agent has since replaced. A request whose
+  // id no longer matches is dropped by the agent with an error.
+  const sessionIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     const unsubscribe = client.subscribe((event: AgentToHostMessage) => {
       dispatch({ kind: "agent-event", event });
@@ -135,6 +145,9 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
         const streaming = event.state.streaming;
         if (streamingRef.current && !streaming) lastSentRef.current = null;
         streamingRef.current = streaming;
+        // Synchronously, so a send in the same turn as this snapshot already
+        // targets the session it names (the agent drops a stale id).
+        sessionIdRef.current = event.state.sessionId ?? undefined;
       }
       if (event.type === "session-opened") {
         openRequests.current.get(event.requestId)?.(event.sessionFile);
@@ -173,7 +186,11 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
     // a tag on display (see `splitStyleTag`), so the raw prefix is never shown.
-    client.send({ type: "prompt", text: withStylePrefix(styleRef.current, body) });
+    client.send({
+      type: "prompt",
+      text: withStylePrefix(styleRef.current, body),
+      sessionId: sessionIdRef.current,
+    });
   }, []);
 
   // A command is not something the user typed into the field, so `stop` never
@@ -182,16 +199,20 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     const trimmed = text.trim();
     if (!trimmed) return;
     const note = refreshNoteRef.current;
-    client.send({ type: "prompt", text: note ? `${note} ${trimmed}` : trimmed });
+    client.send({
+      type: "prompt",
+      text: note ? `${note} ${trimmed}` : trimmed,
+      sessionId: sessionIdRef.current,
+    });
   }, []);
 
   const stop = useCallback((): string | null => {
-    client.send({ type: "abort" });
+    client.send({ type: "abort", sessionId: sessionIdRef.current });
     const lastSent = lastSentRef.current;
     lastSentRef.current = null;
     return lastSent;
   }, []);
-  const compact = useCallback(() => client.send({ type: "compact" }), []);
+  const compact = useCallback(() => client.send({ type: "compact", sessionId: sessionIdRef.current }), []);
 
   // Retry resends the last user message. `withStylePrefix` never double-prefixes,
   // so the stored (already-prefixed) markdown can be sent as-is. Defined inside
@@ -202,13 +223,13 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     resetScrollMemory();
     client.send({ type: "new-session" });
   }, []);
-  const openSession = useCallback((sessionFile: string | null) => {
+  const openSession = useCallback((sessionFile: string | null, role: SessionRole) => {
     dispatch({ kind: "clear-messages" });
     resetScrollMemory();
     const requestId = `open-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return new Promise<string | null>((resolvePromise) => {
       openRequests.current.set(requestId, resolvePromise);
-      client.send({ type: "open-session", requestId, sessionFile });
+      client.send({ type: "open-session", requestId, sessionFile, role });
     });
   }, []);
   const continueSession = useCallback(() => {
@@ -232,7 +253,12 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     const streaming = state.session?.streaming ?? state.messages.some((message) => message.streaming);
     const lastUser = [...state.messages].reverse().find((message) => message.role === "user");
     const retry = (): void => {
-      if (lastUser) client.send({ type: "prompt", text: withStylePrefix(styleRef.current, lastUser.markdown) });
+      if (lastUser)
+        client.send({
+          type: "prompt",
+          text: withStylePrefix(styleRef.current, lastUser.markdown),
+          sessionId: sessionIdRef.current,
+        });
     };
     return {
       messages: state.messages,

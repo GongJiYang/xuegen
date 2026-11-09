@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatMessage } from "@shared/protocol.js";
-import { Composer, Thread } from "./messages.js";
-import type { ComposerProps, ThreadProps } from "../contract.js";
+import { AssistantMessage, Composer, Thread } from "./messages.js";
+import type { AssistantMessageProps, ComposerProps, ThreadProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { MessageRenderer } from "../../core/chat/message-renderer.js";
 import { bareSkin } from "./index.js";
@@ -166,5 +166,36 @@ describe("Bare Thread thinking indicator", () => {
   it("shows no indicator once the block has text", () => {
     renderThread([message("u1", "user", { markdown: "hi" }), message("a1", "assistant", { markdown: "答" })], false);
     expect(screen.queryByText(strings.chat.thinking)).toBeNull();
+  });
+});
+
+describe("Bare AssistantMessage automatic retry", () => {
+  const props = (retry: NonNullable<ChatMessage["retry"]>): AssistantMessageProps => ({
+    message: { id: "a1", role: "assistant", markdown: "", streaming: false, toolCalls: [], errorMessage: "terminated", retry },
+    thinking: false,
+    activity: null,
+    onCopy: vi.fn(),
+    copied: false,
+    onRetry: vi.fn(),
+    nodes: [],
+    streaming: false,
+    renderContent: () => null,
+    renderToolCall: () => null,
+  });
+
+  it("shows the attempt count without an alert or a 重试 button", () => {
+    render(<AssistantMessage {...props({ attempt: 1, maxAttempts: 2 })} />);
+
+    expect(screen.getByText(strings.chat.retrying(1, 2))).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();
+  });
+
+  it("shows only the soft recovered line once the retry worked", () => {
+    render(<AssistantMessage {...props("recovered")} />);
+
+    expect(screen.getByText(strings.chat.retried)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();
   });
 });

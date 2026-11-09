@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import { createEventMapperState, mapPiEvent, type EventMapperState } from "./event-mapper.js";
-import type { AgentToHostMessage, ToolCallView } from "../shared/protocol.js";
+import type { AgentToHostMessage, ChatMessage, ToolCallView } from "../shared/protocol.js";
 
 const usage: Usage = {
   input: 0,
@@ -251,5 +251,92 @@ describe("mapPiEvent compaction", () => {
       } as AgentSessionEvent,
     ]);
     expect(messages[0]).toMatchObject({ type: "compaction", phase: "end", errorMessage: "boom" });
+  });
+});
+
+function autoRetryStart(attempt: number, maxAttempts: number, errorMessage: string): AgentSessionEvent {
+  return { type: "auto_retry_start", attempt, maxAttempts, delayMs: 1000, errorMessage };
+}
+
+function autoRetryEnd(success: boolean, attempt: number, finalError?: string): AgentSessionEvent {
+  return finalError === undefined
+    ? { type: "auto_retry_end", success, attempt }
+    : { type: "auto_retry_end", success, attempt, finalError };
+}
+
+/** The failed answer, then Pi's automatic retry cycle. */
+function failedThen(...retryEvents: AgentSessionEvent[]): AgentToHostMessage[] {
+  return run([
+    assistantStart(),
+    assistantEnd({ stopReason: "error", errorMessage: "terminated", content: [] }),
+    ...retryEvents,
+  ]).messages;
+}
+
+/** The final `message-end` of each id: the mapper re-posts an updated copy whenever it marks one. */
+function endsOf(messages: AgentToHostMessage[]): ChatMessage[] {
+  const byId = new Map<string, ChatMessage>();
+  for (const message of messages) {
+    if (message.type === "message-end") byId.set(message.message.id, message.message);
+  }
+  return [...byId.values()];
+}
+
+describe("mapPiEvent automatic retry", () => {
+  it("marks the failed answer with the attempt count while Pi retries", () => {
+    const messages = failedThen(autoRetryStart(1, 3, "terminated"));
+    const failed = endsOf(messages)[0];
+
+    expect(failed?.errorMessage).toBe("terminated");
+    expect(failed?.retry).toEqual({ attempt: 1, maxAttempts: 3 });
+  });
+
+  it("marks the failed answer recovered when the retry produced an answer", () => {
+    const messages = failedThen(autoRetryStart(1, 3, "terminated"), autoRetryEnd(true, 1));
+    const failed = endsOf(messages)[0];
+
+    expect(failed?.retry).toBe("recovered");
+    // The error stays on the message; only the display changes.
+    expect(failed?.errorMessage).toBe("terminated");
+  });
+
+  it("drops the marker and reports the error when the retries all fail", () => {
+    const messages = failedThen(
+      autoRetryStart(1, 2, "terminated"),
+      autoRetryEnd(false, 1, "terminated"),
+    );
+    const failed = endsOf(messages)[0];
+
+    expect(failed?.retry).toBeUndefined();
+    expect(failed?.errorMessage).toBe("terminated");
+    // `finalError` repeats the message's own text: no duplicate error notice.
+    expect(messages.filter((message) => message.type === "error")).toHaveLength(1);
+  });
+
+  it("surfaces a new final reason that differs from the message's error", () => {
+    const messages = failedThen(
+      autoRetryStart(1, 2, "terminated"),
+      autoRetryEnd(false, 1, "Retry cancelled"),
+    );
+
+    expect(messages.filter((message) => message.type === "error").at(-1)).toMatchObject({
+      error: "Retry cancelled",
+    });
+  });
+
+  it("ignores retry events with no failed message to mark", () => {
+    const { messages } = run([assistantStart(), autoRetryStart(1, 3, "terminated"), autoRetryEnd(true, 1)]);
+
+    expect(endsOf(messages)).toHaveLength(0);
+  });
+
+  it("does not mark a user stop as retried", () => {
+    const { messages } = run([
+      assistantStart(),
+      assistantEnd({ stopReason: "aborted", content: [{ type: "text", text: "部分" }] }),
+      autoRetryStart(1, 3, "aborted"),
+    ]);
+
+    expect(endsOf(messages)[0]?.retry).toBeUndefined();
   });
 });

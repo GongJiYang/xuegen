@@ -9,7 +9,7 @@
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
-import type { AgentToHostMessage } from "@shared/protocol.js";
+import type { AgentToHostMessage, HostToAgentMessage } from "@shared/protocol.js";
 import { useChat } from "./useChat.js";
 import { withActionMarker } from "./action-marker.js";
 import * as client from "../client.js";
@@ -121,6 +121,7 @@ describe("useChat openSession", () => {
   function setUp(): {
     emit(event: AgentToHostMessage): void;
     requestId(): string;
+    openMessages(): Array<Extract<HostToAgentMessage, { type: "open-session" }>>;
   } {
     const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
     let listener: ((event: AgentToHostMessage) => void) | null = null;
@@ -137,6 +138,9 @@ describe("useChat openSession", () => {
         if (!call || call[0].type !== "open-session") throw new Error("no open-session sent");
         return call[0].requestId;
       },
+      openMessages: () =>
+        send.mock.calls
+          .flatMap(([message]) => (message.type === "open-session" ? [message] : [])),
     };
   }
 
@@ -148,7 +152,7 @@ describe("useChat openSession", () => {
 
     let promise: Promise<string | null> = Promise.resolve(null);
     act(() => {
-      promise = controller.openSession("/home/sessions/course.jsonl");
+      promise = controller.openSession("/home/sessions/course.jsonl", { kind: "course", slug: "ctm" });
     });
 
     let resolved: string | null | undefined;
@@ -172,6 +176,20 @@ describe("useChat openSession", () => {
       });
     });
     await expect(promise).resolves.toBe("/home/sessions/course.jsonl");
+  });
+
+  it("sends the role with the open-session request, so the agent can pick the permission set", () => {
+    const bridge = setUp();
+    render(<ActionsHarness />);
+    const controller = captured;
+    if (!controller) throw new Error("controller not captured");
+
+    act(() => {
+      void controller.openSession(null, { kind: "course", slug: "discrete-math-epp" });
+    });
+    expect(bridge.openMessages()).toHaveLength(1);
+    expect(bridge.openMessages()[0]?.role).toEqual({ kind: "course", slug: "discrete-math-epp" });
+    expect(bridge.openMessages()[0]?.sessionFile).toBeNull();
   });
 });
 
@@ -208,10 +226,12 @@ describe("useChat stop hands back the prompt just sent", () => {
         cwd: "/tmp",
         model: null,
         sessionFile: null,
+        sessionId: null,
         streaming,
         queuedFollowUps: 0,
         thinkingLevel: null,
         thinkingLevels: [],
+        role: { kind: "free" },
       },
     };
   }

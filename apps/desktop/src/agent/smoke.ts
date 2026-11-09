@@ -43,7 +43,7 @@ async function main(): Promise<void> {
       "no codemode extension loaded",
     );
 
-    const firstLine = readInstructions().split("\n")[0] ?? "";
+    const firstLine = readInstructions(home).split("\n")[0] ?? "";
     assert(
       session.systemPrompt.includes(firstLine),
       `system prompt contains instructions.md first line: ${firstLine}`,

@@ -71,7 +71,7 @@ describe("useControlSession", () => {
     rerender(<Harness controller={controller} cycleId="C1" ready />);
     await act(async () => {});
     expect(controller.openSession).toHaveBeenCalledTimes(1);
-    expect(controller.openSession).toHaveBeenCalledWith(null);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "control" });
     // The auto-open never sends a message.
     expect(controller.sendCommand).not.toHaveBeenCalled();
 

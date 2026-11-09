@@ -1,0 +1,452 @@
+/**
+ * The role × path decision table (`guard/roles.ts`).
+ *
+ * Every row is a real workflow step taken from the skills: a place the model
+ * writes to with `write` / `edit` (not through a script) and the session it
+ * happens in. Both vault spellings (`wiki/知识` / `wiki/knowledge`, `wiki/书房`
+ * / `wiki/shelf`, `Clippings` / `clippings`) are covered.
+ *
+ * The table doubles as the review's 误拦 record: a row that says 允许 is a
+ * normal flow that used to be blocked and is fixed here; a row marked
+ * 「待定」 is a judgement call left to Claude (see `docs/platform/batch-stage2-
+ * review.md` 报告).
+ *
+ * Reads were opened up (用户 2026-11-09 定：除凭据外都能读), so the 读 rows
+ * only pin down two things: every credential path is refused, everything else
+ * (库外、`/etc`、`<home>` 的非凭据文件) is allowed in every role.
+ */
+
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { nodePathFacts } from "./facts.js";
+import { canonical } from "./path.js";
+import { decide, type CanonFn, type Roots } from "./roles.js";
+import { deniedReadPaths, isCredentialName, isDeniedReadPath } from "./vault-paths.js";
+import type { SessionRole } from "../../shared/protocol.js";
+
+const V = "/vault";
+const W = "/home/learning";
+const H = "/home/.xuegen";
+const R = "/repo";
+
+const roots: Roots = { vault: V, workspace: W, home: H, repo: R, temp: "/private/var/folders/x/T" };
+
+/** Paths are already canonical here: the table tests the rules, not `canonical`. */
+const canon = (path: string): string => {
+  if (path.startsWith("~")) return path.replace("~", "/Users/gjy");
+  return path.startsWith("/") ? path : `${V}/${path}`;
+};
+
+/** Nothing exists, unless the test says otherwise. */
+const nothing = (): boolean => false;
+
+const roles: Record<string, SessionRole> = {
+  control: { kind: "control" },
+  course: { kind: "course", slug: "discrete-math-epp" },
+  free: { kind: "free" },
+};
+
+type Verdict = "allow" | "deny";
+
+interface Row {
+  /** What the model is doing, in words. */
+  what: string;
+  tool: string;
+  path: string;
+  /** The expected verdict per role, in the order control / course / free. */
+  expected: [Verdict, Verdict, Verdict];
+}
+
+/** shorthand for a row allowed/denied for every role. */
+const all = (verdict: Verdict): [Verdict, Verdict, Verdict] => [verdict, verdict, verdict];
+
+const rows: Row[] = [
+  // ---- 讲解偏好 / 意图页 (course skill「讲解偏好」) ----
+  { what: "讲解偏好写科目页（以后讲离散都…）", tool: "edit", path: "wiki/subjects/discrete-math.md", expected: ["allow", "allow", "deny"] },
+  { what: "科目页写成英文目录时（wiki/subjects 不变）", tool: "edit", path: "wiki/subjects/c-systems-programming.md", expected: ["allow", "allow", "deny"] },
+  { what: "全局偏好页（用户明确要求时）", tool: "edit", path: "wiki/profile.md", expected: ["allow", "deny", "deny"] },
+  { what: "科目路线表（登记资料）", tool: "edit", path: "wiki/subjects.md", expected: ["allow", "deny", "deny"] },
+  // ---- 课程页 ----
+  { what: "总控改课程计划", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
+  { what: "课程会话改自己的课程页（收课打勾）", tool: "edit", path: "wiki/courses/discrete-math-epp.md", expected: ["allow", "allow", "deny"] },
+  { what: "课程会话改别的课程页（拒）", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
+  { what: "课程自己的附属目录（records）", tool: "write", path: "wiki/courses/discrete-math-epp/records/2026-11.md", expected: ["deny", "allow", "deny"] },
+  { what: "课程截图（改名后的 courses/<slug>/snapshots/，脚本生成）", tool: "write", path: "wiki/courses/discrete-math-epp/snapshots/2026-11-09-01.png", expected: ["deny", "allow", "deny"] },
+  { what: "课程截图（courses/<slug>-*.png，脚本生成；write 只有课程会话）", tool: "write", path: "wiki/courses/discrete-math-epp-2026-11-09-01.png", expected: ["deny", "allow", "deny"] },
+  { what: "课程看板 courses.md", tool: "edit", path: "wiki/courses.md", expected: ["allow", "deny", "deny"] },
+  { what: "课程看板（改名后的 wiki/_generated/courses.md）", tool: "edit", path: "wiki/_generated/courses.md", expected: ["allow", "deny", "deny"] },
+  // ---- 知识 ----
+  { what: "概念页（收课时写，中文目录）", tool: "write", path: "wiki/知识/concepts/discrete-math/010-variables.md", expected: ["deny", "allow", "allow"] },
+  { what: "概念页（改名后的英文目录）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "allow", "allow"] },
+  { what: "闪卡页（wiki-save 制卡，中文目录）", tool: "write", path: "wiki/知识/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
+  { what: "闪卡页（英文目录）", tool: "write", path: "wiki/knowledge/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
+  { what: "摘录页（reading 技能，自由会话里也说）", tool: "write", path: "wiki/知识/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
+  { what: "摘录页（英文目录）", tool: "write", path: "wiki/knowledge/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
+  { what: "来源登记页（加书时按 wiki-save 建）", tool: "write", path: "wiki/知识/sources/2026-11-09-epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "来源登记页（英文目录）", tool: "write", path: "wiki/knowledge/sources/2026-11-09-epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "综合分析页（wiki-save 整理文档关系，任何会话都能跑，中文目录）", tool: "write", path: "wiki/知识/synthesis/linker-map.md", expected: ["allow", "allow", "allow"] },
+  { what: "综合分析页（英文目录）", tool: "write", path: "wiki/knowledge/synthesis/linker-map.md", expected: ["allow", "allow", "allow"] },
+  { what: "实体页（wiki-save 主理，中文目录）", tool: "edit", path: "wiki/知识/entities/math/godel.md", expected: ["allow", "allow", "allow"] },
+  { what: "实体页（英文目录）", tool: "edit", path: "wiki/knowledge/entities/discrete-math/godel.md", expected: ["allow", "allow", "allow"] },
+  // ---- 书房 / 阅读队列 / 日历 ----
+  { what: "书房书页（加书、分段、不读）", tool: "write", path: "wiki/书房/epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "书房书页（改名后）", tool: "write", path: "wiki/shelf/epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "阅读队列页正文补充 Extracts", tool: "edit", path: "wiki/reading/epp-ch2.md", expected: ["allow", "allow", "allow"] },
+  { what: "日历笔记（只由 calendar.mjs 写，write 直接写被拒）", tool: "write", path: "wiki/calendar/2026-11-09.md", expected: ["deny", "deny", "deny"] },
+  { what: "改库规则与提示词 wiki/prompts/**（模型不改自己的规则）", tool: "edit", path: "wiki/prompts/wiki/flashcard-rules.md", expected: all("deny") },
+  { what: "改库根 AGENTS.md（模型不改自己的规则）", tool: "edit", path: "AGENTS.md", expected: all("deny") },
+  // ---- 日志与索引 ----
+  { what: "wiki/log.md 追加", tool: "edit", path: "wiki/log.md", expected: ["allow", "allow", "allow"] },
+  { what: "wiki/index.md 登记", tool: "edit", path: "wiki/index.md", expected: ["allow", "allow", "allow"] },
+  // ---- 意图页（周期） ----
+  { what: "周期页（总控新建周期）", tool: "write", path: "wiki/cycles/c2.md", expected: ["allow", "deny", "deny"] },
+  // ---- 原料：raw/ 只读、剪藏只许新增 ----
+  { what: "raw/ 新增教材（write 也不写：raw 是用户放进来的外界材料，AI 只读）", tool: "write", path: "raw/books/epp.pdf", expected: all("deny") },
+  { what: "raw/ 修改已有原料（edit）", tool: "edit", path: "raw/notes/2026-11-09-剪藏.md", expected: all("deny") },
+  { what: "剪藏新文件（reading 技能抓网页）", tool: "write", path: "Clippings/如何读一本书.md", expected: ["allow", "allow", "allow"] },
+  { what: "剪藏新文件（改名后的 clippings）", tool: "write", path: "clippings/如何读一本书.md", expected: ["allow", "allow", "allow"] },
+  // ---- 硬性拒绝 ----
+  { what: "任何角色写程序目录", tool: "write", path: "/repo/src/x.ts", expected: all("deny") },
+  { what: "任何角色写学根自己的目录", tool: "write", path: "/home/.xuegen/desktop.json", expected: all("deny") },
+  { what: "库的版本目录", tool: "edit", path: "wiki/../.git/config", expected: all("deny") },
+  { what: "库外随便一个位置", tool: "write", path: "/Users/gjy/Desktop/x.md", expected: all("deny") },
+  { what: "工作区里的笔记", tool: "write", path: "/home/learning/notes/x.md", expected: all("allow") },
+  { what: "/private/tmp 里的临时文件", tool: "write", path: "/private/tmp/x.md", expected: all("allow") },
+  { what: "os.tmpdir() 给的临时目录（macOS 是 /private/var/folders/…/T）", tool: "write", path: "/private/var/folders/x/T/xuegen-plan.json", expected: all("allow") },
+  { what: "临时目录之外的同名结构（不是 tmpdir 的父目录）", tool: "write", path: "/private/var/folders/x/other/x.md", expected: all("deny") },
+  // ---- 读：除凭据外一律放行（用户 2026-11-09 定） ----
+  { what: "读库外的 PDF（~/Downloads）", tool: "read", path: "/Users/gjy/Downloads/x.pdf", expected: all("allow") },
+  { what: "读别人桌面上的 Markdown", tool: "read", path: "/Users/anyone/Desktop/a.md", expected: all("allow") },
+  { what: "读系统文件 /etc/hosts", tool: "read", path: "/etc/hosts", expected: all("allow") },
+  { what: "grep 库外目录（路径参数同名 path）", tool: "grep", path: "/Users/gjy/Downloads", expected: all("allow") },
+  { what: "读库位置配置（每个技能的第一步）", tool: "read", path: "/home/.xuegen/wiki.json", expected: all("allow") },
+  { what: "读审计日志（<home> 下非凭据文件也放行）", tool: "read", path: "/home/.xuegen/guard.log", expected: all("allow") },
+  { what: "读学根的其他配置文件", tool: "read", path: "/home/.xuegen/desktop.json", expected: all("allow") },
+  { what: "读库里的任意页", tool: "read", path: "wiki/courses/ctm.md", expected: all("allow") },
+  { what: "grep 库（路径参数同名 path）", tool: "grep", path: "wiki", expected: all("allow") },
+  { what: "find 库（path 是搜索根）", tool: "find", path: "wiki/courses", expected: all("allow") },
+  { what: "ls 工作区", tool: "ls", path: W, expected: all("allow") },
+  { what: "read 不带 path（默认 cwd）", tool: "read", path: "", expected: all("allow") },
+  { what: "grep 不带 path（默认 cwd）", tool: "grep", path: "", expected: all("allow") },
+  // ---- 读：凭据一律拒绝 ----
+  { what: "读 auth.json", tool: "read", path: "/home/.xuegen/auth.json", expected: all("deny") },
+  { what: "读 mcp-auth.json", tool: "read", path: "/home/.xuegen/mcp-auth.json", expected: all("deny") },
+  { what: "读 models-store.json", tool: "read", path: "/home/.xuegen/models-store.json", expected: all("deny") },
+  { what: "<home> 下名字带 token 的文件", tool: "read", path: "/home/.xuegen/github-token.txt", expected: all("deny") },
+  { what: "<home> 下名字带 secret 的文件（全大写）", tool: "read", path: "/home/.xuegen/CLIENT_SECRET.json", expected: all("deny") },
+  { what: "<home> 子目录里的 key 文件", tool: "read", path: "/home/.xuegen/secrets/api-key.pem", expected: all("deny") },
+  { what: "直接 ls <home>（会把凭据文件名列出来）", tool: "ls", path: H, expected: all("deny") },
+  { what: "读 ssh 密钥", tool: "read", path: "/Users/gjy/.ssh/id_ed25519", expected: all("deny") },
+  { what: "读 ssh 目录（config 与 known_hosts 也在里面）", tool: "read", path: "/Users/gjy/.ssh", expected: all("deny") },
+  { what: "读 aws 凭据", tool: "read", path: "/Users/gjy/.aws/credentials", expected: all("deny") },
+  { what: "读 gnupg 私钥", tool: "read", path: "/Users/gjy/.gnupg/secring.gpg", expected: all("deny") },
+  { what: "读 gh 的 token 配置", tool: "read", path: "/Users/gjy/.config/gh/hosts.yml", expected: all("deny") },
+  { what: "读 ~/.netrc（旧式机器凭据）", tool: "read", path: "/Users/gjy/.netrc", expected: all("deny") },
+  { what: "读 ~/.npmrc（registry token）", tool: "read", path: "/Users/gjy/.npmrc", expected: all("deny") },
+  { what: "读 docker 的 registry 凭据", tool: "read", path: "/Users/gjy/.docker/config.json", expected: all("deny") },
+  { what: "读 macOS 钥匙串", tool: "read", path: "/Users/gjy/Library/Keychains/login.keychain-db", expected: all("deny") },
+  // ---- 未知工具（MCP 等）默认放行，见报告 ----
+  { what: "MCP 工具没有 path 参数", tool: "mcp__obsidian__search", path: "", expected: all("allow") },
+];
+
+describe("decide — 角色 × 路径表", () => {
+  for (const row of rows) {
+    it(`${row.what}（${row.tool} ${row.path || "无 path"}）`, () => {
+      const names = ["control", "course", "free"] as const;
+      for (const [index, name] of names.entries()) {
+        const role = roles[name];
+        if (role === undefined) throw new Error(`missing role ${name}`);
+        const input: Record<string, unknown> = row.path === "" ? {} : { path: row.path };
+        const decision = decide(role, row.tool, input, roots, canon, nothing);
+        expect(decision.allow, `${name}: ${decision.reason}`).toBe(row.expected[index] === "allow");
+      }
+    });
+  }
+});
+
+describe("vault-paths — 凭据清单的纯函数", () => {
+  it("isCredentialName matches auth / token / secret / key, case-insensitively", () => {
+    for (const name of ["auth.json", "GitHub-TOKEN.txt", "client_secret.json", "API_KEY.md", "ssh-key.pem"]) {
+      expect(isCredentialName(name), name).toBe(true);
+    }
+    for (const name of ["wiki.json", "guard.log", "desktop.json", "notes.md", "知识.md"]) {
+      expect(isCredentialName(name), name).toBe(false);
+    }
+  });
+
+  it("deniedReadPaths lists every credential location the user named", () => {
+    const list = deniedReadPaths(roots, canon);
+    for (const path of [
+      "/home/.xuegen/auth.json",
+      "/home/.xuegen/mcp-auth.json",
+      "/home/.xuegen/models-store.json",
+      "/Users/gjy/.ssh",
+      "/Users/gjy/.aws",
+      "/Users/gjy/.gnupg",
+      "/Users/gjy/.config/gh",
+      "/Users/gjy/.netrc",
+      "/Users/gjy/.npmrc",
+      "/Users/gjy/.docker/config.json",
+      "/Users/gjy/Library/Keychains",
+    ]) {
+      expect(list, path).toContain(canon(path));
+    }
+  });
+
+  it("isDeniedReadPath keeps <home> itself and its credential names, nothing else", () => {
+    expect(isDeniedReadPath(H, roots, canon)).toBe(true);
+    expect(isDeniedReadPath(`${H}/github-token.txt`, roots, canon)).toBe(true);
+    expect(isDeniedReadPath(`${H}/wiki.json`, roots, canon)).toBe(false);
+    // 库外的文件名带 `key` 只是个词，不拒（读取已放开）。
+    expect(isDeniedReadPath("/Users/gjy/Downloads/keyword.md", roots, canon)).toBe(false);
+  });
+});
+
+describe("decide — 读：除凭据外都能读（用户 2026-11-09 定）", () => {
+  const everyRole: SessionRole[] = [
+    { kind: "control" },
+    { kind: "course", slug: "discrete-math-epp" },
+    { kind: "free" },
+  ];
+  /** One role × one read call, over the table's `canon`. */
+  const allows = (role: SessionRole, tool: string, path: string, rootsFor: Roots = roots, canonFn: CanonFn = canon): boolean =>
+    decide(role, tool, { path }, rootsFor, canonFn, nothing).allow;
+
+  it("allows files anywhere outside the credential list, in every role", () => {
+    // 库外的下载、别人的桌面、系统文件：用户明确要求能读。
+    for (const path of ["/Users/gjy/Downloads/x.pdf", "/Users/anyone/Desktop/a.md", "/etc/hosts"]) {
+      for (const role of everyRole) expect(allows(role, "read", path), `${roleLabelOf(role)}: ${path}`).toBe(true);
+    }
+    // grep / find / ls 的 path 是同一个字段，判定与 read 一致。
+    expect(allows(everyRole[1] as SessionRole, "grep", "/Users/gjy/Downloads")).toBe(true);
+    expect(allows(everyRole[2] as SessionRole, "ls", "/Users/gjy/Documents")).toBe(true);
+  });
+
+  it("allows the non-credential files under <home>", () => {
+    for (const path of ["/home/.xuegen/wiki.json", "/home/.xuegen/guard.log", "/home/.xuegen/desktop.json"]) {
+      for (const role of everyRole) expect(allows(role, "read", path), `${roleLabelOf(role)}: ${path}`).toBe(true);
+    }
+  });
+
+  it("denies every credential path, in every role", () => {
+    for (const path of CREDENTIALS) {
+      for (const role of everyRole) expect(allows(role, "read", path), `${roleLabelOf(role)}: ${path}`).toBe(false);
+    }
+  });
+
+  it("denies credentials written in another case on a case-folding volume", () => {
+    const folded = (path: string): string => canon(path).toLowerCase();
+    for (const path of ["/HOME/.XUEGEN/AUTH.JSON", "/home/.xuegen/GitHub-TOKEN.txt", "/USERS/GJY/.SSH/ID_ED25519"]) {
+      for (const role of everyRole) expect(allows(role, "read", path, roots, folded), path).toBe(false);
+    }
+  });
+
+  it("denies <home> itself, since listing it names the credential files", () => {
+    for (const role of everyRole) expect(allows(role, "ls", "/home/.xuegen")).toBe(false);
+  });
+  it("resolves symlinks before the check on the real filesystem", () => {
+    // 真实路径的两种绕法：链接指向 `/` 再走 `.ssh`；好名字的文件指向 token 文件。
+    const dir = mkdtempSync(join(tmpdir(), "xuegen-guard-read-"));
+    try {
+      const facts = nodePathFacts();
+      /** The user's home as the real list names it (`~` is expanded against it). */
+      const userHome = homedir();
+      // Same canon the extension uses: expand `~` first, then resolve/case-fold.
+      const real = (path: string): string => canonical(path.startsWith("~") ? path.replace("~", userHome) : path, dir, facts);
+      const home = real(dir);
+      const links = join(dir, "links");
+      mkdirSync(links);
+      symlinkSync("/", join(links, "root"));
+      const credential = join(dir, "github-token.txt");
+      writeFileSync(credential, "");
+      symlinkSync(credential, join(links, "innocent.md"));
+      const tempRoots: Roots = { vault: real(join(dir, "vault")), workspace: real(dir), home, repo: real(join(dir, "repo")) };
+
+      // `/etc/hosts` 经链接读：不是凭据，放行。
+      expect(allows(everyRole[2] as SessionRole, "read", join(links, "root/etc/hosts"), tempRoots, real)).toBe(true);
+      // 名字无害但指向 token 文件：解析后按真名拒绝。
+      expect(allows(everyRole[2] as SessionRole, "read", join(links, "innocent.md"), tempRoots, real)).toBe(false);
+      // `/` 经链接下的 `.ssh`：解析后落在 ~/.ssh，拒绝。
+      expect(
+        allows(everyRole[2] as SessionRole, "read", join(links, "root", userHome.slice(1), ".ssh/id_ed25519"), tempRoots, real),
+      ).toBe(false);
+      // 链接下的 `<home>` 非凭据文件：放行。
+      expect(allows(everyRole[2] as SessionRole, "read", join(links, "root", home.slice(1), "wiki.json"), tempRoots, real)).toBe(
+        true,
+      );
+      // 同一个链接下对 `<home>` 目录本身（即 `ls`）：拒绝。
+      expect(allows(everyRole[2] as SessionRole, "ls", join(links, "root", home.slice(1)), tempRoots, real)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("names the credential path in the Chinese reason", () => {
+    const decision = decide(everyRole[2] as SessionRole, "read", { path: "/home/.xuegen/github-token.txt" }, roots, canon, nothing);
+    expect(decision.reason).toContain("/home/.xuegen/github-token.txt");
+    expect(decision.reason).toContain("凭据");
+  });
+
+  it("denies a credential written with `~` as well as with the full path", () => {
+    for (const path of ["~/.ssh/id_ed25519", "~/.aws/credentials", "~/.netrc", "~/Library/Keychains/login.keychain-db"]) {
+      for (const role of everyRole) expect(allows(role, "read", path), `${roleLabelOf(role)}: ${path}`).toBe(false);
+    }
+  });
+});
+
+describe("decide — 递归搜索的祖先漏洞（grep / find）", () => {
+  const everyRole: SessionRole[] = [
+    { kind: "control" },
+    { kind: "course", slug: "discrete-math-epp" },
+    { kind: "free" },
+  ];
+  const allows = (tool: string, path: string): boolean =>
+    everyRole.every((role) => decide(role, tool, { path }, roots, canon, nothing).allow);
+  const reason = (tool: string, path: string): string => decide(everyRole[2] as SessionRole, tool, { path }, roots, canon, nothing).reason;
+
+  it("denies a recursive search rooted at an ancestor of a credential directory", () => {
+    // `~`、`/Users`、`/`、`~/.config`、`~/Library`、`<home>` 的上级：都没有点名凭据，
+    // 但递归走一遍就把它读出来了。
+    for (const path of ["~", "/Users", "/", "~/.config", "~/Library", "/home"]) {
+      for (const tool of ["grep", "find"]) expect(allows(tool, path), `${tool} ${path}`).toBe(false);
+    }
+  });
+
+  it("names the credential directory it would reach and asks to narrow the search", () => {
+    expect(reason("grep", "~")).toContain("凭据目录");
+    expect(reason("grep", "~")).toContain("/Users/gjy/.ssh");
+    expect(reason("grep", "~/Library")).toContain("/Users/gjy/Library/Keychains");
+    expect(reason("find", "/Users")).toContain("/Users/gjy/.ssh");
+    // 直接搜 `<home>` 走的是「凭据路径」那条原因（`<home>` 本身就在清单里）。
+    expect(reason("grep", "/home/.xuegen")).toContain("/home/.xuegen");
+    expect(reason("grep", "/home")).toContain("缩小搜索范围");
+  });
+
+  it("allows a recursive search whose root holds no credential", () => {
+    for (const path of ["~/Documents", "/vault", "/vault/wiki/courses", "/etc", "~/Downloads"]) {
+      for (const tool of ["grep", "find"]) expect(allows(tool, path), `${tool} ${path}`).toBe(true);
+    }
+  });
+
+  it("leaves read and a non-recursive ls alone, even at an ancestor of a credential", () => {
+    // `ls` 只列一层，`read` 只开一个文件：它们不递归，不算绕过。
+    expect(allows("ls", "~")).toBe(true);
+    expect(allows("ls", "/Users")).toBe(true);
+    expect(allows("read", "/Users/gjy/Downloads/x.pdf")).toBe(true);
+    // 而直接 `ls <home>` 仍然拒：文件名就是凭据清单（旧规则不变）。
+    expect(allows("ls", "/home/.xuegen")).toBe(false);
+  });
+});
+
+/** The credential list as the review asked for it: exact names, naming convention, standard locations. */
+const CREDENTIALS = [
+  "/home/.xuegen/auth.json",
+  "/home/.xuegen/mcp-auth.json",
+  "/home/.xuegen/models-store.json",
+  "/home/.xuegen/github-token.txt",
+  "/home/.xuegen/API_KEY.md",
+  "/home/.xuegen/client-secret.json",
+  "/home/.xuegen/backup/ssh-key.pem",
+  "/Users/gjy/.ssh/id_ed25519",
+  "/Users/gjy/.ssh",
+  "/Users/gjy/.aws/credentials",
+  "/Users/gjy/.gnupg/private-keys-v1.d/x.key",
+  "/Users/gjy/.config/gh/hosts.yml",
+  "/Users/gjy/.netrc",
+  "/Users/gjy/.npmrc",
+  "/Users/gjy/.docker/config.json",
+  "/Users/gjy/Library/Keychains/login.keychain-db",
+];
+
+function roleLabelOf(role: SessionRole): string {
+  return role.kind === "course" ? `course:${role.slug}` : role.kind;
+}
+
+describe("decide — 原料只许新增（剪藏）", () => {
+  it("allows writing a clip that does not exist yet", () => {
+    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "Clippings/新文章.md" }, roots, canon, () => false);
+    expect(decision.allow).toBe(true);
+  });
+
+  it("denies overwriting an existing clip", () => {
+    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "Clippings/已有.md" }, roots, canon, () => true);
+    expect(decision.allow).toBe(false);
+    expect(decision.reason).toContain("只许新增");
+  });
+
+  it("denies editing any clip", () => {
+    const decision = decide(roles.course ?? { kind: "free" }, "edit", { path: "clippings/已有.md" }, roots, canon, () => false);
+    expect(decision.allow).toBe(false);
+  });
+
+  it("allows adding a clip but never writes into raw/ (raw is only read)", () => {
+    const control: SessionRole = { kind: "control" };
+    expect(decide(control, "write", { path: "Clippings/新文章.md" }, roots, canon, () => false).allow).toBe(true);
+    // 教材进 raw/books/ 由用户同意后用 bash 复制（`cp`），不经 write/edit。
+    for (const tool of ["write", "edit"]) {
+      expect(decide(control, tool, { path: "raw/books/epp.pdf" }, roots, canon, () => false).allow).toBe(false);
+      expect(decide(control, tool, { path: "raw/notes/x.md" }, roots, canon, () => true).allow).toBe(false);
+    }
+  });
+});
+
+describe("decide — write/edit 缺 path", () => {
+  it("denies instead of guessing a location", () => {
+    const decision = decide(roles.control ?? { kind: "free" }, "write", {}, roots, canon, nothing);
+    expect(decision.allow).toBe(false);  });
+});
+
+describe("decide — bash", () => {
+  it("denies reading a credential path in the command", () => {
+    const rolesFree: SessionRole = { kind: "free" };
+    expect(decide(rolesFree, "bash", { command: "cat ~/.ssh/id_ed25519" }, roots, canon, nothing).allow).toBe(false);
+    expect(decide(rolesFree, "bash", { command: "cat ~/Library/Keychains/login.keychain" }, roots, canon, nothing).allow).toBe(
+      false,
+    );
+  });
+
+  it("denies rm -rf outside the workspace", () => {
+    const rolesFree: SessionRole = { kind: "free" };
+    expect(decide(rolesFree, "bash", { command: "rm -rf wiki/知识" }, roots, canon, nothing).allow).toBe(false);
+    expect(decide(rolesFree, "bash", { command: `rm -rf ${W}/tmp` }, roots, canon, nothing).allow).toBe(true);
+    expect(decide(rolesFree, "bash", { command: "rm -rf /private/tmp/xuegen-tmp" }, roots, canon, nothing).allow).toBe(
+      true,
+    );
+  });
+
+  it("catches the other spellings of a recursive remove", () => {
+    const rolesFree: SessionRole = { kind: "free" };
+    for (const command of ["rm -fr wiki", "rm -Rf wiki/知识", "rm --recursive wiki/courses", "rm -r wiki/courses"]) {
+      expect(decide(rolesFree, "bash", { command }, roots, canon, nothing).allow, command).toBe(false);
+    }
+    // A single-file delete in the vault is a normal workflow step (e.g. an empty
+    // daily note); only recursive removal is judged at the tool layer.
+    expect(decide(rolesFree, "bash", { command: "rm wiki/calendar/2026-11-09.md" }, roots, canon, nothing).allow).toBe(
+      true,
+    );
+  });
+
+  it("denies chmod on a course page unless course-state.mjs runs it", () => {
+    const rolesFree: SessionRole = { kind: "free" };
+    expect(decide(rolesFree, "bash", { command: "chmod 444 wiki/courses/ctm.md" }, roots, canon, nothing).allow).toBe(
+      false,
+    );
+    expect(
+      decide(
+        rolesFree,
+        "bash",
+        { command: "node skills/course/course-state.mjs lock wiki/courses/ctm.md" },
+        roots,
+        canon,
+        nothing,
+      ).allow,
+    ).toBe(true);
+  });
+
+  it("allows ordinary read-only commands", () => {
+    const rolesFree: SessionRole = { kind: "free" };
+    expect(decide(rolesFree, "bash", { command: "ls wiki/courses" }, roots, canon, nothing).allow).toBe(true);
+  });
+});

@@ -13,7 +13,7 @@ import type { DesktopSettings } from "@shared/protocol.js";
 import type { SessionsView } from "../../skins/contract.js";
 import type { ChatController } from "../chat/useChat.js";
 import * as client from "../client.js";
-import { sessionGroups, type SessionListContext } from "./session-list.js";
+import { sessionGroups, roleOfRow, type SessionListContext } from "./session-list.js";
 import { dateKey } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
 import type { CycleResource } from "./use-cycle.js";
@@ -86,7 +86,7 @@ export function useSessionList(
     (picked: string) => {
       const row = groups.flatMap((group) => group.rows).find((item) => item.file === picked);
       setActiveCourse(row?.slug ?? null);
-      void controller.openSession(picked);
+      void controller.openSession(picked, roleOfRow(row));
       setOpen(false);
     },
     [groups, controller, setActiveCourse],

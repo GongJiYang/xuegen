@@ -9,12 +9,12 @@
 | `use-courses.ts` | `courses.list`（只读进度）。 |
 | `course-intro.ts` | 开课卡片：`courseIntro` 从 `CourseSummary` 取上次任务/日期/下次起点/本周进度，`courseIntroLines` 生成三行文案。 |
 | `opening-action.ts` | `openingAction` 纯函数：今天已开课且非当前课 → 只切会话；已是当前课 → 只聚焦；否则发送开课消息。`startedTodayMap` 供按钮文案使用。 |
-| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。今天已开课但会话里学根还没答过内容时，「开课」会重新发开课指令（开课失败不再锁死当天）。 |
+| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。每个会话打开时带出它的 `SessionRole`（开课 / 回到这门课 = `course`，新建课程 = `control`，见 `useChat.openSession`），交给 agent 的工具层权限拦截。今天已开课但会话里学根还没答过内容时，「开课」会重新发开课指令（开课失败不再锁死当天）。 |
 | `use-reload-on-answer.ts` | 流式 true → false 时刷新各面板（`useReloadOnAnswer`）；窗口获得焦点与过零点也刷新（`useReloadOnFocusAndDay`，焦点 5 秒一次上限）。 |
 | `use-board-reload.ts` | `useBoardReload`：把上述三个时机接到一组 `reload()` 资源上。 |
 | `session-freshness.ts` | 纯函数：从会话文件名解析创建日（`sessionDay`）、旧课程会话判断（`staleCourseSession`）、是否开新会话（`startsFresh`）、下条消息是否带「先重读」（`needsRefresh`）、存档阶段（`checkpointPhase`，60% 起提示）。 |
 | `use-session-freshness.ts` | `useSessionFreshness`：旧课程会话给「开今天的课」提示；课程页更新或本次运行未见过时给下条消息加 `chat.refreshNote`；上下文到 60% 提示「先存档」，存档答完后提示开新会话接着上。 |
-| `session-list.ts` | 纯函数：`sessionGroups` 把主进程给的 `SessionMeta` 折成按天分组的行（总控 / 课程 / 自由；课程标题「课次 + 内容」，自由会话用第一句话）。 |
+| `session-list.ts` | 纯函数：`sessionGroups` 把主进程给的 `SessionMeta` 折成按天分组的行（总控 / 课程 / 自由；课程标题「课次 + 内容」，自由会话用第一句话）；`roleOfRow` 把行翻成打开会话时的 `SessionRole`（认不出的一律 `free`）。 |
 | `use-session-list.ts` | `useSessionList`：每个会话文件拉一次 `sessions.list`、打开列表时再拉一次；返回 `SessionsView` 与 `requestOpen`（`⋯` 菜单、`/会话列表` 用）。 |
 | `use-skills-panel.ts` | 技能面板的获取结果与待审阅状态（`useSkillsPanel`）。 |
 | `use-reading.ts` | `reading.today` / `reading.stats` / `reading.sources` + 加入、复习；`isWebUrl`、`clipPrompt` 纯函数。 |

@@ -10,6 +10,7 @@
  */
 
 import { Fragment, useRef, useState } from "react";
+import type { ChatMessage } from "@shared/protocol.js";
 import type {
   AssistantMessageProps,
   BoardPanelProps,
@@ -32,6 +33,7 @@ import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
 import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
 import { isAborted, translateModelError } from "../../core/chat/model-error.js";
+import { retryDisplayOf } from "../../core/chat/retry-state.js";
 import { chicagoMotion, INTENT_ATTRIBUTE } from "./motion.js";
 import { Dialog } from "./dialog.js";
 import { StopIcon } from "./stop-icon.js";
@@ -73,6 +75,22 @@ function MessageError({ raw }: { raw: string }) {
       {detail && <ErrorDetail raw={detail} />}
     </div>
   );
+}
+
+/** The one plain line an automatic retry leaves behind, or null when the error block applies. */
+function RetryLine({ message }: { message: ChatMessage }) {
+  const display = retryDisplayOf(message);
+  if (display.kind === "error") return null;
+  return (
+    <div className="chicago-message-stopped" role={display.kind === "retrying" ? "status" : "note"}>
+      <p>{display.text}</p>
+    </div>
+  );
+}
+
+/** True when the message carries a real error block (and therefore offers 重试). */
+function showsError(message: ChatMessage): boolean {
+  return message.errorMessage !== undefined && retryDisplayOf(message).kind === "error";
 }
 
 export function Thread({
@@ -203,12 +221,13 @@ export function AssistantMessage({
       ))}
       {streaming && <span className="chicago-caret" aria-hidden="true" />}
       {thinking && <Thinking label={activity?.meta ? `${activity.label} · ${activity.meta}` : (activity?.label ?? strings.chat.thinking)} />}
-      {message.errorMessage && <MessageError raw={message.errorMessage} />}
+      {message.errorMessage && <RetryLine message={message} />}
+      {showsError(message) && <MessageError raw={message.errorMessage ?? ""} />}
       <div className="chicago-answer-foot">
         <button type="button" className="chicago-btn chicago-copy" onClick={onCopy}>
           {copied ? strings.chat.copied : strings.chat.copy}
         </button>
-        {message.errorMessage && (
+        {showsError(message) && (
           <button type="button" className="chicago-btn chicago-retry" title={strings.chat.retryTitle} onClick={onRetry}>
             {strings.chat.retry}
           </button>

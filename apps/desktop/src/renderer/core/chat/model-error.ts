@@ -21,7 +21,7 @@ export const MODEL_ERROR_SUMMARIES = {
   rate: "请求太频繁，稍等再试。",
   /** Out-of-credit failures (HTTP 402 / `insufficient_balance`). */
   balance: "DeepSeek 余额不足：请充值，或在「模型」菜单换一个模型。",
-  network: "连不上模型服务，检查网络。",
+  network: "连接中途断开了。",
   /** A user-initiated stop; not a failure, so it reads as guidance. */
   aborted: "已停止。可以继续提问，或点「重试」。",
   generic: "模型出错了。",
@@ -56,7 +56,7 @@ function isBalance(text: string): boolean {
 
 /** True when the text looks like a transport failure (fetch socket / timeout). */
 function isNetwork(text: string): boolean {
-  return /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|network|socket hang up|timed? out/i.test(
+  return /ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNABORTED|EPIPE|terminated|premature close|other side closed|fetch failed|network|socket hang up|timed? out/i.test(
     text,
   );
 }
@@ -69,11 +69,13 @@ function isNetwork(text: string): boolean {
  */
 export function translateModelError(raw: string): TranslatedError {
   const text = raw.trim();
-  // A user stop is not a failure: no raw detail, so the UI shows guidance only.
-  if (isAborted(text)) return { summary: MODEL_ERROR_SUMMARIES.aborted, detail: null };
   if (isBalance(text)) return { summary: MODEL_ERROR_SUMMARIES.balance, detail: text };
   if (isAuth(text)) return { summary: MODEL_ERROR_SUMMARIES.auth, detail: text };
   if (isRateLimit(text)) return { summary: MODEL_ERROR_SUMMARIES.rate, detail: text };
+  // Before the stop check: `ECONNABORTED` is a socket failure, but the loose
+  // "aborted" match in `isAborted` would otherwise read it as a user stop.
   if (isNetwork(text)) return { summary: MODEL_ERROR_SUMMARIES.network, detail: text };
+  // A user stop is not a failure: no raw detail, so the UI shows guidance only.
+  if (isAborted(text)) return { summary: MODEL_ERROR_SUMMARIES.aborted, detail: null };
   return { summary: MODEL_ERROR_SUMMARIES.generic, detail: text || null };
 }

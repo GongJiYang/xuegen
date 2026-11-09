@@ -9,6 +9,7 @@
  */
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import type { ChatMessage } from "@shared/protocol.js";
 
 import {
   Root as Accordion,
@@ -42,6 +43,7 @@ import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
 import { assistantTurns } from "../../core/chat/turns.js";
 import { isAborted, translateModelError } from "../../core/chat/model-error.js";
+import { retryDisplayOf } from "../../core/chat/retry-state.js";
 import { bearMotion } from "./motion.js";
 import { PinRail } from "./pin-rail.js";
 import { publishBackToLatest, clearBackToLatest } from "./back-to-latest.js";
@@ -66,6 +68,8 @@ export function ErrorDetail({ raw }: { raw: string }) {
  *
  * A user-initiated stop is not a failure, so it renders as a plain status line
  * (no alert role, no detail) — the 重试 button beside it offers the next step.
+ * An automatic connection retry gets the same plain treatment, because there is
+ * nothing for the user to do while Pi works through it.
  */
 function MessageError({ raw }: { raw: string }) {
   const { summary, detail } = translateModelError(raw);
@@ -82,6 +86,22 @@ function MessageError({ raw }: { raw: string }) {
       {detail && <ErrorDetail raw={detail} />}
     </div>
   );
+}
+
+/** The one soft line an automatic retry leaves behind, or null when the error block applies. */
+function RetryLine({ message }: { message: ChatMessage }) {
+  const display = retryDisplayOf(message);
+  if (display.kind === "error") return null;
+  return (
+    <div className="bear-message-retry" role={display.kind === "retrying" ? "status" : "note"}>
+      <p>{display.text}</p>
+    </div>
+  );
+}
+
+/** True when the message carries a real error block (and therefore offers 重试). */
+function showsError(message: ChatMessage): boolean {
+  return message.errorMessage !== undefined && retryDisplayOf(message).kind === "error";
 }
 
 export function Thread({
@@ -246,12 +266,13 @@ export function AssistantMessage({
       {nodes.map((node, index) => (
         <div key={index}>{renderContent(node, streaming)}</div>
       ))}
-      {message.errorMessage && <MessageError raw={message.errorMessage} />}
+      {message.errorMessage && <RetryLine message={message} />}
+      {showsError(message) && <MessageError raw={message.errorMessage ?? ""} />}
       <div className="bear-answer-foot">
         <button type="button" title={strings.chat.copyTitle} onClick={onCopy}>
           {copied ? strings.chat.copied : strings.chat.copy}
         </button>
-        {message.errorMessage && (
+        {showsError(message) && (
           <button type="button" title={strings.chat.retryTitle} onClick={onRetry}>
             {strings.chat.retry}
           </button>

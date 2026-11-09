@@ -347,6 +347,13 @@
 [data-skin="bear"] .bear-message-stopped {
   color: var(--soft);
 }
+/* An automatic connection retry: one soft line (recovering or recovered). */
+[data-skin="bear"] .bear-message-retry {
+  color: var(--soft);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  font-family: var(--font-ui);
+}
 [data-skin="bear"] .bear-error-detail summary {
   cursor: pointer;
 }

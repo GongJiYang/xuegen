@@ -55,6 +55,15 @@ export interface ChatMessage {
   toolCalls: ToolCallView[];
   /** Stop reason when the assistant message ended abnormally. */
   errorMessage?: string;
+  /**
+   * Automatic retry state of a failed answer.
+   *
+   * `{ attempt, maxAttempts }` while Pi is retrying the connection, `"recovered"`
+   * once a retry produced a normal answer. The `errorMessage` stays on the
+   * message either way, so a transcript restored from the session file can be
+   * re-judged; the renderer decides what to show from `retry`.
+   */
+  retry?: { attempt: number; maxAttempts: number } | "recovered";
   /** ISO time the session file recorded it (restored history only; live messages leave it unset). */
   at?: string;
 }
@@ -103,11 +112,35 @@ export interface ModelListPayload {
   reason?: string;
 }
 
+/**
+ * The session's permission role, chosen by the interface when it opens a
+ * session and enforced by the agent's tool guard
+ * (docs/platform/ROUTE-1109.md 阶段 2). `control` is the 总控 session, `course`
+ * one course's session, `free` everything else.
+ */
+export type SessionRole = { kind: "control" } | { kind: "course"; slug: string } | { kind: "free" };
+
+/** Runtime guard for a `SessionRole` crossing a process boundary. */
+export function isSessionRole(value: unknown): value is SessionRole {
+  if (!isRecord(value)) return false;
+  if (value.kind === "control" || value.kind === "free") return true;
+  return value.kind === "course" && typeof value.slug === "string" && /^[a-z0-9-]+$/.test(value.slug);
+}
+
+/** The role a message carries, or `free` when it is absent or malformed. */
+export function sessionRoleOrFree(value: unknown): SessionRole {
+  return isSessionRole(value) ? value : { kind: "free" };
+}
+
 /** Session status snapshot sent to the renderer. */
 export interface SessionStatePayload {
   cwd: string;
   model: ModelInfo | null;
   sessionFile: string | null;
+  /** Pi's id for the active session; null before the first session is ready. */
+  sessionId: string | null;
+  /** The session's permission role (see {@link SessionRole}). */
+  role: SessionRole;
   streaming: boolean;
   /** Number of follow-up messages waiting behind the current run. */
   queuedFollowUps: number;
@@ -128,9 +161,11 @@ export type AgentStatus = "starting" | "ready" | "restarting" | "crashed" | "sto
 /** Requests the renderer (via main) sends to the agent process. */
 export type HostToAgentMessage =
   | { type: "init" }
-  | { type: "prompt"; text: string }
-  | { type: "abort" }
-  | { type: "new-session" }
+  /** `sessionId`, when given, must name the active session; a stale one is dropped with an error (see agent/index.ts). */
+  | { type: "prompt"; text: string; sessionId?: string }
+  | { type: "abort"; sessionId?: string }
+  /** `role` picks the guard's permission set; absent means `free`. */
+  | { type: "new-session"; role?: SessionRole }
   | { type: "continue-session" }
   | { type: "set-model"; provider: string; id: string }
   /** Set the thinking level and remember it as the default (B4). */
@@ -138,16 +173,17 @@ export type HostToAgentMessage =
   | { type: "list-models" }
   | { type: "list-commands"; disabledSkills: string[] }
   /** Compact the conversation now (the 「立即压缩」 button). */
-  | { type: "compact" }
+  /** `sessionId`, when given, must name the active session; a stale one is dropped with an error (see agent/index.ts). */
+  | { type: "compact"; sessionId?: string }
   /**
    * Switch to a specific session: the file of an earlier session to resume, or
    * null for a brand-new one. Each course keeps its own session so contexts never
    * mix. The agent answers with `session-opened` carrying the same `requestId`.
    */
-  | { type: "open-session"; requestId: string; sessionFile: string | null };
+  | { type: "open-session"; requestId: string; sessionFile: string | null; role?: SessionRole };
 
 /** Events the agent process sends back to the host. */
-export type AgentToHostMessage =
+export type AgentToHostEvent =
   | { type: "ready"; state: SessionStatePayload; models: ModelListPayload }
   /** Reply to `open-session`: the session now active (its file, once known). */
   | { type: "session-opened"; requestId: string; sessionFile: string | null }
@@ -181,6 +217,14 @@ export type AgentToHostMessage =
   | { type: "update-status"; status: UpdateStatus }
   | { type: "fatal"; error: string }
   | { type: "error"; error: string };
+
+/**
+ * What actually crosses the agent → host boundary: an event plus the id of the
+ * session it came from (null before a session exists, and for messages the main
+ * process originates itself, such as `update-status` / `agent-status`).
+ * Routing by it waits for the multi-process stage; today it is recorded only.
+ */
+export type AgentToHostMessage = AgentToHostEvent & { sessionId?: string | null };
 
 /** One entry in the composer's `/` command menu. */
 export interface CommandInfo {
@@ -334,6 +378,26 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+/** Runtime guard for a message's automatic-retry marker. */
+export function isRetryState(value: unknown): value is NonNullable<ChatMessage["retry"]> {
+  if (value === "recovered") return true;
+  return isRecord(value) && isFiniteNumber(value.attempt) && isFiniteNumber(value.maxAttempts);
+}
+
+/**
+ * Drop a `retry` marker that does not have a valid shape.
+ *
+ * The marker crosses the agent -> main -> renderer boundary, where it is
+ * validated. A malformed value must not reach the UI, but losing the whole
+ * message would lose the answer too: only the hint is dropped.
+ */
+export function withValidRetry(message: ChatMessage): ChatMessage {
+  if (message.retry === undefined || isRetryState(message.retry)) return message;
+  const plain = { ...message };
+  delete plain.retry;
+  return plain;
+}
+
 /** Runtime guard for a `context-usage` payload (nulls are valid, NaN is not). */
 export function isContextUsagePayload(value: unknown): value is ContextUsagePayload {
   if (!isRecord(value)) return false;
@@ -363,18 +427,27 @@ export function isHostToAgentMessage(value: unknown): value is HostToAgentMessag
   if (!isRecord(value)) return false;
   switch (value.type) {
     case "init":
-    case "abort":
-    case "new-session":
     case "continue-session":
     case "list-models":
-    case "compact":
       return true;
+    case "abort":
+    case "compact":
+      return value.sessionId === undefined || typeof value.sessionId === "string";
+    case "new-session":
+      return value.role === undefined || isSessionRole(value.role);
     case "list-commands":
       return Array.isArray(value.disabledSkills) && value.disabledSkills.every((name) => typeof name === "string");
     case "open-session":
-      return typeof value.requestId === "string" && (value.sessionFile === null || typeof value.sessionFile === "string");
+      return (
+        typeof value.requestId === "string" &&
+        (value.sessionFile === null || typeof value.sessionFile === "string") &&
+        (value.role === undefined || isSessionRole(value.role))
+      );
     case "prompt":
-      return typeof value.text === "string";
+      return (
+        typeof value.text === "string" &&
+        (value.sessionId === undefined || typeof value.sessionId === "string")
+      );
     case "set-model":
       return typeof value.provider === "string" && typeof value.id === "string";
     case "set-thinking-level":

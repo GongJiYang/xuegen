@@ -124,7 +124,7 @@ describe("useCourseSessions", () => {
     });
 
     expect(setActiveCourse).toHaveBeenCalledWith("algebra");
-    expect(controller.openSession).toHaveBeenCalledWith(null);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "algebra" });
     expect(update).toHaveBeenCalledWith({
       courseSessions: { algebra: "/home/sessions/opened.jsonl" },
     });
@@ -189,6 +189,9 @@ describe("useCourseSessions", () => {
     });
     expect(controller.sendCommand).toHaveBeenCalledTimes(1);
     expect(controller.send).not.toHaveBeenCalled();
+    // Creating a course writes wiki/courses/*.md, which is plan-level work: the
+    // new session must open with the 总控 role or the guard would block it.
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "control" });
 
     const created = [{ slug: "algebra", title: "代数" }] as unknown as CourseSummary[];
     await act(async () => {
@@ -347,7 +350,7 @@ describe("useCourseSessions — returning to a course", () => {
     });
 
     expect(setActiveCourse).toHaveBeenCalledWith("ctm");
-    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl");
+    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl", { kind: "course", slug: "ctm" });
     expect(controller.send).not.toHaveBeenCalled();
     expect(actions?.intro).toBeNull();
   });
@@ -383,7 +386,7 @@ describe("useCourseSessions — returning to a course", () => {
       await Promise.resolve();
     });
 
-    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl");
+    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl", { kind: "course", slug: "ctm" });
     expect(controller.send).toHaveBeenCalledTimes(1);
     expect(controller.send).toHaveBeenCalledWith(expect.stringContaining("开始今天的"));
   });
@@ -435,7 +438,7 @@ describe("useCourseSessions — returning to a course", () => {
     });
 
     // The day's first lesson does not reuse yesterday's session.
-    expect(controller.openSession).toHaveBeenCalledWith(null);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "ctm" });
     expect(controller.send).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({ courseStartedOn: { ctm: today } }),
@@ -465,7 +468,7 @@ describe("useCourseSessions — returning to a course", () => {
       await Promise.resolve();
     });
 
-    expect(controller.openSession).toHaveBeenCalledWith(null);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "ctm" });
     expect(controller.send).toHaveBeenCalledTimes(1);
   });
 
@@ -557,7 +560,7 @@ describe("useCourseSessions — stale remembered sessions", () => {
       await Promise.resolve();
     });
 
-    expect(controller.openSession).toHaveBeenCalledWith(null);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "ctm" });
   });
 
   it("reuses the remembered session for 改计划 when it is from today", async () => {
@@ -578,6 +581,6 @@ describe("useCourseSessions — stale remembered sessions", () => {
       await Promise.resolve();
     });
 
-    expect(controller.openSession).toHaveBeenCalledWith(file);
+    expect(controller.openSession).toHaveBeenCalledWith(file, { kind: "course", slug: "ctm" });
   });
 });

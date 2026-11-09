@@ -48,7 +48,7 @@ export function isWebUrl(source: string): boolean {
 /** Build the prompt that asks the agent to clip a URL and queue it. */
 export function clipPrompt(source: string, priority: ReadingPriority, due: ReadingDue): string {
   const when = due === "today" ? "今天就读" : "按默认间隔排期";
-  return `/skill:reading 把这篇文章剪藏到 Clippings 并加入阅读队列（优先级 ${priority}，${when}）：${source.trim()}`;
+  return `/skill:reading 把这篇文章剪藏到 clippings/（旧库为 Clippings/）并加入阅读队列（优先级 ${priority}，${when}）：${source.trim()}`;
 }
 
 export function useReading(): ReadingResource {

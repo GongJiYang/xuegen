@@ -4,8 +4,8 @@
  * plain semantic HTML. The reference skin: no styles, no motion.
  */
 
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { TEACHING_STYLE_LABELS } from "@shared/protocol.js";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { TEACHING_STYLE_LABELS, type ChatMessage } from "@shared/protocol.js";
 import type {
   AssistantMessageProps,
   ComposerProps,
@@ -21,6 +21,7 @@ import type {
 import { strings } from "../../core/strings.js";
 import { courseIntroLines } from "../../core/board/course-intro.js";
 import { notesAt } from "../../core/chat/context-usage.js";
+import { retryDisplayOf } from "../../core/chat/retry-state.js";
 import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
 import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
@@ -141,11 +142,12 @@ export function AssistantMessage({
       {thinking && (
         <Thinking label={activity?.meta ? `${activity.label} · ${activity.meta}` : (activity?.label ?? strings.chat.thinking)} />
       )}
-      {message.errorMessage && <p role="alert">{message.errorMessage}</p>}
+      {retryLine(message) ?? (message.errorMessage && <p role="alert">{message.errorMessage}</p>)}
       <button type="button" onClick={onCopy}>
         {copied ? strings.chat.copied : strings.chat.copy}
       </button>
-      {(message.errorMessage || !message.streaming) && (
+      {/* An automatic retry is not the user's job: no 重试 button while it runs. */}
+      {retryDisplayOf(message).kind === "error" && (message.errorMessage || !message.streaming) && (
         <button type="button" onClick={onRetry}>
           {strings.chat.retry}
         </button>
@@ -181,6 +183,18 @@ export function ToolActivity({ call }: ToolActivityProps) {
         </div>
       )}
     </details>
+  );
+}
+
+/** The one line an automatic retry shows, or null when the error block applies. */
+function retryLine(message: ChatMessage): ReactNode {
+  const display = retryDisplayOf(message);
+  if (display.kind === "error") return null;
+  const role = display.kind === "retrying" ? "status" : "note";
+  return (
+    <p data-slot="retry-line" data-retry={display.kind} role={role}>
+      {display.text}
+    </p>
   );
 }
 

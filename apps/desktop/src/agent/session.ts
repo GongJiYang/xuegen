@@ -15,32 +15,47 @@
  * call `createXuegenSession()` instead.
  */
 
-import { applyXuegenEnvironment, repoRoot } from "./environment.js";
+import { applyXuegenEnvironment, repoRoot, stableRoot } from "./environment.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isOwnSessionFile } from "./session-file.js";
+import { createGuardExtension } from "./guard/extension.js";
+import { guardRoots, nodePathFacts } from "./guard/facts.js";
+import { inferSessionRole } from "./guard/session-role.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { CommandInfo, ModelInfo } from "../shared/protocol.js";
+import type { CommandInfo, ModelInfo, SessionRole } from "../shared/protocol.js";
 
-/** The repository `skills/` directory, resolved from the repo root (not copied). */
+/**
+ * The repository `skills/` directory, resolved from the repo root (not copied).
+ *
+ * For display only (`smoke.ts`). The paths Pi actually loads come from
+ * `skillPaths()`, which goes through `stableRoot()` so the system prompt
+ * records a path that survives reinstalls.
+ */
 export const skillsDir = join(repoRoot, "skills");
 
 /**
  * Skill directories the agent loads: the repository `skills/` plus the user's
  * `~/.xuegen/skills/` when it exists. Kept in the order Pi should resolve name
  * clashes (builtin first).
+ *
+ * The repository path goes through `stableRoot(home)`: Pi writes it into the
+ * system prompt, and a transcript keeps replaying whatever path it saw, so it
+ * must not move with the installation (see `stableRoot` in `environment.ts`).
  */
 export function skillPaths(home: string): string[] {
   const personal = join(home, "skills");
-  return existsSync(personal) ? [skillsDir, personal] : [skillsDir];
+  const builtin = join(stableRoot(home), "skills");
+  return existsSync(personal) ? [builtin, personal] : [builtin];
 }
 
-/** The append-system-prompt source, matching `bin/xuegen.mjs --append-system-prompt`. */
-export const instructionsPath = join(repoRoot, "instructions.md");
-
-/** Read the repository `instructions.md` that becomes the appended system prompt. */
-export function readInstructions(): string {
-  return readFileSync(instructionsPath, "utf8");
+/**
+ * Read the repository `instructions.md` that becomes the appended system prompt
+ * (`bin/xuegen.mjs --append-system-prompt`), through the stable path for the
+ * same reason as the skill directories.
+ */
+export function readInstructions(home: string): string {
+  return readFileSync(join(stableRoot(home), "instructions.md"), "utf8");
 }
 
 export interface CreateXuegenSessionOptions {
@@ -55,12 +70,20 @@ export interface CreateXuegenSessionOptions {
    * foreign path falls back to a new session.
    */
   sessionFile?: string;
+  /**
+   * The guard role the interface assigned this session. When absent the role
+   * is inferred from the session file's own hints (opening marker, remembered
+   * maps) and falls back to `free`.
+   */
+  role?: SessionRole;
 }
 
 export interface XuegenSessionBundle {
   session: AgentSession;
   cwd: string;
   home: string;
+  /** The role the guard enforces on this session. */
+  role: SessionRole;
   /** Warning when a restored session ran on a different model than saved. */
   modelFallbackMessage?: string;
 }
@@ -75,6 +98,21 @@ export async function createXuegenSession(
   options: CreateXuegenSessionOptions = {},
 ): Promise<XuegenSessionBundle> {
   const { home, cwd } = applyXuegenEnvironment();
+
+  // The guard reads its role lazily: an explicit `options.role` applies from
+  // the start, while a restored session's role is inferred from its transcript
+  // once the session exists (below) — before any tool call can run.
+  const facts = nodePathFacts();
+  const role = { current: options.role ?? ({ kind: "free" } as SessionRole) };
+  let sessionId = "";
+  const guard = createGuardExtension({
+    role: () => role.current,
+    sessionId: () => sessionId,
+    roots: guardRoots(home, cwd, facts),
+    home,
+    cwd,
+    facts,
+  });
 
   const {
     createAgentSession,
@@ -97,10 +135,13 @@ export async function createXuegenSession(
     noThemes: true,
     noContextFiles: true,
     additionalSkillPaths: skillPaths(home),
-    appendSystemPrompt: [readInstructions()],
+    appendSystemPrompt: [readInstructions(home)],
     // Named inline extensions so the startup diagnostics (and the smoke test)
     // show `<inline:tool-search>` / `<inline:mcp>` instead of opaque indices.
+    // The guard runs first so its check precedes every other `tool_call`
+    // handler.
     extensionFactories: [
+      { name: "guard", factory: guard },
       { name: "tool-search", factory: createToolSearchExtension() },
       { name: "mcp", factory: createMcpExtension() },
     ],
@@ -133,9 +174,14 @@ export async function createXuegenSession(
   // lets the MCP extension activate tool_search for deferred-exposure servers.
   await session.bindExtensions({});
 
+  sessionId = session.sessionId;
+  if (options.role === undefined) {
+    role.current = inferSessionRole(home, session.sessionFile ?? null);
+  }
+
   return modelFallbackMessage === undefined
-    ? { session, cwd, home }
-    : { session, cwd, home, modelFallbackMessage };
+    ? { session, cwd, home, role: role.current }
+    : { session, cwd, home, role: role.current, modelFallbackMessage };
 }
 
 /**

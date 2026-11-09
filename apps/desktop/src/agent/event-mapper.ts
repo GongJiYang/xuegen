@@ -27,6 +27,12 @@ export interface EventMapperState {
   toolCalls: ToolCallView[];
   /** Id of the most recently started assistant message; tool events attach here. */
   lastAssistantMessageId: string | null;
+  /**
+   * The most recent assistant message that ended with an error (not a user
+   * stop). Retry events mark that message, and its successful retry answer ends
+   * before `auto_retry_end`, so it must be remembered across that gap.
+   */
+  lastFailedMessage: ChatMessage | null;
   /** Number of queued follow-up/steering messages. */
   queuedFollowUps: number;
 }
@@ -38,6 +44,7 @@ export function createEventMapperState(): EventMapperState {
     assistantMarkdown: "",
     toolCalls: [],
     lastAssistantMessageId: null,
+    lastFailedMessage: null,
     queuedFollowUps: 0,
   };
 }
@@ -101,6 +108,18 @@ function resultTextOf(result: unknown): string {
   } catch {
     return String(result);
   }
+}
+
+/** The failed message with the given retry marker (`null` clears it), or null when there is none. */
+function markRetry(
+  message: ChatMessage | null,
+  retry: ChatMessage["retry"] | null,
+): ChatMessage | null {
+  if (!message || !message.errorMessage) return null;
+  if (retry) return { ...message, retry };
+  const plain = { ...message };
+  delete plain.retry;
+  return plain;
 }
 
 /**
@@ -170,7 +189,48 @@ export function mapPiEvent(
       if (errorMessage && message.stopReason !== "aborted") {
         messages.push({ type: "error", error: errorMessage });
       }
-      next = { ...next, currentAssistantId: null, assistantMarkdown: "", toolCalls: [] };
+      next = {
+        ...next,
+        currentAssistantId: null,
+        assistantMarkdown: "",
+        toolCalls: [],
+        // Keep the failed message so a later `auto_retry_end` can mark it; a
+        // successful retry answer does not replace it.
+        lastFailedMessage:
+          errorMessage && message.stopReason !== "aborted" ? finalMessage : next.lastFailedMessage,
+      };
+      break;
+    }
+    case "auto_retry_start": {
+      // Pi retries a dropped connection by itself. The failed answer shows the
+      // attempt count instead of a 重试 button, so the guard is on the message.
+      const retrying = markRetry(next.lastFailedMessage, {
+        attempt: event.attempt,
+        maxAttempts: event.maxAttempts,
+      });
+      if (!retrying) break;
+      next = { ...next, lastFailedMessage: retrying };
+      messages.push({ type: "message-end", message: retrying });
+      break;
+    }
+    case "auto_retry_end": {
+      const failed = next.lastFailedMessage;
+      if (!failed) break;
+      next = { ...next, lastFailedMessage: null };
+      if (event.success) {
+        // A retry produced an answer: one soft line replaces the error block.
+        messages.push({ type: "message-end", message: { ...failed, retry: "recovered" } });
+        break;
+      }
+      // The retries did not help: drop the marker and report the error as usual.
+      // `finalError` normally repeats the message's own text (already shown), so
+      // only a new reason is posted again.
+      const plain = markRetry(failed, null);
+      if (!plain) break;
+      messages.push({ type: "message-end", message: plain });
+      if (event.finalError && event.finalError !== failed.errorMessage) {
+        messages.push({ type: "error", error: event.finalError });
+      }
       break;
     }
     case "tool_execution_start": {

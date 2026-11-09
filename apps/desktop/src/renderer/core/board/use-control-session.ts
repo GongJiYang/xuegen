@@ -53,7 +53,7 @@ export function useControlSession(
     }
     const known = settings.controlSessions[cycleId] ?? null;
     setActiveCourse(null);
-    void controller.openSession(known).then((opened) => {
+    void controller.openSession(known, { kind: "control" }).then((opened) => {
       if (opened && opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
     });
   }, [controller, cycleId, isControl, requestFocus, setActiveCourse, settings.controlSessions, update]);
@@ -70,7 +70,7 @@ export function useControlSession(
     // openSession().then(...) shape as openControl.
     const known = settings.controlSessions[cycleId] ?? null;
     setActiveCourse(null);
-    void controller.openSession(known).then((opened) => {
+    void controller.openSession(known, { kind: "control" }).then((opened) => {
       if (!opened) return;
       if (opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
       send();

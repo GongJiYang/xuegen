@@ -32,6 +32,7 @@ import {
   isCompactionPayload,
   isContextUsagePayload,
   isHostToAgentMessage,
+  withValidRetry,
 } from "../shared/protocol.js";
 import { isDataRequest, type DataResponse } from "../shared/data-protocol.js";
 // The agent-side module only computes a path from the filesystem; importing it
@@ -77,6 +78,13 @@ function sendToRenderer(event: AgentToHostMessage): void {
   mainWindow?.webContents.send(IPC_CHANNEL, event);
 }
 
+/** Drop a malformed automatic-retry marker: the hint is lost, never the answer. */
+function messageWithValidRetry(event: AgentToHostMessage): AgentToHostMessage {
+  if (event.type !== "message-start" && event.type !== "message-end") return event;
+  if (event.message.retry === undefined) return event;
+  return { ...event, message: withValidRetry(event.message) };
+}
+
 function startAgentProcess(): void {
   const entry = agentEntry();
   if (!existsSync(entry)) {
@@ -117,7 +125,7 @@ function startAgentProcess(): void {
     }
     // Reset the restart budget once the agent reports a healthy start.
     if (message.type === "agent-status" && message.status === "ready") restartCount = 0;
-    sendToRenderer(message);
+    sendToRenderer(messageWithValidRetry(message));
   });
 
   agentProcess.stdout?.on("data", (chunk: Buffer) => process.stdout.write(`[agent] ${chunk}`));

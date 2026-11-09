@@ -30,10 +30,12 @@ describe("chatReducer agent events", () => {
         cwd: "/x",
         model: null,
         sessionFile: null,
+        sessionId: null,
         streaming: false,
         queuedFollowUps: 0,
         thinkingLevel: null,
         thinkingLevels: [],
+        role: { kind: "free" },
       },
       models: { models: [{ provider: "anthropic", id: "claude", name: "Claude" }] },
     });
@@ -42,6 +44,25 @@ describe("chatReducer agent events", () => {
     expect(state.session?.cwd).toBe("/x");
     expect(state.models).toHaveLength(1);
     expect(state.modelsReason).toBeNull();
+  });
+
+  it("keeps the session id a snapshot names, so the next request can name it", () => {
+    const state = reduce(initialChatState, {
+      type: "state",
+      state: {
+        cwd: "/x",
+        model: null,
+        sessionFile: "/home/sessions/b.jsonl",
+        sessionId: "B",
+        streaming: false,
+        queuedFollowUps: 0,
+        thinkingLevel: null,
+        thinkingLevels: [],
+        role: { kind: "free" },
+      },
+    });
+    expect(state.session?.sessionId).toBe("B");
+    expect(state.session?.sessionFile).toBe("/home/sessions/b.jsonl");
   });
 
   it("records a model-list reason", () => {
@@ -182,5 +203,73 @@ describe("chatReducer context usage and compaction", () => {
     const ended = reduce(started, { type: "compaction", phase: "end", reason: "threshold", aborted: false });
     expect(ended.compaction).toBeNull();
     expect(ended.systemNotes).toEqual([{ beforeIndex: 0, kind: "compaction" }]);
+  });
+});
+
+describe("chatReducer automatic retry updates", () => {
+  const failed: ChatMessage = {
+    id: "assistant-1",
+    role: "assistant",
+    markdown: "",
+    streaming: false,
+    toolCalls: [],
+    errorMessage: "terminated",
+  };
+
+  it("replaces the message when its retry marker arrives", () => {
+    const ended = reduce(initialChatState, { type: "message-end", message: failed });
+    const retrying = reduce(ended, {
+      type: "message-end",
+      message: { ...failed, retry: { attempt: 1, maxAttempts: 3 } },
+    });
+    const recovered = reduce(retrying, { type: "message-end", message: { ...failed, retry: "recovered" } });
+
+    expect(retrying.messages).toHaveLength(1);
+    expect(retrying.messages[0]?.retry).toEqual({ attempt: 1, maxAttempts: 3 });
+    expect(recovered.messages[0]?.retry).toBe("recovered");
+  });
+
+  it("drops a malformed retry marker instead of showing it", () => {
+    const state = reduce(initialChatState, {
+      type: "message-end",
+      message: { ...failed, retry: { attempt: "x" } as never },
+    });
+
+    expect(state.messages[0]?.retry).toBeUndefined();
+    expect(state.messages[0]?.errorMessage).toBe("terminated");
+  });
+});
+
+describe("chatReducer retry clears the error banner", () => {
+  const failed: ChatMessage = {
+    id: "assistant-1",
+    role: "assistant",
+    markdown: "",
+    streaming: false,
+    toolCalls: [],
+    errorMessage: "terminated",
+  };
+
+  it("drops the banner while the connection is being retried", () => {
+    const errored = reduce(initialChatState, { type: "error", error: "terminated" });
+    const retrying = reduce(errored, {
+      type: "message-end",
+      message: { ...failed, retry: { attempt: 1, maxAttempts: 3 } },
+    });
+
+    expect(retrying.errors).toEqual([]);
+    expect(retrying.messages[0]?.retry).toEqual({ attempt: 1, maxAttempts: 3 });
+  });
+
+  it("raises the banner again when the retries give up", () => {
+    const errored = reduce(initialChatState, { type: "error", error: "terminated" });
+    const retrying = reduce(errored, {
+      type: "message-end",
+      message: { ...failed, retry: { attempt: 1, maxAttempts: 2 } },
+    });
+    const givenUp = reduce(retrying, { type: "message-end", message: failed });
+
+    expect(givenUp.errors).toEqual(["terminated"]);
+    expect(givenUp.messages[0]?.retry).toBeUndefined();
   });
 });

@@ -89,6 +89,11 @@ export const strings = {
     errorDetail: "详情",
     retry: "重试",
     retryTitle: "重发上一条提问",
+    /** A dropped connection that Pi is retrying on its own (no 重试 button). */
+    retrying: (attempt: number, maxAttempts: number): string =>
+      `连接中途断开，正在自动重试（第 ${attempt} / ${maxAttempts} 次）…`,
+    /** The retry produced an answer: one soft line, no error block. */
+    retried: "连接断开过一次，已自动重试",
     /** Title-bar context usage; `percent` is already an integer. */
     context: (percent: number): string => `上下文 ${percent}%`,
     contextUnknown: "上下文 —",
@@ -484,7 +489,7 @@ export const strings = {
     later: "之后",
     nowEmpty: "今天没有要读的。",
     laterEmpty: "队列里没有其他文章。",
-    errorNoSource: "原文必须位于 raw/ 或 Clippings/ 下。",
+    errorNoSource: "原文必须位于 raw/ 或 clippings/（旧库：Clippings/）下。",
     shelfPlanned: "书房 · 计划内",
     shelfQueue: "排队",
     shelfFree: "书房 · 计划外",

@@ -19,9 +19,9 @@ import type {
   SystemNote,
   ToolCallView,
 } from "@shared/protocol.js";
-import { assertNever } from "@shared/protocol.js";
+import { assertNever, withValidRetry } from "@shared/protocol.js";
 import { strings } from "../strings.js";
-import { MODEL_ERROR_SUMMARIES, translateModelError } from "./model-error.js";
+import { MODEL_ERROR_SUMMARIES, isAborted, translateModelError } from "./model-error.js";
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -95,6 +95,13 @@ function appendError(state: ChatState, error: string): ChatState {
   return { ...state, errors: [...state.errors.filter((entry) => errorKey(entry) !== key), error] };
 }
 
+/** Drop the notice for one error, so a retried connection leaves no "failed" banner behind. */
+function withoutError(state: ChatState, error: string | undefined): ChatState {
+  if (error === undefined) return state;
+  const key = errorKey(error);
+  return { ...state, errors: state.errors.filter((entry) => errorKey(entry) !== key) };
+}
+
 function upsertMessage(state: ChatState, message: ChatMessage): ChatState {
   const index = state.messages.findIndex((entry) => entry.id === message.id);
   if (index === -1) return { ...state, messages: [...state.messages, message] };
@@ -146,8 +153,19 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       return upsertMessage(state, event.message);
     case "message-delta":
       return applyDelta(state, event.messageId, event.text);
-    case "message-end":
-      return upsertMessage(state, { ...event.message, streaming: false });
+    case "message-end": {
+      // The retry hint is presentation-only: a malformed one is dropped here
+      // rather than trusted, and never breaks the answer it annotates.
+      const message = { ...withValidRetry(event.message), streaming: false };
+      const next = upsertMessage(state, message);
+      // A retried connection is not a failure the user must act on: the banner
+      // that the failed attempt raised goes away while Pi retries, and comes
+      // back only if the retries give up (the mapper then drops the marker).
+      if (message.retry !== undefined) return withoutError(next, message.errorMessage);
+      // A user stop is guidance in the message itself, not a session-level error.
+      const error = message.errorMessage;
+      return error === undefined || isAborted(error) ? next : appendError(next, error);
+    }
     case "tool-call":
       return applyToolCall(state, event.messageId, event.call);
     case "context-usage":

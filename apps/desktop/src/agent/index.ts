@@ -13,17 +13,21 @@
 
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type {
+  AgentToHostEvent,
   AgentToHostMessage,
-  ChatMessage,
   HostToAgentMessage,
   ModelListPayload,
+  SessionRole,
   SessionStatePayload,
   ThinkingLevel,
 } from "../shared/protocol.js";
-import { assertNever } from "../shared/protocol.js";
+import { assertNever, sessionRoleOrFree } from "../shared/protocol.js";
 import { createXuegenSession, findModel, listAvailableModels, listCommands } from "./session.js";
-import { createEventMapperState, mapPiEvent, toModelInfo, type EventMapperState } from "./event-mapper.js";
+import { createEventMapperState, mapPiEvent, type EventMapperState } from "./event-mapper.js";
 import { historyFromEntries, type HistoryReplay } from "./history.js";
+import { sessionState } from "./snapshot.js";
+import { withSessionId } from "./session-request.js";
+import { runSessionRequest, type TurnDeps } from "./turn.js";
 
 /**
  * Electron `utilityProcess` global, present only inside the agent process.
@@ -36,6 +40,7 @@ declare const process: NodeJS.Process & {
   };
 };
 
+/** Post a message that belongs to no session (startup and crash reports). */
 function post(message: AgentToHostMessage): void {
   process.parentPort.postMessage(message);
 }
@@ -48,11 +53,18 @@ class AgentHost {
   private cwd = "";
   private models: ModelListPayload = { models: [] };
   private history: HistoryReplay = { messages: [], notes: [] };
+  private role: SessionRole = { kind: "free" };
+
+  /** Post an event stamped with the session it belongs to. */
+  private post(message: AgentToHostEvent): void {
+    post(withSessionId(message, this.session?.sessionId ?? null));
+  }
 
   async start(): Promise<void> {
-    const { session, cwd, modelFallbackMessage } = await createXuegenSession({ continueRecent: true });
+    const { session, cwd, role, modelFallbackMessage } = await createXuegenSession({ continueRecent: true });
     this.session = session;
     this.cwd = cwd;
+    this.role = role;
     this.unsubscribe = session.subscribe((event) => this.handleEvent(event));
 
     const { models, reason } = await listAvailableModels(session);
@@ -61,40 +73,36 @@ class AgentHost {
 
     this.broadcast();
     this.emitContextUsage();
-    post({ type: "agent-status", status: "ready" });
+    this.post({ type: "agent-status", status: "ready" });
 
     // Warnings are user-facing; post them after the ready snapshot so the UI has state.
-    if (modelFallbackMessage) post({ type: "error", error: `会话以不同模型恢复：${modelFallbackMessage}` });
+    if (modelFallbackMessage) this.post({ type: "error", error: `会话以不同模型恢复：${modelFallbackMessage}` });
     if (models.length === 0) {
-      post({ type: "error", error: "未登录或无可用模型。请先在终端运行 xuegen 并执行 /login。" });
+      this.post({ type: "error", error: "未登录或无可用模型。请先在终端运行 xuegen 并执行 /login。" });
     }
   }
 
   /** Send the full current snapshot, so late subscribers lose nothing. */
   private broadcast(): void {
-    post({
+    this.post({
       type: "ready",
       state: this.snapshot(),
       models: this.models,
     });
-    post({ type: "history", messages: this.history.messages, notes: this.history.notes });
+    this.post({ type: "history", messages: this.history.messages, notes: this.history.notes });
   }
 
   private snapshot(): SessionStatePayload {
-    const session = this.session;
-    return {
+    return sessionState({
+      session: this.session,
       cwd: this.cwd,
-      model: session ? toModelInfo(session.model) : null,
-      sessionFile: session?.sessionFile ?? null,
-      streaming: session?.isStreaming ?? false,
+      role: this.role,
       queuedFollowUps: this.mapperState.queuedFollowUps,
-      thinkingLevel: session && session.supportsThinking() ? session.thinkingLevel : null,
-      thinkingLevels: session && session.supportsThinking() ? session.getAvailableThinkingLevels() : [],
-    };
+    });
   }
 
   private emitState(): void {
-    post({ type: "state", state: this.snapshot() });
+    this.post({ type: "state", state: this.snapshot() });
   }
 
   private nextId = (prefix: string): string => {
@@ -111,7 +119,7 @@ class AgentHost {
   private emitContextUsage(): void {
     const usage = this.session?.getContextUsage();
     if (!usage) return;
-    post({
+    this.post({
       type: "context-usage",
       tokens: usage.tokens,
       contextWindow: usage.contextWindow,
@@ -122,33 +130,24 @@ class AgentHost {
   private handleEvent(event: AgentSessionEvent): void {
     const mapped = mapPiEvent(this.mapperState, event, this.nextId);
     this.mapperState = mapped.state;
-    for (const message of mapped.messages) post(message);
+    for (const message of mapped.messages) this.post(message);
     if (mapped.stateChanged) this.emitState();
     // A turn just settled, or a compaction changed what counts against the
     // window: refresh the usage the title bar shows.
     if (event.type === "agent_settled" || event.type === "compaction_end") this.emitContextUsage();
   }
 
-  /** Send a user prompt, streaming or as a follow-up when the session is busy. */
-  private async sendPrompt(text: string): Promise<void> {
-    if (!this.session) throw new Error("会话尚未就绪");
-    const message: ChatMessage = {
-      id: this.nextId("user"),
-      role: "user",
-      markdown: text,
-      streaming: false,
-      toolCalls: [],
+  /** The dependencies a session-scoped request needs from the host. */
+  private turnDeps(): TurnDeps {
+    return {
+      session: this.session,
+      post: (event) => this.post(event),
+      nextId: this.nextId,
+      appendUserMessage: (message) => {
+        this.history = { ...this.history, messages: [...this.history.messages, message] };
+      },
+      emitState: () => this.emitState(),
     };
-    post({ type: "message-start", message });
-    post({ type: "message-end", message });
-    this.history = { ...this.history, messages: [...this.history.messages, message] };
-
-    if (this.session.isStreaming) {
-      await this.session.prompt(text, { streamingBehavior: "followUp" });
-    } else {
-      await this.session.prompt(text);
-    }
-    this.emitState();
   }
 
   async handle(message: HostToAgentMessage): Promise<void> {
@@ -161,43 +160,14 @@ class AgentHost {
         this.emitContextUsage();
         return;
       }
-      case "prompt": {
-        if (!message.text.trim()) return;
-        try {
-          await this.sendPrompt(message.text);
-        } catch (error) {
-          post({
-            type: "error",
-            error: `发送失败：${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
-        return;
-      }
-      case "compact": {
-        if (!this.session) return;
-        try {
-          await this.session.compact();
-        } catch (error) {
-          post({
-            type: "error",
-            error: `压缩失败：${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
-        return;
-      }
+      case "prompt":
+      case "compact":
       case "abort": {
-        try {
-          await this.session?.abort();
-        } catch (error) {
-          post({
-            type: "error",
-            error: `停止失败：${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
+        await runSessionRequest(this.turnDeps(), message);
         return;
       }
       case "new-session": {
-        await this.restart({ continueRecent: false });
+        await this.restart({ continueRecent: false, role: sessionRoleOrFree(message.role) });
         return;
       }
       case "continue-session": {
@@ -205,10 +175,18 @@ class AgentHost {
         return;
       }
       case "open-session": {
+        // An absent role is not passed down: the guard then infers the role
+        // from the session file's own hints (opening marker, remembered maps).
         await this.restart(
-          message.sessionFile ? { continueRecent: false, sessionFile: message.sessionFile } : { continueRecent: false },
+          message.sessionFile
+            ? { continueRecent: false, sessionFile: message.sessionFile, role: message.role }
+            : { continueRecent: false, role: message.role },
         );
-        post({ type: "session-opened", requestId: message.requestId, sessionFile: this.session?.sessionFile ?? null });
+        this.post({
+          type: "session-opened",
+          requestId: message.requestId,
+          sessionFile: this.session?.sessionFile ?? null,
+        });
         return;
       }
       case "set-model": {
@@ -222,14 +200,14 @@ class AgentHost {
       case "list-models": {
         if (!this.session) return;
         await this.refreshModels();
-        post({ type: "models", models: this.models });
+        this.post({ type: "models", models: this.models });
         return;
       }
       case "list-commands": {
         if (!this.session) return;
         // Filter at query time so a toggled skill is reflected on the next call;
         // the renderer sends the current `disabledSkills` with each request.
-        post({ type: "commands", commands: listCommands(this.session, message.disabledSkills) });
+        this.post({ type: "commands", commands: listCommands(this.session, message.disabledSkills) });
         return;
       }
       default:
@@ -248,7 +226,7 @@ class AgentHost {
     if (!this.session) throw new Error("会话尚未就绪");
     const model = await findModel(this.session, provider, id);
     if (!model) {
-      post({ type: "error", error: `找不到模型 ${provider}/${id}` });
+      this.post({ type: "error", error: `找不到模型 ${provider}/${id}` });
       return;
     }
     // `persist: true` writes the choice to Pi's default provider/model, so the
@@ -265,22 +243,31 @@ class AgentHost {
   }
 
   /** Replace the active session: new, or continue the most recent. */
-  private async restart(options: { continueRecent: boolean; sessionFile?: string }): Promise<void> {
+  private async restart(options: {
+    continueRecent: boolean;
+    sessionFile?: string;
+    role?: SessionRole | undefined;
+  }): Promise<void> {
     this.unsubscribe?.();
     this.session?.dispose();
     this.session = null;
     this.mapperState = createEventMapperState();
 
-    const { session, cwd } = await createXuegenSession(options);
+    const { session, cwd, role } = await createXuegenSession({
+      continueRecent: options.continueRecent,
+      ...(options.sessionFile !== undefined ? { sessionFile: options.sessionFile } : {}),
+      ...(options.role !== undefined ? { role: options.role } : {}),
+    });
     this.session = session;
     this.cwd = cwd;
+    this.role = role;
     this.unsubscribe = session.subscribe((event) => this.handleEvent(event));
 
-    post({ type: "models-changed" });
+    this.post({ type: "models-changed" });
     await this.refreshModels();
     this.refreshHistory();
-    post({ type: "models", models: this.models });
-    post({ type: "history", messages: this.history.messages, notes: this.history.notes });
+    this.post({ type: "models", models: this.models });
+    this.post({ type: "history", messages: this.history.messages, notes: this.history.notes });
     this.emitState();
     this.emitContextUsage();
   }

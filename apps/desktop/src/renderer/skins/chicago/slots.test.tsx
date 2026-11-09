@@ -8,6 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ChatMessage } from "@shared/protocol.js";
 import { AssistantMessage } from "./slots.js";
 import type { AssistantMessageProps } from "../contract.js";
 import { MODEL_ERROR_SUMMARIES } from "../../core/chat/model-error.js";
@@ -67,5 +68,38 @@ describe("Chicago AssistantMessage", () => {
     );
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.getByRole("button", { name: strings.chat.retry })).toBeTruthy();
+  });
+});
+
+describe("Chicago automatic retry lines", () => {
+  function retryProps(retry: NonNullable<ChatMessage["retry"]>): AssistantMessageProps {
+    return baseProps({
+      message: {
+        id: "a1",
+        role: "assistant",
+        markdown: "",
+        streaming: false,
+        toolCalls: [],
+        errorMessage: "terminated",
+        retry,
+      },
+    });
+  }
+
+  it("shows the attempt count without an alert or a 重试 button", () => {
+    render(<AssistantMessage {...retryProps({ attempt: 1, maxAttempts: 3 })} />);
+
+    expect(screen.getByText(strings.chat.retrying(1, 3))).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();
+  });
+
+  it("shows only the soft recovered line once the retry worked", () => {
+    render(<AssistantMessage {...retryProps("recovered")} />);
+
+    expect(screen.getByText(strings.chat.retried)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(MODEL_ERROR_SUMMARIES.network)).toBeNull();
+    expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();
   });
 });

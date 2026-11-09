@@ -77,3 +77,104 @@ describe("historyFromEntries", () => {
     expect(messages[1]?.at).toBeUndefined();
   });
 });
+
+describe("historyFromMessages automatic retry", () => {
+  const failed = { role: "assistant", stopReason: "error", errorMessage: "terminated", content: [] };
+  const answered = { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "answer" }] };
+
+  it("marks a failure that a later answer recovered from", () => {
+    const history = historyFromMessages(
+      [{ role: "user", content: "q" }, failed, answered],
+      "pre",
+    );
+
+    expect(history[1]?.retry).toBe("recovered");
+    expect(history[1]?.errorMessage).toBe("terminated");
+    expect(history[2]?.retry).toBeUndefined();
+  });
+
+  it("does not mark a failure followed directly by a new user question", () => {
+    const history = historyFromMessages(
+      [{ role: "user", content: "q" }, failed, { role: "user", content: "q again" }, answered],
+      "pre",
+    );
+
+    expect(history[1]?.retry).toBeUndefined();
+  });
+
+  it("does not mark a failure answered by another failure", () => {
+    const history = historyFromMessages([{ role: "user", content: "q" }, failed, failed], "pre");
+
+    expect(history[1]?.retry).toBeUndefined();
+  });
+
+  it("does not mark a user stop (aborted is not a failure)", () => {
+    const history = historyFromMessages(
+      [
+        { role: "user", content: "q" },
+        { role: "assistant", stopReason: "aborted", errorMessage: "Operation aborted", content: [{ type: "text", text: "部分" }] },
+        answered,
+      ],
+      "pre",
+    );
+
+    expect(history[1]?.retry).toBeUndefined();
+  });
+
+  it("still shows nothing for a failure that no retry recovered from", () => {
+    const history = historyFromMessages([{ role: "user", content: "q" }, failed], "pre");
+
+    // Same as before the retry fix: an unanswered failure leaves no block behind,
+    // and `hasAnswer()` keeps treating the course's opening as unanswered.
+    expect(history.map((entry) => entry.role)).toEqual(["user"]);
+  });
+
+  it("keeps a failed attempt that carried text, without an error marker", () => {
+    const history = historyFromMessages(
+      [
+        { role: "user", content: "q" },
+        { role: "assistant", stopReason: "error", errorMessage: "terminated", content: [{ type: "text", text: "部分" }] },
+      ],
+      "pre",
+    );
+
+    expect(history[1]?.markdown).toBe("部分");
+    expect(history[1]?.errorMessage).toBeUndefined();
+    expect(history[1]?.retry).toBeUndefined();
+  });
+});
+
+describe("historyFromEntries automatic retry", () => {
+  const failed = { role: "assistant", stopReason: "error", errorMessage: "terminated", content: [] };
+  const answered = { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "answer" }] };
+
+  it("marks a failed entry that the next answer recovered from", () => {
+    const { messages } = historyFromEntries(
+      [
+        { type: "message", message: { role: "user", content: "q" } },
+        { type: "message", message: failed },
+        { type: "message", message: answered },
+      ],
+      "s",
+    );
+
+    expect(messages.map((message) => message.retry)).toEqual([undefined, "recovered", undefined]);
+  });
+
+  it("does not mark a failed entry followed by a new user question", () => {
+    const { messages } = historyFromEntries(
+      [
+        { type: "message", message: { role: "user", content: "q" } },
+        { type: "message", message: failed },
+        { type: "message", message: { role: "user", content: "q again" } },
+        { type: "message", message: answered },
+      ],
+      "s",
+    );
+
+    // The unanswered failure itself is not shown (no text), the answer after the
+    // new question is: three messages, no retry marker anywhere.
+    expect(messages.map((message) => message.markdown)).toEqual(["q", "q again", "answer"]);
+    expect(messages.map((message) => message.retry)).toEqual([undefined, undefined, undefined]);
+  });
+});

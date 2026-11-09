@@ -9,6 +9,8 @@ core 决定「是什么」：对话状态、设置、文案、内容解析、动
   - `last-assistant.ts`：找出最后一条 assistant 消息，供两个皮肤锚定新回答的起点。
   - `has-answer.ts`：`hasAnswer(messages)` —— 学根是否已经在会话里答过内容（失败或未作答的开课不算）。
   - `view-models.ts`：`ChatState` → 提示列表（NoticeItem）与可用性判断的纯函数。
+  - `model-error.ts`：把上游原始错误翻成中文摘要 + 可展开的原文；`isNetwork` 认 `terminated` 等断线原文。
+  - `retry-state.ts`：`retryDisplayOf(message)` —— 失败回答的自动重试状态（重试中／已恢复／照常报错），三个皮肤共用这一份判断。
   - `useChat.ts`：命令式外壳，订阅 preload 事件并 `useReducer`；控制器位于皮肤之上，切换皮肤不重建。
   - `message-renderer.tsx`：唯一知道「一条消息如何映射到插槽」的地方；内容分类一次后交给皮肤的 `ContentRenderers`，`question` callout 路由到 `Exercise` 插槽；用户消息把 `[风格：X]` 前缀拆成 `styleTag` + `body`。
   - `style-prefix.ts`：`withStylePrefix`、`splitStyleTag`、`styleLabel` 纯函数。
