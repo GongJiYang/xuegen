@@ -19,7 +19,7 @@ import { dueLabel, isDueNow } from "../../core/board/reading-due.js";
 import { Caption, CheckBox, Field, InRow, RadioGroup, Tag } from "./widgets.js";
 import { Failed, Loading, Note, priorityLabel, todayIso } from "./panel-shared.js";
 
-export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, onFocusHandled }: ReadingPanelProps) {
+export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, onShelfCards, focus, onFocusHandled }: ReadingPanelProps) {
   const [value, setValue] = useState("");
   const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
   const [dueToday, setDueToday] = useState(true);
@@ -66,6 +66,55 @@ export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, o
 
   return (
     <div className="chicago-pane-inner">
+      {shelf.status === "loading" && <Loading />}
+      {shelf.status === "error" && <Failed message={shelf.message} />}
+      {shelf.status === "ready" && (
+        <div>
+          {[shelf.value.planned, shelf.value.free].map(
+            (book) =>
+              book !== null && (
+                <div className="chicago-it" key={book.slug}>
+                  <div className="chicago-it-meta">
+                    <span>{book.title}</span>
+                  </div>
+                  <div className="chicago-small">
+                    {strings.reading.shelfMeta(book.position, book.total, book.end)}
+                  </div>
+                  {book.next !== null && <div className="chicago-small">{book.next}</div>}
+                  {book.extracts.length > 0 && (
+                    <ul>
+                      {book.extracts.map((extract, index) => (
+                        <li key={index} className="chicago-small">
+                          p.{extract.page} {extract.text} ·{" "}
+                          {extract.carded === null
+                            ? strings.reading.shelfPending
+                            : strings.reading.shelfCarded(extract.carded)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {book.pending > 0 && (
+                    <div className="chicago-row-btns">
+                      <button type="button" className="chicago-btn" onClick={() => onShelfCards(book.slug)}>
+                        {strings.reading.shelfCards(book.pending)}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ),
+          )}
+          {shelf.value.queue.map((book) => (
+            <div className="chicago-it" key={book.slug}>
+              <div className="chicago-it-meta">
+                <span>{book.title}</span>
+              </div>
+              <div className="chicago-small">
+                {strings.reading.shelfQueued(book.total, book.after, book.end)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <Note>{strings.reading.scopeHint}</Note>
       <div className="chicago-inbox">
         <Caption title={strings.reading.addCaption} hint={strings.reading.addHint} />

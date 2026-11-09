@@ -5,7 +5,8 @@
  * "输入 / 查看功能" hint, then the textarea and the pixel-cornered send button.
  * When the `/` menu is open it floats above the field. A `/skill:<name>`
  * command inserts into the field for the user to finish; every other command is
- * handed to core through `onRunCommand`.
+ * handed to core through `onRunCommand`. Escape stops a running answer even with
+ * text in the field, and a stop puts the prompt just sent back into an empty field.
  */
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -84,7 +85,30 @@ export function Composer({
     onRunCommand(command);
   }
 
+  /**
+   * Stop the answer and put the prompt just sent back into the field.
+   *
+   * The field is left alone when it already has text: whatever the user is
+   * writing now outranks the message being returned. The caret goes to the end
+   * once React has committed the restored value.
+   */
+  function stopAndRestore(): void {
+    const back = onStop();
+    if (!back || hasText) return;
+    setValue(back);
+    onInput(back);
+    requestAnimationFrame(() => {
+      const field = fieldRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(back.length, back.length);
+    });
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    // An IME is still composing (Chinese/Japanese input): the Enter picks a
+    // candidate and Escape cancels it, so neither belongs to the composer.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (commandsOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -107,11 +131,11 @@ export function Composer({
         return;
       }
     }
-    // Escape stops generation only when the field is empty and no `/` menu is
-    // open, so it never swallows the menu's own Escape.
-    if (event.key === "Escape" && streaming && !hasText) {
+    // Escape stops a running answer whether or not the field has text, so a
+    // draft never blocks a stop; a `/` menu still gets its own Escape first.
+    if (event.key === "Escape" && streaming) {
       event.preventDefault();
-      onStop();
+      stopAndRestore();
       return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
@@ -204,7 +228,7 @@ export function Composer({
           aria-label={strings.input.placeholder}
         />
         {showStop ? (
-          <button type="button" className="chicago-btn chicago-stop" onClick={onStop}>
+          <button type="button" className="chicago-btn chicago-stop" onClick={stopAndRestore}>
             {strings.input.stop}
           </button>
         ) : (

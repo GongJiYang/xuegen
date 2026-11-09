@@ -89,8 +89,10 @@ async function handleScriptRequest(
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
     case "course.afterRead": {
-      // 「读完了」：先给课程页 Today 那行打勾；有阅读页时再记一行 Reading
-      // Log；最后重建两份派生看板。每一步失败都直接返回它的失败响应。
+      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[书房/<书>]]）
+      // 时记进书页（bookshelf.mjs lecture，可带上「核心页已定」的页码）；还链着
+      // 旧阅读页（[[reading/<页>]]，迁库前的课程页）时照旧记一行 Reading Log。
+      // 最后重建两份派生看板。每一步失败都直接返回它的失败响应。
       const courses = join(vault.vault, "wiki", "courses");
       const marked = await runScript("course/course-state.mjs", [
         "after-read",
@@ -100,9 +102,31 @@ async function handleScriptRequest(
         request.date,
       ]);
       if (!marked.ok) return marked;
-      const detail = marked.data as { reading?: unknown };
+      const detail = marked.data as {
+        reading?: unknown;
+        book?: unknown;
+        course?: unknown;
+        pages?: unknown;
+      };
       const reading = typeof detail.reading === "string" ? detail.reading : null;
-      if (reading !== null) {
+      const book = typeof detail.book === "string" ? detail.book : null;
+      const course = typeof detail.course === "string" ? detail.course : null;
+      const pages = typeof detail.pages === "string" ? detail.pages : null;
+      if (book !== null) {
+        const args = [
+          "lecture",
+          vault.vault,
+          book,
+          "--label",
+          request.label,
+          "--course",
+          course ?? request.slug,
+        ];
+        if (pages !== null) args.push("--pages", pages);
+        args.push("--today", request.date, "--json");
+        const lectured = await runScript("reading/bookshelf.mjs", args);
+        if (!lectured.ok) return lectured;
+      } else if (reading !== null) {
         const noted = await runScript("reading/reading-queue.mjs", [
           "note",
           vault.vault,
@@ -122,7 +146,7 @@ async function handleScriptRequest(
         const done = await step;
         if (!done.ok) return done;
       }
-      return { ok: true, data: { label: request.label, reading } };
+      return { ok: true, data: { label: request.label, reading, book } };
     }
     case "reading.today":
       return runScript("reading/reading-queue.mjs", [
@@ -163,6 +187,49 @@ async function handleScriptRequest(
       if (request.position !== undefined) args.splice(args.length - 1, 0, "--position", request.position);
       return runScript("reading/reading-queue.mjs", args);
     }
+    case "shelf.today":
+      return runScript("reading/bookshelf.mjs", [
+        "today",
+        vault.vault,
+        "--today",
+        request.today,
+        "--json",
+      ]);
+    case "shelf.list":
+      return runScript("reading/bookshelf.mjs", ["list", vault.vault, "--json"]);
+    case "shelf.done":
+      return runScript("reading/bookshelf.mjs", [
+        "done",
+        vault.vault,
+        request.slug,
+        "--today",
+        request.today,
+        "--json",
+      ]);
+    case "shelf.extract":
+      return runScript("reading/bookshelf.mjs", [
+        "extract",
+        vault.vault,
+        request.slug,
+        "--page",
+        String(request.page),
+        "--text",
+        request.text,
+        "--today",
+        request.today,
+        "--json",
+      ]);
+    case "shelf.card":
+      return runScript("reading/bookshelf.mjs", [
+        "card",
+        vault.vault,
+        request.slug,
+        "--index",
+        request.indexes.join(","),
+        "--today",
+        request.today,
+        "--json",
+      ]);
     case "cards.stats":
       return runScript("wiki-save/flashcards.mjs", ["stats", vault.vault, "--json"]);
     case "cards.add":

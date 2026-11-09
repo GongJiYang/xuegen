@@ -21,6 +21,7 @@ import type {
 } from "@shared/protocol.js";
 import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
 import { withStylePrefix } from "./style-prefix.js";
+import { splitActionMarker } from "./action-marker.js";
 import { isComposerDisabled, noticesFor } from "./view-models.js";
 import { resetScrollMemory } from "./use-scroll-memory.js";
 import type { NoticeItem, ThreadNote } from "../../skins/contract.js";
@@ -62,7 +63,15 @@ export interface ChatController {
   sendCommand(text: string): void;
   /** A note put in front of the next prompts (send and sendCommand) until set back to null. */
   setRefreshNote(note: string | null): void;
-  stop(): void;
+  /**
+   * Stop the running answer.
+   *
+   * Returns the text of the prompt just sent (the user's own words, without the
+   * style prefix or a refresh note), or null when there is no such prompt left —
+   * a skin puts it back into an empty composer so an accidental stop, or send,
+   * can be undone.
+   */
+  stop(): string | null;
   /** Resend the most recent user message, after a stop or a failed answer. */
   retry(): void;
   newSession(): void;
@@ -101,6 +110,13 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     refreshNoteRef.current = note;
   }, []);
 
+  // The prompt last sent by `send`, remembered so `stop` can give it back. Cleared
+  // by `stop` itself and whenever a turn settles normally, so a stop never
+  // resurrects an earlier prompt that already got its answer.
+  const lastSentRef = useRef<string | null>(null);
+  /** Whether the last status snapshot reported a running turn (see `lastSentRef`). */
+  const streamingRef = useRef(false);
+
   // Pending `open-session` requests, resolved by the agent's `session-opened`.
   const openRequests = useRef(new Map<string, (sessionFile: string | null) => void>());
 
@@ -112,6 +128,14 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
   useEffect(() => {
     const unsubscribe = client.subscribe((event: AgentToHostMessage) => {
       dispatch({ kind: "agent-event", event });
+      // A turn that ended on its own is no longer "the prompt just sent": drop it,
+      // so stopping during the next turn cannot put back an older message. A user
+      // abort clears `lastSentRef` in `stop` instead, before the agent replies.
+      if (event.type === "state" || event.type === "ready") {
+        const streaming = event.state.streaming;
+        if (streamingRef.current && !streaming) lastSentRef.current = null;
+        streamingRef.current = streaming;
+      }
       if (event.type === "session-opened") {
         openRequests.current.get(event.requestId)?.(event.sessionFile);
         openRequests.current.delete(event.requestId);
@@ -141,6 +165,10 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
   const send = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    // The user's own words, not the wire text: `stop` hands this back to the
+    // composer, which must not show the style prefix or a refresh note.
+    // Text the UI sends for the user (开课 and other marked actions) is not theirs to edit.
+    lastSentRef.current = splitActionMarker(trimmed).action === null ? trimmed : null;
     const note = refreshNoteRef.current;
     const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
@@ -148,6 +176,8 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     client.send({ type: "prompt", text: withStylePrefix(styleRef.current, body) });
   }, []);
 
+  // A command is not something the user typed into the field, so `stop` never
+  // puts it back: `lastSentRef` is set by `send` only.
   const sendCommand = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -155,7 +185,12 @@ export function useChat(style: TeachingStyle = "default", disabledSkills: readon
     client.send({ type: "prompt", text: note ? `${note} ${trimmed}` : trimmed });
   }, []);
 
-  const stop = useCallback(() => client.send({ type: "abort" }), []);
+  const stop = useCallback((): string | null => {
+    client.send({ type: "abort" });
+    const lastSent = lastSentRef.current;
+    lastSentRef.current = null;
+    return lastSent;
+  }, []);
   const compact = useCallback(() => client.send({ type: "compact" }), []);
 
   // Retry resends the last user message. `withStylePrefix` never double-prefixes,

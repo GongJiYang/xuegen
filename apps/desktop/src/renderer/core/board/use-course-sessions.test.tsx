@@ -7,7 +7,7 @@
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
-import { DEFAULT_DESKTOP_SETTINGS, type DesktopSettings } from "@shared/protocol.js";
+import { DEFAULT_DESKTOP_SETTINGS, type ChatMessage, type DesktopSettings } from "@shared/protocol.js";
 import type { CourseSummary } from "@shared/data-protocol.js";
 import type { ChatController } from "../chat/useChat.js";
 import type { ResumePoint } from "../today.js";
@@ -42,9 +42,12 @@ function readyCourses(value: CourseSummary[]): CoursesResource {
   } as unknown as CoursesResource;
 }
 
-function fakeController(sessionFile: string | null = "/home/sessions/new.jsonl") {
+function fakeController(
+  sessionFile: string | null = "/home/sessions/new.jsonl",
+  messages: ChatMessage[] = [],
+) {
   return {
-    messages: [],
+    messages,
     send: vi.fn(),
     sendCommand: vi.fn(),
     setRefreshNote: vi.fn(),
@@ -321,10 +324,12 @@ describe("useCourseSessions — returning to a course", () => {
     };
   }
 
-  it("switches without sending when the course was opened today", async () => {
+  it("switches without sending when the course was opened today and 学根 has answered", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 10, 4, 9));
-    const controller = fakeController("/home/sessions/ctm.jsonl");
+    const controller = fakeController("/home/sessions/ctm.jsonl", [
+      { id: "a1", role: "assistant", markdown: "今天读 2.1", streaming: false, toolCalls: [] },
+    ]);
     const setActiveCourse = vi.fn();
     render(
       <Harness
@@ -345,6 +350,42 @@ describe("useCourseSessions — returning to a course", () => {
     expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl");
     expect(controller.send).not.toHaveBeenCalled();
     expect(actions?.intro).toBeNull();
+  });
+
+  it("sends the opening again when today's session has no answer from 学根", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    // The opening failed (network, quota, an error turn): the day is recorded but
+    // the transcript holds only the learner's own opening message.
+    const controller = fakeController("/home/sessions/ctm.jsonl", [
+      { id: "u1", role: "user", markdown: "开始今天的 CTM 7 周", streaming: false, toolCalls: [] },
+      {
+        id: "a1",
+        role: "assistant",
+        markdown: "",
+        streaming: false,
+        toolCalls: [],
+        errorMessage: "连接中断：模型返回错误。",
+      },
+    ]);
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={settingsWith({ ctm: today })}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStudy(course);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl");
+    expect(controller.send).toHaveBeenCalledTimes(1);
+    expect(controller.send).toHaveBeenCalledWith(expect.stringContaining("开始今天的"));
   });
 
   it("only focuses the composer when already in that course", () => {

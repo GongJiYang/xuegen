@@ -269,7 +269,30 @@ export function Composer({
     onRunCommand(command);
   }
 
+  /**
+   * Stop the answer and put the prompt just sent back into the field.
+   *
+   * The field is left alone when it already has text: whatever the user is
+   * writing now outranks the message being returned. The caret goes to the end
+   * once React has committed the restored value.
+   */
+  function stopAndRestore(): void {
+    const back = onStop();
+    if (!back || hasText) return;
+    setValue(back);
+    onInput(back);
+    requestAnimationFrame(() => {
+      const field = fieldRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(back.length, back.length);
+    });
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    // An IME is still composing (Chinese/Japanese input): the Enter picks a
+    // candidate and Escape cancels it, so neither belongs to the composer.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (commandsOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -292,9 +315,9 @@ export function Composer({
         return;
       }
     }
-    if (event.key === "Escape" && streaming && !hasText) {
+    if (event.key === "Escape" && streaming) {
       event.preventDefault();
-      onStop();
+      stopAndRestore();
       return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
@@ -357,7 +380,7 @@ export function Composer({
         aria-label={strings.input.placeholder}
       />
       {showStop ? (
-        <button type="button" onClick={onStop}>
+        <button type="button" onClick={stopAndRestore}>
           {strings.input.stop}
         </button>
       ) : (

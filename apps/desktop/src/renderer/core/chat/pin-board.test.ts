@@ -69,4 +69,32 @@ describe("pinBoard", () => {
   it("is null when there is nothing to pin", () => {
     expect(pinBoard([user("u1", "你好"), assistant("a1", "普通回答")])).toBeNull();
   });
+  it("keeps the line breaks of a question that carries a table, and one line for the rest", () => {
+    const markdown = [
+      "讲解……",
+      "",
+      "> [!question] 检查理解",
+      "> 填完这张表：$p$ 与 $q$ 的四种组合是否逐行相同？",
+      ">",
+      "> | $p$ | $q$ | $p\\land q$ |",
+      "> |---|---|---|",
+      "> | T | T | |",
+      "> | T | F | |",
+      "",
+      "> [!question] 检查理解",
+      "> 判真假：$\\{3\\} \\subseteq \\{\\{2\\},\\{3\\}\\}$",
+    ].join("\n");
+    const board = pinBoard([assistant("a1", markdown)]);
+    expect(board?.questions?.items).toEqual([
+      [
+        "填完这张表：$p$ 与 $q$ 的四种组合是否逐行相同？",
+        "",
+        "| $p$ | $q$ | $p\\land q$ |",
+        "|---|---|---|",
+        "| T | T | |",
+        "| T | F | |",
+      ].join("\n"),
+      "判真假：$\\{3\\} \\subseteq \\{\\{2\\},\\{3\\}\\}$",
+    ]);
+  });
 });

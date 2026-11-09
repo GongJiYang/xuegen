@@ -25,7 +25,12 @@ export type Loader<T> = () => Promise<LoadResult<T>>;
 /** What a board hook returns: the state, a reload, and a way to run a write. */
 export interface BoardResource<T> {
   state: AsyncState<T>;
-  /** Reload the value, showing the loading state again. */
+  /**
+   * Reload the value in the background.
+   *
+   * A value already on screen stays on screen until the new one arrives, so a
+   * refresh never blanks a panel (or drops the day's cycle to "no cycle").
+   */
   reload(): void;
   /**
    * Run a write, then reload on success.
@@ -62,9 +67,10 @@ export function useBoardResource<T>(loader: Loader<T>, deps: readonly unknown[])
     });
   }, []);
 
-  // A user-triggered reload shows the loading state first.
+  // A user-triggered reload keeps a value we already have visible; only an
+  // empty (still loading) or failed resource shows loading again.
   const load = useCallback(() => {
-    setState({ status: "loading" });
+    setState((current) => (current.status === "ready" ? current : { status: "loading" }));
     begin();
   }, [begin]);
 

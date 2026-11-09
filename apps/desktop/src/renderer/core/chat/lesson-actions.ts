@@ -14,6 +14,7 @@
 import type { ChatMessage } from "@shared/protocol.js";
 import { strings } from "../strings.js";
 import { splitActionMarker, withActionMarker } from "./action-marker.js";
+import { hasAnswer } from "./has-answer.js";
 
 export interface LessonAction {
   label: string;
@@ -26,7 +27,7 @@ export interface LessonAction {
 /** The buttons a course session shows beside the composer (none outside a course). */
 export function lessonActions(activeCourse: string | null, messages: readonly ChatMessage[]): LessonAction[] {
   if (!activeCourse) return [];
-  if (!messages.some((message) => message.role === "assistant" && message.markdown.trim() !== "")) return [];
+  if (!hasAnswer(messages)) return [];
 
   const cards: LessonAction = {
     label: strings.lesson.cards,
@@ -40,7 +41,7 @@ export function lessonActions(activeCourse: string | null, messages: readonly Ch
   const closed =
     lastUserIndex !== -1 &&
     splitActionMarker(messages[lastUserIndex]?.markdown ?? "").action === "close" &&
-    messages.slice(lastUserIndex + 1).some((message) => message.role === "assistant" && message.markdown.trim() !== "");
+    hasAnswer(messages.slice(lastUserIndex + 1));
   if (closed) {
     return [
       {

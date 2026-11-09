@@ -17,7 +17,7 @@ import { strings } from "../core/strings.js";
 import { MODEL_ERROR_SUMMARIES } from "../core/chat/model-error.js";
 import { allCommands, filterCommands, groupCommands } from "../core/commands/commands.js";
 import { toolDescriptors } from "../skins/chicago/icons.js";
-import { SAMPLE_CONTROL_CARD, SAMPLE_CONTROL_CARD_LIGHT, SAMPLE_CONTROL_CARD_PENDING, SAMPLE_PANELS, SAMPLE_SESSIONS } from "./panel-samples.js";
+import { SAMPLE_CONTROL_CARD, SAMPLE_CONTROL_CARD_LIGHT, SAMPLE_CONTROL_CARD_PENDING, SAMPLE_CONTROL_CARD_SHELF, SAMPLE_CONTROL_CARD_SHELF_DONE, SAMPLE_CONTROL_CARD_SHELF_PENDING, SAMPLE_PANELS, SAMPLE_SESSIONS, SAMPLE_SHELF_EMPTY } from "./panel-samples.js";
 import {
   SAMPLE_ACTION_MESSAGE,
   SAMPLE_ASSISTANT_MESSAGE,
@@ -76,6 +76,8 @@ const GALLERY_NOTICES: NoticeItem[] = [
 ];
 
 const SLASH = filterCommands(allCommands([]), "");
+
+const noop = (): void => undefined;
 
 /** Render one message through the real core renderer. */
 function Message({
@@ -267,7 +269,7 @@ export function Gallery({
             streaming={false}
             disabled={false}
             onSend={() => undefined}
-            onStop={() => undefined}
+            onStop={() => null}
             style="plain"
             onStyle={() => undefined}
             commandsOpen={false}
@@ -287,7 +289,7 @@ export function Gallery({
             streaming
             disabled={false}
             onSend={() => undefined}
-            onStop={() => undefined}
+            onStop={() => null}
             style="detailed"
             onStyle={() => undefined}
             commandsOpen
@@ -335,7 +337,7 @@ export function Gallery({
         </section>
 
         <section>
-          <h2>ControlCard（深度日 / 低强度日 / 更早的对话 + 撤销）</h2>
+          <h2>ControlCard（深度日 / 低强度日 / 更早的对话 + 撤销 / 书房）</h2>
           <slots.Thread
             header={
               <slots.ControlCard
@@ -344,6 +346,7 @@ export function Gallery({
                 onAskBrief={() => undefined}
                 busy={false}
                 error={null}
+                extract={null}
                 older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: () => undefined }}
               />
             }
@@ -363,6 +366,7 @@ export function Gallery({
             onAskBrief={() => undefined}
             busy={false}
             error={strings.control.card.afterReadFailed}
+            extract={null}
             older={null}
           />
           <slots.ControlCard
@@ -371,6 +375,34 @@ export function Gallery({
             onAskBrief={() => undefined}
             busy={false}
             error={null}
+            extract={null}
+            older={null}
+          />
+          <slots.ControlCard
+            view={SAMPLE_CONTROL_CARD_SHELF}
+            onAction={() => undefined}
+            onAskBrief={() => undefined}
+            busy={false}
+            error={null}
+            extract={null}
+            older={null}
+          />
+          <slots.ControlCard
+            view={SAMPLE_CONTROL_CARD_SHELF_PENDING}
+            onAction={() => undefined}
+            onAskBrief={() => undefined}
+            busy={false}
+            error={null}
+            extract={null}
+            older={null}
+          />
+          <slots.ControlCard
+            view={SAMPLE_CONTROL_CARD_SHELF_DONE}
+            onAction={() => undefined}
+            onAskBrief={() => undefined}
+            busy={false}
+            error={null}
+            extract={{ slug: "epp", pages: "pp.10–18", saving: false, error: null, onSave: noop, onCancel: noop }}
             older={null}
           />
         </section>
@@ -397,6 +429,7 @@ export function Gallery({
           <slots.ReadingPanel {...SAMPLE_PANELS.reading} tool="reading" queue={{ status: "ready", value: [] }} />
           <slots.ReadingPanel {...SAMPLE_PANELS.reading} tool="reading" queue={{ status: "loading" }} />
           <slots.ReadingPanel {...SAMPLE_PANELS.reading} tool="reading" queue={{ status: "error", code: "script-failed", message: "读取知识库失败。" }} />
+          <slots.ReadingPanel {...SAMPLE_PANELS.reading} tool="reading" shelf={{ status: "ready", value: SAMPLE_SHELF_EMPTY }} />
         </section>
 
         <section>

@@ -51,13 +51,28 @@ export function abstractBox(markdown: string): { title: string; items: PinDefini
   return found;
 }
 
-/** A question callout's body as one line of inline Markdown. */
+/**
+ * A question callout's body, ready to render as Markdown.
+ *
+ * Questions are usually a single sentence, so their lines are trimmed and joined
+ * with spaces into one inline paragraph. A table, however, only parses when its
+ * rows stay on their own lines: when any non-blank line starts with `|` the
+ * line breaks are kept (trailing whitespace trimmed, leading and trailing blank
+ * lines dropped) so the pinned copy renders the same table as the transcript.
+ */
 function questionText(body: string): string {
-  return body
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "")
-    .join(" ");
+  const lines = body.split("\n");
+  const isTable = lines.some((line) => line.trim() !== "" && line.trim().startsWith("|"));
+  if (!isTable) {
+    return lines
+      .map((line) => line.trim())
+      .filter((line) => line !== "")
+      .join(" ");
+  }
+  const kept = lines.map((line) => line.trimEnd());
+  while (kept.length > 0 && (kept[0] ?? "").trim() === "") kept.shift();
+  while (kept.length > 0 && (kept[kept.length - 1] ?? "").trim() === "") kept.pop();
+  return kept.join("\n");
 }
 
 /** The pin board for a transcript, or null when there is nothing to pin. */

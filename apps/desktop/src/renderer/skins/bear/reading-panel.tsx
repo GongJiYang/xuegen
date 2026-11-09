@@ -1,18 +1,22 @@
 /**
  * Bear 阅读 panel.
  *
- * One underlined field adds a vault path (with candidates) or hands a URL to
- * 学根 to clip; priority and 今天就读 sit on the line below. The queue splits
- * into 今天该读 (due or overdue: 推迟 / 接着读 / 读完) and 之后 (read-only).
- * 接着读 asks where you stopped and records it on Enter.
+ * The 书房 section (design `?d=shelf2`) sits on top: 计划内 / 排队 / 计划外
+ * books with progress, the next blocks, and pending extracts. Under it, the
+ * 文章与摘录 half: one underlined field adds a vault path (with candidates) or
+ * hands a URL to 学根 to clip; the queue splits into 今天该读 (due or overdue:
+ * 推迟 / 接着读 / 读完) and 之后 (read-only). 接着读 asks where you stopped and
+ * records it on Enter.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { RadioGroup } from "radix-ui";
-import type { ReadingItem, ReadingPriority } from "@shared/data-protocol.js";
+import type { ReadingPriority } from "@shared/data-protocol.js";
 import type { ReadingPanelProps } from "../contract.js";
+import type { ShelfBookView } from "../../core/board/shelf-view.js";
 import { dueLabel, isDueNow } from "../../core/board/reading-due.js";
 import { dateKey } from "../../core/board/use-calendar.js";
+import { ReadingRow } from "./reading-row.js";
 import { strings } from "../../core/strings.js";
 
 const PRIORITIES: { id: ReadingPriority; label: string }[] = [
@@ -25,74 +29,72 @@ function isUrl(text: string): boolean {
   return /^https?:\/\//i.test(text.trim());
 }
 
-function ReadingRow({
-  item,
-  today,
-  actionable,
-  onReview,
-}: {
-  item: ReadingItem;
-  today: string;
-  actionable: boolean;
-  onReview: ReadingPanelProps["onReview"];
-}) {
-  const [recording, setRecording] = useState<string | null>(null);
-
-  function record(): void {
-    if (recording === null) return;
-    onReview(item.slug, "next", recording.trim());
-    setRecording(null);
-  }
-
+/** One book of the 书房 section: progress, next blocks, core pages, extracts. */
+function BookBlock({ book, onShelfCards }: { book: ShelfBookView; onShelfCards: ReadingPanelProps["onShelfCards"] }) {
   return (
-    <li className="bear-read-item">
-      <div className="bear-read-head">
-        <span className="bear-read-title">{item.title}</span>
-        <span className={isDueNow(item.due, today) ? "bear-read-due is-now" : "bear-read-due"}>
-          {dueLabel(item.due, today)}
-        </span>
+    <div className="bear-shelf-book">
+      <p className="bear-shelf-title">{book.title}</p>
+      <div className="bear-shelf-bar" role="progressbar" aria-valuenow={book.position} aria-valuemax={book.total}>
+        <i style={{ width: `${book.progress * 100}%` }} />
       </div>
-      <div className="bear-read-meta">
-        {item.priority === "high" && <span className="bear-read-high">{strings.reading.priorityMark}</span>}
-        <span>{item.position ? strings.reading.positionAt(item.position) : strings.reading.notStarted}</span>
-      </div>
-      {actionable &&
-        (recording !== null ? (
-          <div className="bear-inline-form">
-            <input
-              className="bear-input"
-              autoFocus
-              aria-label={strings.reading.positionLabel}
-              placeholder={strings.reading.positionPlaceholder}
-              value={recording}
-              onChange={(event) => setRecording(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") record();
-                if (event.key === "Escape") setRecording(null);
-              }}
-            />
-            <button type="button" className="bear-link bear-link-accent" onClick={record}>
-              {strings.reading.positionSave}
-            </button>
+      <p className="bear-shelf-meta">{strings.reading.shelfMeta(book.position, book.total, book.end)}</p>
+      {book.next !== null && <p className="bear-shelf-today">{book.next}</p>}
+      {book.later.length > 0 && (
+        <details className="bear-shelf-more">
+          <summary>{strings.reading.shelfLater}</summary>
+          {book.later.map((line) => (
+            <p key={line} className="bear-shelf-meta">
+              {line}
+            </p>
+          ))}
+        </details>
+      )}
+      {book.coreRead.length > 0 && (
+        <details className="bear-shelf-more">
+          <summary>{strings.reading.shelfCore}</summary>
+          {book.coreRead.map((row) => (
+            <p key={`${row.date}-${row.pages}`} className="bear-shelf-meta">
+              {strings.reading.shelfCoreLine(row.pages, row.label, row.date)}
+            </p>
+          ))}
+          <p className="bear-shelf-meta">{strings.reading.shelfCoreNote}</p>
+        </details>
+      )}
+      {book.extracts.length > 0 && (
+        <>
+          <details className="bear-shelf-more" open>
+            <summary>{strings.reading.shelfExtracts(book.extracts.length, book.pending)}</summary>
+            {book.extracts.map((extract, index) => (
+              <p key={index} className="bear-shelf-ex">
+                <b>p.{extract.page}</b> {extract.text}
+                <span className={extract.carded === null ? "bear-shelf-pend" : undefined}>
+                  {" "}
+                  · {extract.carded === null ? strings.reading.shelfPending : strings.reading.shelfCarded(extract.carded)}
+                </span>
+              </p>
+            ))}
+          </details>
+          <div className="bear-shelf-row">
+            <span className="bear-shelf-meta">
+              {book.pending > 0 ? strings.reading.shelfCardsHint : strings.reading.shelfCardsDone}
+            </span>
+            {book.pending > 0 && (
+              <button
+                type="button"
+                className="bear-link bear-link-accent bear-shelf-cards"
+                onClick={() => onShelfCards(book.slug)}
+              >
+                {strings.reading.shelfCards(book.pending)}
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="bear-actions">
-            <button type="button" className="bear-link" onClick={() => onReview(item.slug, "postpone")}>
-              {strings.reading.postpone}
-            </button>
-            <button type="button" className="bear-link" onClick={() => setRecording(item.position)}>
-              {strings.reading.readOn}
-            </button>
-            <button type="button" className="bear-link bear-link-accent" onClick={() => onReview(item.slug, "done")}>
-              {strings.reading.done}
-            </button>
-          </div>
-        ))}
-    </li>
+        </>
+      )}
+    </div>
   );
 }
 
-export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, onFocusHandled }: ReadingPanelProps) {
+export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, onShelfCards, focus, onFocusHandled }: ReadingPanelProps) {
   const [value, setValue] = useState("");
   const [priority, setPriority] = useState<ReadingPriority>("medium");
   const [dueToday, setDueToday] = useState(true);
@@ -137,6 +139,48 @@ export function ReadingPanel({ queue, sources, onAdd, onClip, onReview, focus, o
 
   return (
     <section className="bear-read" aria-label={strings.tools.reading}>
+      {shelf.status === "loading" && <p className="bear-muted">{strings.today.loading}</p>}
+      {shelf.status === "error" && <p role="alert">{shelf.message}</p>}
+      {shelf.status === "ready" &&
+        (shelf.value.planned !== null || shelf.value.free !== null || shelf.value.queue.length > 0) && (
+          <>
+            {shelf.value.planned !== null && (
+              <>
+                <h3 className="bear-section">
+                  <span>{strings.reading.shelfPlanned}</span>
+                </h3>
+                <BookBlock book={shelf.value.planned} onShelfCards={onShelfCards} />
+              </>
+            )}
+            {shelf.value.queue.length > 0 && (
+              <>
+                <h3 className="bear-section">
+                  <span>{strings.reading.shelfQueue}</span>
+                  <span className="bear-section-count">{shelf.value.queue.length}</span>
+                </h3>
+                {shelf.value.queue.map((book) => (
+                  <div key={book.slug} className="bear-shelf-q">
+                    <p className="bear-shelf-title">{book.title}</p>
+                    <p className="bear-shelf-meta">
+                      {strings.reading.shelfQueued(book.total, book.after, book.end)}
+                    </p>
+                  </div>
+                ))}
+              </>
+            )}
+            <h3 className="bear-section">
+              <span>{strings.reading.shelfFree}</span>
+            </h3>
+            {shelf.value.free !== null ? (
+              <BookBlock book={shelf.value.free} onShelfCards={onShelfCards} />
+            ) : (
+              <p className="bear-shelf-meta">{strings.reading.shelfFreeEmpty}</p>
+            )}
+          </>
+        )}
+      <h3 className="bear-section">
+        <span>{strings.reading.shelfArticles}</span>
+      </h3>
       <p className="bear-muted bear-read-scope">{strings.reading.scopeHint}</p>
       <div className="bear-read-add">
         <input

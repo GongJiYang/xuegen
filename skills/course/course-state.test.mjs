@@ -136,3 +136,93 @@ test("after-read 没有 reading 链接时 reading 为 null", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+/** 课程页：Today 那行带「核心页已定」页码，Next Session 链着书房书与旧阅读页。 */
+const BOOK_COURSE = `<!-- xuegen:course-state -->
+
+# 离散数学学习计划
+
+## Key Facts
+
+- 当前周：W1 · 命题逻辑
+
+## Today
+
+日期：2026-11-10
+
+- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.1–5、7–12、17–21、24–27、31，跳过…）
+- [ ] 继续 D2
+
+## Next Session
+
+读 [[书房/epp|Epp]] §2.1，附录见 [[reading/epp-appendix|附录]]。
+
+## Learning Record
+
+### 2026-11-09-01
+
+- 记录。
+`;
+
+test("after-read：输出 book / course / pages（有 [[书房/…]] 链接时）", async () => {
+  const { dir, file } = await freshCourse(BOOK_COURSE);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.book, "epp");
+    assert.equal(out.course, "epp");
+    assert.equal(out.pages, "1–5、7–12、17–21、24–27、31");
+    assert.equal(out.reading, "epp-appendix");
+    // 打勾仍只改 Today 那一行
+    const text = await readFile(file, "utf8");
+    assert.match(text, /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-10 读（核心页已定：pp\.1–5、7–12、17–21、24–27、31，跳过…）（用户自报，未检查，2026-11-10）/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：没有书房链接、没有「核心页已定」时 book 与 pages 为 null", async () => {
+  const { dir, file } = await freshCourse(COURSE);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-08"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.book, null);
+    assert.equal(out.pages, null);
+    // 文件名是 epp.md → course = epp；旧阅读页链接仍在
+    assert.equal(out.course, "epp");
+    assert.equal(out.reading, "epp");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：「核心页已定」全角逗号与末尾顿号也去掉", async () => {
+  const text = BOOK_COURSE.replace(
+    "pp.1–5、7–12、17–21、24–27、31，跳过…）",
+    "pp.3，4，5，）",
+  );
+  const { dir, file } = await freshCourse(text);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    assert.equal(JSON.parse(result.stdout.trim()).pages, "3，4，5");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：有书房链接但行里没有「核心页已定」时 pages 为 null", async () => {
+  const text = BOOK_COURSE.replace("（核心页已定：pp.1–5、7–12、17–21、24–27、31，跳过…）", "");
+  const { dir, file } = await freshCourse(text);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.book, "epp");
+    assert.equal(out.pages, null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -46,6 +46,7 @@ import type { ControlView } from "../core/board/bot-state.js";
 import type { Activity } from "../core/chat/activity.js";
 import type { PinBoard } from "../core/chat/pin-board.js";
 import type { ControlCardRow, ControlCardView } from "../core/board/control-card.js";
+import type { ShelfPanelView } from "../core/board/shelf-view.js";
 import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
@@ -350,7 +351,14 @@ export interface ComposerProps {
   streaming: boolean;
   disabled: boolean;
   onSend(text: string): void;
-  onStop(): void;
+  /**
+   * Stop the running answer.
+   *
+   * Returns the prompt that was just sent (the user's own words), or null when
+   * there is none to give back. The skin puts it back into the field when the
+   * field is empty, so an accidental send or stop can be undone.
+   */
+  onStop(): string | null;
   /** The session's teaching style, shown as the radio row above the field. */
   style: TeachingStyle;
   /** Change the style from the composer's radio row. */
@@ -529,6 +537,8 @@ export interface AddedReading {
 }
 
 export interface ReadingPanelProps extends ToolPanelProps {
+  /** The 书房 section above the queue (`shelf.list` through `shelfPanel`). */
+  shelf: AsyncState<ShelfPanelView>;
   /** The whole queue (excluding done), sorted by due date. */
   queue: AsyncState<ReadingItem[]>;
   sources: AsyncState<ReadingSource[]>;
@@ -542,6 +552,8 @@ export interface ReadingPanelProps extends ToolPanelProps {
   onClip(url: string, priority: ReadingPriority, due: ReadingDue): void;
   /** Advance an item: next (record position), postpone, or done. */
   onReview(slug: string, outcome: "next" | "postpone" | "done", position?: string): void;
+  /** 「把 N 句做成卡 →」: ask 学根 to draft cards from one book's pending extracts. */
+  onShelfCards(slug: string): void;
   /**
    * A field the panel should focus as soon as it is mounted/shown.
    *
@@ -653,6 +665,19 @@ export interface ToolDockProps {
   onOpenToday(): void;
 }
 
+/** The inline 「摘几句」 form under a 书房 row of the 今日卡. */
+export interface ControlCardExtract {
+  /** The book the form saves into (matches the row's `extract` action). */
+  slug: string;
+  /** The block just read, e.g. 「pp.1–9」, shown as the page field's placeholder. */
+  pages: string;
+  saving: boolean;
+  /** A one-line error (bad page, empty text, failed write), else null. */
+  error: string | null;
+  onSave(page: string, text: string): void;
+  onCancel(): void;
+}
+
 /** The 总控 今日卡 above the 总控 session's transcript. */
 export interface ControlCardProps {
   view: ControlCardView;
@@ -664,6 +689,8 @@ export interface ControlCardProps {
   busy: boolean;
   /** A one-line error after a failed 「读完了」, else null. */
   error: string | null;
+  /** The open 「摘几句」 form, or null. */
+  extract: ControlCardExtract | null;
   /** The 「更早的对话」 row under the card, or null. */
   older: { label: string; onToggle(): void } | null;
 }

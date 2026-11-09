@@ -8,8 +8,9 @@
  */
 
 import { contextUsageView } from "../core/chat/context-usage.js";
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { SKINS } from "./registry.js";
 import { MessageRenderer } from "../core/chat/message-renderer.js";
@@ -17,7 +18,12 @@ import { strings } from "../core/strings.js";
 import { toolDescriptors } from "./chicago/icons.js";
 import type { ContentNode } from "../core/content/nodes.js";
 import type { SkinModule } from "./contract.js";
-import { SAMPLE_CONTROL_CARD, SAMPLE_PANELS, SAMPLE_SESSIONS } from "../gallery/panel-samples.js";
+import {
+  SAMPLE_CONTROL_CARD,
+  SAMPLE_CONTROL_CARD_SHELF_DONE,
+  SAMPLE_PANELS,
+  SAMPLE_SESSIONS,
+} from "../gallery/panel-samples.js";
 import {
   SAMPLE_ASSISTANT_MESSAGE,
   SAMPLE_COURSE_INTRO,
@@ -127,6 +133,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
               onAskBrief={noop}
               busy={false}
               error={strings.control.card.afterReadFailed}
+              extract={null}
               older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: noop }}
             />
           }
@@ -167,7 +174,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           streaming={false}
           disabled={false}
           onSend={noop}
-          onStop={noop}
+          onStop={() => null}
           style="plain"
           onStyle={noop}
           commandsOpen={false}
@@ -212,6 +219,114 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
     expect(screen.getAllByRole("textbox").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+  });
+
+  it("renders the 摘几句 form and the 书房 row's sub", async () => {
+    const skin = await definition.load();
+    const { ControlCard } = skin.slots;
+    const card = strings.control.card;
+    const extract = {
+      slug: "epp",
+      pages: "pp.10–18",
+      saving: false,
+      error: card.extractPageInvalid,
+      onSave: noop,
+      onCancel: noop,
+    };
+    const { container } = render(
+      <ControlCard
+        view={SAMPLE_CONTROL_CARD_SHELF_DONE}
+        onAction={noop}
+        onAskBrief={noop}
+        busy={false}
+        error={null}
+        extract={extract}
+        older={null}
+      />,
+    );
+
+    const scope = within(container);
+
+    // The page field is placed by the block just read; the 原句 field sits beside it.
+    expect(scope.getByPlaceholderText(extract.pages).getAttribute("placeholder")).toBe(extract.pages);
+    expect(scope.getByLabelText(card.extractPage)).toBeTruthy();
+    expect(scope.getByLabelText(card.extractText)).toBeTruthy();
+    expect(scope.getByRole("button", { name: card.extractSave })).toBeTruthy();
+    expect(scope.getByRole("button", { name: card.extractCancel })).toBeTruthy();
+    // The form's failure line is shown to the learner.
+    expect(scope.getByRole("alert").textContent).toBe(card.extractPageInvalid);
+
+    // The row's grey sub text is inside the row it belongs to.
+    const sub = card.shelfDoneSub({ from: 19, to: 27 });
+    const rows = [...container.querySelectorAll("li")];
+    const row = rows.find((entry) => entry.textContent?.includes(sub));
+    expect(row?.getAttribute("data-mark")).toBe("done");
+    cleanup();
+  });
+
+  it("disables the 摘几句 buttons while the save runs", async () => {
+    const skin = await definition.load();
+    const { container, unmount } = render(
+      <skin.slots.ControlCard
+        view={SAMPLE_CONTROL_CARD_SHELF_DONE}
+        onAction={noop}
+        onAskBrief={noop}
+        busy={false}
+        error={null}
+        extract={{ slug: "epp", pages: "pp.10–18", saving: true, error: null, onSave: noop, onCancel: noop }}
+        older={null}
+      />,
+    );
+    const card = strings.control.card;
+    const scope = within(container);
+    expect(scope.getByRole("button", { name: card.extractSave }).hasAttribute("disabled")).toBe(true);
+    expect(scope.getByRole("button", { name: card.extractCancel }).hasAttribute("disabled")).toBe(true);
+    unmount();
+    cleanup();
+  });
+
+  it("cancels the 摘几句 form on Escape", async () => {
+    const skin = await definition.load();
+    const onCancel = vi.fn();
+    render(
+      <skin.slots.ControlCard
+        view={SAMPLE_CONTROL_CARD_SHELF_DONE}
+        onAction={noop}
+        onAskBrief={noop}
+        busy={false}
+        error={null}
+        extract={{ slug: "epp", pages: "pp.10–18", saving: false, error: null, onSave: noop, onCancel }}
+        older={null}
+      />,
+    );
+    const page = screen.getByLabelText(strings.control.card.extractPage);
+    page.focus();
+    await userEvent.keyboard("{Escape}");
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("saves the 摘几句 form from the 原句 field with ⌘Enter", async () => {
+    if (definition.id !== "bear") return;
+    const skin = await definition.load();
+    const onSave = vi.fn();
+    render(
+      <skin.slots.ControlCard
+        view={SAMPLE_CONTROL_CARD_SHELF_DONE}
+        onAction={noop}
+        onAskBrief={noop}
+        busy={false}
+        error={null}
+        extract={{ slug: "epp", pages: "pp.10–18", saving: false, error: null, onSave, onCancel: noop }}
+        older={null}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText(strings.control.card.extractPage), "11");
+    await userEvent.type(screen.getByLabelText(strings.control.card.extractText), "逆否命题与原命题等价。");
+    await userEvent.keyboard("{Meta>}{Enter}{/Meta}");
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith("11", "逆否命题与原命题等价。");
+    cleanup();
   });
 
   it("renders each content kind without throwing", async () => {

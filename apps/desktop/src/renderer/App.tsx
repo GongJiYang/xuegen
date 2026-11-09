@@ -146,6 +146,7 @@ export function App() {
     today: cycle.today,
     tomorrow: cycle.tomorrow,
     queue: reading.queue,
+    shelf: reading.shelf,
     streaming: controller.streaming,
     onStudy: studyCourse,
     onVerify: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
@@ -324,7 +325,7 @@ export function App() {
     onEditPlan: handleEditPlan,
     onReadingAdd: handleReadingAdd,
     onReadingClip: handleReadingClip,
-    onDraftCards: () => controller.send(strings.cards.draftPrompt),
+    onDraftCards: (prompt) => controller.sendCommand(prompt ?? strings.cards.draftPrompt),
     onEditDay: (date) => {
       const day =
         calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;

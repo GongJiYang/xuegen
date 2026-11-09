@@ -2,12 +2,13 @@
  * Chicago composer behaviour — the F5 fix for accidentally stopping an answer.
  *
  * The 发送/停止 button must follow the field's contents (not merely the streaming
- * flag), a double-click must not fire two sends, and Escape stops only when the
- * field is empty and the `/` menu is closed.
+ * flag), a double-click must not fire two sends, an Enter that only picks an IME
+ * candidate never sends, and Escape stops a running answer even with a draft in
+ * the field (putting the prompt just sent back into an empty field).
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Composer } from "./composer.js";
 import type { ComposerProps } from "../contract.js";
@@ -72,18 +73,65 @@ describe("Chicago composer", () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
-  it("stops on Escape only when the field is empty and no menu is open", async () => {
-    const onStop = vi.fn();
-    render(<Composer {...baseProps({ streaming: true, onStop })} />);
-    await userEvent.type(screen.getByRole("textbox"), "x");
-    await userEvent.keyboard("{Escape}");
-    expect(onStop).not.toHaveBeenCalled();
+  it("does not send an Enter that only picks an IME candidate", async () => {
+    const onSend = vi.fn();
+    render(<Composer {...baseProps({ onSend })} />);
+    const field = screen.getByRole("textbox");
+    await userEvent.type(field, "你好");
+    // Chromium/Safari report the candidate Enter as composing; some IMEs only
+    // leave `keyCode 229` behind, hence both cases.
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(onSend).not.toHaveBeenCalled();
+    expect((field as HTMLTextAreaElement).value).toBe("你好");
+  });
 
-    cleanup();
+  it("does not stop on an Escape that cancels an IME composition", () => {
+    const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop })} />);
-    screen.getByRole("textbox").focus();
+    const field = screen.getByRole("textbox");
+    fireEvent.keyDown(field, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(field, { key: "Escape", keyCode: 229 });
+    expect(onStop).not.toHaveBeenCalled();
+    expect((field as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("stops on Escape even when the field has text", async () => {
+    const onStop = vi.fn(() => null);
+    render(<Composer {...baseProps({ streaming: true, onStop })} />);
+    await userEvent.type(screen.getByRole("textbox"), "还在写");
     await userEvent.keyboard("{Escape}");
     expect(onStop).toHaveBeenCalledTimes(1);
+    // Nothing to put back, so the draft stays in the field.
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
+  });
+
+  it("puts the prompt just sent back into an empty field on stop", async () => {
+    const onInput = vi.fn();
+    const onStop = vi.fn(() => "hello");
+    render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);
+    const field = screen.getByRole("textbox");
+    field.focus();
+    await userEvent.keyboard("{Escape}");
+    expect((field as HTMLTextAreaElement).value).toBe("hello");
+    expect(onInput).toHaveBeenCalledWith("hello");
+    expect((field as HTMLTextAreaElement).selectionStart).toBe("hello".length);
+  });
+
+  it("puts the prompt back from the 停止 button too", async () => {
+    const onStop = vi.fn(() => "hello");
+    render(<Composer {...baseProps({ streaming: true, onStop })} />);
+    await userEvent.click(screen.getByRole("button", { name: strings.input.stop }));
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("hello");
+  });
+
+  it("keeps the draft when a stop returns a prompt and the field has text", async () => {
+    const onStop = vi.fn(() => "hello");
+    render(<Composer {...baseProps({ streaming: true, onStop })} />);
+    await userEvent.type(screen.getByRole("textbox"), "还在写");
+    await userEvent.keyboard("{Escape}");
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
   });
 
   it("lets Escape close the / menu instead of stopping", async () => {

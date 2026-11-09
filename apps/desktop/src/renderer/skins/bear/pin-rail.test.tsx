@@ -33,4 +33,37 @@ describe("Bear pin rail", () => {
     expect(screen.getByText("第二题")).toBeTruthy();
     expect(screen.getByRole("button", { name: strings.chat.pinJumpQuestions })).toBeTruthy();
   });
+
+  it("renders a question that carries a table as a real table", async () => {
+    const TABLE_PIN: PinBoard = {
+      defs: null,
+      questions: {
+        items: [
+          [
+            "填完这张表：$p$ 与 $q$ 的四种组合是否逐行相同？",
+            "| $p$ | $q$ | $p\\land q$ |",
+            "|---|---|---|",
+            "| T | T | |",
+            "| F | F | |",
+          ].join("\n"),
+        ],
+        messageId: "a2",
+      },
+    };
+    const view = render(
+      <div data-skin="bear" className="bear-col">
+        <div className="bear-thread-wrap">
+          <PinRail pin={TABLE_PIN} pane={createRef()} />
+        </div>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: strings.chat.pinChip(0, 1) }));
+    const table = view.container.querySelector(".bear-pin-md table");
+    expect(table).not.toBeNull();
+    expect(table?.tagName).toBe("TABLE");
+    expect(table?.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(table?.querySelectorAll("thead th")).toHaveLength(3);
+    expect(view.container.querySelector(".bear-pin-md p")?.textContent).toContain("填完这张表：");
+    expect(view.container.querySelector(".bear-pin-md p")?.textContent).toContain("是否逐行相同？");
+  });
 });

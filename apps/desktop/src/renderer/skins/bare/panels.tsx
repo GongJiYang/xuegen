@@ -174,9 +174,48 @@ function ReadingForm({ sources, onAdd, onClip }: Pick<ReadingPanelProps, "source
   );
 }
 
-export function ReadingPanel({ queue, sources, onAdd, onClip, onReview }: ReadingPanelProps) {
+export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, onShelfCards }: ReadingPanelProps) {
   return (
     <section data-slot="reading" aria-label={strings.tools.reading}>
+      {shelf.status === "loading" && <p>{strings.today.loading}</p>}
+      {shelf.status === "error" && <p role="alert">{shelf.message}</p>}
+      {shelf.status === "ready" && (
+        <div data-slot="reading-shelf">
+          {[shelf.value.planned, shelf.value.free].map(
+            (book) =>
+              book !== null && (
+                <div key={book.slug}>
+                  <p>
+                    {book.title} · {strings.reading.shelfMeta(book.position, book.total, book.end)}
+                  </p>
+                  {book.next !== null && <p>{book.next}</p>}
+                  {book.extracts.length > 0 && (
+                    <ul>
+                      {book.extracts.map((extract, index) => (
+                        <li key={index}>
+                          p.{extract.page} {extract.text} ·{" "}
+                          {extract.carded === null
+                            ? strings.reading.shelfPending
+                            : strings.reading.shelfCarded(extract.carded)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {book.pending > 0 && (
+                    <button type="button" onClick={() => onShelfCards(book.slug)}>
+                      {strings.reading.shelfCards(book.pending)}
+                    </button>
+                  )}
+                </div>
+              ),
+          )}
+          {shelf.value.queue.map((book) => (
+            <p key={book.slug}>
+              {book.title} · {strings.reading.shelfQueued(book.total, book.after, book.end)}
+            </p>
+          ))}
+        </div>
+      )}
       <p>{strings.reading.scopeHint}</p>
       <ReadingForm sources={sources} onAdd={onAdd} onClip={onClip} />
       {queue.status === "loading" && <p>{strings.today.loading}</p>}

@@ -1,6 +1,6 @@
 # 皮肤 Bear（iA Writer / Bear 方向）
 
-- id：`bear`　版本：1.0（开发中）
+- id：`bear`　版本：1.1（开发中；1.1 = 书房：今日卡读书行与摘几句、阅读面板书房一节，2026-11-09）
 - 用户确认的演示：`/Users/gjy/pi-learning/design/animate/`（仓库外，`npm run dev` 后打开 `http://localhost:5181/?d=ia`）。实现以本文为准，演示是视觉参照。
 - 依赖：`@animate-ui/react` 2.4.2（MIT + Commons Clause，只用在本私有应用，不随公开仓库分发）、`motion` 14.9.1、`radix-ui` 1.8.1。只允许在 `src/renderer/skins/bear/` 里 import（eslint 已强制）。
 

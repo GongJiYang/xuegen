@@ -13,6 +13,7 @@
 | `docs/desktop/ARCHITECTURE.md` | 桌面版设计边界（六层模型在桌面的落点）。 |
 | `docs/desktop/UI-ARCHITECTURE.md` | 可替换皮肤架构、契约、样式隔离与动效原则。 |
 | `docs/desktop/SKIN-LEDGER.md` | 皮肤功能台账：每项界面功能的要求、契约、行为要点、各皮肤做到哪；新前端照它做，界面批次收尾时更新。 |
+| `docs/reading/SHELF-IR-ANALYSIS.md` | 书房与 Anki / FSRS 渐进阅读：本机 Anki 核实、IR 插件兼容性、为什么 FSRS 不给读书排期、推荐方案与实测步骤。 |
 | `docs/desktop/BEAR-VISUAL-PLAN.md` | Bear 视觉规则：字号 / 灰阶 / 间距 / 圆角变量、对比度要求、状态、深色、固定截图对比；Bear 新样式只用这里的变量。 |
 | `docs/desktop/FEATURES.md` | 2026-11-03 的初版功能总表（已由 SKIN-LEDGER 取代，只作历史）。 |
 | `docs/desktop/ROADMAP.md` | 桌面版批次路线图。 |

@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import type { AgentToHostMessage } from "@shared/protocol.js";
 import { useChat } from "./useChat.js";
+import { withActionMarker } from "./action-marker.js";
 import * as client from "../client.js";
 
 /** Capture the subscriber so the test can push agent events. */
@@ -171,5 +172,121 @@ describe("useChat openSession", () => {
       });
     });
     await expect(promise).resolves.toBe("/home/sessions/course.jsonl");
+  });
+});
+
+describe("useChat stop hands back the prompt just sent", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** A controller harness plus a way to push agent events at it. */
+  function setUp(): {
+    controller(): ReturnType<typeof useChat>;
+    emit(event: AgentToHostMessage): void;
+    sent: ReturnType<typeof vi.spyOn>;
+  } {
+    const sent = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    let listener: ((event: AgentToHostMessage) => void) | null = null;
+    vi.spyOn(client, "subscribe").mockImplementation((next) => {
+      listener = next;
+      return () => {
+        listener = null;
+      };
+    });
+    render(<ActionsHarness />);
+    const capturedController = captured;
+    if (!capturedController) throw new Error("controller not captured");
+    return { controller: () => capturedController, emit: (event) => listener?.(event), sent };
+  }
+
+  /** A session snapshot with the given streaming flag; other fields don't matter here. */
+  function sessionState(streaming: boolean): AgentToHostMessage {
+    return {
+      type: "state",
+      state: {
+        cwd: "/tmp",
+        model: null,
+        sessionFile: null,
+        streaming,
+        queuedFollowUps: 0,
+        thinkingLevel: null,
+        thinkingLevels: [],
+      },
+    };
+  }
+
+  it("returns the text just sent, and only once", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().send("你好");
+    });
+    let back: string | null = "not asked";
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBe("你好");
+    expect(bridge.sent).toHaveBeenCalledWith({ type: "abort" });
+
+    let again: string | null = "not asked";
+    act(() => {
+      again = bridge.controller().stop();
+    });
+    expect(again).toBeNull();
+  });
+
+  it("returns the user's own words, without the style prefix or refresh note", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().setRefreshNote("[N]");
+      bridge.controller().send("继续");
+    });
+    // The wire text carries both; what comes back must not.
+    expect(bridge.sent).toHaveBeenCalledWith({ type: "prompt", text: expect.stringContaining("[风格：细讲] [N] 继续") });
+    let back: string | null = null;
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBe("继续");
+  });
+
+  it("does not hand back a slash command", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().sendCommand("把这次学到的内容起草成卡片");
+    });
+    let back: string | null = "not asked";
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBeNull();
+  });
+
+  it("does not hand back a marked action the UI sent (开课)", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().send(withActionMarker("开始今天的 C 语言", "open", { slug: "c-language", title: "C 语言" }));
+    });
+    let back: string | null = "not asked";
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBeNull();
+  });
+
+  it("forgets the prompt once its turn settles on its own", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().send("你好");
+    });
+    act(() => {
+      bridge.emit(sessionState(true));
+      bridge.emit(sessionState(false));
+    });
+    let back: string | null = "not asked";
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBeNull();
   });
 });

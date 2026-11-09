@@ -13,6 +13,9 @@ import type { TeachingStyle } from "@shared/protocol.js";
 import type { SessionsView, ShellPanels, SkillsPanelProps, ToolFocus } from "../../skins/contract.js";
 import type { NewCourseRequest } from "./course-prompts.js";
 import { groupProgress } from "./progress-groups.js";
+import { shelfPanel } from "./shelf-view.js";
+import { withActionMarker } from "../chat/action-marker.js";
+import { strings } from "../strings.js";
 import type { BoardResource } from "./use-resource.js";
 import type { ResumePoint, TodayPlanItem } from "../today.js";
 import { dateKey, monthGrid, shiftMonth, type useCalendar } from "./use-calendar.js";
@@ -49,7 +52,8 @@ export interface ShellPanelsInput {
   onEditPlan(course: CourseSummary, change: string): void;
   onReadingAdd(source: string, priority: ReadingPriority, due: ReadingDue): Promise<AddedReading | null>;
   onReadingClip(url: string, priority: ReadingPriority, due: ReadingDue): void;
-  onDraftCards(): void;
+  /** Send a card-drafting prompt; without one the cards panel's default prompt is used. */
+  onDraftCards(prompt?: string): void;
   onEditDay(date: string): void;
   onStudyCourse(slug: string): void;
   onVerifyCourse(slug: string): void;
@@ -96,12 +100,23 @@ export function shellPanels(input: ShellPanelsInput): ShellPanels {
       overview: input.cycle.overview.state,
     },
     reading: {
+      shelf:
+        reading.shelf.list.state.status === "ready"
+          ? { status: "ready", value: shelfPanel(reading.shelf.list.state.value, input.today) }
+          : reading.shelf.list.state,
       queue: reading.queue.state,
       sources: reading.sources.state,
       onAdd: input.onReadingAdd,
       onClip: input.onReadingClip,
       onReview: (slug, outcome, position) => {
         void reading.review(slug, outcome, position);
+      },
+      onShelfCards: (slug) => {
+        if (reading.shelf.list.state.status !== "ready") return;
+        const book = reading.shelf.list.state.value.find((item) => item.slug === slug);
+        if (book === undefined) return;
+        const pending = book.extracts.filter((extract) => extract.carded === null).length;
+        input.onDraftCards(withActionMarker(strings.reading.shelfCardsPrompt(book.short, slug, pending), "cards"));
       },
       focus: input.focus ?? undefined,
       onFocusHandled: input.onFocusHandled,
@@ -115,7 +130,10 @@ export function shellPanels(input: ShellPanelsInput): ShellPanels {
         });
       },
       onRetryAnki: anki.reload,
-      onDraft: input.onDraftCards,
+      // The panel's button is an `onClick` handler, so it hands us the mouse event:
+      // drop it explicitly, or the event object becomes the "prompt" and reaches
+      // `controller.send` instead of the cards panel's default prompt.
+      onDraft: () => input.onDraftCards(withActionMarker(strings.cards.draftPrompt, "cards")),
     },
     calendar: {
       month: calendar.resource.state,

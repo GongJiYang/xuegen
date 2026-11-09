@@ -1,6 +1,6 @@
 {
   "name": "xuegen-desktop",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Xuegen desktop shell: a sandboxed Electron window that streams a Xuegen agent session.",
   "private": true,
   "type": "module",

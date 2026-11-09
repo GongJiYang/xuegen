@@ -10,6 +10,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReadingPanel } from "./reading-panel.js";
 import type { ReadingPanelProps } from "../contract.js";
+import type { ShelfPanelView } from "../../core/board/shelf-view.js";
 import { strings } from "../../core/strings.js";
 
 afterEach(cleanup);
@@ -17,11 +18,13 @@ afterEach(cleanup);
 function baseProps(overrides: Partial<ReadingPanelProps> = {}): ReadingPanelProps {
   return {
     tool: "reading",
+    shelf: { status: "ready", value: { planned: null, queue: [], free: null } },
     queue: { status: "ready", value: [] },
     sources: { status: "ready", value: [] },
     onAdd: vi.fn(() => Promise.resolve(null)),
     onClip: vi.fn(),
     onReview: vi.fn(),
+    onShelfCards: vi.fn(),
     ...overrides,
   };
 }
@@ -41,7 +44,10 @@ describe("ReadingPanel", () => {
     const onAdd = vi.fn(() => Promise.resolve({ title: "论文", due: "2026-11-05" }));
     render(<ReadingPanel {...baseProps({ onAdd })} />);
     await userEvent.click(screen.getByRole("checkbox", { name: /今天就读/ }));
-    await userEvent.type(screen.getByRole("textbox", { name: strings.reading.addPlaceholder }), "raw/paper.md");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: strings.reading.addPlaceholder }),
+      "raw/paper.md",
+    );
     await userEvent.click(screen.getByRole("button", { name: strings.reading.add }));
     expect(onAdd).toHaveBeenCalledWith("raw/paper.md", "medium", "scheduled");
   });
@@ -64,7 +70,14 @@ describe("ReadingPanel", () => {
           queue: {
             status: "ready",
             value: [
-              { slug: "a", title: "文章", priority: "medium", due: "2099-11-05", position: "", status: "queued" },
+              {
+                slug: "a",
+                title: "文章",
+                priority: "medium",
+                due: "2099-11-05",
+                position: "",
+                status: "queued",
+              },
             ],
           },
         })}
@@ -73,10 +86,7 @@ describe("ReadingPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: strings.reading.next }));
     // The review is not sent until the position is confirmed.
     expect(onReview).not.toHaveBeenCalled();
-    await userEvent.type(
-      screen.getByRole("textbox", { name: strings.reading.positionLabel }),
-      "第 3 页",
-    );
+    await userEvent.type(screen.getByRole("textbox", { name: strings.reading.positionLabel }), "第 3 页");
     await userEvent.click(screen.getByRole("button", { name: strings.reading.positionSave }));
     expect(onReview).toHaveBeenCalledWith("a", "next", "第 3 页");
   });
@@ -96,8 +106,22 @@ describe("ReadingPanel", () => {
           queue: {
             status: "ready",
             value: [
-              { slug: "a", title: "已逾期", priority: "high", due: "2020-01-01", position: "", status: "queued" },
-              { slug: "b", title: "全年", priority: "medium", due: "2099-11-05", position: "", status: "queued" },
+              {
+                slug: "a",
+                title: "已逾期",
+                priority: "high",
+                due: "2020-01-01",
+                position: "",
+                status: "queued",
+              },
+              {
+                slug: "b",
+                title: "全年",
+                priority: "medium",
+                due: "2099-11-05",
+                position: "",
+                status: "queued",
+              },
             ],
           },
         })}
@@ -106,5 +130,32 @@ describe("ReadingPanel", () => {
     expect(screen.getByText("已逾期")).toBeTruthy();
     expect(screen.getByText("全年")).toBeTruthy();
     expect(screen.getByText(strings.reading.queueCaption(1, 2))).toBeTruthy();
+  });
+
+  it("shows a 书房 book's title and its 「做成卡」 button", async () => {
+    const onShelfCards = vi.fn();
+    const shelf: ShelfPanelView = {
+      planned: {
+        slug: "epp",
+        title: "Discrete Mathematics with Applications",
+        short: "Epp",
+        position: 1,
+        total: 81,
+        progress: 1 / 81,
+        end: "2027-01-28",
+        next: strings.reading.shelfToday("Ch1 §1.1–1.4 · pp.10–18"),
+        later: [],
+        coreRead: [],
+        extracts: [{ page: 16, text: "乙", carded: null }],
+        pending: 1,
+      },
+      queue: [],
+      free: null,
+    };
+    render(<ReadingPanel {...baseProps({ shelf: { status: "ready", value: shelf }, onShelfCards })} />);
+    expect(screen.getByText(shelf.planned?.title ?? "")).toBeTruthy();
+    const button = screen.getByRole("button", { name: strings.reading.shelfCards(1) });
+    await userEvent.click(button);
+    expect(onShelfCards).toHaveBeenCalledWith("epp");
   });
 });

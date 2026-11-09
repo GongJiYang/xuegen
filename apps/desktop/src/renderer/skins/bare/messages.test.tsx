@@ -1,11 +1,13 @@
 /**
  * Bare composer behaviour, mirroring the F5 fix so the reference skin cannot
  * drift from Chicago: 发送 with content (even while streaming), 停止 only when
- * empty, and Escape stops only with an empty field and no `/` menu.
+ * empty, an Enter that only picks an IME candidate never sends, Escape stops a
+ * running answer even with a draft in the field, and a stop puts the prompt just
+ * sent back into an empty field.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatMessage } from "@shared/protocol.js";
 import { Composer, Thread } from "./messages.js";
@@ -56,12 +58,51 @@ describe("Bare composer", () => {
     expect(screen.getByRole("button", { name: strings.input.stop })).toBeTruthy();
   });
 
-  it("stops on Escape only when empty and no menu is open", async () => {
-    const onStop = vi.fn();
+  it("stops on Escape with an empty field and no menu", async () => {
+    const onStop = vi.fn(() => null);
     render(<Composer {...baseProps({ streaming: true, onStop })} />);
     screen.getByRole("textbox").focus();
     await userEvent.keyboard("{Escape}");
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send an Enter that only picks an IME candidate", async () => {
+    const onSend = vi.fn();
+    render(<Composer {...baseProps({ onSend })} />);
+    const field = screen.getByRole("textbox");
+    await userEvent.type(field, "你好");
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(onSend).not.toHaveBeenCalled();
+    expect((field as HTMLTextAreaElement).value).toBe("你好");
+  });
+
+  it("stops on Escape even when the field has text", async () => {
+    const onStop = vi.fn(() => null);
+    render(<Composer {...baseProps({ streaming: true, onStop })} />);
+    await userEvent.type(screen.getByRole("textbox"), "还在写");
+    await userEvent.keyboard("{Escape}");
+    expect(onStop).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
+  });
+
+  it("puts the prompt just sent back into an empty field on stop", async () => {
+    const onInput = vi.fn();
+    const onStop = vi.fn(() => "hello");
+    render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);
+    const field = screen.getByRole("textbox");
+    field.focus();
+    await userEvent.keyboard("{Escape}");
+    expect((field as HTMLTextAreaElement).value).toBe("hello");
+    expect(onInput).toHaveBeenCalledWith("hello");
+  });
+
+  it("keeps the draft when a stop returns a prompt and the field has text", async () => {
+    const onStop = vi.fn(() => "hello");
+    render(<Composer {...baseProps({ streaming: true, onStop })} />);
+    await userEvent.type(screen.getByRole("textbox"), "还在写");
+    expect(screen.queryByRole("button", { name: strings.input.stop })).toBeNull();
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
   });
 });
 

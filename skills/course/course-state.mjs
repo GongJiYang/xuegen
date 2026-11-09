@@ -9,7 +9,7 @@
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
 //   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报）
 import { readFile, writeFile, stat, chmod } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
 
 const READONLY_MODE = 0o444;
@@ -99,7 +99,9 @@ async function loadCourses(dir) {
  * 「读完了」的确定性写入：把 `## Today` 里第一条未打勾、标签完全相等的
  * 「- [ ] 讲后读 <标签>」打勾，并在行尾记「（用户自报，未检查，<date>）」。
  * 解锁 → 写 → 上锁；写失败时恢复原权限。成功输出一行 JSON：
- * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>}。
+ * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>,
+ *  "book": <书房书页 slug 或 null>, "course": <课程 slug>,
+ *  "pages": <「核心页已定：pp.…」的页码列表原文或 null>}。
  */
 async function afterRead(file, label, date) {
   const target = resolve(file);
@@ -122,6 +124,10 @@ async function afterRead(file, label, date) {
     }
   }
   if (hit === -1) fail(`没有找到未打勾的讲后读：${label}`);
+  // 打勾前的那一行里的「核心页已定：pp.…」页码列表；没有为 null。
+  const pagesMatch = /核心页已定：\s*pp\.\s*([0-9–\-、,，\s]+)/.exec(lines[hit]);
+  const pages =
+    pagesMatch === null ? null : pagesMatch[1].trim().replace(/[、,，]+$/, "") || null;
   const originalMode = (await stat(target)).mode & 0o777;
   await chmod(target, WRITABLE_MODE);
   const next = lines.slice();
@@ -134,7 +140,9 @@ async function afterRead(file, label, date) {
   }
   await chmod(target, originalMode);
   const reading = /\[\[reading\/([^\]|]+)/.exec(text)?.[1] ?? null;
-  process.stdout.write(`${JSON.stringify({ file: target, label, reading })}\n`);
+  const book = /\[\[书房\/([^\]|]+)/.exec(text)?.[1] ?? null;
+  const course = basename(target, ".md");
+  process.stdout.write(`${JSON.stringify({ file: target, label, reading, book, course, pages })}\n`);
 }
 
 async function mode(file) {

@@ -5,11 +5,11 @@
 | 文件 | 职责 |
 |---|---|
 | `state.ts` | `AsyncState<T>`（loading / error / ready）与纯辅助（`valueOf`、`isEmptyList`、`errorState`）。 |
-| `use-resource.ts` | 通用加载原语 `useBoardResource`：加载、重载、写入后刷新，含竞态与卸载取消。 |
+| `use-resource.ts` | 通用加载原语 `useBoardResource`：加载、后台重载（已有 ready 值时继续显示旧值，完成后再换）、写入后刷新，含竞态与卸载取消。 |
 | `use-courses.ts` | `courses.list`（只读进度）。 |
 | `course-intro.ts` | 开课卡片：`courseIntro` 从 `CourseSummary` 取上次任务/日期/下次起点/本周进度，`courseIntroLines` 生成三行文案。 |
 | `opening-action.ts` | `openingAction` 纯函数：今天已开课且非当前课 → 只切会话；已是当前课 → 只聚焦；否则发送开课消息。`startedTodayMap` 供按钮文案使用。 |
-| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。 |
+| `use-course-sessions.ts` | `resolveActiveCourse` 纯函数 + `useActiveCourse` / `useCourseSessions`：分课会话、开始学习/回到这门课/继续学习（含本地开课卡片与 `courseStartedOn`）、新建与改计划、认领新课程。今天已开课但会话里学根还没答过内容时，「开课」会重新发开课指令（开课失败不再锁死当天）。 |
 | `use-reload-on-answer.ts` | 流式 true → false 时刷新各面板（`useReloadOnAnswer`）；窗口获得焦点与过零点也刷新（`useReloadOnFocusAndDay`，焦点 5 秒一次上限）。 |
 | `use-board-reload.ts` | `useBoardReload`：把上述三个时机接到一组 `reload()` 资源上。 |
 | `session-freshness.ts` | 纯函数：从会话文件名解析创建日（`sessionDay`）、旧课程会话判断（`staleCourseSession`）、是否开新会话（`startsFresh`）、下条消息是否带「先重读」（`needsRefresh`）、存档阶段（`checkpointPhase`，60% 起提示）。 |
@@ -18,6 +18,8 @@
 | `use-session-list.ts` | `useSessionList`：每个会话文件拉一次 `sessions.list`、打开列表时再拉一次；返回 `SessionsView` 与 `requestOpen`（`⋯` 菜单、`/会话列表` 用）。 |
 | `use-skills-panel.ts` | 技能面板的获取结果与待审阅状态（`useSkillsPanel`）。 |
 | `use-reading.ts` | `reading.today` / `reading.stats` / `reading.sources` + 加入、复习；`isWebUrl`、`clipPrompt` 纯函数。 |
+| `use-shelf.ts` | `shelf.today` / `shelf.list` + 写完一段（`shelf.done`）、存摘录（`shelf.extract`），供今日卡的书房行用。 |
+| `shelf-view.ts` | `shelfPanel` 纯函数：`shelf.list` → 阅读面板的书房一节视图（在读 planned/free、排队预计读完、摘录待做卡数）。 |
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |
 | `use-calendar.ts` | `calendar.month` + 翻月、选日、写笔记；`monthGrid`、`shiftMonth`、`dayMarks`、`dayOf` 为纯函数。 |
 | `use-skills.ts` | `skills.list` + 开关、获取。 |
@@ -26,8 +28,9 @@
 | `progress-groups.ts` | 把科目骨架（subjects.list）和课程列表组合成总进度的主项 / 路线外 / 已学专题，并给课程打记号（纯函数）。 |
 | `use-subjects.ts` | 读当天的 subjects.list。 |
 | `default-style.ts` | `defaultStyleLabel` 纯函数：活动课程的科目页写了默认风格时「默认」单选显示「默认 · X」。 |
-| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）。 |
-| `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `course.afterRead` 后刷新课程与日历。 |
+| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 书房行 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）。 |
+| `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `course.afterRead` 后刷新课程与日历；「读完这段」（10 秒可撤销）写 `shelf.done`；摘几句写 `shelf.extract`。 |
 | `use-control-session.ts` | `useControlSession`：总控会话开关与 `askBrief`（折叠为「今日简报」）；就绪后本次运行自动落一次总控、不发消息。 |
+| `shell-panels.ts` | `shellPanels` 纯函数：把各资源与动作组装成「今天」与五个工具窗的 props（含阅读面板的书房一节）。 |
 
 写入动作（加入阅读、读完、存为新卡、写日历、技能开关）成功后刷新相关数据；失败结果返回给调用方由 `App` 呈现 Notice。日历网格、命令表等纯逻辑均有同目录 `*.test.ts`。

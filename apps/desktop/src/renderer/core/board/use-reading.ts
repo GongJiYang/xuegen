@@ -21,6 +21,7 @@ import type {
 import type { DataResultFor } from "@shared/data-protocol.js";
 import * as client from "../client.js";
 import { useBoardResource, type BoardResource, type LoadResult } from "./use-resource.js";
+import { useShelf, type ShelfResource } from "./use-shelf.js";
 
 /** How many due items the panel asks for (the design shows a short list). */
 export const READING_TODAY_LIMIT = 10;
@@ -31,6 +32,8 @@ export interface ReadingResource {
   queue: BoardResource<ReadingItem[]>;
   stats: BoardResource<ReadingStats>;
   sources: BoardResource<ReadingSource[]>;
+  /** The bookshelf (整本书通读): today's blocks and the whole shelf. */
+  shelf: ShelfResource;
   add(source: string, priority: ReadingPriority, due: ReadingDue): Promise<DataResultFor<"reading.add">>;
   review(slug: string, outcome: "next" | "postpone" | "done", position?: string): Promise<LoadResult<unknown>>;
   /** Reload every reading resource (used after a write from another panel). */
@@ -56,12 +59,14 @@ export function useReading(): ReadingResource {
   const queue = useBoardResource(() => client.data({ kind: "reading.queue" }), []);
   const stats = useBoardResource(() => client.data({ kind: "reading.stats" }), []);
   const sources = useBoardResource(() => client.data({ kind: "reading.sources" }), []);
+  const shelf = useShelf();
 
   const reload = (): void => {
     items.reload();
     queue.reload();
     stats.reload();
     sources.reload();
+    shelf.reload();
   };
 
   return {
@@ -69,6 +74,7 @@ export function useReading(): ReadingResource {
     queue,
     stats,
     sources,
+    shelf,
     reload,
     add: (source, priority, due) =>
       items

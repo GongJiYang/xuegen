@@ -7,6 +7,7 @@ core 决定「是什么」：对话状态、设置、文案、内容解析、动
   - `thinking.ts`：`thinkingFor(messages, index, thinking)` —— 每个索引是否显示「正在思考」：只有最后一条 assistant 且仍为 `thinking` 时为 `true`，两条皮肤都用它逐条判定。
   - `use-follow-bottom.ts`：`useFollowBottom(paneRef, { answer, answerStreaming })` —— 新回答开始流式输出时把该回答的开头对到视口顶部后停止自动下滚；无固定回答时，用户停在底部附近（≤48px）仍跟随内容增长。暴露 `atBottom` 与 `scrollToBottom` 供皮肤画「回到最新」。
   - `last-assistant.ts`：找出最后一条 assistant 消息，供两个皮肤锚定新回答的起点。
+  - `has-answer.ts`：`hasAnswer(messages)` —— 学根是否已经在会话里答过内容（失败或未作答的开课不算）。
   - `view-models.ts`：`ChatState` → 提示列表（NoticeItem）与可用性判断的纯函数。
   - `useChat.ts`：命令式外壳，订阅 preload 事件并 `useReducer`；控制器位于皮肤之上，切换皮肤不重建。
   - `message-renderer.tsx`：唯一知道「一条消息如何映射到插槽」的地方；内容分类一次后交给皮肤的 `ContentRenderers`，`question` callout 路由到 `Exercise` 插槽；用户消息把 `[风格：X]` 前缀拆成 `styleTag` + `body`。

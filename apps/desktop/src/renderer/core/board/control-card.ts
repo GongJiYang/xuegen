@@ -2,12 +2,12 @@
  * The 总控 今日卡: what today holds, from local data only.
  *
  * Rows come from the cycle day (lessons, missed lessons), the calendar month
- * (讲后读 rows the course pages schedule), and the reading queue — never from a
- * model call, so the card is on screen the instant the 总控 session opens.
- * Pure: today and every input are arguments.
+ * (讲后读 rows the course pages schedule), the bookshelf (书房在读的书), and
+ * the reading queue — never from a model call, so the card is on screen the
+ * instant the 总控 session opens. Pure: today and every input are arguments.
  */
 
-import type { CalendarMonth, CycleDay, ReadingQueueItem } from "@shared/data-protocol.js";
+import type { CalendarMonth, CycleDay, ReadingQueueItem, ShelfBook, ShelfToday } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
 import { cycleHeadline, cycleName, tomorrowLine } from "./cycle-today.js";
 
@@ -19,11 +19,16 @@ export type ControlCardAction =
   | { kind: "read" }
   | { kind: "anki" }
   | { kind: "afterRead"; slug: string; label: string }
-  | { kind: "undoRead" };
+  | { kind: "undoRead" }
+  | { kind: "shelfDone"; slug: string }
+  | { kind: "undoShelf" }
+  | { kind: "extract"; slug: string; pages: string };
 
 export interface ControlCardRow {
   mark: ControlCardMark;
   text: string;
+  /** Grey supplementary text at the row's tail (「第 2 / 81 天 · 晚了 1 天…」), or null/absent. */
+  sub?: string | null;
   button: string | null;
   action: ControlCardAction | null;
   /** Hover text spelling out what the button changes, or null. */
@@ -76,6 +81,68 @@ function readingDue(item: ReadingQueueItem, today: string): boolean {
 }
 
 /**
+ * One bookshelf row. `prefix` names the slot (读书 · / 自由读 ·).
+ *
+ * A block already recorded today shows ✓ with the 摘几句 button; a block still
+ * to read shows 「读完这段」 plus a sub line (第 n 天 · 晚了几天 · 讲后读重叠);
+ * a finished book produces no row.
+ */
+function bookRow(prefix: string, book: ShelfBook): ControlCardRow | null {
+  const card = strings.control.card;
+  if (book.doneToday && book.doneChunk !== null) {
+    return {
+      mark: "done",
+      text: prefix + card.shelfChunk(book.short, book.doneChunk),
+      sub: book.chunk !== null ? card.shelfDoneSub(book.chunk) : card.shelfFinished,
+      button: card.extract,
+      action: {
+        kind: "extract",
+        slug: book.slug,
+        pages: `pp.${book.doneChunk.from}–${book.doneChunk.to}`,
+      },
+      hint: card.extractHint,
+    };
+  }
+  if (book.chunk === null) return null;
+  const parts = [card.shelfDay(book.position + 1, book.total)];
+  if (book.late > 0) parts.push(card.shelfLate(book.late, book.end));
+  if (book.coreOverlap !== null) parts.push(card.shelfCore(book.coreOverlap));
+  return {
+    mark: book.late > 0 ? "warn" : "plan",
+    text: prefix + card.shelfChunk(book.short, book.chunk),
+    sub: parts.join(" · "),
+    button: card.shelfDone,
+    action: { kind: "shelfDone", slug: book.slug },
+    hint: card.shelfDoneHint,
+  };
+}
+
+/** The 书房 rows: the planned and the free book, plus an empty-free hint line. */
+function shelfRows(shelf: ShelfToday): ControlCardRow[] {
+  const card = strings.control.card;
+  const rows: ControlCardRow[] = [];
+  if (shelf.planned !== null) {
+    const row = bookRow(card.shelfPlanned, shelf.planned);
+    if (row !== null) rows.push(row);
+  }
+  if (shelf.free !== null) {
+    const row = bookRow(card.shelfFree, shelf.free);
+    if (row !== null) rows.push(row);
+  }
+  if (shelf.planned !== null && shelf.free === null) {
+    rows.push({
+      mark: "plan",
+      text: card.shelfFreeEmpty,
+      sub: card.shelfFreeEmptySub,
+      button: null,
+      action: null,
+      hint: null,
+    });
+  }
+  return rows;
+}
+
+/**
  * The card for one cycle day, or null outside every cycle.
  *
  * `tomorrow` feeds the rest day's single faint line (「明天：…」); pass null or
@@ -92,6 +159,8 @@ export function controlCard(input: {
   calendar: CalendarMonth | null;
   /** The whole reading queue (`reading.queue`). */
   queue: ReadingQueueItem[];
+  /** `shelf.today`: the books the 书房 is currently reading. */
+  shelf?: ShelfToday | null;
 }): ControlCardView | null {
   const { today, day, calendar, queue } = input;
   if (day === null || day.cycle === null) return null;
@@ -101,7 +170,9 @@ export function controlCard(input: {
 
   if (day.type === "休息" && day.lessons.length === 0) {
     const text = (input.tomorrow ? tomorrowLine(input.tomorrow) : null) ?? strings.plan.restItem;
-    return { headline, rows: [{ mark: "faint", text, button: null, action: null, hint: null }] };
+    // Reading happens every day, rest days included (per the learner).
+    const rest = { mark: "faint" as const, text, button: null, action: null, hint: null };
+    return { headline, rows: [rest, ...(input.shelf ? shelfRows(input.shelf) : [])] };
   }
 
   const rows: ControlCardRow[] = [];
@@ -162,6 +233,7 @@ export function controlCard(input: {
       }
     }
   }
+  if (input.shelf) rows.push(...shelfRows(input.shelf));
   for (const item of queue) {
     if (!readingDue(item, today)) continue;
     rows.push({
@@ -197,5 +269,53 @@ export function withPendingRead(
         : row,
     ),
   };
+}
+
+/**
+ * The 书房 row whose 「读完这段」 is waiting out its undo window: ✓ + 「已记下」
+ * sub + a 「撤销 · N」 button. A null pending leaves the view untouched.
+ */
+export function withPendingShelf(
+  view: ControlCardView,
+  pending: { slug: string; left: number } | null,
+): ControlCardView {
+  if (pending === null) return view;
+  const card = strings.control.card;
+  return {
+    ...view,
+    rows: view.rows.map((row) =>
+      row.action?.kind === "shelfDone" && row.action.slug === pending.slug
+        ? {
+            mark: "done" as const,
+            text: row.text,
+            sub: card.shelfPendingSub,
+            button: card.undo(pending.left),
+            action: { kind: "undoShelf" as const },
+            hint: null,
+          }
+        : row,
+    ),
+  };
+}
+
+/** Append 「· 摘了 N 句」 to the sub of each 摘几句 row the session already saved into. */
+export function withExtractCount(view: ControlCardView, counts: Record<string, number>): ControlCardView {
+  return {
+    ...view,
+    rows: view.rows.map((row) => {
+      if (row.action?.kind !== "extract") return row;
+      const count = counts[row.action.slug] ?? 0;
+      if (count <= 0) return row;
+      return { ...row, sub: `${row.sub ?? ""} · ${strings.control.card.extracted(count)}` };
+    }),
+  };
+}
+
+/** The 「页码」 field of the 摘几句 form: `p.11`, `p 11` or `11`, in 1–99999; else null. */
+export function parsePageInput(text: string): number | null {
+  const match = text.trim().match(/^(?:p\.?\s*)?(\d{1,5})$/i);
+  if (match === null) return null;
+  const page = Number(match[1]);
+  return page >= 1 && page <= 99999 ? page : null;
 }
 

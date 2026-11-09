@@ -66,6 +66,91 @@ export interface ReadingStats {
   cardsPending: number;
 }
 
+/** One ≤10-page daily block of a book, from `bookshelf.mjs` (`chunksOf`). */
+export interface ShelfChunk {
+  index: number;
+  title: string;
+  from: number;
+  to: number;
+}
+
+/**
+ * One bookshelf book as `bookshelf.mjs today --json` reports it.
+ *
+ * `chunk` is the next unread block (null once every block is done);
+ * `plannedEnd` is the schedule's finish date (`started + total - 1`), `end`
+ * the projected one (`next read day + remaining - 1`, or the last record's
+ * date when finished); `late` is how many days `end` slips past `plannedEnd`;
+ * `coreOverlap` lists the pages of today's chunk already read as 讲后读
+ * (e.g. `"pp.12–15"`), or null.
+ */
+export interface ShelfBook {
+  slug: string;
+  title: string;
+  short: string;
+  slot: "planned" | "free";
+  total: number;
+  position: number;
+  chunk: ShelfChunk | null;
+  coreOverlap: string | null;
+  /** True when today's record already holds 「第 position 段」: today's block is read. */
+  doneToday: boolean;
+  /** The block read today (`chunks[position - 1]`) when `doneToday`, else null. */
+  doneChunk: ShelfChunk | null;
+  plannedEnd: string;
+  end: string;
+  late: number;
+}
+
+/** The currently-reading planned and free books, from `bookshelf.mjs today --json`. */
+export interface ShelfToday {
+  planned: ShelfBook | null;
+  free: ShelfBook | null;
+}
+
+/** One `## 摘录` line of a book page; `carded` is the date it became a card, or null. */
+export interface ShelfExtract {
+  index: number;
+  page: number;
+  text: string;
+  carded: string | null;
+}
+
+/** One `## 核心页已读` line: core pages read after a lesson. */
+export interface ShelfCoreRead {
+  pages: string;
+  course: string;
+  label: string;
+  date: string;
+}
+
+/** One upcoming block of a book's schedule (`bookshelf.mjs list`): when to read which pages. */
+export interface ShelfUpcoming {
+  index: number;
+  date: string;
+  title: string;
+  from: number;
+  to: number;
+}
+
+/** One book row of `bookshelf.mjs list --json` (`order` is null for free books without one). */
+export interface ShelfListItem {
+  slug: string;
+  title: string;
+  short: string;
+  slot: "planned" | "free";
+  order: number | null;
+  status: "queued" | "reading" | "done";
+  total: number;
+  position: number;
+  started: string;
+  end: string;
+  extracts: ShelfExtract[];
+  coreRead: ShelfCoreRead[];
+  /** The next ≤5 unread blocks of the schedule (`[]` once the book is done). */
+  upcoming: ShelfUpcoming[];
+}
+
 /** Cache statistics from `flashcards.mjs stats --json`. */
 export interface CardsStats {
   total: number;
@@ -327,6 +412,11 @@ export type DataRequest =
   | { kind: "reading.queue" }
   | { kind: "reading.add"; source: string; priority: ReadingPriority; due: ReadingDue }
   | { kind: "reading.review"; slug: string; outcome: ReadingOutcome; position?: string }
+  | { kind: "shelf.today"; today: string }
+  | { kind: "shelf.list" }
+  | { kind: "shelf.done"; slug: string; today: string }
+  | { kind: "shelf.extract"; slug: string; page: number; text: string; today: string }
+  | { kind: "shelf.card"; slug: string; indexes: number[]; today: string }
   | { kind: "cards.stats" }
   | { kind: "cards.add"; deck: string; front: string; back: string }
   | { kind: "anki.status" }
@@ -349,13 +439,18 @@ export type DataRequest =
 /** The typed payload each request kind resolves to. */
 export interface DataResponseMap {
   "courses.list": CourseSummary[];
-  "course.afterRead": { label: string; reading: string | null };
+  "course.afterRead": { label: string; reading: string | null; book: string | null };
   "reading.today": ReadingItem[];
   "reading.stats": ReadingStats;
   "reading.sources": ReadingSource[];
   "reading.queue": ReadingQueueItem[];
   "reading.add": { slug: string; title: string; priority: string; due: string };
   "reading.review": { slug: string; outcome: string; status: string; due: string };
+  "shelf.today": ShelfToday;
+  "shelf.list": ShelfListItem[];
+  "shelf.done": { slug: string; position: number; total: number; finished: boolean; next: string | null };
+  "shelf.extract": { slug: string; index: number; page: number; text: string };
+  "shelf.card": { slug: string; marked: number[]; skipped: number[] };
   "cards.stats": CardsStats;
   "cards.add": { file: string; deck: string };
   "anki.status": AnkiStatus;
@@ -472,6 +567,42 @@ export function isDataRequest(value: unknown): value is DataRequest {
         typeof value.slug === "string" &&
         isOutcome(value.outcome) &&
         (value.position === undefined || typeof value.position === "string")
+      );
+    case "shelf.today":
+      return typeof value.today === "string" && isIsoDate(value.today);
+    case "shelf.list":
+      return true;
+    case "shelf.done":
+      return (
+        typeof value.slug === "string" &&
+        /^[a-z0-9-]+$/.test(value.slug) &&
+        typeof value.today === "string" &&
+        isIsoDate(value.today)
+      );
+    case "shelf.extract":
+      return (
+        typeof value.slug === "string" &&
+        /^[a-z0-9-]+$/.test(value.slug) &&
+        typeof value.page === "number" &&
+        Number.isInteger(value.page) &&
+        value.page >= 1 &&
+        value.page <= 99999 &&
+        typeof value.text === "string" &&
+        value.text.trim().length > 0 &&
+        value.text.trim().length <= 500 &&
+        typeof value.today === "string" &&
+        isIsoDate(value.today)
+      );
+    case "shelf.card":
+      return (
+        typeof value.slug === "string" &&
+        /^[a-z0-9-]+$/.test(value.slug) &&
+        Array.isArray(value.indexes) &&
+        value.indexes.length > 0 &&
+        value.indexes.length <= 200 &&
+        value.indexes.every((index) => Number.isInteger(index) && index > 0) &&
+        typeof value.today === "string" &&
+        isIsoDate(value.today)
       );
     case "cards.add":
       return (

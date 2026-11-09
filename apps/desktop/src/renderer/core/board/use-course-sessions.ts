@@ -12,12 +12,17 @@
  * therefore keeps the two bits of state, calls the pure {@link
  * resolveActiveCourse} to derive the course, then hands the controller to
  * {@link useCourseSessions} for the actions.
+ *
+ * A course opened today whose session never got an answer from 学根 is not a
+ * started lesson: switching back to it sends its opening again, so a failed
+ * opening does not lock the course out for the rest of the day.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CourseSummary } from "@shared/data-protocol.js";
 import type { DesktopSettings } from "@shared/protocol.js";
 import type { ChatController } from "../chat/useChat.js";
+import { hasAnswer } from "../chat/has-answer.js";
 import { findNewCourseSlug } from "./course-claim.js";
 import { courseIntro, type CourseIntro, type CourseIntroState } from "./course-intro.js";
 import { editPlanPrompt, newCoursePrompt, type NewCourseRequest } from "./course-prompts.js";
@@ -105,11 +110,18 @@ export function useCourseSessions(
   // The latest transcript length, kept in a ref so the promise continuation
   // below reads the switched session's history instead of the stale closure.
   const messagesLength = useRef(controller.messages.length);
-  // Layout effect (not passive) so the ref already holds the switched session's
-  // history length by the time `openSession` resolves.
+  // Whether 学根 has answered in the open session, read by the promise
+  // continuation below (which must see the switched session's transcript, not
+  // this render's).
+  const answeredRef = useRef(hasAnswer(controller.messages));
+  // Layout effect (not passive) so the refs already hold the switched session's
+  // history by the time `openSession` resolves. Keyed on the messages themselves
+  // (not just their count) so a turn that does not change the count still updates
+  // "has 学根 answered".
   useLayoutEffect(() => {
     messagesLength.current = controller.messages.length;
-  }, [controller.messages.length]);
+    answeredRef.current = hasAnswer(controller.messages);
+  }, [controller.messages]);
 
   const startSession = useCallback(
     (slug: string, text: string, card: CourseIntro | null, startedOn: string | null, command = false, fresh = false) => {
@@ -157,17 +169,27 @@ export function useCourseSessions(
     [activeCourse, controller, settings.courseSessions, settings.courseStartedOn, update, setActiveCourse],
   );
 
-  /** Switch back to a course opened today without sending or showing a card. */
+  /**
+   * Switch back to a course opened today. When `retryText` is given and the
+   * switched session holds no answer from 学根 yet, its opening is sent again: a
+   * click that recorded the day but whose opening failed must not lock the day
+   * out.
+   */
   const switchOnly = useCallback(
-    (slug: string) => {
+    (slug: string, retryText: string | null) => {
       const known = settings.courseSessions[slug] ?? null;
       setIntro(null);
       setActiveCourse(slug);
       if (!known) return;
       void controller.openSession(known).then((opened) => {
+        const patch: Partial<DesktopSettings> = {};
         if (opened && opened !== known) {
-          update({ courseSessions: { ...settings.courseSessions, [slug]: opened } });
+          patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
         }
+        if (Object.keys(patch).length > 0) update(patch);
+        // No session was opened, so there is nowhere to retry the opening.
+        if (retryText === null || opened === null) return;
+        if (!answeredRef.current) controller.send(retryText);
       });
     },
     [controller, settings.courseSessions, update, setActiveCourse],
@@ -186,7 +208,7 @@ export function useCourseSessions(
         return;
       }
       if (action === "switch-only" && settings.courseSessions[slug]) {
-        switchOnly(slug);
+        switchOnly(slug, fallbackText);
         return;
       }
       startSession(slug, fallbackText, card, today, false, true);

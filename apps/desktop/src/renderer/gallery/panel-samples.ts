@@ -6,10 +6,11 @@
  * are the real November-2026 grid, so the calendar sample matches the design.
  */
 
-import type { AnkiStatus, CalendarMonth, CardsStats, CourseSummary, CycleDay, CycleMonth, CycleOverview, ReadingItem, ReadingSource, ReadingStats, SkillInfo, SkillReview, SubjectsOverview } from "@shared/data-protocol.js";
+import type { AnkiStatus, CalendarMonth, CardsStats, CourseSummary, CycleDay, CycleMonth, CycleOverview, ReadingItem, ReadingSource, ReadingStats, ShelfListItem, ShelfToday, SkillInfo, SkillReview, SubjectsOverview } from "@shared/data-protocol.js";
 import { groupProgress } from "../core/board/progress-groups.js";
+import { shelfPanel, type ShelfPanelView } from "../core/board/shelf-view.js";
 import { monthGrid } from "../core/board/use-calendar.js";
-import { controlCard, withPendingRead, type ControlCardView } from "../core/board/control-card.js";
+import { controlCard, withExtractCount, withPendingRead, withPendingShelf, type ControlCardView } from "../core/board/control-card.js";
 import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
 import type { SessionsView, ShellPanels } from "../skins/contract.js";
 
@@ -330,6 +331,126 @@ export const SAMPLE_CONTROL_CARD_PENDING = withPendingRead(SAMPLE_CONTROL_CARD, 
   left: 7,
 });
 
+/** 书房在读：Epp 第 2 段（晚了 1 天、含讲后读重叠页）；自由读空着。 */
+export const SAMPLE_SHELF_TODAY: ShelfToday = {
+  planned: {
+    slug: "epp",
+    title: "Discrete Mathematics and Its Applications",
+    short: "Epp",
+    slot: "planned",
+    total: 81,
+    position: 1,
+    chunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 },
+    coreOverlap: "pp.12–15",
+    doneToday: false,
+    doneChunk: null,
+    plannedEnd: "2027-01-28",
+    end: "2027-01-29",
+    late: 1,
+  },
+  free: null,
+};
+
+/** 今日卡 · 深度日 + 书房行：Epp 待读 + 「自由读 · 还没有书」。 */
+export const SAMPLE_CONTROL_CARD_SHELF = must(controlCard({
+  today: "2026-11-11",
+  day: {
+    ...SAMPLE_CYCLE_DAY,
+    lessons: [
+      { course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误" },
+      { course: "effective-c", id: "D1", content: "Ch1 起步" },
+    ],
+    roles: { "discrete-math-epp": "main", ctm: "main", "effective-c": "aux" },
+    names: { "discrete-math-epp": "离散", ctm: "CTM", "effective-c": "Effective C" },
+  },
+  calendar: CONTROL_CALENDAR,
+  queue: [],
+  shelf: SAMPLE_SHELF_TODAY,
+}));
+
+/** 今日卡 · 书房行今天已记：✓ + 「摘几句」，本次运行已摘 1 句。 */
+export const SAMPLE_CONTROL_CARD_SHELF_DONE = withExtractCount(
+  must(controlCard({
+    today: "2026-11-11",
+    day: SAMPLE_CYCLE_DAY,
+    calendar: CONTROL_CALENDAR,
+    queue: [],
+    shelf: {
+      planned: SAMPLE_SHELF_TODAY.planned === null ? null : {
+        ...SAMPLE_SHELF_TODAY.planned,
+        position: 2,
+        chunk: { index: 3, title: "Ch1 §1.5–1.8", from: 19, to: 27 },
+        doneToday: true,
+        doneChunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 },
+      },
+      free: null,
+    },
+  })),
+  { epp: 1 },
+);
+
+/** 今日卡 · 「读完这段」等撤销：该行变 ✓ + 「已记下」+「撤销 · N」。 */
+export const SAMPLE_CONTROL_CARD_SHELF_PENDING = withPendingShelf(SAMPLE_CONTROL_CARD_SHELF, {
+  slug: "epp",
+  left: 7,
+});
+
+/** 书房 list 样例（batch-shelf-2c）：Epp 在读 + CTM 排队，日期对齐 2026-11-11。 */
+export const SAMPLE_SHELF_LIST: ShelfListItem[] = [
+  {
+    slug: "epp",
+    title: "Discrete Mathematics and Its Applications",
+    short: "Epp",
+    slot: "planned",
+    order: 1,
+    status: "reading",
+    total: 81,
+    position: 1,
+    started: "2026-11-10",
+    end: "2027-01-28",
+    extracts: [
+      { index: 1, page: 14, text: "A universal statement says that a certain property is true for all elements of a set.", carded: "2026-11-09" },
+      { index: 2, page: 16, text: "An existential statement says that there is at least one thing for which the property is true.", carded: null },
+      { index: 3, page: 17, text: "The most common way to prove a universal statement is by generalizing from the generic particular.", carded: null },
+    ],
+    coreRead: [
+      { pages: "12–15", course: "discrete-math-epp", label: "§1.3 变量与量化", date: "2026-11-09" },
+      { pages: "3–5", course: "discrete-math-epp", label: "§1.1 命题形式", date: "2026-11-06" },
+    ],
+    upcoming: [
+      { index: 2, date: "2026-11-11", title: "Ch1 §1.1–1.4", from: 10, to: 18 },
+      { index: 3, date: "2026-11-12", title: "Ch1 §1.5–1.8", from: 19, to: 27 },
+      { index: 4, date: "2026-11-13", title: "Ch2 §2.1–2.2", from: 28, to: 36 },
+      { index: 5, date: "2026-11-14", title: "Ch2 §2.3–2.4", from: 37, to: 45 },
+      { index: 6, date: "2026-11-15", title: "Ch2 §2.5", from: 46, to: 52 },
+    ],
+  },
+  {
+    slug: "ctm",
+    title: "Concepts, Techniques, and Models of Computer Programming",
+    short: "CTM",
+    slot: "planned",
+    order: 2,
+    status: "queued",
+    total: 79,
+    position: 0,
+    started: "",
+    end: "2027-01-28",
+    extracts: [],
+    coreRead: [],
+    upcoming: [
+      { index: 1, date: "2026-11-11", title: "Ch1 §1.1–1.5", from: 1, to: 9 },
+      { index: 2, date: "2026-11-12", title: "Ch1 §1.6–1.10", from: 10, to: 18 },
+      { index: 3, date: "2026-11-13", title: "Ch1 §1.11–1.15", from: 19, to: 27 },
+      { index: 4, date: "2026-11-14", title: "Ch1 §1.16–1.18", from: 28, to: 34 },
+      { index: 5, date: "2026-11-15", title: "Ch2 §2.1", from: 35, to: 43 },
+    ],
+  },
+];
+
+/** 书房全空时的面板值（list 为空 → planned/free 都没有、queue 空）。 */
+export const SAMPLE_SHELF_EMPTY: ShelfPanelView = shelfPanel([], "2026-11-11");
+
 const noop = (): void => undefined;
 const noopAsync = (): Promise<null> => Promise.resolve(null);
 
@@ -387,11 +508,13 @@ export const SAMPLE_PANELS: ShellPanels = {
     overview: { status: "ready", value: SAMPLE_OVERVIEW },
   },
   reading: {
+    shelf: { status: "ready", value: shelfPanel(SAMPLE_SHELF_LIST, "2026-11-11") },
     queue: { status: "ready", value: SAMPLE_SOURCES },
     sources: { status: "ready", value: SAMPLE_SOURCE_FILES },
     onAdd: noopAsync,
     onClip: noop,
     onReview: noop,
+    onShelfCards: noop,
   },
   cards: {
     cards: { status: "ready", value: SAMPLE_CARDS },

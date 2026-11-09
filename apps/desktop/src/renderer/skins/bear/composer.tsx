@@ -6,9 +6,10 @@
  * options, the Enter hint, and a round send button (↑) that turns into ■ stop
  * while 学根 answers with nothing typed. Answering a 「检查理解」 question shows a
  * strip at the top of the card. Behaviour matches Chicago's: Enter sends,
- * Shift+Enter wraps, Escape stops an empty-field stream, the `/` menu takes
- * over arrows/Enter/Escape while open, a `/skill:` command inserts into the
- * field, and an unknown `/xxx` is never sent to the model.
+ * Shift+Enter wraps, Escape stops a running answer (with the field's text left
+ * untouched), the `/` menu takes over arrows/Enter/Escape while open, a `/skill:`
+ * command inserts into the field, and an unknown `/xxx` is never sent to the
+ * model. A stop puts the prompt just sent back into an empty field.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -133,7 +134,30 @@ export function Composer({
     onRunCommand(command);
   }
 
+  /**
+   * Stop the answer and put the prompt just sent back into the field.
+   *
+   * The field is left alone when it already has text: whatever the user is
+   * writing now outranks the message being returned. The caret goes to the end
+   * once React has committed the restored value.
+   */
+  function stopAndRestore(): void {
+    const back = onStop();
+    if (!back || hasText) return;
+    setValue(back);
+    onInput(back);
+    requestAnimationFrame(() => {
+      const field = fieldRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(back.length, back.length);
+    });
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    // An IME is still composing (Chinese/Japanese input): the Enter picks a
+    // candidate and Escape cancels it, so neither belongs to the composer.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (commandsOpen) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -156,11 +180,11 @@ export function Composer({
         return;
       }
     }
-    // Escape stops generation only when the field is empty and no `/` menu is
-    // open, so it never swallows the menu's own Escape.
-    if (event.key === "Escape" && streaming && !hasText) {
+    // Escape stops a running answer whether or not the field has text, so a
+    // draft never blocks a stop; a `/` menu still gets its own Escape first.
+    if (event.key === "Escape" && streaming) {
       event.preventDefault();
-      onStop();
+      stopAndRestore();
       return;
     }
     if (event.key === "Enter" && !event.shiftKey) {
@@ -286,7 +310,7 @@ export function Composer({
           )}
           <span className="bear-chint">{strings.input.enterHint}</span>
           {showStop ? (
-            <button type="button" className="bear-csend is-stop" aria-label={strings.input.stop} onClick={onStop}>
+            <button type="button" className="bear-csend is-stop" aria-label={strings.input.stop} onClick={stopAndRestore}>
               <StopIcon />
             </button>
           ) : (

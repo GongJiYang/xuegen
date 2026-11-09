@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v0.7.0 — 2026-11-09
+
+- Desktop / scripts: 书房 — whole books live in `wiki/书房/` (one page per book, `bookshelf.mjs`): every day one block of ≤ 10 pages, one planned book at a time (the next starts automatically), one free book. The 今日卡 shows the block (「第 n / 81 天」, amber with 「晚了 N 天，读完日期顺延到 …」 when behind, 「其中 pp.… 讲后读读过，照读」 on overlap) with 「读完这段」 (10-second undo); a read block shows 「已记下，明天 …」 and 「摘几句」, an inline form that saves one sentence and its page into the book page without a model call. The reading panel gets a 书房 section above the queue: progress, next block, 接下来几天, 核心页已读, 摘录 with 「把 N 句做成卡 →」 (学根 drafts, you approve, cards go to the 「书房::<书>」 deck), the queue with chained finish dates, and the free slot.
+- Scripts: dates follow what was actually read — a missed day pushes the finish date, a block read today moves the next one to tomorrow, `plan --write` saves the start date; 「读完了」 on a 讲后读 writes into the 书房 page (读书记录 + 核心页已读) when the course links `[[书房/<书>]]`.
+- Desktop: a question with a table shows as a table in the pin rail; Enter while an input method is composing no longer sends; Escape stops an answer even with text in the field, and puts the message just sent back into an empty field; 「起草卡片」 and 「做成卡」 fold to 「制卡」 instead of 「旧指令」.
+- Desktop: the 总控 no longer flashes earlier conversation when the window regains focus or an answer ends (resources keep their last value while reloading); 「开课」 on a course whose opening failed today (学根 never answered) sends the opening again instead of only switching.
+
 ## v0.6.1 — 2026-11-09
 
 - Desktop (Bear): matches the approved mockups — skills panel in three layers with 「已安装 · N」 and an outlined 「获取」; no progress bars under decks; a disabled solid button reads as disabled; the drawer makes room instead of covering the 今日卡; only the expanded course in 总进度 gets a tint; the calendar's today cell is a tint with an accent number; reading dates read 「11-14 周六」; style choices are one size smaller; 「回到最新」 hangs above the composer and disappears when the bottom is in view after switching sessions; the `/` menu shows a key hint; 总控 with no conversation today says so.

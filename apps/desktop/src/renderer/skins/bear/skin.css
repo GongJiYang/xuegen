@@ -1644,6 +1644,77 @@
   line-height: var(--lh-1);
 }
 
+/* ── 阅读 · 书房 (batch-shelf-2c) ───────────────────────────────────────── */
+
+[data-skin="bear"] .bear-shelf-book,
+[data-skin="bear"] .bear-shelf-q {
+  margin-bottom: var(--sp-2);
+}
+[data-skin="bear"] .bear-shelf-title {
+  margin: 0;
+  color: var(--gray-12);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-shelf-bar {
+  height: 3px;
+  margin: var(--sp-2) 0 var(--sp-1);
+  background: var(--gray-4);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+[data-skin="bear"] .bear-shelf-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent-9);
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-shelf-meta {
+  margin: 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-shelf-today {
+  margin: var(--sp-2) 0 0;
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-shelf-more {
+  margin-top: var(--sp-2);
+}
+[data-skin="bear"] .bear-shelf-more summary {
+  cursor: pointer;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-shelf-more summary:hover {
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-shelf-ex {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-shelf-ex b {
+  color: var(--gray-12);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-shelf-pend {
+  color: var(--warn-11);
+}
+[data-skin="bear"] .bear-shelf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+[data-skin="bear"] .bear-shelf-cards {
+  white-space: nowrap;
+  flex: none;
+}
+
 /* ── 卡片 (BE-6) ───────────────────────────────────────────────────────── */
 
 [data-skin="bear"] .bear-anki {
@@ -2564,6 +2635,23 @@
   display: inline;
   margin: 0;
 }
+/* A pinned question that carries a truth table keeps its rows: the table scrolls
+   sideways in the narrow rail instead of being squeezed. */
+[data-skin="bear"] .bear-pin-md table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  margin: var(--sp-1) 0;
+}
+[data-skin="bear"] .bear-pin-md th,
+[data-skin="bear"] .bear-pin-md td {
+  border: 1px solid var(--gray-6);
+  padding: var(--sp-1) var(--sp-2);
+  white-space: nowrap;
+}
 
 /* 总进度 v4 (design ?d=progress4). */
 [data-skin="bear"] .bear-progress.is-p4 .bear-plan-route {
@@ -3188,6 +3276,79 @@
 [data-skin="bear"] .bear-cc-error {
   margin: var(--sp-2) 0 0;
   color: var(--warn-11);
+}
+[data-skin="bear"] .bear-cc-sub {
+  color: var(--gray-11);
+  font-weight: 400;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+/* The sub sits inside .bear-cc-text, which done rows strike through; an inline
+   block breaks the decoration so 「已记下」 stays readable. */
+[data-skin="bear"] .bear-cc-rows li[data-mark="done"] .bear-cc-sub {
+  text-decoration: none;
+  display: inline-block;
+}
+[data-skin="bear"] .bear-cc-rows li.bear-cc-extract {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  margin: var(--sp-1) 0 var(--sp-2) var(--sp-5);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+}
+[data-skin="bear"] .bear-cc-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cc-grow {
+  flex: 1;
+  min-width: 0;
+}
+[data-skin="bear"] .bear-cc-input {
+  font: inherit;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-12);
+  background: var(--gray-1);
+  border: 1px solid var(--gray-8);
+  border-radius: var(--r-1);
+  padding: var(--sp-1) var(--sp-2);
+  resize: vertical;
+}
+[data-skin="bear"] .bear-cc-input:focus {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 0;
+}
+[data-skin="bear"] .bear-cc-page {
+  width: 8em;
+}
+[data-skin="bear"] .bear-cc-extract-btns {
+  display: flex;
+  gap: var(--sp-2);
+  width: 100%;
+  justify-content: flex-end;
+}
+[data-skin="bear"] .bear-cc-save {
+  color: var(--accent-11);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-cc-note {
+  width: 100%;
+  margin: 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cc-btn:disabled {
+  color: var(--gray-11);
+  background: none;
+  cursor: not-allowed;
 }
 /* The 「更早的对话」 fold row under the card. */
 [data-skin="bear"] .bear-cc-older {

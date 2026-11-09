@@ -254,7 +254,7 @@ describe("handleDataRequest", () => {
       label: "§1.1–1.4 核心页",
       date: "2026-10-22",
     });
-    expect(result).toEqual({ ok: true, data: { label: "§1.1–1.4 核心页", reading: "epp" } });
+    expect(result).toEqual({ ok: true, data: { label: "§1.1–1.4 核心页", reading: "epp", book: null } });
     const course = readFileSync(courseFile, "utf8");
     expect(course).toContain("- [x] 讲后读 §1.1–1.4 核心页 · 2026-10-22 读（用户自报，未检查，2026-10-22）");
     const page = readFileSync(join(vault, "wiki", "reading", "epp.md"), "utf8");

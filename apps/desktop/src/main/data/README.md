@@ -13,3 +13,8 @@
 
 - cycle.day / cycle.month → skills/cycle-plan/cycle.mjs（day / month，只读）
 - subjects.list → skills/cycle-plan/subjects.mjs（list，只读）
+- course.afterRead → course-state.mjs after-read 打勾后：有 `[[书房/<书>]]` 链接时记进书房书页（`bookshelf.mjs lecture`），否则照旧记阅读页（`reading-queue.mjs note`）；最后重建课程看板
+- shelf.today / shelf.list → skills/reading/bookshelf.mjs（today / list，只读）
+- shelf.done → skills/reading/bookshelf.mjs done（写书页 position/读书记录，读完自动开下一本并重写 index.md）
+- shelf.extract → skills/reading/bookshelf.mjs extract（在 `## 摘录` 记一句 `#待做卡`）
+- shelf.card → skills/reading/bookshelf.mjs card（把摘录的 `#待做卡` 标成 `#卡/<日期>`）
