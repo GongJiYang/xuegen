@@ -21,7 +21,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nodePathFacts } from "./facts.js";
-import { canonical } from "./path.js";
+import { canonical, within } from "./path.js";
 import { decide, type CanonFn, type Roots } from "./roles.js";
 import { deniedReadPaths, isCredentialName, isDeniedReadPath } from "./vault-paths.js";
 import type { SessionRole } from "../../shared/protocol.js";
@@ -448,5 +448,100 @@ describe("decide — bash", () => {
   it("allows ordinary read-only commands", () => {
     const rolesFree: SessionRole = { kind: "free" };
     expect(decide(rolesFree, "bash", { command: "ls wiki/courses" }, roots, canon, nothing).allow).toBe(true);
+  });
+});
+
+describe("decide — 库放在临时目录里时，库规则优先于「临时目录可写」", () => {
+  /**
+   * 真机验收（11-09）复现的那条：测试库在 `/private/tmp/xg-e2e/vault/GJY`，
+   * 总控会话 `write wiki/知识/concepts/x.md` 被「`withinAny(target, rules.tmp)` 放行」
+   * 这一步放过了。`mkdtemp` 落在 `os.tmpdir()` 下，库根天然被临时目录包住，
+   * 所以下面的每个断言都在「库 ⊆ 临时目录」这个前提上判。
+   */
+  const withTmpVault = (run: (rootsFor: Roots, canonFn: CanonFn) => void): void => {
+    const facts = nodePathFacts();
+    const scratch = mkdtempSync(join(tmpdir(), "xuegen-guard-tmpvault-"));
+    try {
+      // 库根（`<scratch>/vault`）与库外的草稿目录（`<scratch>/workspace`）都在 tmpdir 里。
+      const vaultRoot = join(scratch, "vault");
+      mkdirSync(vaultRoot, { recursive: true });
+      const workspace = join(scratch, "workspace");
+      mkdirSync(workspace, { recursive: true });
+      // 会话 cwd 就在库里：技能的相对路径（`wiki/…`）都按库根解析。
+      const real = (path: string): string => canonical(path, vaultRoot, facts);
+      const rootsFor: Roots = {
+        vault: real(vaultRoot),
+        workspace: real(workspace),
+        home: real(join(scratch, "home")),
+        repo: real(join(scratch, "repo")),
+        temp: real(tmpdir()),
+      };
+      // 前提自检：库确实在临时目录里（否则这条测试就不再复现原问题）。
+      expect(within(rootsFor.vault, rootsFor.temp ?? "")).toBe(true);
+      run(rootsFor, real);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  };
+
+  const control: SessionRole = { kind: "control" };
+  const courseEpp: SessionRole = { kind: "course", slug: "discrete-math-epp" };
+
+  it("denies 总控 writing a 概念页 inside a vault that lives in the temp directory", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      const decision = decide(control, "write", { path: "wiki/知识/concepts/x.md" }, rootsFor, canonFn, nothing);
+      expect(decision.allow, decision.reason).toBe(false);
+      expect(decision.reason).toContain("知识页");
+    });
+  });
+
+  it("still allows the 知识 pages every session may write (extracts)", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      for (const role of [control, courseEpp, { kind: "free" } as SessionRole]) {
+        const decision = decide(role, "write", { path: "wiki/知识/extracts/x.md" }, rootsFor, canonFn, nothing);
+        expect(decision.allow, `${roleLabelOf(role)}: ${decision.reason}`).toBe(true);
+      }
+    });
+  });
+
+  it("keeps the course session on its own plan page and refuses another course's", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      const own = decide(courseEpp, "edit", { path: "wiki/courses/discrete-math-epp.md" }, rootsFor, canonFn, nothing);
+      expect(own.allow, own.reason).toBe(true);
+      const other = decide(courseEpp, "edit", { path: "wiki/courses/ctm.md" }, rootsFor, canonFn, nothing);
+      expect(other.allow, other.reason).toBe(false);
+      expect(other.reason).toContain("只能改自己的课程页");
+    });
+  });
+
+  it("does not treat the workspace as scratch space when the workspace is the vault", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      // 会话 cwd 是库根时工作区就在库里；工作区放行不能覆盖库的清单。
+      const insideVault: Roots = { ...rootsFor, workspace: rootsFor.vault };
+      const decision = decide(control, "write", { path: "notes/x.md" }, insideVault, canonFn, nothing);
+      expect(decision.allow, decision.reason).toBe(false);
+    });
+  });
+
+  it("leaves 库外 scratch space alone, inside and outside tmp", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      // `/private/tmp` 下（库外）的草稿仍然放行。
+      const tmpScratch = decide(control, "write", { path: "/private/tmp/scratch.json" }, rootsFor, canonFn, nothing);
+      expect(tmpScratch.allow, tmpScratch.reason).toBe(true);
+      // tmpdir 下、库外的会话工作区也放行。
+      const workspace = decide(control, "write", { path: join(rootsFor.workspace, "notes.md") }, rootsFor, canonFn, nothing);
+      expect(workspace.allow, workspace.reason).toBe(true);
+    });
+  });
+
+  it("denies rm -rf of a vault directory that happens to sit in the temp directory", () => {
+    withTmpVault((rootsFor, canonFn) => {
+      const decision = decide(control, "bash", { command: `rm -rf ${rootsFor.vault}/wiki` }, rootsFor, canonFn, nothing);
+      expect(decision.allow, decision.reason).toBe(false);
+      expect(decision.reason).toContain("递归删除");
+      // 库外、临时目录里的目录仍然是可清理的草稿。
+      const scratch = decide(control, "bash", { command: "rm -rf /private/tmp/xuegen-tmp" }, rootsFor, canonFn, nothing);
+      expect(scratch.allow, scratch.reason).toBe(true);
+    });
   });
 });

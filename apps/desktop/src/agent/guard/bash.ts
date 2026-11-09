@@ -12,8 +12,7 @@
  * Everything else passes and is audited by the caller.
  */
 
-import { isDeniedReadPath, rulePaths, withinAny, type CanonFn, type Roots } from "./vault-paths.js";
-import { within } from "./path.js";
+import { isDeniedReadPath, isOutsideVaultScratch, rulePaths, withinAny, type CanonFn, type Roots } from "./vault-paths.js";
 import type { Decision } from "./roles.js";
 
 const RM = /\brm\b/;
@@ -60,7 +59,9 @@ export function decideBash(
   }
   if (RM.test(command)) {
     for (const target of rmTargets(command, canon)) {
-      if (!within(target, roots.workspace) && !withinAny(target, rules.tmp)) {
+      // 库优先：库内的目标即使也在临时目录（库落在 `/private/tmp` 下的情形）里，
+      // 也不算草稿位置——库不是可以整块删掉的草稿。
+      if (!isOutsideVaultScratch(target, roots, rules)) {
         return deny(
           `${label}：递归删除（rm -r / rm -rf）的目标 ${target} 不在工作区或 /private/tmp 里，拒绝执行；要清理请限定在工作区内。`,
         );

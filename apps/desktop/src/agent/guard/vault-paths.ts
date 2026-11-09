@@ -127,6 +127,26 @@ export function withinAny(target: string, dirs: readonly string[]): boolean {
   return dirs.some((dir) => within(target, dir));
 }
 
+/**
+ * Whether `target` sits inside the vault (库优先，见 {@link isOutsideVaultScratch}).
+ */
+export function isInVault(target: string, roots: Roots): boolean {
+  return within(target, roots.vault);
+}
+
+/**
+ * Whether `target` may be treated as scratch space: 工作区 or the OS temp directory.
+ *
+ * 库优先：库内的路径**永远**不算草稿位置。库可能整个放在临时目录下（测试库、
+ * 备份、用户把库放在 `~/tmp` 里），而规则路径又都按库根拼出来——若先看临时目录，
+ * 库里的每一条规则都会被「临时目录可写」一句盖掉，`write wiki/知识/concepts/x.md`
+ * 就从总控会话里漏了过去（11-09 真机验收）。工作区落在库里时同理：库的规则先判。
+ */
+export function isOutsideVaultScratch(target: string, roots: Roots, rules: RulePaths): boolean {
+  if (isInVault(target, roots)) return false;
+  return within(target, roots.workspace) || withinAny(target, rules.tmp);
+}
+
 /** `target` is one of `files`. */
 export function isAnyFile(target: string, files: readonly string[]): boolean {
   return files.includes(target);

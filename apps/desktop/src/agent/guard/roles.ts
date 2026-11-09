@@ -39,6 +39,7 @@ import {
   inAnyDir,
   isAnyFile,
   isDeniedReadPath,
+  isOutsideVaultScratch,
   prefixedInAnyDir,
   rulePaths,
   withinAny,
@@ -162,7 +163,9 @@ function decideWrite(
   const rules = rulePaths(roots, canon);
   const hardDeny = hardDenyReason(target, roots, rules);
   if (hardDeny) return deny(`${roleLabel(role)}不能写${hardDeny}：这是对所有角色都生效的硬性限制。`);
-  if (!within(target, roots.vault) && !within(target, roots.workspace) && !withinAny(target, rules.tmp)) {
+  // 库优先：库内的写入只看库的规则；工作区与临时目录的放行只给库外（库整个放在
+  // 临时目录下时，先看临时目录会让库的全部规则失效）。工作区落在库里时同理。
+  if (!within(target, roots.vault) && !isOutsideVaultScratch(target, roots, rules)) {
     return deny(`${roleLabel(role)}只能写库、工作区和 /private/tmp；${target} 不在可写范围。`);
   }
   // 原料只许新增：剪藏目录里可以放一份新文件，既有文件不许改（准则第 1 条）。`reading`
@@ -195,11 +198,11 @@ function hardDenyReason(target: string, roots: Roots, rules: RulePaths): string 
   return null;
 }
 
-/** The role's writable set inside the vault (workspace and scope already passed). */
+/** The role's writable set inside the vault (workspace and temp already excluded for 库内). */
 function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: RulePaths): boolean {
-  // Workspace and the OS temp directory are every role's scratch space.
-  if (within(target, roots.workspace)) return true;
-  if (withinAny(target, rules.tmp)) return true;
+  // 库外的工作区与临时目录是每个角色的草稿空间（库内的目标已经在 decideWrite 里
+  // 被挡在草稿位置之外了，见 `isOutsideVaultScratch`）。
+  if (isOutsideVaultScratch(target, roots, rules)) return true;
   // 进度 pages no course owns, plus the 知识 pages the reading / wiki-save
   // workflows produce: the user can run those from any session, so denying them
   // would refuse a normal flow.
