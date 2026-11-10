@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## v0.9.0 — 2026-11-10
+
 - Vault layout: the old Chinese names are gone (`wiki/知识`, `wiki/书房`, `Clippings`, board at `wiki/courses.md`). Code and skills only know the English layout (`wiki/knowledge`, `wiki/shelf`, `clippings`, `wiki/_generated/courses.{md,html}`, created when missing). Run `rename-vault.mjs` on an old vault before upgrading.
 - Scripts: `vault-lint.mjs` no longer reports empty directories deeper than `raw/<d>/<d>/` (structure that came with the material, e.g. a downloaded repository's `.gitkeep` folders).
 - Scripts: `bin/xuegen-data-root.mjs` expects `vault/ sessions/ workspace/` under the data root and explains how to rename an old `库/ 会话/ 工作区/` root.
+- Scripts: `anki-sync push` links cards that Anki already has but the Markdown lacks an ID for (Anki reports a duplicate, exactly one note with the same front, ID not used elsewhere): the ID is written back and reported as `linked`, so such cards stop showing as pending forever.
+- Desktop: `exactOptionalPropertyTypes` is on for both TypeScript projects, as `apps/desktop/AGENTS.md` requires; `App.tsx` is back under 450 lines (document appearance effects moved into `core/settings/use-document-appearance.ts`).
 
 ## v0.8.0 — 2026-11-10
 
