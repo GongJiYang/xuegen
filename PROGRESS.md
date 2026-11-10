@@ -1,13 +1,17 @@
-# PROGRESS（更新于 2026-11-10 12:30；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
+# PROGRESS（更新于 2026-11-10 19:30；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
 **总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。用户 11-09：先不发版。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
-### 0. 先看后台任务
-- **v0.8.0 已发布（11-10 19:15）**：`7462ff7`，tag `v0.8.0`，desktop 快进 main 已推送；GitHub Release 有 zip + notes.md。打包程序的沙盒运行库已离线冒烟（允许目录可写、范围外被拒）。
-- **下一步**：用户自己退出学根后，在学根里点「学根 → 检查更新…」装 0.8.0（或请 Claude 拷贝安装）→ 用户退出学根和 Obsidian、在场同意后照 `docs/platform/RENAME-DAY.md` 改真实库英文名 → 之后 0.9.0 删旧名。
+### 0. 先看后台任务（11-10 19:30 交接）
+- **v0.8.0 已发布并已安装**（`7462ff7`，tag v0.8.0；`/Applications/学根.app` = 0.8.0；`~/.xuegen/app` → 安装包资源）。
+- **RENAME-DAY 进行中，停在第 2 步**（`docs/platform/RENAME-DAY.md`）：
+  - 第 1 步已做：库 `jj st` 干净；**基线提交 `796fa733855d`**（「顺延 c-language 2026-11-10…」）；改名前断链扫描 `/tmp/rename-day-before.json`（files=18614 links=1256 broken=53）。
+  - 第 2 步试运行被脚本自己拒绝：「学根或 Obsidian 正在运行（pid 45984、46261）」。45984 是用户更新后重启的学根；**46261 是 Claude 误跑 `学根 --version` 启动的实例**（想 kill 被权限拦下）。**等用户把学根全部退出（两个都 ⌘Q）**，再跑：`node ~/.xuegen/app/skills/wiki-save/rename-vault.mjs ~/学根/库 /Users/gjy/pi-learning/xuegen/docs/platform/vault-rename-map.json`（试运行）→ 核对计划数（约 30 目录、160 文件、892 条链接）→ 加 `--apply` → 第 3 步核对（新增断链 0、权限 0555/0444、`jj st` 无 `A raw/library/`、bookshelf today、vault-lint）→ 第 4–7 步。
+  - 教训：**不要用 `学根 --version` 查版本**（会启动 app），用 `plutil -p /Applications/学根.app/Contents/Info.plist | grep ShortVersion`。
+- 之后：0.9.0 删旧名（收缩，清单见 `TIDY-1110.md` §3）→ 界面讨论（显示当前步骤、工具行人话、课程停用通道）。
 - 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
 - 整理 1 补测 → `f01018e`；整理 1 真机验收通过（见下）。
 - 整理 2 拆分 → `4f0d1b2`（course-close.mjs 487 行 + close/ 6 个模块，测试 65=65，依赖单向）。
