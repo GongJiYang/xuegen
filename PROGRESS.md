@@ -11,7 +11,7 @@
   - 改名已应用：目录 30、文件 160（搬动 119）、链接改写 926 条（164 个文件）、`.gitignore` `raw/学习路径/`→`raw/library/`。库里已是 `wiki/knowledge`、`wiki/shelf`、`clippings`、`raw/library`。
   - 核对全过：按目标比**新增断链 0**（前后都是 53 条老断链）；`wiki/courses` 0555、9 个课程页 0444；`jj st` 无 `A raw/library/`；`bookshelf today`、`cycle.mjs day`、`course-state verify` 正常；vault-lint 60 个问题与试运行一致（老问题，多为「后缀解析」）。
   - 已 `jj commit`：**`ce4adc4c` 「改名：库全英文命名（rename-vault）」**（基线 `796fa733855d`，撤回用 `jj restore --from 796fa733855d`）。
-  - **第 4 步推送被 Claude Code 自动模式拦（Git Destructive）**，请用户自己跑：`cd ~/学根/库 && jj bookmark set main -r @- && jj git push`（快进：远端 main 在 `323b010f`，新增顺延 + 改名两笔）。
+  - **第 4 步推送被 Claude Code 自动模式拦（Git Destructive）**，用户 11-10 19:50 已跑：本地 `main` 书签已移到 `ce4adc4c`，**但 `jj git push` 因网络失败**（LibreSSL SSL_ERROR_SYSCALL 连 github.com:443）。网络好时只需 `cd ~/学根/库 && jj git push`（快进：远端 main 在 `323b010f`）；新 session 先用 `jj bookmark list --all` 看 `main@origin` 是否已到 `ce4adc4c`。
   - **未做**：第 5 步数据根 `~/学根` → `~/xuegen-data`（及子目录改英文、留旧链接、`xuegen-data-root.mjs`）；第 6 步收尾（库 AGENTS.md 去「Migration status」、NEW-MACHINE.md/PROGRESS/prepare.sh 路径、用户在 Obsidian 重新选库）；第 7 步卡片（停 Obsidian_to_Anki 插件、`anki-sync push --dry-run` 给用户看）。第 5 步要用户在场、学根与 Obsidian 退出。
 - 之后：0.9.0 删旧名（收缩，清单见 `TIDY-1110.md` §3）→ 界面讨论（显示当前步骤、工具行人话、课程停用通道）。
 - 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
