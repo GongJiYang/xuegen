@@ -176,6 +176,19 @@ export function toAnkiHtml(text) {
 }
 
 /**
+ * 正面归一键：去掉 HTML 标签、还原常见实体、再去掉所有空白。
+ * 用来比较「Markdown 里这块的正面」与「Anki 里已有笔记的正面」（后者是 HTML，
+ * 存进来时常被换成 <code>/<b>/<br> 或多了 &nbsp;）。Markdown 一侧先过 toAnkiHtml。
+ */
+export function normalizeFront(text) {
+  const entities = { nbsp: " ", lt: "<", gt: ">", quot: '"', amp: "&" };
+  return String(text)
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(nbsp|lt|gt|quot|amp);/gi, (_, name) => entities[name.toLowerCase()])
+    .replace(/\s+/g, "");
+}
+
+/**
  * 在指定块的 END 前各插一行 `<!--ID: <id>-->`，返回新文本（不改动其他行）。
  * 已有 ID 的块跳过（重复插入会留下两个 ID，插件以后扫会当成两张卡）。
  * 同一页多块时按块各自的 END 行号定位，夹在中间的已同步块不受影响。
@@ -347,6 +360,7 @@ async function commandPush(vault, options) {
 
   const result = {
     added: 0,
+    linked: [],
     duplicates: [],
     failed,
     skipped,
@@ -378,6 +392,34 @@ async function commandPush(vault, options) {
   }
   const [frontField, backField] = fieldNames ?? [];
 
+  // 库里已写过的 ID：已有的块，加上本次刚分配 / 回填的。回填前先排除它们，
+  // 免得两个块抢同一张 Anki 笔记（同一 ID 写两处，插件以后扫会当成重复）。
+  const usedIds = new Set();
+  for (const page of pages) {
+    for (const block of page.parsed.blocks) if (block.id !== null) usedIds.add(String(block.id));
+  }
+  // 牌组 → 正面归一键 → [noteId]，每牌组至多查一次（重复卡才查，懒加载）。
+  const deckIndex = new Map();
+
+  async function existingNotes(deck) {
+    if (deckIndex.has(deck)) return deckIndex.get(deck);
+    const index = new Map();
+    deckIndex.set(deck, index);
+    const found = await invoke(url, "findNotes", { query: `deck:"${deck}"` });
+    const noteIds = (Array.isArray(found) ? found : []).map(Number).filter((id) => Number.isFinite(id));
+    if (noteIds.length === 0) return index;
+    const infos = await invoke(url, "notesInfo", { notes: noteIds });
+    for (const info of Array.isArray(infos) ? infos : []) {
+      const value = info?.fields?.[frontField]?.value;
+      if (typeof value !== "string") continue;
+      const key = normalizeFront(value);
+      const list = index.get(key) ?? [];
+      list.push(Number(info.noteId));
+      index.set(key, list);
+    }
+    return index;
+  }
+
   for (const deck of decks) {
     await invoke(url, "createDeck", { deck });
   }
@@ -397,11 +439,38 @@ async function commandPush(vault, options) {
       try {
         const noteId = await invoke(url, "addNote", { note });
         inserted.push({ blockIndex: item.index, id: noteId });
+        usedIds.add(String(noteId));
         result.added += 1;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/duplicate/i.test(message)) result.duplicates.push({ file: item.file, block: item.block, deck: item.deck, front: item.front });
-        else failed.push({ file: item.file, block: item.block, deck: item.deck, front: item.front, error: message });
+        if (!/duplicate/i.test(message)) {
+          failed.push({ file: item.file, block: item.block, deck: item.deck, front: item.front, error: message });
+          continue;
+        }
+        // duplicate：Anki 里已有这张卡（常见于早期 Obsidian_to_Anki 只送卡没回填 ID）。
+        // 正面归一后唯一匹配、且该 ID 没被库里别的块用过，就回填它，不再当重复。
+        let linkedId = null;
+        try {
+          const index = await existingNotes(item.deck);
+          const key = normalizeFront(toAnkiHtml(block.front));
+          const candidates = (index.get(key) ?? []).filter((id) => !usedIds.has(String(id)));
+          if (candidates.length === 1) linkedId = candidates[0];
+        } catch {
+          linkedId = null; // 查不到就当没找到，照旧进 duplicates
+        }
+        if (linkedId === null) {
+          result.duplicates.push({ file: item.file, block: item.block, deck: item.deck, front: item.front });
+        } else {
+          usedIds.add(String(linkedId));
+          inserted.push({ blockIndex: item.index, id: linkedId });
+          result.linked.push({
+            file: item.file,
+            block: item.block,
+            deck: item.deck,
+            front: item.front,
+            id: linkedId,
+          });
+        }
       }
     }
     if (inserted.length > 0) {
@@ -422,8 +491,9 @@ function renderDryRun(result) {
 
 function renderResult(result) {
   const lines = [
-    `新增 ${result.added}｜重复 ${result.duplicates.length}｜失败 ${result.failed.length}｜跳过 ${result.skipped.length}`,
+    `新增 ${result.added}｜关联 ${result.linked.length}｜重复 ${result.duplicates.length}｜失败 ${result.failed.length}｜跳过 ${result.skipped.length}`,
   ];
+  for (const item of result.linked) lines.push(`关联：${item.file} 第${item.block}块「${item.front}」→ ${item.id}`);
   for (const item of result.duplicates) lines.push(`重复：${item.file} 第${item.block}块「${item.front}」`);
   for (const item of result.failed) lines.push(`失败：${item.file} 第${item.block}块「${item.front}」${item.error}`);
   for (const item of result.skipped) lines.push(`跳过（${item.type}）：${item.file} 第${item.block}块「${item.front}」`);
@@ -454,6 +524,7 @@ function usage() {
     "",
     "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge。",
     "push：把 <知识目录>/flashcards/ 下没有 <!--ID:--> 的 Basic 块写进 Anki，ID 回填到块内。",
+    "      Anki 里已有同一张卡（addNote 报 duplicate）时，按正面唯一匹配回填那张卡的 ID（输出里记「关联」）。",
     "--dry-run 只列出要同步的卡，不连 Anki、不写文件。",
   ].join("\n");
 }

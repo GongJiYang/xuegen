@@ -43,7 +43,7 @@ node "$F" add "$W" --deck "<牌组名>" --front "<正面>" --back "<背面>" --j
 - 根据本次有来源支持的知识、易混淆点和推导设计主动回忆题。执行原有数量及格式要求，不自行另定模板；内容不足时如实说明。
 - 更新已有卡片时保留 `<!--ID: ...-->`、既有牌组及关联关系；新卡不伪造 ID。不整文件重生成已有卡片，不因表述变化制造重复卡片。
 - 写入卡片文件不等于同步 Anki。同步由本技能的 `anki-sync.mjs` 直接经 AnkiConnect 完成（不再依赖 Obsidian 插件）；以脚本输出的 `added` 为准报告同步了几张，没跑或失败时只说「已写进卡片页，还没进 Anki」。
-- 卡写进卡片页后运行 `node <本技能目录>/anki-sync.mjs push "<库根>"` 直接同步到 Anki；Anki 没开就告诉用户打开 Anki 后再同步，不要让用户去 Obsidian 里点同步。输出里 `duplicates` 是 Anki 里已有的同样的卡，告诉用户即可；`presetMissing: true` 说明还没有名为「书房」的牌组可借预设，提醒用户在 Anki 里建。
+- 卡写进卡片页后运行 `node <本技能目录>/anki-sync.mjs push "<库根>"` 直接同步到 Anki；Anki 没开就告诉用户打开 Anki 后再同步，不要让用户去 Obsidian 里点同步。输出里 `linked` 是 Anki 里早已有、只缺 ID 的卡（已回填 ID，不算新增），`duplicates` 是 Anki 里有同样正面但对不上唯一一张的卡，把清单告诉用户、不要手改 ID；`presetMissing: true` 说明还没有名为「书房」的牌组可借预设，提醒用户在 Anki 里建。
 
 ## 保存与返回
 

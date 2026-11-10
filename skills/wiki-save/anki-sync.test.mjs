@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { parseCardPage, toAnkiHtml, insertIds } from "./anki-sync.mjs";
+import { parseCardPage, toAnkiHtml, insertIds, normalizeFront } from "./anki-sync.mjs";
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -170,6 +170,15 @@ test("insertIds：同一页多块按块定位，不插错已同步块", () => {
   assert.doesNotMatch(out, /已同步\nBack: 答\n<!--ID: 42-->\n<!--ID/);
 });
 
+test("normalizeFront：去标签、还原实体、去空白，两边同一正面相等", () => {
+  // Markdown 一侧先过 toAnkiHtml，再与 Anki 里存的值同样归一。
+  assert.equal(normalizeFront(toAnkiHtml("isPrime 是\n**判定**函数？")), "isPrime是判定函数？");
+  assert.equal(normalizeFront("<code>isPrime</code><br>是<b>判定</b>函数？"), "isPrime是判定函数？");
+  assert.equal(normalizeFront("a&nbsp;&amp;&nbsp;b"), "a&b");
+  assert.equal(normalizeFront("&lt;code&gt;"), "<code>");
+  assert.notEqual(normalizeFront("问一"), normalizeFront("问二"));
+});
+
 test("insertIds：已带 ID 的块再插一次不变，越界索引忽略", () => {
   const text = ["START", "Basic", "问", "Back: 答", "END"].join("\n");
   const once = insertIds(text, [{ blockIndex: 0, id: 7 }]);
@@ -280,6 +289,118 @@ test("push：duplicate 记进 duplicates 且不写 ID，其它错误记进 faile
     assert.equal(result.failed.length, 1);
     assert.match(result.failed[0].error, /field is empty/);
     assert.equal(await readFile(file, "utf8"), text, "没有任何卡加成功时不应写文件");
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------- Anki 里已有同样的卡 → 回填 ID
+
+/** 假 AnkiConnect：一张正面为 `<code>isPrime</code><br>是<b>判定</b>函数？` 的已有笔记（noteId 111）。 */
+const existingNotes = (...notes) => () => ({ result: notes, error: null });
+const LINK_FRONT = "isPrime 是**判定**函数？";
+const EXISTING_ISPRIME = {
+  noteId: 111,
+  modelName: "Basic",
+  fields: { Front: { value: "<code>isPrime</code><br>是<b>判定</b>函数？" }, Back: { value: "答" } },
+};
+const DUPLICATE = () => ({ result: null, error: "cannot create note because it is a duplicate" });
+
+/** 造一个「addNote 报 duplicate + findNotes/notesInfo 能查回已有笔记」的假服务。 */
+function duplicateAnki({ found = [111], notes = [EXISTING_ISPRIME] } = {}) {
+  return startAnki({
+    addNote: DUPLICATE,
+    findNotes: () => ({ result: found, error: null }),
+    notesInfo: existingNotes(...notes),
+  });
+}
+
+test("push：addNote 报 duplicate 时按正面匹配已有笔记，唯一匹配则回填 ID", async () => {
+  const vault = await makeVault();
+  const anki = await duplicateAnki();
+  try {
+    // Markdown 一侧是 **…**，Anki 里存成了 <b>…</b> 并多一个 <br>：归一后同一正面。
+    const file = await writeCard(vault, "link/a.md", `TARGET DECK\nMME\n\n${BLOCK(LINK_FRONT, "答")}\n`);
+    const result = await syncJson(["push", vault, "--url", anki.url]);
+
+    assert.equal(result.added, 0, "已存在的卡不算新增");
+    assert.deepEqual(result.duplicates, [], "关联成功的不该再算重复");
+    assert.equal(result.linked.length, 1);
+    const [linked] = result.linked;
+    assert.equal(linked.file, "wiki/knowledge/flashcards/link/a.md");
+    assert.equal(linked.block, 1);
+    assert.equal(linked.deck, "MME");
+    assert.equal(linked.front, LINK_FRONT);
+    assert.equal(linked.id, 111);
+
+    assert.match(await readFile(file, "utf8"), /Back: 答\n<!--ID: 111-->\nEND/);
+    assert.deepEqual(actionParams(anki, "findNotes"), [{ query: 'deck:"MME"' }]);
+    assert.deepEqual(actionParams(anki, "notesInfo"), [{ notes: [111] }]);
+
+    // 回填后再跑一次：块已有 ID，不再当待同步（不连 Anki）。
+    const second = await syncJson(["push", vault, "--url", anki.url]);
+    assert.equal(second.added, 0);
+    assert.deepEqual(second.linked, []);
+    assert.equal(actionParams(anki, "addNote").length, 1);
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：同正面有两张已有笔记时不回填，仍记 duplicates", async () => {
+  const vault = await makeVault();
+  const anki = await duplicateAnki({
+    found: [111, 112],
+    notes: [EXISTING_ISPRIME, { ...EXISTING_ISPRIME, noteId: 112 }],
+  });
+  try {
+    const text = `TARGET DECK\nMME\n\n${BLOCK(LINK_FRONT, "答")}\n`;
+    const file = await writeCard(vault, "amb/a.md", text);
+    const result = await syncJson(["push", vault, "--url", anki.url]);
+    assert.deepEqual(result.linked, [], "匹配不唯一就不猜");
+    assert.equal(result.duplicates.length, 1);
+    assert.equal(result.duplicates[0].front, LINK_FRONT);
+    assert.equal(await readFile(file, "utf8"), text, "不回填就不写文件");
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：命中笔记的 ID 已被库里别的块占用时不回填，仍记 duplicates", async () => {
+  const vault = await makeVault();
+  const anki = await duplicateAnki();
+  try {
+    // 另一个卡片文件已经写着 <!--ID: 111-->（同一张笔记）。
+    await writeCard(
+      vault,
+      "other/used.md",
+      `TARGET DECK\nMME\n\n${["START", "Basic", "别的卡", "Back: 答", "<!--ID: 111-->", "END"].join("\n")}\n`,
+    );
+    const text = `TARGET DECK\nMME\n\n${BLOCK(LINK_FRONT, "答")}\n`;
+    const file = await writeCard(vault, "reuse/a.md", text);
+    const result = await syncJson(["push", vault, "--url", anki.url]);
+    assert.deepEqual(result.linked, [], "ID 已被别的块用掉，不能重复回填");
+    assert.equal(result.duplicates.length, 1);
+    assert.equal(await readFile(file, "utf8"), text);
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：同一牌组多张 duplicate 只查一次 findNotes", async () => {
+  const vault = await makeVault();
+  const anki = await duplicateAnki({ found: [], notes: [] });
+  try {
+    const text = `TARGET DECK\nMME\n\n${BLOCK("卡一", "答一")}\n\n${BLOCK("卡二", "答二")}\n`;
+    const file = await writeCard(vault, "many/a.md", text);
+    const result = await syncJson(["push", vault, "--url", anki.url]);
+    assert.equal(result.duplicates.length, 2);
+    assert.equal(actionParams(anki, "findNotes").length, 1, "同一牌组只查一次");
+    assert.equal(await readFile(file, "utf8"), text);
   } finally {
     await anki.close();
     await rm(vault, { recursive: true, force: true });
@@ -397,6 +518,7 @@ test("push --dry-run：列出待同步的卡，不连 Anki、不写文件", asyn
     const result = await syncJson(["push", vault, "--url", anki.url, "--dry-run"]);
     assert.equal(result.added, 0);
     assert.equal(result.dryRun, true);
+    assert.deepEqual(result.linked, [], "dry-run 不查 Anki，linked 为空");
     assert.equal(result.pending.length, 1);
     assert.equal(result.pending[0].deck, "书房::Epp");
     assert.equal(result.pending[0].front, "问");
