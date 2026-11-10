@@ -15,6 +15,7 @@
 
 import type { FilesystemPathEntry, SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { SessionRole } from "../../shared/protocol.js";
+import { within } from "../guard/path.js";
 import {
   deniedReadPaths,
   rulePaths,
@@ -79,6 +80,23 @@ const DENY_WRITE: readonly (keyof RulePaths)[] = [
 ];
 
 /**
+ * 库优先（与 `guard/vault-paths.ts` 的 `isOutsideVaultScratch` 同一条规则）：
+ * 一条写清单项若把整个库都包在里面，就不能收。
+ *
+ * 项目里最常碰到的情形是库整个放在临时目录下（测试库、备份、用户把库放在 `~/tmp`），
+ * 而 `rules.tmp` 里有 `os.tmpdir()`：那一条会同时放开库里的每一处，`writeAllowed`
+ * 判过的角色清单就全部失效（真沙盒回归里课程会话就此写进了概念页）。工作区落在库的
+ * 祖先时同理。库内、库外的草稿位置不受影响——它们都不包含库本身。
+ *
+ * 结果是沙盒比 guard **更窄**（库在临时目录下时，库外的临时草稿也写不了），这是安全
+ * 的方向：清单粒度只有「整个目录」，而 guard 的「库外草稿」没法在 seatbelt 里表达成
+ * 减法。
+ */
+function withoutVault(root: string, vault: string): boolean {
+  return !within(vault, root);
+}
+
+/**
  * The sandbox configuration for one role.
  *
  * `denyRead` is exactly `deniedReadPaths`: the sandbox matches by path, so
@@ -94,6 +112,12 @@ const DENY_WRITE: readonly (keyof RulePaths)[] = [
 export function sandboxConfigFor(role: SessionRole, roots: Roots, canon: CanonFn): SandboxRuntimeConfig {
   const rules = rulePaths(roots, canon);
   const pick = (keys: readonly (keyof RulePaths)[]): string[] => keys.flatMap((key) => rules[key]);
+  const writeRoots = [
+    roots.workspace,
+    ...rules.tmp,
+    ...pick(ANY_SESSION_WRITE),
+    ...pick(ROLE_WRITE[role.kind]),
+  ].filter((root) => withoutVault(root, roots.vault));
   return {
     network: {
       allowedDomains: ["127.0.0.1:8765"],
@@ -101,9 +125,7 @@ export function sandboxConfigFor(role: SessionRole, roots: Roots, canon: CanonFn
     },
     filesystem: {
       denyRead: deniedReadPaths(roots, canon).map(lit),
-      allowWrite: [roots.workspace, ...rules.tmp, ...pick(ANY_SESSION_WRITE), ...pick(ROLE_WRITE[role.kind])].map(
-        lit,
-      ),
+      allowWrite: writeRoots.map(lit),
       denyWrite: [roots.repo, roots.home, ...pick(DENY_WRITE)].map(lit),
     },
   };

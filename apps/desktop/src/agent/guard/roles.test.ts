@@ -742,3 +742,31 @@ describe("decide — course_plan：只有总控能用（阶段 4a）", () => {
     }
   });
 });
+
+describe("decide — calendar_write：三个角色都放行（阶段 4a）", () => {
+  it("lets every role write calendar notes (bash can no longer reach wiki/calendar)", () => {
+    // 日历笔记只经 `calendar.mjs` 写（原子写入、空正文删文件），而这个工具就是它在
+    // 沙盒外的入口，所以不能用角色清单拦；缺参数由工具自己抛中文错。
+    for (const role of [roles.control as SessionRole, roles.course as SessionRole, roles.free as SessionRole]) {
+      const decision = decide(role, "calendar_write", { date: "2026-11-05", text: "复习 BA" }, roots, canon, nothing);
+      expect(decision.allow, `${roleLabelOf(role)}: ${decision.reason}`).toBe(true);
+      expect(decision.reason).toBe("");
+    }
+  });
+
+  it("lets an empty body (delete that day's note) through too", () => {
+    for (const role of [roles.control as SessionRole, roles.course as SessionRole, roles.free as SessionRole]) {
+      const decision = decide(role, "calendar_write", { date: "2026-11-05", text: "" }, roots, canon, nothing);
+      expect(decision.allow, roleLabelOf(role)).toBe(true);
+    }
+  });
+
+  it("does not open the file tools: writing wiki/calendar with write/edit stays denied in every role", () => {
+    // 放行的是工具，不是位置：直接写日历目录仍然被拦（否则原子写入与删除规则会被绕过）。
+    for (const role of [roles.control as SessionRole, roles.course as SessionRole, roles.free as SessionRole]) {
+      const decision = decide(role, "write", { path: "wiki/calendar/2026-11-05.md" }, roots, canon, nothing);
+      expect(decision.allow, `${roleLabelOf(role)}: ${decision.reason}`).toBe(false);
+      expect(decision.reason).toContain("日历");
+    }
+  });
+});

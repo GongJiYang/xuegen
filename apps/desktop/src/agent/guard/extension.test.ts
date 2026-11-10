@@ -3,8 +3,8 @@
  * `input.path` rewritten to the checked resolution, and every decision lands in
  * the audit log.
  *
- * A fake Pi API captures the `tool_call` handler, so this tests the extension's
- * own contract without a session or an SDK import at runtime.
+ * A fake Pi API captures the `tool_call` / `tool_result` handlers, so this tests
+ * the extension's own contract without a session or an SDK import at runtime.
  */
 
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -16,6 +16,7 @@ import { createGuardExtension, type GuardOptions } from "./extension.js";
 import type { AuditEntry } from "./audit.js";
 import type { PathFacts } from "./path.js";
 import type { Roots } from "./roles.js";
+import type { SandboxRunner } from "../sandbox/runner.js";
 
 const temporary: string[] = [];
 
@@ -51,18 +52,34 @@ function fakeFacts(existing: readonly string[], caseInsensitive = true): PathFac
   };
 }
 
+interface ToolResultEvent {
+  type: "tool_result";
+  toolCallId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[];
+  isError: boolean;
+}
+
 interface Harness {
   call(event: ToolCallEvent): unknown;
+  /** The `tool_result` handler's verdict (undefined when it leaves the result alone). */
+  result(event: ToolResultEvent): { content?: { type: string; text?: string }[] } | undefined;
   audit: () => AuditEntry[];
 }
 
-/** Build the extension and capture its `tool_call` handler. */
+/** Build the extension and capture its `tool_call` / `tool_result` handlers. */
 function harness(options: Omit<GuardOptions, "role" | "sessionId">, role: SessionRole = { kind: "free" }): Harness {
   let handler: ((event: ToolCallEvent) => unknown) | null = null;
+  let resultHandler: ((event: ToolResultEvent) => { content?: { type: string; text?: string }[] } | undefined) | null =
+    null;
   const factory = createGuardExtension({ ...options, role: () => role, sessionId: () => "session-1" });
   factory({
     on(name: string, callback: (event: ToolCallEvent) => unknown) {
       if (name === "tool_call") handler = callback;
+      if (name === "tool_result") {
+        resultHandler = callback as unknown as (event: ToolResultEvent) => { content?: { type: string; text?: string }[] };
+      }
       return () => {};
     },
   } as unknown as Parameters<typeof factory>[0]);
@@ -70,6 +87,10 @@ function harness(options: Omit<GuardOptions, "role" | "sessionId">, role: Sessio
     call(event) {
       if (!handler) throw new Error("tool_call handler was not registered");
       return handler(event);
+    },
+    result(event) {
+      if (!resultHandler) throw new Error("tool_result handler was not registered");
+      return resultHandler(event);
     },
     audit() {
       try {
@@ -367,5 +388,191 @@ describe("createGuardExtension — course_plan 的审计 target（阶段 4a）",
     const [entry] = guard.audit();
     expect(entry?.allow).toBe(false);
     expect(entry?.target).toBe("board");
+  });
+});
+
+/**
+ * 阶段 4a-2：沙盒接入后的 guard 行为（假 `SandboxRunner`，不跑真沙盒）。
+ *
+ * 真 seatbelt 的回归在 `../sandbox/sandbox.e2e.test.ts`；这里只钉住 guard 与
+ * runner 之间的约定：命被改写进沙盒、审计记原命令、沙盒起不来就拒绝、出错结果
+ * 补上违规原因，以及没接沙盒时行为与阶段 2/3 完全一样。
+ */
+interface FakeSandbox extends SandboxRunner {
+  wraps: { command: string; commandId: string; role: SessionRole }[];
+  annotates: { commandId: string; stderr: string }[];
+}
+
+function fakeSandbox(
+  behaviour: { wrap?: (command: string) => Promise<string>; annotate?: (stderr: string) => string } = {},
+): FakeSandbox {
+  const wraps: FakeSandbox["wraps"] = [];
+  const annotates: FakeSandbox["annotates"] = [];
+  return {
+    wraps,
+    annotates,
+    async wrap(command, commandId, role) {
+      wraps.push({ command, commandId, role });
+      if (behaviour.wrap) return behaviour.wrap(command);
+      return `sandbox-exec -p '(version 1)' /bin/bash -c ${JSON.stringify(command)}`;
+    },
+    annotate(commandId, stderr) {
+      annotates.push({ commandId, stderr });
+      return behaviour.annotate ? behaviour.annotate(stderr) : `${stderr}\n<sandbox_violations>deny(1) file-write-create</sandbox_violations>`;
+    },
+    async reset() {},
+  };
+}
+
+const bashEvent = (command: string, toolCallId = "30"): ToolCallEvent => ({
+  type: "tool_call",
+  toolCallId,
+  toolName: "bash",
+  input: { command },
+});
+
+describe("createGuardExtension — bash 进沙盒（阶段 4a）", () => {
+  it("放行的 bash：命令被换成 wrap 的返回值，审计仍记原始命令", async () => {
+    const sandbox = fakeSandbox();
+    const guard = harness(options({ sandbox }));
+    const event = bashEvent("echo hi > /vault/wiki/log.md");
+
+    const verdict = await guard.call(event);
+    expect(verdict).toBeUndefined();
+    expect(event.input.command).toBe(
+      `sandbox-exec -p '(version 1)' /bin/bash -c ${JSON.stringify("echo hi > /vault/wiki/log.md")}`,
+    );
+    expect(sandbox.wraps).toHaveLength(1);
+    expect(sandbox.wraps[0]?.command).toBe("echo hi > /vault/wiki/log.md");
+    expect(sandbox.wraps[0]?.commandId).toBe("30");
+    // 角色按调用当时的那一个传给 runner。
+    expect(sandbox.wraps[0]?.role).toEqual({ kind: "free" });
+
+    const audit = guard.audit();
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.allow).toBe(true);
+    expect(audit[0]?.target).toBe("echo hi > /vault/wiki/log.md");
+  });
+
+  it("被 guard 拒的 bash：wrap 一次都不调用", async () => {
+    const sandbox = fakeSandbox();
+    const guard = harness(options({ sandbox }));
+
+    const verdict = (await guard.call(bashEvent("cat ~/.ssh/id_ed25519"))) as { block?: boolean } | undefined;
+    expect(verdict?.block).toBe(true);
+    expect(sandbox.wraps).toEqual([]);
+    expect(guard.audit()).toHaveLength(1);
+    expect(guard.audit()[0]?.allow).toBe(false);
+  });
+
+  it("wrap 抛错：拒绝这次调用（fail closed），原因含「沙盒启动失败」，并多记一行 allow:false", async () => {
+    const sandbox = fakeSandbox({
+      wrap: async () => {
+        throw new Error("sandbox-exec 起不来");
+      },
+    });
+    const guard = harness(options({ sandbox }));
+
+    const verdict = (await guard.call(bashEvent("echo hi"))) as { block?: boolean; reason?: string } | undefined;
+    expect(verdict?.block).toBe(true);
+    expect(verdict?.reason).toContain("沙盒启动失败");
+    expect(verdict?.reason).toContain("sandbox-exec 起不来");
+
+    const audit = guard.audit();
+    expect(audit).toHaveLength(2);
+    // 第一行是清单判定的结果（放行），第二行是沙盒没能接手。
+    expect(audit[0]?.allow).toBe(true);
+    expect(audit[1]?.allow).toBe(false);
+    expect(audit[1]?.target).toBe("echo hi");
+    expect(audit[1]?.reason).toContain("沙盒启动失败");
+  });
+
+  it("wrap 把非 Error 的东西抛出来时也拒绝，不泄露成未处理异常", async () => {
+    const sandbox = fakeSandbox({
+      wrap: async () => {
+        throw "字符串错误";
+      },
+    });
+    const guard = harness(options({ sandbox }));
+    const verdict = (await guard.call(bashEvent("echo hi"))) as { block?: boolean; reason?: string } | undefined;
+    expect(verdict?.block).toBe(true);
+    expect(verdict?.reason).toContain("字符串错误");
+  });
+});
+
+describe("createGuardExtension — tool_result 的沙盒原因（阶段 4a）", () => {
+  const errorResult = (toolName: string): ToolResultEvent => ({
+    type: "tool_result",
+    toolCallId: "31",
+    toolName,
+    input: { command: "echo hi > /vault/wiki/courses/x.md" },
+    content: [
+      { type: "text", text: "/bin/bash: Operation not permitted" },
+      { type: "image", data: "AAAA", mimeType: "image/png" },
+    ],
+    isError: true,
+  });
+
+  it("bash 出错：第一段 text 被 annotate 换掉，其余 content 原样保留", () => {
+    const sandbox = fakeSandbox();
+    const guard = harness(options({ sandbox }));
+    const event = errorResult("bash");
+
+    const replaced = guard.result(event) as { content: { type: string; text?: string }[] } | undefined;
+    expect(replaced?.content).toHaveLength(2);
+    expect(replaced?.content[0]?.text).toContain("Operation not permitted");
+    expect(replaced?.content[0]?.text).toContain("<sandbox_violations>");
+    expect(replaced?.content[0]?.text).toContain("file-write-create");
+    expect(replaced?.content[1]).toEqual({ type: "image", data: "AAAA", mimeType: "image/png" });
+    // 传给 annotate 的是命令 id 与原始 stderr。
+    expect(sandbox.annotates).toEqual([
+      { commandId: "31", stderr: "/bin/bash: Operation not permitted" },
+    ]);
+    // 原事件不被就地改写（Pi 用返回值替换，事件本身留给后续 handler）。
+    expect(event.content[0]).toEqual({ type: "text", text: "/bin/bash: Operation not permitted" });
+  });
+
+  it("bash 成功、非 bash 工具、或没接沙盒时都不改结果", () => {
+    const sandbox = fakeSandbox();
+    const guard = harness(options({ sandbox }));
+
+    const success = { ...errorResult("bash"), isError: false };
+    expect(guard.result(success)).toBeUndefined();
+
+    const read = { ...errorResult("read"), toolName: "read" };
+    expect(guard.result(read)).toBeUndefined();
+
+    const noSandbox = harness(options());
+    expect(noSandbox.result(errorResult("bash"))).toBeUndefined();
+
+    expect(sandbox.annotates).toEqual([]);
+  });
+
+  it("没有 text 段（只有图片）时不动结果", () => {
+    const sandbox = fakeSandbox();
+    const guard = harness(options({ sandbox }));
+    const event: ToolResultEvent = {
+      type: "tool_result",
+      toolCallId: "32",
+      toolName: "bash",
+      input: { command: "echo hi" },
+      content: [{ type: "image", data: "AAAA", mimeType: "image/png" }],
+      isError: true,
+    };
+    expect(guard.result(event)).toBeUndefined();
+    expect(sandbox.annotates).toEqual([]);
+  });
+});
+
+describe("createGuardExtension — 没接沙盒时与阶段 2/3 完全一样", () => {
+  it("bash 命令不被改写、处理器同步返回（不是 Promise）", () => {
+    const guard = harness(options());
+    const event = bashEvent("echo hi");
+    const verdict = guard.call(event);
+
+    expect(verdict).toBeUndefined();
+    expect(event.input.command).toBe("echo hi");
+    // 同步：接沙盒的那条路径才返回 Promise。
+    expect(verdict instanceof Promise).toBe(false);
   });
 });

@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -429,5 +429,174 @@ test("经符号链接调用 --help 有输出（主模块判定比真实路径）
     assert.match(stdout, /Xuegen 卡片直连 AnkiConnect（anki-sync）/);
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------- 沙盒正向代理（阶段 4a-i2 / 4a-2 回归）
+
+/**
+ * 跑脚本，env 里先清掉所有代理变量再叠加 `env`（本机 shell 可能开着代理，
+ * 不清会污染「没有 HTTP_PROXY 时走 fetch」这条用例）。
+ */
+const PROXY_VARS = ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"];
+
+async function syncWithEnv(args, env, { expectFail = false } = {}) {
+  const childEnv = { ...process.env };
+  for (const key of [...PROXY_VARS, "NO_PROXY", "no_proxy"]) delete childEnv[key];
+  Object.assign(childEnv, env);
+  try {
+    const { stdout } = await run("node", [SCRIPT, ...args], { encoding: "utf8", env: childEnv });
+    if (expectFail) assert.fail(`期望失败但成功：${args.join(" ")}\n${stdout}`);
+    return stdout;
+  } catch (error) {
+    if (!expectFail) throw error;
+    return error.stderr ?? "";
+  }
+}
+
+async function syncJsonWithEnv(args, env, options) {
+  return JSON.parse(await syncWithEnv([...args, "--json"], env, options));
+}
+
+/**
+ * 假 HTTP 正向代理：收绝对 URL 的请求行（`POST http://127.0.0.1:PORT/`），把请求
+ * 转发到那个地址，响应原样回给客户端。记录每个请求的 request-line URL 与头，用来
+ * 断言「真的走了代理」以及 `Proxy-Authorization` 的有无。
+ */
+async function startProxy() {
+  const seen = [];
+  const server = createServer((request, response) => {
+    seen.push({ method: request.method, url: request.url, headers: request.headers });
+    let target;
+    try {
+      target = new URL(request.url);
+    } catch {
+      response.writeHead(400, { "content-type": "text/plain" });
+      response.end("not a proxy request");
+      return;
+    }
+    const forwarded = httpRequest(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        method: request.method,
+        path: `${target.pathname}${target.search}`,
+        headers: { ...request.headers, host: target.host },
+      },
+      (upstream) => {
+        response.writeHead(upstream.statusCode ?? 502, upstream.headers);
+        upstream.pipe(response);
+      },
+    );
+    forwarded.on("error", () => {
+      response.writeHead(502, { "content-type": "text/plain" });
+      response.end("upstream failed");
+    });
+    request.pipe(forwarded);
+  });
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  const { port } = server.address();
+  return {
+    port,
+    seen,
+    close: () => new Promise((done) => server.close(done)),
+  };
+}
+
+test("push：有 HTTP_PROXY 且目标是本机时经正向代理发，带 Proxy-Authorization", async () => {
+  const vault = await makeVault();
+  const anki = await startAnki();
+  const proxy = await startProxy();
+  try {
+    const file = await writeCard(vault, "proxy/a.md", `TARGET DECK\n书房::Epp\n\n${BLOCK("问", "答")}\n`);
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], {
+      // 沙盒代理的凭据里还编码了命令 id；这里用普通 user:pass 覆盖同一段逻辑。
+      HTTP_PROXY: `http://user:pass@127.0.0.1:${proxy.port}`,
+    });
+
+    // 结果与直连一致：卡加进去了、ID 回填了。
+    assert.equal(result.added, 1);
+    assert.equal(result.presetMissing, false);
+    assert.match(await readFile(file, "utf8"), /<!--ID: 1001-->/);
+
+    // 请求确实经过代理：request-line 是完整目标 URL，Host 头写目标主机。
+    assert.ok(proxy.seen.length > 0, "代理应至少收到一个请求");
+    const [first] = proxy.seen;
+    assert.equal(first.method, "POST");
+    // 请求行是脚本拼的完整目标 URL（`postViaProxy` 的 path 就是 targetUrl 本身）。
+    assert.equal(first.url, anki.url);
+    assert.equal(first.headers.host, new URL(anki.url).host);
+    // 凭据头是 Basic base64(user:pass)——沙盒代理靠 URL 里的凭据认连接。
+    assert.equal(first.headers["proxy-authorization"], `Basic ${Buffer.from("user:pass").toString("base64")}`);
+    // 每个请求都带，不只是第一个。
+    assert.ok(proxy.seen.every((request) => request.headers["proxy-authorization"] !== undefined));
+    // 代理真把请求转给了 AnkiConnect：每个 AnkiConnect 动作都经过代理，一个不少。
+    assert.equal(proxy.seen.length, actions(anki).length);
+    assert.ok(actions(anki).includes("addNote"));
+  } finally {
+    await proxy.close();
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：代理 URL 不带凭据时不发 Proxy-Authorization", async () => {
+  const vault = await makeVault();
+  const anki = await startAnki();
+  const proxy = await startProxy();
+  try {
+    await writeCard(vault, "proxy/b.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], {
+      http_proxy: `http://127.0.0.1:${proxy.port}`,
+    });
+
+    assert.equal(result.added, 1);
+    assert.ok(proxy.seen.length > 0);
+    for (const request of proxy.seen) {
+      assert.equal(request.headers["proxy-authorization"], undefined, "没凭据就不该发这个头");
+    }
+  } finally {
+    await proxy.close();
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：没有 HTTP_PROXY 时照旧直连 fetch，代理一个请求都收不到", async () => {
+  const vault = await makeVault();
+  const anki = await startAnki();
+  const proxy = await startProxy();
+  try {
+    await writeCard(vault, "direct/a.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    // env 里不给代理变量（syncWithEnv 已经把 shell 的可能值清掉了）。
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], {});
+    assert.equal(result.added, 1);
+    assert.deepEqual(proxy.seen, [], "没有 HTTP_PROXY 就不该经代理");
+    assert.ok(actions(anki).includes("addNote"));
+  } finally {
+    await proxy.close();
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：有 HTTP_PROXY 但目标是外网时不走代理分支（仍用 fetch）", async () => {
+  // 代理分支只认 `http://127.0.0.1…` / `http://localhost…`（沙盒只放 127.0.0.1:8765）；
+  // 别的地址走原来的 fetch。`127.0.0.2:1` 不是这两个前缀、也没有服务在听，
+  // 所以这条断言的是「没走代理分支」+「fetch 连不上」。
+  const vault = await makeVault();
+  const proxy = await startProxy();
+  try {
+    await writeCard(vault, "remote/a.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    const stderr = await syncWithEnv(
+      ["push", vault, "--url", "http://127.0.0.2:1", "--json"],
+      { HTTP_PROXY: `http://127.0.0.1:${proxy.port}` },
+      { expectFail: true },
+    );
+    assert.match(stderr, /连不上 Anki/);
+    assert.deepEqual(proxy.seen, [], "外网目标不该走本机代理分支");
+  } finally {
+    await proxy.close();
+    await rm(vault, { recursive: true, force: true });
   }
 });
