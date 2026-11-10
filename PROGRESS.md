@@ -1,11 +1,19 @@
-# PROGRESS（更新于 2026-11-10 20:10；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
+# PROGRESS（更新于 2026-11-10 21:30；最新发布 v0.8.0；阶段 0–4a、整理批 1/2/4 完成，0.9.0 收缩代码已本地提交待发版）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
 **总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。用户 11-09：先不发版。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
-### 0. 先看后台任务（11-10 19:30 交接）
+### 0. 当前状态（11-10 21:30 交接）——除界面讨论外的活都做完了
+- **RENAME-DAY 全部完成**（第 0–7 步）：库英文名、数据根 `~/xuegen-data/{vault,sessions,workspace}`（中文名留链接）、库 AGENTS.md 去 Migration status 并改路径、Obsidian_to_Anki 插件已停用。**待用户**：Obsidian 重新选库 `~/xuegen-data/vault`；打开学根看一眼；以后检查每次开课 AI 的 8 步（用户 11-10 说会做）。
+- **Anki 11-10 修复**：收藏集 11-09 08:21 损坏（当时 Claude 会话用 Python 直接打开正在运行的 Anki 数据库），用 11-08 19:10 自动备份无损恢复（545 笔记/220 复习）。规矩见记忆 anki-db-hands-off。卡片与 Anki 对齐：501 块全有 ID；从没同步过 AnkiWeb（建议用户开）。
+- **本地提交（desktop 分支，未推送）**：`9fcf024` 数据根脚本英文名；`f8fd333` 0.9.0 收缩删旧名（Devin + Claude 补 4 处）；`7420ff2` anki-sync 重复卡回填 ID；`5f9711e` exactOptionalPropertyTypes；`8e12c92` App.tsx 459→447。CHANGELOG Unreleased 已写。
+- **11-10 真机验收（测试窗口，库副本）通过**：今日卡；CTM 开课 8 步全合规、全新路径；收课 stage→snapshot→check→commit，看板进 `_generated/`；断线重试提示（假 503 服务）显示正常。**发现**：①测试窗口以前没设 `XUEGEN_DESKTOP_CWD`，收课暂存写进了真实工作区（已删，验收规程已改）；②重试成功后提示写「断开过一次」但实际两次（界面文案，界面讨论时改）。
+- 库 vault-lint 剩 5 条是 raw 深层 `.gitkeep` 误报，装上 0.9.0 后消失。
+- **下一步**：等用户说「发版」→ 0.9.0（含收缩，按 `docs/desktop/RELEASE.md`）；之后界面讨论（显示当前步骤、工具行人话、课程停用通道 archive、重试提示文案）。
+
+### 0b. 之前的记录（11-10 19:30 交接）
 - **v0.8.0 已发布并已安装**（`7462ff7`，tag v0.8.0；`/Applications/学根.app` = 0.8.0；`~/.xuegen/app` → 安装包资源）。
 - **RENAME-DAY：第 0–5 步完成，第 6 步差用户 Obsidian 重新选库 + 学根看一眼，第 7 步待做**（`docs/platform/RENAME-DAY.md`）：
   - 改名已应用：目录 30、文件 160（搬动 119）、链接改写 926 条（164 个文件）、`.gitignore` `raw/学习路径/`→`raw/library/`。库里已是 `wiki/knowledge`、`wiki/shelf`、`clippings`、`raw/library`。
