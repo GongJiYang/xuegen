@@ -25,7 +25,7 @@ node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路
 - `schedule`：只允许 `kind: plan` 的暂存。在暂存里的课程页副本上跑 `course-schedule.mjs plan … --write`（沙盒外 Node 子进程），`--lessons` 给相对路径时按暂存目录解析。脚本报错（如课次多于上课日，给出建议截止日期）原样返回，暂存不动。排期完照常 `check` / `commit`。
 - `undo`：jj 把最近一次「收课 <slug>」提交改过的文件恢复到提交前，再提交「撤销收课」；那次新建的页面（卡片页、概念页）保留不删，在输出里列出，问用户后再删。
 - `shift`：开课时的顺延。stage 课程页 → 在暂存副本上跑顺延（算法同 `course-schedule.mjs shift`，`--end` 不给就用排期标记里的 `end=`）→ 校验 → 提交，jj 记「顺延 <slug> <日期>」。没有要顺延的就删掉暂存、什么都不提交。校验不过也删掉暂存再报错。
-- `snapshot`：收课第 9 步截图。报告 JSON（`render-snapshot` 的输入）先写进暂存目录，文件名用点开头（如 `.snapshot.json`，点开头文件不进收课清单）；`<PNG相对路径>` 必须是 `wiki/courses/<slug>/snapshots/*.png`。在沙盒外跑 `render-snapshot.mjs`（bash 沙盒里起不了 Chrome），成功输出 `{ snapshot: <PNG相对路径> }`；失败退出非 0、中文报原因，暂存里不留半张图。截图之后照常 `check` / `commit`，PNG 作为新文件随提交进库。
+- `snapshot`：收课第 7 步截图。报告 JSON（`render-snapshot` 的输入）先写进暂存目录，文件名用点开头（如 `.snapshot.json`，点开头文件不进收课清单）；`<PNG相对路径>` 必须是 `wiki/courses/<slug>/snapshots/*.png`。在沙盒外跑 `render-snapshot.mjs`（bash 沙盒里起不了 Chrome），成功输出 `{ snapshot: <PNG相对路径> }`；失败退出非 0、中文报原因，暂存里不留半张图。截图之后照常 `check` / `commit`，PNG 作为新文件随提交进库。
 - `recover`：发现残留提交日志就补完；每个命令开头都自动跑一次，可重复跑（已 rename 的跳过）。
 
 ## 暂存目录

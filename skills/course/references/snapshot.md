@@ -1,11 +1,11 @@
-# 日期截图（收课第 9 步）
+# 日期截图（收课第 7 步，commit 之前）
 
 截图展示课程、报告日期、总目标、本周任务和总目标里程碑的完成数、真实作答证据、下次起点。完成数由脚本计算，标签说明统计粒度；没有目标时显示“尚未设定”，不显示虚假的 0% 或掌握率。某模块已有讲解/作答但未满足验收条件时，既保持未勾选，也在证据区说明已经做过什么。
 
 截图用 `course_close` 的 `snapshot` 动作在沙盒外生成（bash 在系统沙盒里起不了 Chrome，不要用 bash 跑 `render-snapshot.mjs`）：
 
-1. 用写文件工具把报告 JSON 写进本次暂存目录，例如 `<暂存目录>/report.json`（格式见下）。`source` 是课程页的绝对路径，脚本只读它。
-2. 调 `course_close`：`action: "snapshot"`、`staging: <暂存目录>`、`report: "report.json"`、`out: "wiki/courses/<slug>/snapshots/YYYY-MM-DD-NN.png"`（两个都是暂存目录内的相对路径）。
+1. 用写文件工具把报告 JSON 写进本次暂存目录根下的 `.snapshot.json`（**点开头**，不进收课清单；格式见下）。`source` 是课程页的绝对路径，脚本只读它。
+2. 调 `course_close`：`action: "snapshot"`、`staging: <暂存目录>`、`report: ".snapshot.json"`、`out: "wiki/courses/<slug>/snapshots/YYYY-MM-DD-NN.png"`（两个都是暂存目录内的相对路径）。
 3. 成功返回 `{ "snapshot": "<png 相对路径>" }`，图随后续 `check`/`commit` 一起提交和上锁；失败时暂存里不留半张图，照返回的原因告诉用户，进度照常提交。
 
 报告 JSON：
