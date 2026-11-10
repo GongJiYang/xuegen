@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.8.0 — 2026-11-10
+
 - Desktop / skills: **close transaction** (`skills/course/course-close.mjs`, tool `course_close`). A course session writes its course page, concept pages, records, `index.md` and `log.md` into a staging copy under `<workspace>/.close/`; `check` validates ownership, conflicts, append-only log/index, the course page and new concept pages; `commit` writes every file atomically (temp file → fsync → rename, journal for crash recovery), relocks, redraws both course boards and records one jj commit. `undo` restores the files the last 收课 changed (new pages are kept and listed), refusing when they were changed since. `shift` does the start-of-lesson postponement the same way (jj 「顺延」); save points commit as 「存档点」 so undo never takes them; `snapshot` renders the dated PNG outside the sandbox.
 - Scripts: postponing never runs past the cycle's end — the schedule marker keeps `end=`, lessons pushed beyond it move to 「留到下个周期」.
 - Desktop: **session roles and a tool guard** — 总控 / 课程 / 自由 sessions get fixed write lists (course pages only through the tools, 总控 does not write concept pages, the vault's own rules and `raw/` are read-only, credentials are never readable); every tool call is audited in `guard.log`.
