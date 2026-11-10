@@ -77,28 +77,56 @@ describe("needsRefresh", () => {
   const file = "/sessions/2026-11-06T12-19-49-302Z_abc.jsonl";
 
   it("is false for an empty session", () => {
-    expect(needsRefresh(file, "ctm", 0, 100, {})).toBe(false);
+    expect(needsRefresh(file, "ctm", false, 0, 100, {})).toBe(false);
   });
 
   it("is false without an active course", () => {
-    expect(needsRefresh(file, null, 3, 100, {})).toBe(false);
+    expect(needsRefresh(file, null, false, 3, 100, {})).toBe(false);
   });
 
   it("is true when the file was never seen", () => {
-    expect(needsRefresh(file, "ctm", 3, 100, {})).toBe(true);
+    expect(needsRefresh(file, "ctm", false, 3, 100, {})).toBe(true);
   });
 
   it("is true when the course page changed since the last answer", () => {
-    expect(needsRefresh(file, "ctm", 3, 200, { [file]: 100 })).toBe(true);
+    expect(needsRefresh(file, "ctm", false, 3, 200, { [file]: 100 })).toBe(true);
   });
 
   it("is false when the page is unchanged since the last answer", () => {
-    expect(needsRefresh(file, "ctm", 3, 100, { [file]: 100 })).toBe(false);
-    expect(needsRefresh(file, "ctm", 3, 50, { [file]: 100 })).toBe(false);
+    expect(needsRefresh(file, "ctm", false, 3, 100, { [file]: 100 })).toBe(false);
+    expect(needsRefresh(file, "ctm", false, 3, 50, { [file]: 100 })).toBe(false);
   });
 
   it("is false once seen even without a changedAt", () => {
-    expect(needsRefresh(file, "ctm", 3, undefined, { [file]: 100 })).toBe(false);
+    expect(needsRefresh(file, "ctm", false, 3, undefined, { [file]: 100 })).toBe(false);
+  });
+});
+
+describe("needsRefresh — 总控会话", () => {
+  const file = "/sessions/2026-11-10T12-19-49-302Z_abc.jsonl";
+
+  it("is true for a 总控 session this run has not seen", () => {
+    // No course page to compare: what matters is that this app run never looked at the file.
+    expect(needsRefresh(file, null, true, 3, undefined, {})).toBe(true);
+    expect(needsRefresh(file, null, true, 3, 100, { [file]: 0 })).toBe(false);
+  });
+
+  it("is false once seen, even without a changedAt", () => {
+    expect(needsRefresh(file, null, true, 3, undefined, { [file]: 0 })).toBe(false);
+    expect(needsRefresh(file, null, true, 3, 100, { [file]: 0 })).toBe(false);
+  });
+
+  it("is false for an empty 总控 session", () => {
+    expect(needsRefresh(file, null, true, 0, undefined, {})).toBe(false);
+  });
+
+  it("is false without a session file", () => {
+    expect(needsRefresh(null, null, true, 3, undefined, {})).toBe(false);
+  });
+
+  it("ignores the control flag for a course session", () => {
+    // A course session keeps yesterday's logic even if the caller passes isControl wrongly.
+    expect(needsRefresh(file, "ctm", false, 3, 100, { [file]: 100 })).toBe(false);
   });
 });
 

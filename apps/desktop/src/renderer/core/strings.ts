@@ -109,6 +109,7 @@ export const strings = {
     compactionNote: "较早的对话已压缩为摘要（课程进度保存在课程文件里，不受影响）",
     compactionFailed: (reason: string): string => `压缩失败：${reason}`,
     refreshNote: "[课程页或技能可能已更新：先重读课程页和要用的技能，以文件为准]",
+    controlRefreshNote: "[技能可能已更新：先重读要用的技能（course、cycle-plan 等），以文件为准]",
     checkpointPrompt: "[上下文快满：按 course「长会话先存档」把存档点写进课程页 Next Session（当前题目原文、我答到哪、下一步讲什么），写好后用一句话告诉我]",
     checkpointResume: "[接着上一个会话的存档点继续：先读课程页 Next Session 里的存档点，从那里接着上，不重新开课]",
   },

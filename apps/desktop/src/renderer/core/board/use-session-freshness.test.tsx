@@ -12,6 +12,7 @@ import type { CourseSummary } from "@shared/data-protocol.js";
 import type { ChatController } from "../chat/useChat.js";
 import { strings } from "../strings.js";
 import { splitActionMarker } from "../chat/action-marker.js";
+import * as client from "../client.js";
 import { dateKey } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
 import { useSessionFreshness, type SessionFreshness } from "./use-session-freshness.js";
@@ -33,6 +34,7 @@ const TODAY = dateKey(new Date());
 const yesterday = new Date();
 yesterday.setDate(yesterday.getDate() - 1);
 const YESTERDAY = dateKey(yesterday);
+const CYCLE = "C1";
 
 function readyCourses(value: CourseSummary[]): CoursesResource {
   return {
@@ -68,6 +70,7 @@ function Harness({
   settings = DEFAULT_DESKTOP_SETTINGS,
   onStudy = () => undefined,
   onContinueFresh = () => undefined,
+  isControl = false,
 }: {
   controller: ChatController;
   courses: CoursesResource;
@@ -76,8 +79,18 @@ function Harness({
   settings?: DesktopSettings;
   onStudy?: (course: CourseSummary) => void;
   onContinueFresh?: (slug: string, text: string) => void;
+  isControl?: boolean;
 }) {
-  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, onStudy, onContinueFresh);
+  const freshness = useSessionFreshness(
+    controller,
+    courses,
+    activeCourse,
+    openSessionFile,
+    settings,
+    onStudy,
+    onContinueFresh,
+    isControl,
+  );
   useEffect(() => {
     captured = freshness;
   });
@@ -211,5 +224,44 @@ describe("useSessionFreshness — refresh note", () => {
       />,
     );
     expect(controller.setRefreshNote).toHaveBeenLastCalledWith(strings.chat.refreshNote);
+  });
+
+  it("总控会话：第一条消息带 controlRefreshNote，答完之后不再带", async () => {
+    const file = stampFor(TODAY);
+    const controller = fakeController();
+    const settings: DesktopSettings = { ...DEFAULT_DESKTOP_SETTINGS, controlSessions: { [CYCLE]: file } };
+    const courses = readyCourses([course]);
+    const { rerender } = render(
+      <Harness
+        controller={controller}
+        courses={courses}
+        activeCourse={null}
+        openSessionFile={file}
+        settings={settings}
+        isControl
+      />,
+    );
+    expect(controller.setRefreshNote).toHaveBeenLastCalledWith(strings.chat.controlRefreshNote);
+
+    // One turn runs and ends: the 总控 session is recorded as seen without fetching the course list.
+    for (const streaming of [true, false]) {
+      controller.streaming = streaming;
+      rerender(
+        <Harness
+          controller={controller}
+          courses={courses}
+          activeCourse={null}
+          openSessionFile={file}
+          settings={settings}
+          isControl
+        />,
+      );
+    }
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(controller.setRefreshNote).toHaveBeenLastCalledWith(null);
+    // The 总控 session records its own mark; no course list is needed.
+    expect(client.data).not.toHaveBeenCalled();
   });
 });

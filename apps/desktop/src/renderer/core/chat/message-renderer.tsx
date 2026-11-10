@@ -98,8 +98,11 @@ export function MessageRenderer({
 
   if (message.role === "user") {
     const { body: styled, styleTag } = splitStyleTag(message.markdown);
-    // The 「先重读课程页」 note is an instruction to 学根, not something the user wrote.
-    const marked = splitActionMarker(styled.startsWith(strings.chat.refreshNote) ? styled.slice(strings.chat.refreshNote.length).trimStart() : styled);
+    // The 「先重读课程页 / 先重读技能」 note is an instruction to 学根, not something the user wrote.
+    const note = [strings.chat.refreshNote, strings.chat.controlRefreshNote].find((candidate) =>
+      styled.startsWith(candidate),
+    );
+    const marked = splitActionMarker(note ? styled.slice(note.length).trimStart() : styled);
     const label = marked.action ? actionLabel(marked.action, marked.courseTitle) : legacyCommandLabel(marked.body);
     return <slots.UserMessage message={message} body={marked.body} styleTag={styleTag} actionLabel={label} />;
   }

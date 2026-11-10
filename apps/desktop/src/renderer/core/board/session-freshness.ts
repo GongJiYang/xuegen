@@ -59,18 +59,24 @@ export function startsFresh(
 }
 
 /**
- * The next message in this course session should ask 学根 to re-read the
- * course page: nothing seen yet in this app run, or the page changed since the
- * last answer ended. Free chats and empty (fresh) sessions never need it.
+ * The next message in this session should ask 学根 to re-read what it uses:
+ * the course page (`isControl` false), or the skills it needs (`isControl`
+ * true). Nothing seen yet in this app run, or the page changed since the last
+ * answer ended. Empty (fresh) sessions never need it.
  */
 export function needsRefresh(
   sessionFile: string | null,
   activeCourse: string | null,
+  isControl: boolean,
   messageCount: number,
   changedAt: number | undefined,
   seen: Record<string, number>,
 ): boolean {
-  if (!sessionFile || !activeCourse || messageCount === 0) return false;
+  if (!sessionFile || messageCount === 0) return false;
+  // 总控会话 has no course page: a release or skill edit is invisible to it, so
+  // the only signal is that this app run has not looked at the file yet.
+  if (isControl) return seen[sessionFile] === undefined;
+  if (!activeCourse) return false;
   const last = seen[sessionFile];
   if (last === undefined) return true;
   return changedAt !== undefined && changedAt > last;

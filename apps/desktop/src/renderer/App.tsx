@@ -27,7 +27,7 @@ import { useCards, useAnki } from "./core/board/use-cards.js";
 import { useCalendar, dateKey } from "./core/board/use-calendar.js";
 import { useCycle } from "./core/board/use-cycle.js";
 import { useSubjects } from "./core/board/use-subjects.js";
-import { useControlSession } from "./core/board/use-control-session.js";
+import { isControlSession, useControlSession } from "./core/board/use-control-session.js";
 import { useControlCard } from "./core/board/use-control-card.js";
 import { useSessionList } from "./core/board/use-session-list.js";
 import { controlView } from "./core/board/bot-state.js";
@@ -129,8 +129,19 @@ export function App() {
     handleEditPlan,
     handleNewSession,
   } = useCourseSessions(controller, settings, update, courses, resume, activeCourse, setActiveCourse, () => setFocusRequest((value) => value + 1));
-  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings, handleStudy, handleContinueFresh);
   const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
+  // The 总控 session has no course page: it is refreshed on release/skill edits instead.
+  const openIsControl = isControlSession(settings, cycleId, openSessionFile);
+  const freshness = useSessionFreshness(
+    controller,
+    courses,
+    activeCourse,
+    openSessionFile,
+    settings,
+    handleStudy,
+    handleContinueFresh,
+    openIsControl,
+  );
   const agentReady = controller.agentStatus === "ready" && !controller.disabled;
   const control = useControlSession(controller, settings, update, cycleId, setActiveCourse,
     () => setFocusRequest((value) => value + 1), agentReady);

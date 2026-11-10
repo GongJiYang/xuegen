@@ -15,6 +15,7 @@ import type {
   ContentRenderers,
   ExerciseProps,
   SkinSlots,
+  UserMessageProps,
 } from "../../skins/contract.js";
 
 afterEach(cleanup);
@@ -44,6 +45,10 @@ function FakeExercise({ title, nodes, renderContent, onAnswer, onHint, onSkip }:
   );
 }
 
+function FakeUser({ body }: UserMessageProps) {
+  return <div data-testid="user-body">{body}</div>;
+}
+
 function FakeAssistant({ nodes, streaming, renderContent }: AssistantMessageProps) {
   return (
     <div>
@@ -57,7 +62,7 @@ function FakeAssistant({ nodes, streaming, renderContent }: AssistantMessageProp
 const fakeSlots = {
   Exercise: FakeExercise,
   AssistantMessage: FakeAssistant,
-  UserMessage: () => null,
+  UserMessage: FakeUser,
   ToolActivity: () => null,
 } as unknown as SkinSlots;
 
@@ -85,6 +90,54 @@ function renderMessage(markdown: string, handlers: {
     />,
   );
 }
+
+describe("MessageRenderer user message", () => {
+  it("strips the 总控 refresh note before the user sees it", () => {
+    render(
+      <MessageRenderer
+        slots={fakeSlots}
+        content={fakeContent}
+        message={{
+          id: "u1",
+          role: "user",
+          markdown: `${strings.chat.controlRefreshNote} 今天的进度怎么样？`,
+          streaming: false,
+          toolCalls: [],
+        }}
+        thinking={false}
+        onRetry={() => undefined}
+        onExerciseAnswer={() => undefined}
+        onExerciseHint={() => undefined}
+        onExerciseSkip={() => undefined}
+      />,
+    );
+    const body = screen.getByTestId("user-body").textContent ?? "";
+    expect(body).toBe("今天的进度怎么样？");
+    expect(body).not.toContain(strings.chat.controlRefreshNote);
+  });
+
+  it("still strips the course refresh note", () => {
+    render(
+      <MessageRenderer
+        slots={fakeSlots}
+        content={fakeContent}
+        message={{
+          id: "u2",
+          role: "user",
+          markdown: `${strings.chat.refreshNote} 接着上次`,
+          streaming: false,
+          toolCalls: [],
+        }}
+        thinking={false}
+        onRetry={() => undefined}
+        onExerciseAnswer={() => undefined}
+        onExerciseHint={() => undefined}
+        onExerciseSkip={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("user-body").textContent).toBe("接着上次");
+  });
+});
 
 describe("MessageRenderer exercise routing", () => {
   it("routes a question callout to the Exercise slot", () => {

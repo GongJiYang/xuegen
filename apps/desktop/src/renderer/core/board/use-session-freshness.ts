@@ -5,7 +5,9 @@
  *   「开今天的课 →」 (which starts today's lesson in a fresh session).
  * - The course page changed since this session's last answer, or nothing was
  *   seen yet in this app run (relaunch / update) → the next prompt carries
- *   `strings.chat.refreshNote` so 学根 re-reads the page and skills.
+ *   `strings.chat.refreshNote` so 学根 re-reads the page and skills. The 总控
+ *   session has no course page, so it carries `strings.chat.controlRefreshNote`
+ *   until this app run has looked at it once.
  * - 上下文到 60%：提示先存档，存档答完后提示开新会话接着上
  */
 
@@ -36,15 +38,18 @@ export function useSessionFreshness(
   settings: DesktopSettings,
   onStudy: (course: CourseSummary) => void,
   onContinueFresh: (slug: string, text: string) => void,
+  /** The open session is the cycle's 总控 session (no course page). */
+  isControl: boolean,
 ): SessionFreshness {
   const today = dateKey(new Date());
   const tz = new Date().getTimezoneOffset();
   const list = courses.state.status === "ready" ? courses.state.value : [];
   const course = activeCourse ? (list.find((item) => item.slug === activeCourse) ?? null) : null;
 
-  // Last seen course-page time per session file, recorded when each answer
-  // ends from a list fetched right then (not the board's shared reload, whose
-  // timing could record a later change as already seen).
+  // Last seen course-page time per session file (0 for the 总控 session, which
+  // has no page), recorded when each answer ends from a list fetched right then
+  // (not the board's shared reload, whose timing could record a later change as
+  // already seen).
   const seen = useRef<Record<string, number>>({});
   const [seenVersion, setSeenVersion] = useState(0);
   // The session file the 存档 prompt went to, and the one whose 存档 answer ended.
@@ -54,17 +59,23 @@ export function useSessionFreshness(
   useEffect(() => {
     const ended = wasStreaming.current && !controller.streaming;
     wasStreaming.current = controller.streaming;
-    if (!ended || !openSessionFile || !activeCourse) return;
+    if (!ended || !openSessionFile || (!activeCourse && !isControl)) return;
     const file = openSessionFile;
     if (sentFor === file) {
       void Promise.resolve().then(() => setDoneFor(file));
+    }
+    if (isControl) {
+      // No course page to compare: recording the file as seen is the whole job.
+      seen.current[file] = 0;
+      void Promise.resolve().then(() => setSeenVersion((value) => value + 1));
+      return;
     }
     void client.data({ kind: "courses.list" }).then((result) => {
       if (!result.ok) return;
       seen.current[file] = result.data.find((item) => item.slug === activeCourse)?.changedAt ?? 0;
       setSeenVersion((value) => value + 1);
     });
-  }, [controller.streaming, openSessionFile, activeCourse, sentFor]);
+  }, [controller.streaming, openSessionFile, activeCourse, isControl, sentFor]);
 
   // The refresh note is decided in an effect: `seen.current` may not be read
   // during render, and it reruns when an answer's record lands (`seenVersion`) or the list reloads.
@@ -72,14 +83,17 @@ export function useSessionFreshness(
     const note = needsRefresh(
       openSessionFile,
       activeCourse,
+      isControl,
       controller.messages.length,
       course?.changedAt,
       seen.current,
     )
-      ? strings.chat.refreshNote
+      ? isControl
+        ? strings.chat.controlRefreshNote
+        : strings.chat.refreshNote
       : null;
     controller.setRefreshNote(note);
-  }, [controller, seenVersion, openSessionFile, activeCourse, course, controller.messages.length, controller.streaming]);
+  }, [controller, seenVersion, openSessionFile, activeCourse, isControl, course, controller.messages.length, controller.streaming]);
 
   const [dismissed, setDismissed] = useState<string | null>(null);
   const stale = staleCourseSession(activeCourse, openSessionFile, settings.courseSessions, today, tz);
