@@ -1,4 +1,4 @@
-# PROGRESS（更新于 2026-11-10 19:30；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
+# PROGRESS（更新于 2026-11-10 20:10；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
@@ -7,12 +7,15 @@
 
 ### 0. 先看后台任务（11-10 19:30 交接）
 - **v0.8.0 已发布并已安装**（`7462ff7`，tag v0.8.0；`/Applications/学根.app` = 0.8.0；`~/.xuegen/app` → 安装包资源）。
-- **RENAME-DAY：第 0–4 步完成（改名已推到私有远端），第 5–7 步待做**（`docs/platform/RENAME-DAY.md`）：
+- **RENAME-DAY：第 0–5 步完成，第 6 步差用户 Obsidian 重新选库 + 学根看一眼，第 7 步待做**（`docs/platform/RENAME-DAY.md`）：
   - 改名已应用：目录 30、文件 160（搬动 119）、链接改写 926 条（164 个文件）、`.gitignore` `raw/学习路径/`→`raw/library/`。库里已是 `wiki/knowledge`、`wiki/shelf`、`clippings`、`raw/library`。
   - 核对全过：按目标比**新增断链 0**（前后都是 53 条老断链）；`wiki/courses` 0555、9 个课程页 0444；`jj st` 无 `A raw/library/`；`bookshelf today`、`cycle.mjs day`、`course-state verify` 正常；vault-lint 60 个问题与试运行一致（老问题，多为「后缀解析」）。
   - 已 `jj commit`：**`ce4adc4c` 「改名：库全英文命名（rename-vault）」**（基线 `796fa733855d`，撤回用 `jj restore --from 796fa733855d`）。
   - **第 4 步推送被 Claude Code 自动模式拦（Git Destructive）**，用户 11-10 19:50 已跑：本地 `main` 书签已移到 `ce4adc4c`，第一次推送网络失败，**第二次成功**：私有远端 `main` 已到 `ce4adc4c`。**第 4 步完成。**
-  - **未做**：第 5 步数据根 `~/学根` → `~/xuegen-data`（及子目录改英文、留旧链接、`xuegen-data-root.mjs`）；第 6 步收尾（库 AGENTS.md 去「Migration status」、NEW-MACHINE.md/PROGRESS/prepare.sh 路径、用户在 Obsidian 重新选库）；第 7 步卡片（停 Obsidian_to_Anki 插件、`anki-sync push --dry-run` 给用户看）。第 5 步要用户在场、学根与 Obsidian 退出。
+  - **第 5 步 11-10 完成**：数据根 = `~/xuegen-data/{vault,sessions,workspace}`（里面留 `库/会话/工作区` 中文链接，`~/学根` → `~/xuegen-data`）；`~/.xuegen/sessions`、`~/learning`、`wiki.json`、`~/Documents/学习路径`（原已断）、`~/Documents/Obsdian-gjy/GJY` 都已改指新路径。核对：jj 干净、0555/0444、书房 today、cycle day、course-state verify（参数是 `wiki/courses`）、vault-lint 60 全正常。
+  - **第 6 步**：库 AGENTS.md 去 Migration status + 正文旧目录改英文 → jj `c6f3bb61` 已推送（备份 `/tmp/vault-backup-1110-agents/`）；NEW-MACHINE.md（及 `~/xuegen-data/换电脑清单.md`）、`/tmp/xg-e2e/{prepare,check}.sh` 的 `REAL=` 已改。**待用户**：Obsidian 重新选库 `~/xuegen-data/vault`、删旧入口；打开学根看今天/书房/一门课。
+  - **待派 DeepSeek**：`docs/platform/batch-data-root-english.md`（`xuegen-data-root.mjs` 改认英文子目录；NEW-MACHINE 第 3 步已按新名写）。11-10 派发被自动模式拦，等用户放行或自己跑。
+  - 第 7 步卡片：停 Obsidian_to_Anki 插件、`anki-sync push ~/xuegen-data/vault --dry-run --json` 给用户看。
 - 之后：0.9.0 删旧名（收缩，清单见 `TIDY-1110.md` §3）→ 界面讨论（显示当前步骤、工具行人话、课程停用通道）。
 - 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
 - 整理 1 补测 → `f01018e`；整理 1 真机验收通过（见下）。
@@ -96,7 +99,7 @@
 - 发版须用户说「发版」；流程 `docs/desktop/RELEASE.md`；**替换已安装的学根前请用户自己退出**（只看会话文件时间不可靠）。
 
 ## 待用户处理
-- Obsidian 已按 `~/学根/库` 重新打开（11-09 已告知；若程序坞或 Obsidian 仓库列表还有旧入口，删掉）。
+- Obsidian 重新选库为 `~/xuegen-data/vault`（11-10 数据根改名后），删掉旧入口。
 - 英文术语卡方向；UI 重新讨论。
 
 ## 不要碰

@@ -15,12 +15,21 @@ const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, "..", "bin", "xuegen-data-root.mjs");
 
-/** 临时数据根（默认建好 库/ 会话/ 工作区）、home、learning 路径。 */
+/** 数据根下的英文子目录名（LAYOUT，与脚本一致）。 */
+const LAYOUT = ["vault", "sessions", "workspace"];
+
+/** 临时数据根（默认建好 vault/ sessions/ workspace/）、home、learning 路径。 */
 async function makeCase() {
   const base = await mkdtemp(join(tmpdir(), "xuegen-data-root-"));
   const dataRoot = join(base, "数据根");
-  for (const name of ["库", "会话", "工作区"]) await mkdir(join(dataRoot, name), { recursive: true });
+  for (const name of LAYOUT) await mkdir(join(dataRoot, name), { recursive: true });
   return { base, dataRoot, home: join(base, "home"), learning: join(base, "learning") };
+}
+
+/** 把数据根上的英文子目录换成旧的中文子目录。 */
+async function toLegacyLayout(testCase) {
+  for (const name of LAYOUT) await rm(join(testCase.dataRoot, name), { recursive: true, force: true });
+  for (const name of ["库", "会话", "工作区"]) await mkdir(join(testCase.dataRoot, name), { recursive: true });
 }
 
 async function wiring(args, { expectFail = false } = {}) {
@@ -63,11 +72,11 @@ test("接线：建两条链接并写 wiki.json", async () => {
   const testCase = await makeCase();
   try {
     const stdout = await wiring(argsFor(testCase));
-    assert.match(stdout, /库\/、会话\/、工作区\/ 都在/);
-    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "会话")), stdout);
-    assert.ok(isLinkTo(testCase.learning, join(testCase.dataRoot, "工作区")), stdout);
+    assert.match(stdout, /vault\/、sessions\/、workspace\/ 都在/);
+    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "sessions")), stdout);
+    assert.ok(isLinkTo(testCase.learning, join(testCase.dataRoot, "workspace")), stdout);
     const wikiJson = JSON.parse(await readFile(join(testCase.home, "wiki.json"), "utf8"));
-    assert.deepEqual(wikiJson, { root: join(testCase.dataRoot, "库") });
+    assert.deepEqual(wikiJson, { root: join(testCase.dataRoot, "vault") });
     // 原子写入不留临时文件。
     assert.ok((await readdir(testCase.home)).every((name) => !name.includes(".tmp-")));
   } finally {
@@ -85,7 +94,7 @@ test("重复运行：链接与 wiki.json 都已就位，跳过且不改动", asy
     assert.match(second, /learning.*跳过/);
     assert.match(second, /wiki\.json.*跳过/);
     assert.equal(await readFile(join(testCase.home, "wiki.json"), "utf8"), wikiText);
-    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "会话")));
+    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "sessions")));
   } finally {
     await rm(testCase.base, { recursive: true, force: true });
   }
@@ -138,13 +147,13 @@ test("拒绝：learning 已是真实目录，两条链接都不动", async () =>
   }
 });
 
-test("拒绝：数据根缺 库/ 子目录，exit 1 且不新建库", async () => {
+test("拒绝：数据根缺 vault/ 子目录，exit 1 且不新建库", async () => {
   const testCase = await makeCase();
   try {
-    await rm(join(testCase.dataRoot, "库"), { recursive: true, force: true });
+    await rm(join(testCase.dataRoot, "vault"), { recursive: true, force: true });
     const stderr = await wiring(argsFor(testCase), { expectFail: true });
-    assert.match(stderr, /数据根缺少 库\/|缺少/);
-    assert.equal(existsSync(join(testCase.dataRoot, "库")), false, "不应新建库目录");
+    assert.match(stderr, /数据根缺少 vault\//);
+    assert.equal(existsSync(join(testCase.dataRoot, "vault")), false, "不应新建库目录");
     assert.equal(existsSync(join(testCase.home, "wiki.json")), false);
     assert.equal(lstatOrNull(join(testCase.home, "sessions")), null);
   } finally {
@@ -152,13 +161,13 @@ test("拒绝：数据根缺 库/ 子目录，exit 1 且不新建库", async () =
   }
 });
 
-test("拒绝：数据根缺 工作区/ 子目录，同样 exit 1", async () => {
+test("拒绝：数据根缺 workspace/ 子目录，同样 exit 1", async () => {
   const testCase = await makeCase();
   try {
-    await rm(join(testCase.dataRoot, "工作区"), { recursive: true, force: true });
+    await rm(join(testCase.dataRoot, "workspace"), { recursive: true, force: true });
     const stderr = await wiring(argsFor(testCase), { expectFail: true });
-    assert.match(stderr, /数据根缺少/);
-    assert.equal(existsSync(join(testCase.dataRoot, "工作区")), false);
+    assert.match(stderr, /数据根缺少 workspace\//);
+    assert.equal(existsSync(join(testCase.dataRoot, "workspace")), false);
   } finally {
     await rm(testCase.base, { recursive: true, force: true });
   }
@@ -185,7 +194,75 @@ test("--dry-run 在已接线的机器上同样不改文件", async () => {
     const wikiText = await readFile(join(testCase.home, "wiki.json"), "utf8");
     await wiring(argsFor(testCase, ["--dry-run"]));
     assert.equal(await readFile(join(testCase.home, "wiki.json"), "utf8"), wikiText);
-    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "会话")));
+    assert.ok(isLinkTo(join(testCase.home, "sessions"), join(testCase.dataRoot, "sessions")));
+  } finally {
+    await rm(testCase.base, { recursive: true, force: true });
+  }
+});
+
+test("英文目录与指向它们的中文链接并存（真实机器现状）：照常接线，指向英文路径", async () => {
+  const testCase = await makeCase();
+  try {
+    // 库 → vault、会话 → sessions、工作区 → workspace：改名当天留下的中文链接。
+    symlinkSync(join(testCase.dataRoot, "vault"), join(testCase.dataRoot, "库"), "dir");
+    symlinkSync(join(testCase.dataRoot, "sessions"), join(testCase.dataRoot, "会话"), "dir");
+    symlinkSync(join(testCase.dataRoot, "workspace"), join(testCase.dataRoot, "工作区"), "dir");
+    const stdout = await wiring(argsFor(testCase));
+    assert.equal(
+      readlinkSync(join(testCase.home, "sessions")),
+      join(testCase.dataRoot, "sessions"),
+      `sessions 应指向英文目录，而不是中文链接：${stdout}`,
+    );
+    assert.equal(readlinkSync(testCase.learning), join(testCase.dataRoot, "workspace"));
+    const wikiJson = JSON.parse(await readFile(join(testCase.home, "wiki.json"), "utf8"));
+    assert.deepEqual(wikiJson, { root: join(testCase.dataRoot, "vault") });
+    // 原有的中文链接不被改动。
+    assert.equal(readlinkSync(join(testCase.dataRoot, "会话")), join(testCase.dataRoot, "sessions"));
+  } finally {
+    await rm(testCase.base, { recursive: true, force: true });
+  }
+});
+
+test("拒绝：数据根只有旧的中文子目录，exit 1 并提示旧布局怎么改", async () => {
+  const testCase = await makeCase();
+  try {
+    await toLegacyLayout(testCase);
+    const stderr = await wiring(argsFor(testCase), { expectFail: true });
+    assert.match(stderr, /旧布局/);
+    for (const name of LAYOUT) {
+      assert.ok(stderr.includes(name), `stderr 应说出新名字 ${name}：${stderr}`);
+    }
+    // 不建任何链接、不写 wiki.json、不动旧目录。
+    assert.equal(lstatOrNull(join(testCase.home, "sessions")), null);
+    assert.equal(lstatOrNull(testCase.learning), null);
+    assert.equal(existsSync(join(testCase.home, "wiki.json")), false);
+    for (const name of ["库", "会话", "工作区"]) {
+      assert.equal(existsSync(join(testCase.dataRoot, name)), true, `不应动旧目录 ${name}/`);
+    }
+    for (const name of LAYOUT) {
+      assert.equal(existsSync(join(testCase.dataRoot, name)), false, `不应新建 ${name}/`);
+    }
+  } finally {
+    await rm(testCase.base, { recursive: true, force: true });
+  }
+});
+
+test("已就位：<home>/sessions 经旧路径解析后与新目标是同一个真实目录，跳过", async () => {
+  const testCase = await makeCase();
+  try {
+    // 模拟 ~/.xuegen/sessions → ~/学根/会话，~/学根 → ~/xuegen-data。
+    const legacyRoot = join(testCase.base, "学根");
+    symlinkSync(testCase.dataRoot, legacyRoot, "dir");
+    symlinkSync(join(testCase.dataRoot, "sessions"), join(testCase.dataRoot, "会话"), "dir");
+    await mkdir(testCase.home, { recursive: true });
+    symlinkSync(join(legacyRoot, "会话"), join(testCase.home, "sessions"), "dir");
+    const stdout = await wiring(argsFor(testCase));
+    assert.match(stdout, /sessions.*跳过/);
+    // 原链接保持旧写法，脚本不去重写它。
+    assert.equal(readlinkSync(join(testCase.home, "sessions")), join(legacyRoot, "会话"));
+    assert.ok(isLinkTo(testCase.learning, join(testCase.dataRoot, "workspace")));
+    const wikiJson = JSON.parse(await readFile(join(testCase.home, "wiki.json"), "utf8"));
+    assert.deepEqual(wikiJson, { root: join(testCase.dataRoot, "vault") });
   } finally {
     await rm(testCase.base, { recursive: true, force: true });
   }

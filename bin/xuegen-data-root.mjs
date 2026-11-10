@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 // 新电脑上一条命令接好数据根（见 docs/platform/NEW-MACHINE.md 第 3 步）：
-//   <home>/sessions → <数据根>/会话、~/learning → <数据根>/工作区、<home>/wiki.json 写 root。
+//   <home>/sessions → <数据根>/sessions、~/learning → <数据根>/workspace、<home>/wiki.json 写 root。
 // 不新建库、不覆盖已有链接或真实目录；写文件用「临时文件 + rename」。
 // 用法：
 //   node bin/xuegen-data-root.mjs <数据根> [--home <XUEGEN_HOME>] [--learning <路径>] [--dry-run]
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+
+/** 数据根下的三个子目录名（2026-11-10 起为英文；旧的中文名见 LEGACY_LAYOUT）。 */
+const LAYOUT = { vault: "vault", sessions: "sessions", workspace: "workspace" };
+
+/** 旧（2026-11-10 之前）的中文子目录名，只用于认出旧布局并拒绝。 */
+const LEGACY_LAYOUT = { vault: "库", sessions: "会话", workspace: "工作区" };
 
 function fail(message) {
   process.stderr.write(`xuegen-data-root: ${message}\n`);
@@ -46,9 +52,9 @@ function usage() {
     "用法：",
     "  node bin/xuegen-data-root.mjs <数据根> [--home <XUEGEN_HOME>] [--learning <路径>] [--dry-run]",
     "",
-    "<数据根> 下必须有 库/ 会话/ 工作区 三个目录（不新建库）。",
-    "做的事：<home>/sessions → <数据根>/会话；<learning> → <数据根>/工作区；",
-    "        <home>/wiki.json 写入 { \"root\": \"<数据根>/库\" }。",
+    "<数据根> 下必须有 vault/ sessions/ workspace/ 三个目录（不新建库）。",
+    "做的事：<home>/sessions → <数据根>/sessions；<learning> → <数据根>/workspace；",
+    "        <home>/wiki.json 写入 { \"root\": \"<数据根>/vault\" }。",
     "<home> 默认 $XUEGEN_HOME，未设置时为 ~/.xuegen；<learning> 默认 ~/learning。",
     "--dry-run 只打印要做什么，不改任何东西。",
   ].join("\n");
@@ -115,6 +121,34 @@ function lstatExists(path) {
   }
 }
 
+/**
+ * 检查数据根是不是新布局（vault/ sessions/ workspace/）。
+ * 三个英文目录缺任何一个就失败：全是旧中文目录时报旧布局并给出改名做法，否则报缺目录。
+ */
+function checkLayout(dataRoot) {
+  const missing = Object.values(LAYOUT).filter((name) => {
+    const dir = join(dataRoot, name);
+    return !existsSync(dir) || !statSync(dir).isDirectory();
+  });
+  if (missing.length === 0) return;
+
+  const legacyNames = Object.values(LEGACY_LAYOUT);
+  const onlyLegacy =
+    legacyNames.every((name) => {
+      const dir = join(dataRoot, name);
+      return lstatExists(dir) && !lstatSync(dir).isSymbolicLink() && statSync(dir).isDirectory();
+    }) && missing.length === Object.keys(LAYOUT).length;
+  if (onlyLegacy) {
+    fail(
+      `数据根还是旧布局（${legacyNames.map((name) => `${name}/`).join(" ")}）：${dataRoot}\n` +
+        `请先把三个目录改名成 vault/ sessions/ workspace/（见 docs/platform/RENAME-DAY.md），再重跑本脚本。`,
+    );
+  }
+
+  const name = missing[0];
+  fail(`数据根缺少 ${name}/：${join(dataRoot, name)}（不新建库，先按换电脑清单拷数据）`);
+}
+
 function main() {
   const raw = process.argv.slice(2);
   if (raw.length === 0 || raw[0] === "--help" || raw[0] === "-h") {
@@ -131,23 +165,20 @@ function main() {
     typeof options.learning === "string" ? options.learning : join(homedir(), "learning"),
   );
 
-  for (const name of ["库", "会话", "工作区"]) {
-    const dir = join(dataRoot, name);
-    if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-      fail(`数据根缺少 ${name}/：${dir}（不新建库，先按换电脑清单拷数据）`);
-    }
-  }
+  checkLayout(dataRoot);
 
   // 先预检完三条落地动作（两条链接 + wiki.json），全部通过才动文件系统；
   // 一种冲突都不应该留下半套接线。
   const sessionsLink = join(home, "sessions");
-  const sessionsPlan = planLink(sessionsLink, join(dataRoot, "会话"));
-  const learningPlan = planLink(learning, join(dataRoot, "工作区"));
+  const sessionsTarget = join(dataRoot, LAYOUT.sessions);
+  const sessionsPlan = planLink(sessionsLink, sessionsTarget);
+  const workspaceTarget = join(dataRoot, LAYOUT.workspace);
+  const learningPlan = planLink(learning, workspaceTarget);
   const wikiJson = join(home, "wiki.json");
-  const root = join(dataRoot, "库");
+  const root = join(dataRoot, LAYOUT.vault);
   const wikiUpToDate = existingWikiRoot(wikiJson) === root;
 
-  process.stdout.write(`数据根 ${dataRoot}：库/、会话/、工作区/ 都在\n`);
+  process.stdout.write(`数据根 ${dataRoot}：vault/、sessions/、workspace/ 都在\n`);
 
   if (!existsSync(home)) {
     if (dryRun) process.stdout.write(`将创建 ${home}\n`);
@@ -157,8 +188,8 @@ function main() {
     }
   }
 
-  process.stdout.write(`${applyLink(sessionsLink, join(dataRoot, "会话"), sessionsPlan, dryRun)}\n`);
-  process.stdout.write(`${applyLink(learning, join(dataRoot, "工作区"), learningPlan, dryRun)}\n`);
+  process.stdout.write(`${applyLink(sessionsLink, sessionsTarget, sessionsPlan, dryRun)}\n`);
+  process.stdout.write(`${applyLink(learning, workspaceTarget, learningPlan, dryRun)}\n`);
 
   if (wikiUpToDate) process.stdout.write(`${wikiJson} 已指向 ${root}，跳过\n`);
   else if (dryRun) process.stdout.write(`将写入 ${wikiJson}：{ "root": "${root}" }\n`);

@@ -45,4 +45,8 @@
 - `node ~/.xuegen/app/skills/wiki-save/anki-sync.mjs push ~/xuegen-data/vault --dry-run --json` → 给用户看要加多少张、哪些牌组。
 - 用户同意后去掉 `--dry-run`（首次全量在命令行跑，不走 120 秒的按钮）。
 
-基线提交 ID：（执行时填）
+基线提交 ID：`796fa733855d`（第 1 步）；改名提交 `ce4adc4c`；AGENTS.md 收尾 `c6f3bb61`（均已推送）。
+
+## 执行记录（2026-11-10）
+- 第 5 步没用 `xuegen-data-root.mjs`（它只认中文子目录、不覆盖已有链接），手动做：`mv` + 子目录改名 + 三个中文兼容链接 + `~/学根` 链接；`ln -sfn` 换 `~/.xuegen/sessions`、`~/learning`；`wiki.json` 临时文件 + `mv`。另把已断的 `~/Documents/学习路径` 改指 `vault/raw/library`，`~/Documents/Obsdian-gjy/GJY` 改指 `~/xuegen-data/vault`。脚本改英文名：任务单 `batch-data-root-english.md`。
+- 第 6 步库 AGENTS.md 除去 Migration status，还把正文里的旧目录（`wiki/知识/`、`书房/`、`Clippings/`、目录树、链接示例）改成英文路径；备份 `/tmp/vault-backup-1110-agents/`。
