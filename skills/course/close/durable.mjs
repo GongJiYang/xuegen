@@ -185,7 +185,8 @@ export function recoverInternal(workspace) {
   const board = refreshBoard(journal.vault);
   const jjResult = jjCommit(
     journal.vault,
-    `收课 ${journal.slug} ${localDate()}`,
+    // journal.label 由 commitInternal 写入（计划暂存为「计划」）；旧 journal 没有它，照旧记「收课」。
+    `${journal.label ?? "收课"} ${journal.slug} ${localDate()}`,
     [...journal.files.map((entry) => entry.path), ...board.paths],
   );
   process.stderr.write(`已补完上次中断的收课：${journal.slug}\n`);

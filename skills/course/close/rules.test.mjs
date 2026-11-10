@@ -280,3 +280,64 @@ test("planCheck：归属、符号链接、冲突、只追加、课程页、概�
     ],
   );
 });
+
+// ---- 计划暂存（kind: plan）与 --new ----
+
+test("ownedPrefixes：plan 只含课程页/课程目录/index/log 与科目页，不含概念目录与卡片目录", () => {
+  const plan = ownedPrefixes("epp", "discrete-math", "plan");
+  assert.ok(plan.includes("wiki/subjects/discrete-math.md"));
+  assert.ok(plan.includes("wiki/courses/epp.md"));
+  assert.ok(!plan.some((entry) => entry.includes("knowledge") || entry.includes("知识")));
+  // 不写 kind 等同 close：仍带概念/卡片目录，旧 manifest 行为不变
+  assert.deepEqual(ownedPrefixes("epp", "discrete-math"), ownedPrefixes("epp", "discrete-math", "close"));
+});
+
+test("planCheck：plan 暂存写概念页或卡片页 → owner；收课暂存写科目页 → owner（kind 不混用）", () => {
+  const concept = "wiki/knowledge/concepts/discrete-math/truth-table.md";
+  const card = "wiki/knowledge/flashcards/discrete-math/cards.md";
+  const subjectPage = "wiki/subjects/discrete-math.md";
+  const planManifest = { kind: "plan", slug: "epp", subject: "discrete-math", base: {} };
+  const planResult = planCheck(
+    planManifest,
+    [
+      { path: concept, sha: "a", text: CONCEPT(), symlink: false },
+      { path: card, sha: "b", text: "x", symlink: false },
+    ],
+    new Map(),
+  );
+  assert.deepEqual(planResult.problems.map((p) => [p.path, p.kind]), [[concept, "owner"], [card, "owner"]]);
+
+  const closeManifest = { kind: "close", slug: "epp", subject: "discrete-math", base: {} };
+  const closeResult = planCheck(
+    closeManifest,
+    [{ path: subjectPage, sha: "c", text: "# 科目", symlink: false }],
+    new Map(),
+  );
+  assert.deepEqual(closeResult.problems.map((p) => [p.path, p.kind]), [[subjectPage, "owner"]]);
+});
+
+test("planCheck：plan --new 暂存没有课程页 → 报「新建课程必须写课程页」（kind course-page）", () => {
+  const manifest = { kind: "plan", slug: "epp", subject: "discrete-math", isNew: true, base: { "wiki/index.md": "i" } };
+  const current = new Map([["wiki/index.md", { sha: "i", text: INDEX }]]);
+  const result = planCheck(manifest, [{ path: "wiki/index.md", sha: "i", text: INDEX, symlink: false }], current);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.problems.map((p) => [p.path, p.kind, p.detail]), [
+    ["wiki/courses/epp.md", "course-page", "新建课程必须写课程页"],
+  ]);
+});
+
+test("planCheck：plan --new 写了合格课程页 → 通过，课程页列为新建", () => {
+  const page = "wiki/courses/epp.md";
+  const manifest = { kind: "plan", slug: "epp", subject: "discrete-math", isNew: true, base: {} };
+  const result = planCheck(manifest, [{ path: page, sha: "p", text: coursePage(), symlink: false }], new Map());
+  assert.equal(result.ok, true, JSON.stringify(result.problems));
+  assert.deepEqual(result.changes, [{ path: page, action: "create" }]);
+});
+
+test("planCheck：非 --new 的 plan 暂存不要求课程页（改已有课程只改科目页也能过）", () => {
+  const subjectPage = "wiki/subjects/discrete-math.md";
+  const manifest = { kind: "plan", slug: "epp", subject: "discrete-math", base: { [subjectPage]: "s" } };
+  const current = new Map([[subjectPage, { sha: "s", text: "# 科目" }]]);
+  const result = planCheck(manifest, [{ path: subjectPage, sha: "s2", text: "# 科目（改）", symlink: false }], current);
+  assert.equal(result.ok, true, JSON.stringify(result.problems));
+});

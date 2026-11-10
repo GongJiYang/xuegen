@@ -153,6 +153,14 @@ export function checkConceptPage(text) {
 export function planCheck(manifest, staged, current) {
   const problems = [];
   const changes = [];
+  // 新建课程（plan --new）必须写出课程页：没有就是半成品，不能提交。
+  if (manifest.isNew === true && !staged.some((item) => item.path === `wiki/courses/${manifest.slug}.md`)) {
+    problems.push({
+      path: `wiki/courses/${manifest.slug}.md`,
+      kind: "course-page",
+      detail: "新建课程必须写课程页",
+    });
+  }
   for (const item of staged) {
     const { path } = item;
     if (item.symlink) {

@@ -1764,3 +1764,279 @@ jjTest(
     }
   },
 );
+
+// ---- 计划事务（kind: plan）----
+
+const SUBJECT_PAGE = "# 离散数学\n\n- 资料登记：Epp\n";
+
+/** 在 makeVault 的库上补一份科目页（计划暂存会复制它）。 */
+async function addSubjectPage(vault) {
+  await mkdir(join(vault, "wiki", "subjects"), { recursive: true });
+  await writeFile(join(vault, "wiki", "subjects", "discrete-math.md"), SUBJECT_PAGE);
+}
+
+/** 当前 jj 最新提交（@-）的描述首行，用来断言提交名。 */
+function latestDescription(jj) {
+  return descriptionOf(jj).split("\n")[0];
+}
+
+jjTest("计划暂存：改课程页 + 科目页 → commit → jj「计划 <slug> <日期>」，两个文件都进提交，课程页 0444", async () => {
+  const fixture = await makeVault();
+  try {
+    await addSubjectPage(fixture.vault);
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const page = coursePage({ tail: "" }).replace("## Relationships", "## Relationships");
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), page.replace("讲 §1.1", "讲 §1.2"));
+    await writeFile(join(staging, "wiki", "subjects", "discrete-math.md"), `${SUBJECT_PAGE}- 偏好：先例题\n`);
+    const result = await cliJson(["commit", staging], { env });
+    assert.equal(result.committed, true);
+    assert.equal(result.jj, "ok");
+    assert.equal(latestDescription(jj), `计划 epp ${localDate()}`);
+    // 提交里还会带上重画的看板（wiki/courses.md 等）；这里只断言两个暂存文件都在。
+    const files = jj(["diff", "-r", "@-", "--name-only"]).trim().split("\n").sort();
+    assert.ok(files.includes("wiki/courses/epp.md"), "课程页进提交");
+    assert.ok(files.includes("wiki/subjects/discrete-math.md"), "科目页进提交");
+    assert.equal(await mode(fixture.page), 0o444, "课程页上锁");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "subjects", "discrete-math.md"), "utf8"), `${SUBJECT_PAGE}- 偏好：先例题\n`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存写概念页或卡片页 → check 报 owner；收课暂存写科目页 → owner", async () => {
+  const fixture = await makeVault();
+  try {
+    await addSubjectPage(fixture.vault);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    const concept = join(staging, "wiki", "knowledge", "concepts", "discrete-math", "truth-table.md");
+    await mkdir(dirname(concept), { recursive: true });
+    await writeFile(concept, CONCEPT());
+    const card = join(staging, "wiki", "knowledge", "flashcards", "discrete-math", "cards.md");
+    await mkdir(dirname(card), { recursive: true });
+    await writeFile(card, "# 卡片\n");
+    const planCheck = await cli(["check", staging, "--json"], { expectFail: true });
+    const planProblems = JSON.parse(planCheck.stdout).problems.map((p) => [p.path, p.kind]).sort();
+    assert.deepEqual(planProblems, [
+      ["wiki/knowledge/concepts/discrete-math/truth-table.md", "owner"],
+      ["wiki/knowledge/flashcards/discrete-math/cards.md", "owner"],
+    ]);
+
+    // 收课暂存：科目页不在收课归属里（kind 不混用）
+    await cli(["abort", staging]);
+    const closeStage = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const subjectRel = "wiki/subjects/discrete-math.md";
+    // 收课暂存没有复制科目页，手工放一份进暂存、登记进 manifest 之外，check 也必须报 owner。
+    await mkdir(join(closeStage.staging, "wiki", "subjects"), { recursive: true });
+    await writeFile(join(closeStage.staging, subjectRel), `${SUBJECT_PAGE}- 改\n`);
+    const closeCheck = await cli(["check", closeStage.staging, "--json"], { expectFail: true });
+    const closeProblems = JSON.parse(closeCheck.stdout).problems.map((p) => [p.path, p.kind]);
+    assert.deepEqual(closeProblems, [[subjectRel, "owner"]]);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划 --new：没写课程页就 check → 报「新建课程必须写课程页」；写了合格课程页 → commit，课程页 0444", async () => {
+  const fixture = await makeVault();
+  try {
+    await addSubjectPage(fixture.vault);
+    // 新课 slug 用 newcourse：库里还没有它的课程页
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(
+      ["stage", fixture.vault, "newcourse", "--kind", "plan", "--new", "--subject", "discrete-math", "--workspace", fixture.ws],
+      { env },
+    );
+    const missing = await cli(["check", staging, "--json"], { expectFail: true, env });
+    const problems = JSON.parse(missing.stdout).problems;
+    assert.deepEqual(
+      problems.map((p) => [p.path, p.kind, p.detail]),
+      [["wiki/courses/newcourse.md", "course-page", "新建课程必须写课程页"]],
+    );
+    const newPage = join(fixture.vault, "wiki", "courses", "newcourse.md");
+
+    // 写一份合格课程页（标记、排期段、Relationships 指向科目）
+    const text = coursePage().replace("epp", "newcourse");
+    await mkdir(join(staging, "wiki", "courses"), { recursive: true });
+    await writeFile(join(staging, "wiki", "courses", "newcourse.md"), text);
+    const result = await cliJson(["commit", staging], { env });
+    assert.equal(result.committed, true);
+    assert.equal(result.jj, "ok");
+    assert.equal(latestDescription(jj), `计划 newcourse ${localDate()}`);
+    assert.equal(await readFile(newPage, "utf8"), text);
+    assert.equal(await mode(newPage), 0o444, "新课程页上锁");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("--new 的边界：课程已存在拒绝；不带 --kind plan 或 --subject 拒绝，什么都不写", async () => {
+  const fixture = await makeVault();
+  try {
+    const exists = await cli(
+      ["stage", fixture.vault, "epp", "--kind", "plan", "--new", "--subject", "discrete-math", "--workspace", fixture.ws],
+      { expectFail: true },
+    );
+    assert.match(exists.stderr, /这门课已存在/);
+    const noPlan = await cli(["stage", fixture.vault, "newcourse", "--new", "--subject", "discrete-math", "--workspace", fixture.ws], { expectFail: true });
+    assert.match(noPlan.stderr, /--new 只能和 --kind plan 一起用/);
+    const noSubject = await cli(["stage", fixture.vault, "newcourse", "--kind", "plan", "--new", "--workspace", fixture.ws], { expectFail: true });
+    assert.match(noSubject.stderr, /--new 需要 --subject/);
+    assert.deepEqual(await closeEntries(fixture.ws), [], "被拒的 stage 不留暂存");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("计划暂存：commit 不接受 --label；check 通过后 abort 可删", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    const rejected = await cli(["commit", staging, "--label", "存档点"], { expectFail: true });
+    assert.match(rejected.stderr, /计划暂存的提交一律记「计划」/);
+    assert.equal(existsSync(join(staging, "committed")), false, "被拒的 commit 不标 committed");
+    await cli(["abort", staging]);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("schedule：相对 --lessons 按暂存解析成功，暂存课程页写入排期；课次过多 → 原样返回中文错误、课程页不变", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    const pageInStaging = join(staging, "wiki", "courses", "epp.md");
+    const before = await readFile(pageInStaging, "utf8");
+
+    // 课次 3 个，只有 2 个上课日（周一、周二）→ 脚本报错，课程页不动
+    const many = JSON.stringify([{ content: "第一课" }, { content: "第二课" }, { content: "第三课" }]);
+    await writeFile(join(staging, "lessons-many.json"), many);
+    const failed = await cli(
+      ["schedule", staging, "--lessons", "lessons-many.json", "--start", "2026-11-09", "--end", "2026-11-10", "--rest", "sun"],
+      { expectFail: true },
+    );
+    assert.match(failed.stderr, /排期失败：/);
+    assert.equal(await readFile(pageInStaging, "utf8"), before, "失败时暂存课程页不变");
+
+    // 相对路径（暂存里的 lessons.json）解析成功
+    const ok = JSON.stringify([{ content: "第一课" }, { content: "第二课" }]);
+    await writeFile(join(staging, "lessons.json"), ok);
+    const done = await cli(
+      ["schedule", staging, "--lessons", "lessons.json", "--start", "2026-11-09", "--end", "2026-11-10", "--rest", "sun"],
+    );
+    assert.match(done.stdout, /已把排期写进暂存课程页/);
+    const after = await readFile(pageInStaging, "utf8");
+    assert.notEqual(after, before, "暂存课程页被排期改写");
+    assert.match(after, /\| D2 \| 2026-11-10（周二） \| 第二课/);
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), coursePage(), "库不动");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("schedule：在收课暂存上跑被拒（只允许计划暂存）", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await writeFile(join(staging, "lessons.json"), JSON.stringify([{ content: "x" }]));
+    const rejected = await cli(["schedule", staging, "--lessons", "lessons.json", "--start", "2026-11-09", "--end", "2026-11-10"], { expectFail: true });
+    assert.match(rejected.stderr, /schedule 只能用在计划暂存/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划提交之后 undo 不撤它：只有计划没有收课 → 找不到收课提交，库与 jj 都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    await addSubjectPage(fixture.vault);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    await cliJson(["commit", staging], { env });
+    assert.equal(latestDescription(jj), `计划 epp ${localDate()}`);
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+    const failed = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
+    assert.match(failed.stderr, /没有找到这门课的收课提交/);
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 没多出撤销提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("收课 → 计划改了课程页 → undo 被拒（计划之后又改过），库与 jj 都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    });
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const planned = withCloseRecord(coursePage()).replace("讲 §1.1", "讲 §1.3");
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), planned);
+    await cliJson(["commit", staging], { env });
+    assert.equal(latestDescription(jj), `计划 epp ${localDate()}`);
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+    const failed = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
+    assert.match(failed.stderr, /这次收课之后 wiki\/courses\/epp\.md 又被改过，不能直接撤销/);
+    assert.equal(await readFile(fixture.page, "utf8"), planned, "计划改的内容没被盖掉");
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+// ---- 计划暂存的崩溃恢复：提交名取 journal.label ----
+
+jjTest("recover：journal 带 label「计划」→ 补完后 jj 最新描述是「计划 …」", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const newPage = withCloseRecord(coursePage());
+    const tmp = join(fixture.vault, "wiki", "courses", ".epp.md.close-tmp-9999");
+    await chmod(join(fixture.vault, "wiki", "courses"), 0o755);
+    await chmod(fixture.page, 0o644);
+    await writeFile(tmp, newPage);
+    const journal = {
+      staging,
+      vault: fixture.vault,
+      slug: "epp",
+      label: "计划",
+      files: [{ path: "wiki/courses/epp.md", tmp }],
+      startedAt: "2026-11-09T00:00:00.000Z",
+    };
+    await writeFile(join(fixture.ws, ".close", "journal.json"), `${JSON.stringify(journal, null, 2)}\n`);
+    const recovered = await cliJson(["recover", fixture.vault, "--workspace", fixture.ws], { env });
+    assert.equal(recovered.recovered, "epp");
+    assert.equal(await readFile(fixture.page, "utf8"), newPage);
+    assert.equal(latestDescription(jj), `计划 epp ${localDate()}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("recover：没有 label 的旧 journal → 补完后仍记「收课 …」", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    const newPage = withCloseRecord(coursePage());
+    const tmp = join(fixture.vault, "wiki", "courses", ".epp.md.close-tmp-9998");
+    await chmod(join(fixture.vault, "wiki", "courses"), 0o755);
+    await chmod(fixture.page, 0o644);
+    await writeFile(tmp, newPage);
+    const journal = {
+      staging,
+      vault: fixture.vault,
+      slug: "epp",
+      files: [{ path: "wiki/courses/epp.md", tmp }],
+      startedAt: "2026-11-09T00:00:00.000Z",
+    };
+    await writeFile(join(fixture.ws, ".close", "journal.json"), `${JSON.stringify(journal, null, 2)}\n`);
+    await cliJson(["recover", fixture.vault, "--workspace", fixture.ws], { env });
+    assert.equal(latestDescription(jj), `收课 epp ${localDate()}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});

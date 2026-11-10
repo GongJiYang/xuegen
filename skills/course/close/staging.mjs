@@ -192,6 +192,8 @@ export function stageInternal(vault, slug, workspace, { kind = "close", isNew = 
       vault,
       slug,
       subject: courseSubject,
+      // 新建课程标记：check 要求暂存里必须有课程页（见 rules.planCheck）。
+      ...(isNew ? { isNew: true } : {}),
       createdAt: new Date().toISOString(),
       base,
     });

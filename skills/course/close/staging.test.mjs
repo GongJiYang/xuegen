@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -97,6 +98,20 @@ function stageInChild(vault, slug, workspace) {
     return { code: 0, stderr: "", stdout };
   } catch (error) {
     return { code: error.status ?? 1, stderr: error.stderr ?? "", stdout: error.stdout ?? "" };
+  }
+}
+
+/** 子进程里用给定选项调 stageInternal，返回 { code, stderr }（fail 会 exit）。 */
+function stageInChildOpts(fixture, slug, options) {
+  const code = [
+    `import { stageInternal } from ${JSON.stringify(STAGING_URL)};`,
+    `stageInternal(${JSON.stringify(fixture.vault)}, ${JSON.stringify(slug)}, ${JSON.stringify(fixture.ws)}, ${JSON.stringify(options)});`,
+  ].join("\n");
+  try {
+    execFileSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8", stdio: "pipe" });
+    return { code: 0, stderr: "" };
+  } catch (error) {
+    return { code: error.status ?? 1, stderr: String(error.stderr ?? "") };
   }
 }
 
@@ -255,6 +270,69 @@ test("gatherCheck：暂存里的符号链接不跟随，按 owner 报出来", as
       [["wiki/courses/epp/records/link.md", "owner"]],
     );
     assert.match(result.problems[0].detail, /符号链接/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+// ---- 计划暂存（kind: plan）与 --new ----
+
+test("stageInternal --kind plan：复制课程页、index、log 与科目页（存在时）；manifest.kind 为 plan", async () => {
+  const fixture = await makeFixture();
+  try {
+    await mkdir(join(fixture.vault, "wiki", "subjects"), { recursive: true });
+    await writeFile(join(fixture.vault, "wiki", "subjects", "discrete-math.md"), "# 离散数学\n");
+    const staging = stageInternal(fixture.vault, "epp", fixture.ws, { kind: "plan" });
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.kind, "plan");
+    assert.equal(manifest.isNew, undefined, "非新建不写 isNew");
+    assert.deepEqual(Object.keys(manifest.base).sort(), [
+      "wiki/courses/epp.md",
+      "wiki/index.md",
+      "wiki/log.md",
+      "wiki/subjects/discrete-math.md",
+    ]);
+    assert.equal(await mode(join(staging, "wiki", "subjects", "discrete-math.md")), 0o644, "科目页镜像可写");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("stageInternal --new：课程已存在 → 拒绝；不带 --kind plan 或不带 --subject → 拒绝", async () => {
+  const fixture = await makeFixture();
+  try {
+    // fail() 会 process.exit，所以每个拒绝都在子进程里跑。
+    const cases = [
+      [() => stageInChildOpts(fixture, "epp", { kind: "plan", isNew: true, subject: "discrete-math" }), /这门课已存在/],
+      [() => stageInChildOpts(fixture, "newcourse", { kind: "close", isNew: true, subject: "discrete-math" }), /--new 只能和 --kind plan 一起用/],
+      [() => stageInChildOpts(fixture, "newcourse", { kind: "plan", isNew: true }), /--new 需要 --subject/],
+      [() => stageInChildOpts(fixture, "epp", { kind: "plan", subject: "discrete-math" }), /--subject 只能和 --new 一起用/],
+    ];
+    for (const [run, pattern] of cases) {
+      const { code, stderr } = run();
+      assert.equal(code, 1);
+      assert.match(stderr, pattern);
+    }
+    assert.equal(existsSync(join(fixture.ws, ".close")) ? (await readdir(join(fixture.ws, ".close"))).length : 0, 0, "被拒的 stage 不留暂存目录");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("stageInternal --kind plan --new：课程页不复制、manifest 记 isNew: true 与科目", async () => {
+  const fixture = await makeFixture();
+  try {
+    await rm(join(fixture.vault, "wiki", "courses", "epp.md"));
+    const staging = stageInternal(fixture.vault, "epp", fixture.ws, {
+      kind: "plan",
+      isNew: true,
+      subject: "discrete-math",
+    });
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.isNew, true);
+    assert.equal(manifest.subject, "discrete-math");
+    assert.deepEqual(Object.keys(manifest.base).sort(), ["wiki/index.md", "wiki/log.md"]);
+    assert.equal(existsSync(join(staging, "wiki", "courses", "epp.md")), false, "新建不复制课程页");
   } finally {
     await cleanup(fixture);
   }
