@@ -35,9 +35,9 @@ export interface TurnDeps {
 
 /** The three requests that act on the active session. */
 export type SessionRequest =
-  | { type: "prompt"; text: string; sessionId?: string }
-  | { type: "compact"; sessionId?: string }
-  | { type: "abort"; sessionId?: string };
+  | { type: "prompt"; text: string; sessionId?: string | undefined }
+  | { type: "compact"; sessionId?: string | undefined }
+  | { type: "abort"; sessionId?: string | undefined };
 
 /**
  * Send a user prompt, streaming or as a follow-up when the session is busy.

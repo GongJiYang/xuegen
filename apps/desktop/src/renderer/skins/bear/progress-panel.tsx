@@ -138,7 +138,7 @@ function NewCourseForm({
   onSubmit,
   onCancel,
 }: {
-  initialTitle?: string;
+  initialTitle?: string | undefined;
   placement?: CyclePlacement | null;
   sources: ProgressPanelProps["sources"];
   onSubmit(request: NewCourseRequest): void;

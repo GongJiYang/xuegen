@@ -63,7 +63,7 @@ export interface ChatMessage {
    * message either way, so a transcript restored from the session file can be
    * re-judged; the renderer decides what to show from `retry`.
    */
-  retry?: { attempt: number; maxAttempts: number } | "recovered";
+  retry?: { attempt: number; maxAttempts: number } | "recovered" | undefined;
   /** ISO time the session file recorded it (restored history only; live messages leave it unset). */
   at?: string;
 }
@@ -162,8 +162,8 @@ export type AgentStatus = "starting" | "ready" | "restarting" | "crashed" | "sto
 export type HostToAgentMessage =
   | { type: "init" }
   /** `sessionId`, when given, must name the active session; a stale one is dropped with an error (see agent/index.ts). */
-  | { type: "prompt"; text: string; sessionId?: string }
-  | { type: "abort"; sessionId?: string }
+  | { type: "prompt"; text: string; sessionId?: string | undefined }
+  | { type: "abort"; sessionId?: string | undefined }
   /** `role` picks the guard's permission set; absent means `free`. */
   | { type: "new-session"; role?: SessionRole }
   | { type: "continue-session" }
@@ -174,7 +174,7 @@ export type HostToAgentMessage =
   | { type: "list-commands"; disabledSkills: string[] }
   /** Compact the conversation now (the 「立即压缩」 button). */
   /** `sessionId`, when given, must name the active session; a stale one is dropped with an error (see agent/index.ts). */
-  | { type: "compact"; sessionId?: string }
+  | { type: "compact"; sessionId?: string | undefined }
   /**
    * Switch to a specific session: the file of an earlier session to resume, or
    * null for a brand-new one. Each course keeps its own session so contexts never

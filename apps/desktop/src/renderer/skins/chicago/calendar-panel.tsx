@@ -108,7 +108,7 @@ function DayDetail({
   onOpenSession,
 }: {
   date: string;
-  entries?: CalendarDay;
+  entries?: CalendarDay | undefined;
   onEdit(): void;
   courseTitles: Record<string, string>;
   sessions: SessionRow[];

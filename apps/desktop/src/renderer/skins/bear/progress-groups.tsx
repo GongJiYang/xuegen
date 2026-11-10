@@ -22,7 +22,7 @@ export function Section({
 }: {
   title: string;
   meta: string;
-  warn?: string;
+  warn?: string | undefined;
   defaultOpen: boolean;
   children: ReactNode;
 }) {
@@ -46,7 +46,13 @@ export function Section({
   );
 }
 
-export function Materials({ group, onPlan }: { group: SubjectGroup; onPlan?: (title: string) => void }) {
+export function Materials({
+  group,
+  onPlan,
+}: {
+  group: SubjectGroup;
+  onPlan?: ((title: string) => void) | undefined;
+}) {
   const [open, setOpen] = useState(false);
   if (group.materials.length === 0) return null;
   const types = [...new Set(group.materials.map((item) => item.type))];
@@ -95,7 +101,7 @@ function Subject({
   group: SubjectGroup;
   renderCourse(item: GroupedCourse): ReactNode;
   hideName?: boolean;
-  onPlan?: (title: string) => void;
+  onPlan?: ((title: string) => void) | undefined;
 }) {
   return (
     <div className="bear-pg-subject">

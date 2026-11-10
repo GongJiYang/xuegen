@@ -560,7 +560,7 @@ export interface ReadingPanelProps extends ToolPanelProps {
    * `/加入阅读` opens the reading window with `reading-add`, so the cursor lands
    * in the add box; the panel reports back via {@link onFocusHandled}.
    */
-  focus?: ToolFocus;
+  focus?: ToolFocus | undefined;
   /** Called once the requested focus has been applied, so core clears it. */
   onFocusHandled?(): void;
 }
