@@ -38,7 +38,7 @@ export interface RouteView {
   end: string;
   /** 「2026-11-06 开始 · 还有 89 周 · 另留约 12 周缓冲」. */
   sub: string;
-  /** One per cycle, labelled 「C1」; `weeks` has 7 cells; `restAfter` when a recovery week follows it. */
+  /** One per cycle, labelled 「C1」; `weeks` has one cell per calendar week of the cycle (7, or more when it ran late); `restAfter` when a recovery week follows it. */
   segments: { id: string; label: string; state: SegmentState; restAfter: boolean; weeks: WeekState[] }[];
   /** The expanded list: 「C1  离散数学 + 编程语言与编程范式  26.11.06 – 12.24」. */
   cycles: { id: string; subjects: string; range: string; now: boolean }[];
@@ -89,11 +89,12 @@ function isNow(start: string, end: string, today: string): boolean {
   return start <= today && today <= end;
 }
 
-function weekStates(state: SegmentState, start: string, today: string): WeekState[] {
-  if (state === "done") return Array.from({ length: 7 }, () => "done");
-  if (state === "plan") return Array.from({ length: 7 }, () => "plan");
-  const current = Math.min(7, Math.floor(daysBetween(start, today) / 7) + 1);
-  return Array.from({ length: 7 }, (_, index) => (index + 1 < current ? "done" : index + 1 === current ? "now" : "left"));
+function weekStates(state: SegmentState, start: string, end: string, today: string): WeekState[] {
+  const count = Math.max(1, Math.ceil((daysBetween(start, end) + 1) / 7));
+  if (state === "done") return Array.from({ length: count }, () => "done");
+  if (state === "plan") return Array.from({ length: count }, () => "plan");
+  const current = Math.min(count, Math.floor(daysBetween(start, today) / 7) + 1);
+  return Array.from({ length: count }, (_, index) => (index + 1 < current ? "done" : index + 1 === current ? "now" : "left"));
 }
 
 export function routeView(overview: CycleOverview, today: string): RouteView | null {
@@ -111,7 +112,7 @@ export function routeView(overview: CycleOverview, today: string): RouteView | n
         label: cycle.id,
         state,
         restAfter: route.recovery.some((rest) => daysBetween(cycle.end, rest.start) === 1),
-        weeks: weekStates(state, cycle.start, today),
+        weeks: weekStates(state, cycle.start, cycle.end, today),
       };
     }),
     cycles: route.cycles.map((cycle) => ({

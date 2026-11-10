@@ -64,6 +64,7 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
 ```
 
 - 不给 `--date` 就用本机今天。日期、星期、第几周一律以脚本输出为准，不自己推算。
+- **周期页与路线表写的是计划日期**；主项课没学会整体顺延（固定 7 周学时、不固定日期，用户 2026-11-10 定），`day` / `week` / `month` / `overview` 输出的是按主项课最后一节推算的**实际**日期（周期可能多出一个短的 W8，后面的周期整体后移）。`overview --json` 的 `cycle.plannedEnd`、`cycle.delayDays` 说明晚了几天；告诉用户时说「比计划晚 N 天」，不去改周期页或路线表的日期。
 - `day --json` 返回 `{ date, weekday, cycle, week, type, subject, course, aux, auxCourse, names, subjects, roles, lessons, overdue }`（`subject`/`aux` 是当天的主项与辅助科目，`course`/`auxCourse` 是它们当天的课，`names` 课程 slug → 短名，`subjects` 科目 slug → 短名，`roles` 课程 slug → `main` 或 `aux`）：
   - `cycle` 为 `null` 表示这天不在任何周期内（其余字段为空）。
   - `type` 是周模板里这天的类型；`course` 是深度日链接的课程 slug，其他类型为 `null`。
@@ -88,6 +89,11 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
    - **休息**：只说「今天休息」，不推任务；Anki 可做可不做。
 3. **标逾期**：有 `overdue` 时用 `!` 标出，说明「开这门课时 course 会先把它顺延到下一个上课日」；本技能不跑 `shift --write`。
 4. **转去上课**：用户要开始上课时，交给对应课程：在桌面版切到该课程的会话；在其他宿主里，明确选中该课程后按 `course` 与 `teach` 进行。总控本身不讲课。
+
+
+### 手动顺延（总控）
+
+用户说「顺延今日内容」「今天不学了，往后挪」时（总控会话）：先跑 `day --date <今天> --json`，把 `lessons` 与 `overdue` 里还没完成的课列出来；对每门课调 `course_plan`：`action: "shift"`、`slug`、`today: <明天>`（明天之前没学的新课都顺延到明天或之后的第一个上课日）；辅助课的排期标记里还没有 `end=` 时加 `end: <周期计划最后一天>`，主项课不加。每门课一次调用，逐条转告结果（「CTM D1 顺延到 11-12，最后一节 12-31」），最后跑一次 `overview` 说周期比计划晚几天。不用 bash 跑 `course-schedule.mjs shift --write`（会被沙盒拦）。
 
 ### 周五整合
 

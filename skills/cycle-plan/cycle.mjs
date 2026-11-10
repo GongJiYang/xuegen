@@ -267,7 +267,9 @@ export function parseRoute(text, name = "cycles/route.md") {
 /**
  * 总进度顶部：{ date, route, cycle, courses }。
  * route（没有路线页时为 null）：{ start, end, bufferWeeks, weeksLeft, cycles: [{ id, start, end, main, aux, status }], recovery: [{ start, end }] }。
- * cycle（不在周期内时为 null）：{ cycle, title, start, end, week, weeks, daysLeft, next: { cycle, start } | null, subjects, auxSubjects, subjectDays }。
+ *   route.end 是 shiftRoute 平移后的实际结束日（plannedEnd 是路线页上的计划值）。
+ * cycle（不在周期内时为 null）：{ cycle, title, start, end, plannedEnd, delayDays, week, weeks, daysLeft, next: { cycle, start } | null, subjects, auxSubjects, subjectDays }。
+ *   start / end 是按主项课顺延推算的实际日期；plannedEnd 是周期页上的计划结束日，delayDays 是实际结束比计划晚的天数。
  * courses：本周期的每门课（loadCourses 的顺序）{ slug, subject, role, name, total, done, end, next: { id, date, content } | null, lessons: [{ id, date, content, done }] }，只算新课次。
  */
 export function planInfo(route, cycle, courses, date) {
@@ -290,6 +292,8 @@ export function planInfo(route, cycle, courses, date) {
     title: cycle.title,
     start: cycle.start,
     end: cycle.end,
+    plannedEnd: cycle.plannedEnd ?? cycle.end,
+    delayDays: cycle.delayDays ?? 0,
     week: weekOf(cycle, date),
     weeks: Math.ceil((daysBetween(cycle.start, cycle.end) + 1) / 7),
     daysLeft: Math.max(0, daysBetween(date, cycle.end)),
@@ -331,7 +335,7 @@ export function planInfo(route, cycle, courses, date) {
  */
 export function checkCycle(cycle, courses) {
   const problems = [];
-  const span = daysBetween(cycle.start, cycle.end) + 1;
+  const span = daysBetween(cycle.plannedStart ?? cycle.start, cycle.plannedEnd ?? cycle.end) + 1;
   if (span !== CYCLE_DAYS) problems.push(`${cycle.cycle}：start ~ end 共 ${span} 天，应为 ${CYCLE_DAYS} 天（7 周）`);
   if (!Object.values(cycle.template).some((slot) => slot.type === "休息")) problems.push(`${cycle.cycle}：周模板没有休息日`);
   const names = (list) => list.map((day) => WEEKDAY_ZH[day]).join("、");
@@ -378,6 +382,47 @@ export function checkOverlap(cycles) {
   return problems;
 }
 
+/**
+ * 把计划日期推成实际日期。cycles：按 start 排序的 parseCycle 结果；mainLastDates：Map<周期名, 该周期主项课最晚新课次日期 | null>。
+ * 返回新数组（不改入参），每项多 plannedStart、plannedEnd、delayDays（本周期结束比计划晚几天，≥ 0），start / end 换成实际日期。
+ */
+export function elasticCycles(cycles, mainLastDates) {
+  let carry = 0;
+  return cycles.map((cycle) => {
+    const start = addDays(cycle.start, carry);
+    const end0 = addDays(cycle.end, carry);
+    const last = mainLastDates.get(cycle.cycle);
+    const end = last && last > end0 ? last : end0;
+    const delayDays = daysBetween(cycle.end, end);
+    carry = delayDays;
+    return { ...cycle, plannedStart: cycle.start, plannedEnd: cycle.end, start, end, delayDays };
+  });
+}
+
+/**
+ * 路线表按周期推迟平移：有周期页的行用实际日期；其后的行（含恢复周）按前面最后一个有周期页的周期的 delayDays 平移。
+ * 顶层 end 同样平移（多出 plannedEnd 记入参原值），start、bufferWeeks 不变。不改入参。
+ */
+export function shiftRoute(route, elastic) {
+  if (!route) return null;
+  const byName = new Map(elastic.map((cycle) => [cycle.cycle, cycle]));
+  let delay = 0;
+  const rows = route.rows.map((row) => {
+    const actual = byName.get(row.id);
+    let start;
+    let end;
+    if (actual) {
+      ({ start, end } = actual);
+      delay = actual.delayDays;
+    } else {
+      start = addDays(row.start, delay);
+      end = addDays(row.end, delay);
+    }
+    return { ...row, plannedStart: row.start, plannedEnd: row.end, start, end };
+  });
+  return { ...route, plannedEnd: route.end, end: addDays(route.end, delay), rows };
+}
+
 // ---- 读库 ----
 
 async function readCycleFiles(vault) {
@@ -398,6 +443,31 @@ async function readCycleFiles(vault) {
 export async function loadCycles(vault) {
   const cycles = (await readCycleFiles(vault)).map((file) => parseCycle(file.text, file.name));
   return cycles.sort((a, b) => (a.start < b.start ? -1 : 1));
+}
+
+/**
+ * 计划周期 + 各周期主项课最晚新课次日期 → 实际周期（elasticCycles 的结果）。
+ * 每个周期先用前面周期累计的推迟天数得到候选窗口，对该窗口调 loadCourses（它按窗口过滤），
+ * 取其中 role === "main" 的课所有 kind === "new" 行的最晚日期；辅助课不影响结束日。
+ */
+export async function loadElasticCycles(vault) {
+  const planned = await loadCycles(vault);
+  const mainLastDates = new Map();
+  let carry = 0;
+  for (const cycle of planned) {
+    const window = { ...cycle, start: addDays(cycle.start, carry), end: addDays(cycle.end, carry) };
+    const courses = await loadCourses(vault, window);
+    let last = null;
+    for (const info of courses.values()) {
+      if (info.role !== "main") continue;
+      for (const row of info.rows) {
+        if (row.kind === "new" && (last === null || row.date > last)) last = row.date;
+      }
+    }
+    mainLastDates.set(cycle.cycle, last);
+    carry = daysBetween(cycle.end, last && last > window.end ? last : window.end);
+  }
+  return elasticCycles(planned, mainLastDates);
 }
 
 /** 读 wiki/cycles/route.md；没有这页返回 null，格式不对抛错。 */
@@ -489,6 +559,8 @@ function usage() {
     "  node cycle.mjs month <vault> YYYY-MM [--json]",
     "  node cycle.mjs overview <vault> [--date YYYY-MM-DD] [--json]",
     "  node cycle.mjs check <vault> [--json]",
+    "",
+    "  周期页与 route.md 的日期是计划日期；day / week / month / overview 输出的是按主项课顺延推算的实际日期。",
   ].join("\n");
 }
 
@@ -532,7 +604,13 @@ async function main() {
     } catch (error) {
       problems.push(error.message);
     }
-    for (const cycle of cycles) {
+    let elastic = [];
+    try {
+      elastic = await loadElasticCycles(vault);
+    } catch (error) {
+      if (!problems.includes(error.message)) problems.push(error.message);
+    }
+    for (const cycle of elastic) {
       try {
         problems.push(...checkCycle(cycle, await loadCourses(vault, cycle)));
       } catch (error) {
@@ -553,8 +631,8 @@ async function main() {
     let route;
     const courses = new Map();
     try {
-      cycles = await loadCycles(vault);
-      route = await loadRoute(vault);
+      cycles = await loadElasticCycles(vault);
+      route = shiftRoute(await loadRoute(vault), cycles);
       for (const cycle of cycles) {
         if (cycle.start.slice(0, 7) <= month && month <= cycle.end.slice(0, 7)) {
           courses.set(cycle.cycle, await loadCourses(vault, cycle));
@@ -580,8 +658,10 @@ async function main() {
     if (!isValidDate(date)) fail(`--date 必须是 YYYY-MM-DD，收到 ${date}`);
     let info;
     try {
-      const cycle = findCycle(await loadCycles(vault), date);
-      info = planInfo(await loadRoute(vault), cycle, cycle ? await loadCourses(vault, cycle) : new Map(), date);
+      const cycles = await loadElasticCycles(vault);
+      const cycle = findCycle(cycles, date);
+      const route = shiftRoute(await loadRoute(vault), cycles);
+      info = planInfo(route, cycle, cycle ? await loadCourses(vault, cycle) : new Map(), date);
     } catch (error) {
       fail(error.message);
     }
@@ -594,8 +674,9 @@ async function main() {
       lines.push(`路线 ${info.route.start} ~ ${info.route.end} · 还有 ${info.route.weeksLeft} 周 · 缓冲 ${info.route.bufferWeeks} 周`);
     }
     if (info.cycle) {
-      const { cycle, start, end, week, weeks, daysLeft } = info.cycle;
-      lines.push(`${cycle} · ${start} ~ ${end} · 第 ${week} / ${weeks} 周 · 还剩 ${daysLeft} 天`);
+      const { cycle, start, end, week, weeks, daysLeft, delayDays, plannedEnd } = info.cycle;
+      const late = delayDays > 0 ? `（比计划晚 ${delayDays} 天，计划结束 ${plannedEnd}）` : "";
+      lines.push(`${cycle} · ${start} ~ ${end} · 第 ${week} / ${weeks} 周 · 还剩 ${daysLeft} 天${late}`);
     }
     for (const course of info.courses) {
       const next = course.next ? ` · 下一节 ${course.next.id} ${course.next.date}` : "";
@@ -611,7 +692,7 @@ async function main() {
   let cycle;
   let courses;
   try {
-    cycle = findCycle(await loadCycles(vault), date);
+    cycle = findCycle(await loadElasticCycles(vault), date);
     courses = cycle ? await loadCourses(vault, cycle) : new Map();
   } catch (error) {
     fail(error.message);

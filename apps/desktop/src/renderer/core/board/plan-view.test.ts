@@ -103,6 +103,36 @@ describe("routeView", () => {
     expect(routeView(OVERVIEW, "2026-12-26")?.segments[0]?.state).toBe("done");
     expect(routeView({ ...OVERVIEW, route: null }, "2026-11-06")).toBeNull();
   });
+  it("gives a late cycle one cell per calendar week, so the current week is not stuck on the 7th", () => {
+    const late = (end: string): CycleOverview => ({
+      ...OVERVIEW,
+      route: { ...OVERVIEW.route!, cycles: [{ ...OVERVIEW.route!.cycles[0]!, end }, ...OVERVIEW.route!.cycles.slice(1)] },
+    });
+    const eight = routeView(late("2026-12-29"), "2026-12-27")?.segments[0];
+    expect(eight?.state).toBe("now");
+    expect(eight?.weeks).toHaveLength(8);
+    expect(eight?.weeks.slice(0, 7)).toEqual(["done", "done", "done", "done", "done", "done", "done"]);
+    expect(eight?.weeks[7]).toBe("now");
+
+    expect(routeView(late("2026-12-24"), "2026-12-20")?.segments[0]?.weeks).toHaveLength(7);
+    expect(routeView(late("2026-12-24"), "2026-12-20")?.segments[0]?.weeks).toEqual([
+      "done",
+      "done",
+      "done",
+      "done",
+      "done",
+      "done",
+      "now",
+    ]);
+  });
+  it("done and plan segments also use their own week count", () => {
+    const long = (status: string, end: string, start = "2026-11-06"): CycleOverview => ({
+      ...OVERVIEW,
+      route: { ...OVERVIEW.route!, cycles: [{ ...OVERVIEW.route!.cycles[0]!, start, end, status }, ...OVERVIEW.route!.cycles.slice(1)] },
+    });
+    expect(routeView(long("完成", "2026-12-29"), "2026-12-27")?.segments[0]?.weeks).toEqual(Array.from({ length: 8 }, () => "done"));
+    expect(routeView(long("未开始", "2027-01-14"), "2026-10-01")?.segments[0]?.weeks).toEqual(Array.from({ length: 10 }, () => "plan"));
+  });
 });
 
 describe("cycleView", () => {

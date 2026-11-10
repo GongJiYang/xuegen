@@ -7,7 +7,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { checkCycle, cycleAuxSubjects, cycleSubjects, dayInfo, findCycle, monthInfo, parseCycle, parseRoute, planInfo, subjectCourses, weekInfo, weekOf } from "./cycle.mjs";
+import { checkCycle, cycleAuxSubjects, cycleSubjects, dayInfo, elasticCycles, findCycle, monthInfo, parseCycle, parseRoute, planInfo, shiftRoute, subjectCourses, weekInfo, weekOf } from "./cycle.mjs";
 import { parseDays, parseRest, planSchedule, renderTable, readSchedule } from "../course/course-schedule.mjs";
 
 const run = promisify(execFile);
@@ -347,6 +347,8 @@ test("planInfo gives the route, the cycle and each course's lesson counts", () =
     title: "离散 + 范式",
     start: "2026-11-06",
     end: "2026-12-24",
+    plannedEnd: "2026-12-24",
+    delayDays: 0,
     week: 1,
     weeks: 7,
     daysLeft: 44,
@@ -496,6 +498,149 @@ test("CLI: overview marks aux courses", async () => {
     assert.deepEqual(info.courses.map((item) => [item.slug, item.role]), [["a", "main"], ["b", "main"], ["d", "aux"]]);
     assert.deepEqual(info.cycle.auxSubjects, ["z"]);
     assert.deepEqual(JSON.parse((await run("node", [SCRIPT, "check", vault, "--json"])).stdout), { ok: true, problems: [] });
+  } finally {
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("elasticCycles shifts starts by the previous cycle's delay and stretches the end to the last main lesson", () => {
+  const c1 = { cycle: "C1", start: "2026-11-06", end: "2026-12-24" };
+  const c2 = { cycle: "C2", start: "2026-12-25", end: "2027-02-11" };
+  const bounds = (list) => list.map(({ start, end, plannedStart, plannedEnd, delayDays }) => ({ start, end, plannedStart, plannedEnd, delayDays }));
+
+  const onTime = elasticCycles([c1, c2], new Map([["C1", "2026-12-20"], ["C2", null]]));
+  assert.deepEqual(bounds(onTime), [
+    { start: "2026-11-06", end: "2026-12-24", plannedStart: "2026-11-06", plannedEnd: "2026-12-24", delayDays: 0 },
+    { start: "2026-12-25", end: "2027-02-11", plannedStart: "2026-12-25", plannedEnd: "2027-02-11", delayDays: 0 },
+  ]);
+  assert.deepEqual([c1, c2].map((cycle) => [cycle.start, cycle.end]), [["2026-11-06", "2026-12-24"], ["2026-12-25", "2027-02-11"]]); // 不改入参
+
+  const late = elasticCycles([c1, c2], new Map([["C1", "2026-12-29"], ["C2", null]]));
+  assert.deepEqual(bounds(late), [
+    { start: "2026-11-06", end: "2026-12-29", plannedStart: "2026-11-06", plannedEnd: "2026-12-24", delayDays: 5 },
+    { start: "2026-12-30", end: "2027-02-16", plannedStart: "2026-12-25", plannedEnd: "2027-02-11", delayDays: 5 },
+  ]);
+
+  const chained = elasticCycles([c1, c2], new Map([["C1", "2026-12-27"], ["C2", "2027-02-13"]]));
+  assert.equal(chained[0].end, "2026-12-27");
+  assert.equal(chained[0].delayDays, 3);
+  assert.equal(chained[1].start, "2026-12-28"); // 12-25 + 3
+  assert.equal(chained[1].end, "2027-02-14"); // max(计划结束 +3, 02-13)
+  assert.equal(chained[1].delayDays, 3);
+
+  const later = elasticCycles([c1, c2], new Map([["C1", "2026-12-27"], ["C2", "2027-02-20"]]));
+  assert.equal(later[1].end, "2027-02-20"); // 02-11 + 3 < 02-20
+  assert.equal(later[1].delayDays, 9);
+});
+
+test("shiftRoute shifts rows without a cycle page by the last page-backed cycle's delay", () => {
+  const route = parseRoute(ROUTE);
+  const elastic = elasticCycles([{ cycle: "C1", start: "2026-11-06", end: "2026-12-24" }], new Map([["C1", "2026-12-29"]]));
+  const shifted = shiftRoute(route, elastic);
+  assert.equal(shifted.rows[0].start, "2026-11-06");
+  assert.equal(shifted.rows[0].end, "2026-12-29");
+  assert.equal(shifted.rows[0].plannedStart, "2026-11-06");
+  assert.equal(shifted.rows[0].plannedEnd, "2026-12-24");
+  assert.deepEqual(
+    shifted.rows.slice(1).map((row) => [row.id, row.start, row.end, row.plannedStart, row.plannedEnd]),
+    [
+      ["C2", "2026-12-30", "2027-02-16", "2026-12-25", "2027-02-11"],
+      ["恢复周", "2027-02-17", "2027-02-23", "2027-02-12", "2027-02-18"],
+      ["C3", "2027-02-24", "2027-04-13", "2027-02-19", "2027-04-08"],
+    ],
+  );
+  assert.equal(route.rows[0].end, "2026-12-24"); // 不改入参
+  assert.equal(route.rows[1].start, "2026-12-25");
+
+  // 顶层 end 同样跟着最后一个有周期页的周期平移
+  assert.equal(shifted.plannedEnd, "2027-04-08");
+  assert.equal(shifted.end, "2027-04-13");
+
+  const still = shiftRoute(route, elasticCycles([{ cycle: "C1", start: "2026-11-06", end: "2026-12-24" }], new Map([["C1", null]])));
+  assert.equal(still.rows[1].start, "2026-12-25");
+  assert.equal(still.rows[2].start, "2027-02-12");
+  assert.equal(still.plannedEnd, "2027-04-08");
+  assert.equal(still.end, "2027-04-08");
+  assert.equal(shiftRoute(null, elastic), null);
+});
+
+test("shiftRoute also shifts the route's top-level end by the last page-backed cycle's delay", () => {
+  const route = parseRoute(ROUTE);
+  const late = (last) => elasticCycles([{ cycle: "C1", start: "2026-11-06", end: "2026-12-24" }], new Map([["C1", last]]));
+
+  const onTime = shiftRoute(route, late(null));
+  assert.equal(onTime.plannedEnd, "2027-04-08");
+  assert.equal(onTime.end, "2027-04-08");
+  assert.equal(onTime.start, "2026-11-06");
+  assert.equal(onTime.bufferWeeks, 12);
+
+  const shifted = shiftRoute(route, late("2026-12-29"));
+  assert.equal(shifted.plannedEnd, "2027-04-08");
+  assert.equal(shifted.end, "2027-04-13"); // 04-08 + 5 天
+  assert.equal(shifted.start, "2026-11-06");
+  assert.equal(shifted.bufferWeeks, 12);
+  assert.equal(route.end, "2027-04-08"); // 不改入参
+  assert.equal(route.plannedEnd, undefined);
+});
+
+test("CLI: 主项课顺延把实际结束日推到计划结束之后；辅助课不推迟", async () => {
+  const vault = await mkdtemp(join(tmpdir(), "cycle-elastic-"));
+  try {
+    await mkdir(join(vault, "wiki", "cycles"), { recursive: true });
+    await mkdir(join(vault, "wiki", "courses"), { recursive: true });
+    await writeSubjects(vault);
+    await writeFile(join(vault, "wiki", "cycles", "c1.md"), CYCLE_AUX);
+    await writeFile(join(vault, "wiki", "cycles", "route.md"), ROUTE);
+    // 主项课 a 最后一节新课 12-29（计划结束 12-24 之后 5 天）；辅助课 d 最后一节 12-31
+    const aLate = planSchedule(lessons(16), { start: "2026-11-06", end: "2026-12-29", rest: SUN, days: A_DAYS, extra: ["2026-12-29"], reviews: "anki" });
+    const dLate = planSchedule(lessons(17), { start: "2026-11-06", end: "2026-12-31", rest: SUN, days: A_DAYS, extra: ["2026-12-31"], reviews: "anki" });
+    await writeFile(join(vault, "wiki", "courses", "a.md"), courseText(aLate, A_DAYS));
+    await writeFile(join(vault, "wiki", "courses", "b.md"), courseText(bRows, B_DAYS));
+    await writeFile(join(vault, "wiki", "courses", "d.md"), courseText(dLate, A_DAYS));
+
+    const day = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-12-29", "--json"])).stdout);
+    assert.equal(day.cycle, "C1");
+    assert.equal(day.week, 8);
+    assert.deepEqual(day.lessons.map((item) => [item.course, item.id]), [["a", "D16"]]);
+
+    const after = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-12-31", "--json"])).stdout);
+    assert.equal(after.cycle, null);
+
+    const info = JSON.parse((await run("node", [SCRIPT, "overview", vault, "--date", "2026-12-20", "--json"])).stdout);
+    assert.equal(info.cycle.end, "2026-12-29");
+    assert.equal(info.cycle.plannedEnd, "2026-12-24");
+    assert.equal(info.cycle.delayDays, 5);
+    assert.equal(info.cycle.weeks, 8);
+    assert.deepEqual(info.cycle.next, { cycle: "C2", start: "2026-12-30" });
+    assert.equal(info.route.cycles.find((row) => row.id === "C2").start, "2026-12-30");
+    // 路线顶层 end 也顺延 5 天（route.md 写的是 2027-04-08），weeksLeft 按新的 end 算
+    const routePageEnd = parseRoute(ROUTE).end;
+    assert.equal(routePageEnd, "2027-04-08");
+    assert.equal(info.route.end, "2027-04-13");
+    assert.equal(info.route.weeksLeft, 17); // ceil((2027-04-13 - 2026-12-20) / 7)
+
+    const text = (await run("node", [SCRIPT, "overview", vault, "--date", "2026-12-20"])).stdout;
+    assert.match(text, /还剩 9 天（比计划晚 5 天，计划结束 2026-12-24）/);
+    assert.match(text, /路线 2026-11-06 ~ 2027-04-13 · 还有 17 周/);
+
+    await assert.rejects(run("node", [SCRIPT, "check", vault, "--json"]), (error) => {
+      const result = JSON.parse(error.stdout);
+      return (
+        result.ok === false &&
+        result.problems.some((problem) => /courses\/d 的 D17（2026-12-31）在周期之外/.test(problem)) &&
+        !result.problems.some((problem) => /courses\/a 的 D16（2026-12-29）在周期之外/.test(problem)) &&
+        !result.problems.some((problem) => /应为 49 天/.test(problem))
+      );
+    });
+
+    // 只有辅助课晚（主项最后一节 12-23）：实际结束日仍是 12-24，delayDays 0
+    const aOnTime = planSchedule(lessons(14), { start: "2026-11-06", end: "2026-12-24", rest: SUN, days: A_DAYS, reviews: "anki" });
+    await writeFile(join(vault, "wiki", "courses", "a.md"), courseText(aOnTime, A_DAYS));
+    const steady = JSON.parse((await run("node", [SCRIPT, "overview", vault, "--date", "2026-12-20", "--json"])).stdout);
+    assert.equal(steady.cycle.end, "2026-12-24");
+    assert.equal(steady.cycle.plannedEnd, "2026-12-24");
+    assert.equal(steady.cycle.delayDays, 0);
+    assert.equal(steady.route.end, "2027-04-08");
   } finally {
     await rm(vault, { recursive: true, force: true });
   }
