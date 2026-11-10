@@ -2,7 +2,7 @@
 // rename-vault.mjs 的测试：node:test + node:assert，无第三方依赖。
 // 全部用 os.tmpdir() 下的小型假库，不读真实库、不碰真实 ~/.xuegen/；
 // jj 与进程检查用临时 PATH 里的假命令注入，测试机不需要装 jj。
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, chmod, symlink } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
@@ -60,9 +60,18 @@ async function makeVault(files = BASE_FILES) {
   return vault;
 }
 
+/** 写库外临时文件（map.json）的路径；测试跑完统一删掉，不在系统临时目录留垃圾。 */
+const tempFiles = new Set();
+
+after(async () => {
+  await Promise.all([...tempFiles].map((file) => rm(file, { force: true }).catch(() => {})));
+  tempFiles.clear();
+});
+
 async function writeMap(vault, map) {
   const file = join(vault, "..", `${vault.split("/").pop()}-map.json`);
   await writeFile(file, JSON.stringify(map), "utf8");
+  tempFiles.add(file);
   return file;
 }
 

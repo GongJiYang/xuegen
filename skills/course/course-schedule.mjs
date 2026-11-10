@@ -2,13 +2,14 @@
 // Xuegen 课程逐日排期：把模型列出的课次按学习日排到截止日期，按间隔重复插入复习，没学的天整体顺延。
 // 无第三方依赖。日期只由本脚本计算，模型只给课次内容。
 //   node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] --lessons <lessons.json> [--write] [--json]
-//   node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--write] [--json]
+//   node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--write] [--json]
 //   node course-schedule.mjs next <course.md> [--date YYYY-MM-DD] [--json]
 // lessons.json：[{ "id"?: "D1", "content": "…", "material"?: "…", "done_when"?: "…" }]，按学习顺序。
 // 排期表写在课程页 `## 计划表` 段内的标记之间（标记外的人工内容不动）：
-//   <!-- xuegen:schedule:start rest=sun days=mon,wed reviews=anki -->（days 只在不等于「所有非休息日」时写出；reviews 只在为 anki 时写出；extra 不记录）
+//   <!-- xuegen:schedule:start rest=sun days=mon,wed reviews=anki end=YYYY-MM-DD -->（days 只在不等于「所有非休息日」时写出；reviews 只在为 anki 时写出；end 是周期结束日，shift 顺延不越过它；extra 不记录）
 //   | 天 | 日期 | 内容 | 材料 | 完成条件 |
 //   <!-- xuegen:schedule:end -->
+// 顺延后越过结束日的新课次不留在表里，登记到标记外的「### 留到下个周期」一节。
 // 完成判定：`## Learning Record` 里出现「完成：D3、R1-D2」这样的行（收课时由 course 技能写入）。
 // --write 只改课程页本身；课程页默认只读，写入前先用 course-state.mjs unlock，写完再 lock。
 import { readFile, writeFile } from "node:fs/promises";
@@ -24,6 +25,9 @@ const MARK_END = "<!-- xuegen:schedule:end -->";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const REVIEW_DONE_WHEN = "不看笔记复述要点，或重做一道检查题";
 const PLAN_HEADING = "## 计划表（参考；勾选只出现在上方 Overall Goals / This Week / Today）";
+/** 周期内排不下的课次登记在这里（计划表段内、排期标记之外）。 */
+const DEFER_HEADING = "### 留到下个周期";
+const DEFER_PLACEHOLDER = /^-\s*(无|none)\s*[：:]/;
 
 // ---- 日期（本地日期字符串，按 UTC 计算以避开时区与夏令时） ----
 
@@ -233,11 +237,12 @@ function cell(text) {
   return String(text).replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
-export function renderTable(rows, rest, days, reviews = "spaced") {
+export function renderTable(rows, rest, days, reviews = "spaced", end = null) {
   const daysAttr = days && !isDefaultDays(days, rest) ? ` days=${formatDays(days)}` : "";
   const reviewsAttr = reviews === "anki" ? " reviews=anki" : "";
+  const endAttr = isValidDate(end) ? ` end=${end}` : "";
   const lines = [
-    `<!-- xuegen:schedule:start rest=${formatRest(rest)}${daysAttr}${reviewsAttr} -->`,
+    `<!-- xuegen:schedule:start rest=${formatRest(rest)}${daysAttr}${reviewsAttr}${endAttr} -->`,
     "| 天 | 日期 | 内容 | 材料 | 完成条件 |",
     "|---|---|---|---|---|",
   ];
@@ -259,7 +264,7 @@ function kindOf(id) {
   return /^R\d+-/.test(id) ? "review" : "new";
 }
 
-/** 课程页里由本脚本生成的排期：{ rows, rest, days, reviews, startIndex, endIndex } 或 null。 */
+/** 课程页里由本脚本生成的排期：{ rows, rest, days, reviews, end, startIndex, endIndex } 或 null。 */
 export function readSchedule(text) {
   const lines = text.split("\n");
   const startIndex = lines.findIndex((line) => MARK_START.test(line));
@@ -273,6 +278,8 @@ export function readSchedule(text) {
   const days = parseDays(daysMatch ? daysMatch[1] : "", rest);
   const reviewsMatch = attrs.match(/reviews=([a-z]+)/);
   const reviews = parseReviews(reviewsMatch ? reviewsMatch[1] : undefined);
+  const endMatch = attrs.match(/end=(\d{4}-\d{2}-\d{2})/);
+  const end = endMatch ? endMatch[1] : null;
   const rows = [];
   for (const line of lines.slice(startIndex + 1, endIndex)) {
     if (!/^\|/.test(line.trim())) continue;
@@ -281,7 +288,7 @@ export function readSchedule(text) {
     if (!isValidDate(date)) continue;
     rows.push({ id, date, kind: kindOf(id), content, material, doneWhen });
   }
-  return { rows, rest, days, reviews, startIndex, endIndex };
+  return { rows, rest, days, reviews, end, startIndex, endIndex };
 }
 
 /** Learning Record 里「完成：…」列出的课次 id。 */
@@ -299,8 +306,16 @@ export function completedIds(text) {
   return done;
 }
 
-/** 把排期表写进课程页：替换旧标记段，没有就放进（或新建）计划表段。 */
-export function writeSchedule(text, table) {
+/**
+ * 把排期表写进课程页：替换旧标记段，没有就放进（或新建）计划表段。
+ * deferred 非空时把这些课次追加到「### 留到下个周期」一节（该节原来只有一行「- 无：…」时替换掉它）。
+ */
+export function writeSchedule(text, table, deferred = []) {
+  return mergeDeferred(replaceTable(text, table), deferred);
+}
+
+/** 只替换（或新建）标记段里的表格，不动「留到下个周期」一节。 */
+function replaceTable(text, table) {
   const lines = text.split("\n");
   const existing = readSchedule(text);
   if (existing) {
@@ -319,14 +334,57 @@ export function writeSchedule(text, table) {
   return [...lines.slice(0, recordIndex), ...block, ...lines.slice(recordIndex)].join("\n");
 }
 
+/** 「留到下个周期」里的一行：`- D14：内容（材料）`。 */
+function deferLine(row) {
+  return `- ${row.id}：${row.content}（${row.material || "—"}）`;
+}
+
+/** 把越出周期的课次登记进「### 留到下个周期」（没有这一节就在排期标记之前新建）。 */
+function mergeDeferred(text, deferred) {
+  if (!deferred || deferred.length === 0) return text;
+  const lines = text.split("\n");
+  const additions = deferred.map(deferLine);
+  const headingIndex = lines.findIndex((line) => line.trim() === DEFER_HEADING);
+  if (headingIndex === -1) {
+    const markIndex = lines.findIndex((line) => MARK_START.test(line));
+    const insertAt = markIndex === -1 ? lines.length : markIndex;
+    const block = [DEFER_HEADING, "", ...additions, ""];
+    if (insertAt > 0 && lines[insertAt - 1].trim() !== "") block.unshift("");
+    return [...lines.slice(0, insertAt), ...block, ...lines.slice(insertAt)].join("\n");
+  }
+  let sectionEnd = lines.findIndex((line, index) => index > headingIndex && (/^#{2,}\s/.test(line) || MARK_START.test(line)));
+  if (sectionEnd === -1) sectionEnd = lines.length;
+  const kept = [];
+  const existing = new Set();
+  for (const line of lines.slice(headingIndex + 1, sectionEnd)) {
+    if (line.trim() === "") continue;
+    if (DEFER_PLACEHOLDER.test(line.trim())) continue;
+    const match = line.match(/^-\s*([^：:]+)[：:]/);
+    if (match) existing.add(match[1].trim());
+    kept.push(line);
+  }
+  const fresh = additions.filter((line, index) => !existing.has(deferred[index].id));
+  if (fresh.length === 0) return text;
+  return [
+    ...lines.slice(0, headingIndex + 1),
+    "",
+    ...kept,
+    ...fresh,
+    "",
+    ...lines.slice(sectionEnd),
+  ].join("\n");
+}
+
 /**
  * 没学的补上（已完成的行不动，机动行丢弃）：
  * - 今天之前没学的新课次：从最早的那一个起，所有没学的新课次后移同样多的「上课日」（只落在 days 里的星期）；
  *   这些课次没做的复习按新日期重算（+1/3/7/14 天，落在非休息日）。
  * - 其余过期未做的复习（所属课次已学或没有后移）：挪到今天（今天是休息日则挪到之后第一个非休息日）。
- * 返回 { rows, shiftedDays（新课后移的上课日数）, movedReviews（挪到今天的复习条数）}。
+ * 给了结束日 end 时，顺延后晚于 end 的**新课**不留在表里，单独作为 dropped 返回（由调用方登记进「留到下个周期」）；
+ * 复习行不看 end，照上面的规则处理。
+ * 返回 { rows, shiftedDays（新课后移的上课日数）, movedReviews（挪到今天的复习条数）, dropped（越过结束日的新课）}。
  */
-export function shiftSchedule(rows, done, today, rest, days = parseDays("", rest)) {
+export function shiftSchedule(rows, done, today, rest, days = parseDays("", rest), end = null) {
   const off = offDays(days);
   const kept = rows.filter((row) => row.kind !== "flex");
   const overdueNew = kept.filter((row) => row.kind === "new" && !done.has(row.id) && row.date < today);
@@ -355,8 +413,12 @@ export function shiftSchedule(rows, done, today, rest, days = parseDays("", rest
     }
     return row;
   });
-  if (shiftedDays === 0 && movedReviews === 0) return { rows, shiftedDays: 0, movedReviews: 0 };
-  return { rows: sortRows(result), shiftedDays, movedReviews };
+  const dropped = isValidDate(end) ? result.filter((row) => row.kind === "new" && !done.has(row.id) && row.date > end) : [];
+  if (shiftedDays === 0 && movedReviews === 0 && dropped.length === 0) {
+    return { rows, shiftedDays: 0, movedReviews: 0, dropped: [] };
+  }
+  const outOfCycle = new Set(dropped.map((row) => row.id));
+  return { rows: sortRows(result.filter((row) => !outOfCycle.has(row.id))), shiftedDays, movedReviews, dropped };
 }
 
 export function lastNewLessonDate(rows) {
@@ -413,7 +475,7 @@ function usage() {
   return [
     "用法：",
     "  node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] --lessons <lessons.json> [--write] [--json]",
-    "  node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--write] [--json]",
+    "  node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--write] [--json]",
     "  node course-schedule.mjs next <course.md> [--date YYYY-MM-DD] [--json]",
   ].join("\n");
 }
@@ -456,9 +518,9 @@ async function main() {
       }
       fail(error.message);
     }
-    const table = renderTable(rows, rest, days, reviews);
+    const table = renderTable(rows, rest, days, reviews, end);
     if (flags.write) await save(file, writeSchedule(text, table));
-    const summary = { ok: true, rows: rows.length, lastLesson: lastNewLessonDate(rows), written: Boolean(flags.write) };
+    const summary = { ok: true, rows: rows.length, lastLesson: lastNewLessonDate(rows), end, written: Boolean(flags.write) };
     process.stdout.write(flags.json ? `${JSON.stringify({ ...summary, schedule: rows })}\n` : `${table}\n`);
     return;
   }
@@ -474,20 +536,36 @@ async function main() {
 
   if (command === "shift") {
     const today = flags.today ? requireDate(flags.today, "--today") : localToday();
+    const end = flags.end ? requireDate(flags.end, "--end") : schedule.end;
     const done = completedIds(text);
-    const { rows, shiftedDays, movedReviews } = shiftSchedule(schedule.rows, done, today, schedule.rest, schedule.days);
-    const changed = shiftedDays > 0 || movedReviews > 0;
-    const result = { ok: true, shiftedDays, movedReviews, lastLesson: lastNewLessonDate(rows), written: false };
+    const { rows, shiftedDays, movedReviews, dropped } = shiftSchedule(schedule.rows, done, today, schedule.rest, schedule.days, end);
+    const changed = shiftedDays > 0 || movedReviews > 0 || dropped.length > 0;
+    const lastLesson = lastNewLessonDate(rows);
+    const deferred = dropped.length === 0 ? "" : `${dropped.length} 节排不进本周期，已移到「留到下个周期」：${dropped.map((row) => row.id).join("、")}`;
+    const result = {
+      ok: true,
+      shiftedDays,
+      movedReviews,
+      lastLesson,
+      end: end ?? null,
+      dropped,
+      deferred,
+      written: false,
+    };
     if (changed && flags.write) {
-      await save(file, writeSchedule(text, renderTable(rows, schedule.rest, schedule.days, schedule.reviews)));
+      await save(
+        file,
+        writeSchedule(text, renderTable(rows, schedule.rest, schedule.days, schedule.reviews, end), dropped),
+      );
       result.written = true;
     }
+    const head = `没学的新课顺延 ${shiftedDays} 个上课日（最后一节 ${lastLesson}），${movedReviews} 条过期复习挪到今天`;
     process.stdout.write(
       flags.json
         ? `${JSON.stringify(result)}\n`
-        : !changed
-          ? "没有需要顺延的安排\n"
-          : `没学的新课顺延 ${shiftedDays} 个上课日（最后一节 ${result.lastLesson}），${movedReviews} 条过期复习挪到今天${result.written ? "（已写入）" : "（未写入，加 --write）"}\n`,
+        : changed
+          ? `${head}${deferred ? `；${deferred}` : ""}${result.written ? "（已写入）" : "（未写入，加 --write）"}\n`
+          : "没有需要顺延的安排\n",
     );
     return;
   }

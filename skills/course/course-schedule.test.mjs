@@ -373,3 +373,161 @@ test("CLI: plan --extra --reviews anki writes no review rows; shift keeps review
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ---- 顺延不越过周期结束日：挤出去的课次进「留到下个周期」 ----
+
+const CYCLE_END = "2026-12-24";
+
+// 与真实库 `~/学根/库/wiki/courses/c-language.md` 同形的样本：计划表里先有「### 留到下个周期」占位行。
+const sampleCourse = (table) =>
+  [
+    "<!-- xuegen:course-state -->",
+    "# C 语言",
+    "",
+    "## 计划表（参考；勾选只出现在上方 Overall Goals / This Week / Today）",
+    "",
+    "> 逐日课次、材料与完成条件见下方由脚本生成的表格。",
+    "",
+    "### 留到下个周期",
+    "",
+    "- 无：Effective C 全书在 C1 内过完一遍。",
+    "",
+    table,
+    "",
+    "## Learning Record",
+    "### 2026-11-06-01",
+    "完成：无",
+    "",
+  ].join("\n");
+
+const cLanguage = (n) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `D${i + 1}`,
+    content: `Ch${i + 1} 主题${i + 1}`,
+    material: `Effective C 2nd · Ch${i + 1}`,
+    done_when: `能说出 Ch${i + 1} 的要点`,
+  }));
+
+const deferredSection = (text) => {
+  const lines = text.split("\n");
+  const start = lines.findIndex((line) => /^###\s+留到下个周期\s*$/.test(line));
+  assert.notEqual(start, -1, "找不到「留到下个周期」一节");
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^##+\s/.test(line) || /xuegen:schedule:start/.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
+};
+
+test("shift stops at the cycle end: over-the-end lessons move to 留到下个周期", () => {
+  const rows = planSchedule(cLanguage(14), {
+    start: "2026-11-09",
+    end: CYCLE_END,
+    rest: SUN,
+    days: MW,
+    reviews: "anki",
+  });
+  const table = renderTable(rows, SUN, MW, "anki", CYCLE_END);
+  assert.match(table, /xuegen:schedule:start rest=sun days=mon,wed reviews=anki end=2026-12-24 -->/);
+  assert.equal(readSchedule(sampleCourse(table)).end, CYCLE_END);
+
+  const shifted = shiftSchedule(rows, new Set(), "2026-11-10", SUN, MW, CYCLE_END);
+  assert.equal(shifted.shiftedDays, 1);
+  const byId = Object.fromEntries(shifted.rows.map((row) => [row.id, row.date]));
+  assert.equal(byId.D1, "2026-11-11");
+  assert.equal(byId.D14, undefined, "越过结束日的新课不再留在表里");
+  assert.ok(shifted.rows.every((row) => row.date <= CYCLE_END), "表里不再有晚于结束日的行");
+  assert.deepEqual(shifted.dropped.map((row) => row.id), ["D14"]);
+});
+
+test("writeSchedule replaces the 无 placeholder with the deferred lessons", () => {
+  const rows = planSchedule(cLanguage(4), { start: "2026-11-09", end: "2026-11-18", rest: SUN, days: MW, reviews: "anki" });
+  const table = renderTable(rows, SUN, MW, "anki", "2026-11-16");
+  const page = writeSchedule(sampleCourse(table), table, [
+    { id: "D5", content: "Ch5 控制流", material: "Effective C 2nd · Ch5" },
+  ]);
+  const section = deferredSection(page);
+  assert.doesNotMatch(section, /- 无：/, "占位行被替换");
+  assert.match(section, /^- D5：Ch5 控制流（Effective C 2nd · Ch5）$/m);
+  assert.equal(page.indexOf("### 留到下个周期") < page.indexOf("<!-- xuegen:schedule:start"), true);
+
+  // 没有「留到下个周期」一节时，在标记之前新建。
+  const plain = "# C\n\n## 计划表\n\n" + table + "\n";
+  const created = writeSchedule(plain, table, [{ id: "D5", content: "Ch5 控制流", material: "Effective C 2nd · Ch5" }]);
+  assert.match(deferredSection(created), /^- D5：Ch5 控制流（Effective C 2nd · Ch5）$/m);
+  assert.equal(created.indexOf("### 留到下个周期") < created.indexOf("<!-- xuegen:schedule:start"), true);
+});
+
+test("--end overrides the marker; a missing end keeps the old behaviour", () => {
+  // 标记里没有 end（旧格式）→ shift 完全照旧，最后一节仍在表里。
+  const legacy = planSchedule(cLanguage(12), { start: "2026-11-05", end: "2026-12-18", rest: SUN, days: MW, reviews: "anki" });
+  const legacyTable = renderTable(legacy, SUN, MW, "anki");
+  assert.equal(readSchedule(sampleCourse(legacyTable)).end, null);
+  const noEnd = shiftSchedule(legacy, new Set(), "2026-11-10", SUN, MW);
+  assert.equal(noEnd.dropped.length, 0);
+  assert.equal(noEnd.rows.filter((row) => row.kind === "new").length, 12);
+
+  // 有结束日时，越界的新课只进「留到下个周期」，复习行照旧留在表里（超出结束日也不挪）。
+  const rows = planSchedule(cLanguage(4), { start: "2026-11-09", end: "2026-12-24", rest: SUN, days: MW });
+  const shifted = shiftSchedule(rows, new Set(), "2026-12-10", SUN, MW, "2026-12-16");
+  assert.deepEqual(shifted.dropped.map((row) => row.id), ["D3", "D4"]);
+  assert.ok(shifted.rows.filter((row) => row.kind === "new").every((row) => row.date <= "2026-12-16"));
+  const lateReview = shifted.rows.find((row) => row.kind === "review" && row.date > "2026-12-16");
+  assert.ok(lateReview, "复习行仍留在表里（不因结束日被移走）");
+});
+
+test("repeated shift is idempotent: dropped lessons stay out and are not appended twice", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "course-schedule-end-"));
+  try {
+    const file = join(dir, "c.md");
+    const lessonsFile = join(dir, "lessons.json");
+    // 14 个课次刚好排满 11-09 ~ 12-24 的 14 个周一/周三；顺延一天后 D14 排不进。
+    await writeFile(file, sampleCourse(""));
+    await writeFile(lessonsFile, JSON.stringify(cLanguage(14)));
+    await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", CYCLE_END, "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--lessons", lessonsFile, "--write", "--json"]);
+
+    const first = JSON.parse((await run("node", [SCRIPT, "shift", file, "--today", "2026-11-10", "--write", "--json"])).stdout);
+    assert.equal(first.dropped.length, 1);
+    assert.match(first.deferred, /1 节排不进本周期，已移到「留到下个周期」：D14/);
+    const once = await readFile(file, "utf8");
+    assert.match(once, /^- D14：Ch14 主题14（Effective C 2nd · Ch14）$/m);
+    assert.doesNotMatch(deferredSection(once), /- 无：/);
+
+    const second = JSON.parse((await run("node", [SCRIPT, "shift", file, "--today", "2026-11-10", "--write", "--json"])).stdout);
+    assert.equal(second.dropped.length, 0);
+    const twice = await readFile(file, "utf8");
+    assert.equal((twice.match(/^- D14：/gm) ?? []).length, 1, "不重复追加");
+    assert.equal(readSchedule(twice).end, CYCLE_END);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: shift --end reports the deferred lessons and does not write without --write", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "course-schedule-end-cli-"));
+  try {
+    const file = join(dir, "c.md");
+    const lessonsFile = join(dir, "lessons.json");
+    await writeFile(file, sampleCourse(""));
+    await writeFile(lessonsFile, JSON.stringify(cLanguage(14)));
+    await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", CYCLE_END, "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--lessons", lessonsFile, "--write", "--json"]);
+    // 标记里改成 2026-12-18，命令行 --end 应优先于它。
+    const strict = (await readFile(file, "utf8")).replace("end=2026-12-24", "end=2026-12-18");
+    await writeFile(file, strict);
+    assert.equal(readSchedule(strict).end, "2026-12-18");
+
+    const preview = JSON.parse((await run("node", [SCRIPT, "shift", file, "--today", "2026-11-10", "--json"])).stdout);
+    assert.deepEqual(preview.dropped.map((row) => row.id), ["D12", "D13", "D14"], "按标记里的结束日");
+    assert.equal(preview.written, false);
+    assert.equal(await readFile(file, "utf8"), strict, "--write 之前不改文件");
+
+    const applied = JSON.parse((await run("node", [SCRIPT, "shift", file, "--today", "2026-11-10", "--end", CYCLE_END, "--write", "--json"])).stdout);
+    assert.deepEqual(applied.dropped.map((row) => row.id), ["D14"], "--end 优先于标记");
+    assert.equal(applied.written, true);
+    const after = await readFile(file, "utf8");
+    assert.match(deferredSection(after), /^- D14：/m);
+    assert.doesNotMatch(deferredSection(after), /^- D12：/);
+    assert.doesNotMatch(deferredSection(after), /^- D13：/);
+    assert.equal(readSchedule(after).end, CYCLE_END);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
