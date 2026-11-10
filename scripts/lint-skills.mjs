@@ -7,6 +7,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, basename, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectFlows, flowsToMarkdown, markedSection, WIKI_PATH } from "./feature-steps.mjs";
 
 const MAX_DESCRIPTION = 1024;
 const MAX_BODY_LINES = 500;
@@ -176,6 +177,34 @@ async function checkSkill(skillsDir, name) {
   return problems;
 }
 
+// feature-steps：FEATURE-WIKI.md 的固定流程步骤表由 scripts/feature-steps.mjs 从 SKILL.md
+// 生成；标记之间的内容必须与重新生成的一致。FEATURE-WIKI 不存在就跳过（例如对别的
+// skills 目录跑 lint）。skillsDir 的上一级当作仓库根。
+async function checkFeatureSteps(skillsDir) {
+  const root = dirname(skillsDir);
+  const wikiPath = join(root, WIKI_PATH);
+  if (!existsSync(wikiPath)) return [];
+  let expected;
+  try {
+    expected = flowsToMarkdown(await collectFlows(root)).trim();
+  } catch (error) {
+    return [{
+      level: "error",
+      rule: "feature-steps",
+      message: `固定流程步骤表抽取失败：${error instanceof Error ? error.message : String(error)}`,
+    }];
+  }
+  const actual = markedSection(await readFile(wikiPath, "utf8"));
+  if (actual === null || actual !== expected) {
+    return [{
+      level: "error",
+      rule: "feature-steps",
+      message: `${WIKI_PATH} 的固定流程步骤表与 SKILL.md 不一致：运行 npm run feature-steps 更新 FEATURE-WIKI`,
+    }];
+  }
+  return [];
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const skillsDir = options.dir ? resolve(options.dir) : resolve("skills");
@@ -184,6 +213,7 @@ async function main() {
   for (const name of names) {
     for (const problem of await checkSkill(skillsDir, name)) all.push({ skill: name, ...problem });
   }
+  for (const problem of await checkFeatureSteps(skillsDir)) all.push({ skill: null, ...problem });
 
   const errors = all.filter((item) => item.level === "error");
   const warnings = all.filter((item) => item.level === "warning");

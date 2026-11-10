@@ -12,7 +12,8 @@
   "scripts": {
     "start": "node bin/xuegen.mjs",
     "test": "node --test \"scripts/**/*.test.mjs\" \"skills/**/*.test.mjs\"",
-    "lint:skills": "node scripts/lint-skills.mjs"
+    "lint:skills": "node scripts/lint-skills.mjs",
+    "feature-steps": "node scripts/feature-steps.mjs --write"
   },
   "engines": {
     "node": ">=22.19.0"
