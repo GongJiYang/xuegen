@@ -57,15 +57,15 @@ describe("canonical", () => {
 
   it("follows a symlinked vault root", () => {
     const facts = fakeFacts({
-      exists: [...ancestors("/Users/gjy/Documents/Obsidian-gjy/GJY"), ...ancestors("/Users/gjy/学根/库/wiki/courses")],
-      links: { "/Users/gjy/Documents/Obsidian-gjy/GJY": "/Users/gjy/学根/库" },
+      exists: [...ancestors("/Users/learner/Documents/Obsidian/Vault"), ...ancestors("/Users/learner/学根/库/wiki/courses")],
+      links: { "/Users/learner/Documents/Obsidian/Vault": "/Users/learner/学根/库" },
     });
-    // The link resolves, and /Users/gjy/学根/库 itself is a real directory here.
-    expect(canonical("/Users/gjy/Documents/Obsidian-gjy/GJY/wiki/courses/ctm.md", cwd, facts)).toBe(
-      "/Users/gjy/学根/库/wiki/courses/ctm.md",
+    // The link resolves, and /Users/learner/学根/库 itself is a real directory here.
+    expect(canonical("/Users/learner/Documents/Obsidian/Vault/wiki/courses/ctm.md", cwd, facts)).toBe(
+      "/Users/learner/学根/库/wiki/courses/ctm.md",
     );
-    expect(canonical("/Users/gjy/学根/库/wiki/courses/ctm.md", cwd, facts)).toBe(
-      "/Users/gjy/学根/库/wiki/courses/ctm.md",
+    expect(canonical("/Users/learner/学根/库/wiki/courses/ctm.md", cwd, facts)).toBe(
+      "/Users/learner/学根/库/wiki/courses/ctm.md",
     );
   });
 
@@ -112,14 +112,14 @@ describe("canonical", () => {
 
 describe("expandTilde", () => {
   it("expands `~` and a leading `~/` only", () => {
-    expect(expandTilde("~", "/Users/gjy")).toBe("/Users/gjy");
-    expect(expandTilde("~/.ssh/id_ed25519", "/Users/gjy")).toBe("/Users/gjy/.ssh/id_ed25519");
+    expect(expandTilde("~", "/Users/learner")).toBe("/Users/learner");
+    expect(expandTilde("~/.ssh/id_ed25519", "/Users/learner")).toBe("/Users/learner/.ssh/id_ed25519");
   });
 
   it("leaves other spellings alone, so two strings never collapse by accident", () => {
-    expect(expandTilde("~user/x", "/Users/gjy")).toBe("~user/x");
-    expect(expandTilde("wiki/~/x", "/Users/gjy")).toBe("wiki/~/x");
-    expect(expandTilde("/vault/raw", "/Users/gjy")).toBe("/vault/raw");
+    expect(expandTilde("~user/x", "/Users/learner")).toBe("~user/x");
+    expect(expandTilde("wiki/~/x", "/Users/learner")).toBe("wiki/~/x");
+    expect(expandTilde("/vault/raw", "/Users/learner")).toBe("/vault/raw");
   });
 });
 

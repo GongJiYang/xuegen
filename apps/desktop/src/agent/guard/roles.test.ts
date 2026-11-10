@@ -35,7 +35,7 @@ const roots: Roots = { vault: V, workspace: W, home: H, repo: R, temp: "/private
 
 /** Paths are already canonical here: the table tests the rules, not `canonical`. */
 const canon = (path: string): string => {
-  if (path.startsWith("~")) return path.replace("~", "/Users/gjy");
+  if (path.startsWith("~")) return path.replace("~", "/Users/learner");
   return path.startsWith("/") ? path : `${V}/${path}`;
 };
 
@@ -111,16 +111,16 @@ const rows: Row[] = [
   { what: "任何角色写程序目录", tool: "write", path: "/repo/src/x.ts", expected: all("deny") },
   { what: "任何角色写学根自己的目录", tool: "write", path: "/home/.xuegen/desktop.json", expected: all("deny") },
   { what: "库的版本目录", tool: "edit", path: "wiki/../.git/config", expected: all("deny") },
-  { what: "库外随便一个位置", tool: "write", path: "/Users/gjy/Desktop/x.md", expected: all("deny") },
+  { what: "库外随便一个位置", tool: "write", path: "/Users/learner/Desktop/x.md", expected: all("deny") },
   { what: "工作区里的笔记", tool: "write", path: "/home/learning/notes/x.md", expected: all("allow") },
   { what: "/private/tmp 里的临时文件", tool: "write", path: "/private/tmp/x.md", expected: all("allow") },
   { what: "os.tmpdir() 给的临时目录（macOS 是 /private/var/folders/…/T）", tool: "write", path: "/private/var/folders/x/T/xuegen-plan.json", expected: all("allow") },
   { what: "临时目录之外的同名结构（不是 tmpdir 的父目录）", tool: "write", path: "/private/var/folders/x/other/x.md", expected: all("deny") },
   // ---- 读：除凭据外一律放行（用户 2026-11-09 定） ----
-  { what: "读库外的 PDF（~/Downloads）", tool: "read", path: "/Users/gjy/Downloads/x.pdf", expected: all("allow") },
+  { what: "读库外的 PDF（~/Downloads）", tool: "read", path: "/Users/learner/Downloads/x.pdf", expected: all("allow") },
   { what: "读别人桌面上的 Markdown", tool: "read", path: "/Users/anyone/Desktop/a.md", expected: all("allow") },
   { what: "读系统文件 /etc/hosts", tool: "read", path: "/etc/hosts", expected: all("allow") },
-  { what: "grep 库外目录（路径参数同名 path）", tool: "grep", path: "/Users/gjy/Downloads", expected: all("allow") },
+  { what: "grep 库外目录（路径参数同名 path）", tool: "grep", path: "/Users/learner/Downloads", expected: all("allow") },
   { what: "读库位置配置（每个技能的第一步）", tool: "read", path: "/home/.xuegen/wiki.json", expected: all("allow") },
   { what: "读审计日志（<home> 下非凭据文件也放行）", tool: "read", path: "/home/.xuegen/guard.log", expected: all("allow") },
   { what: "读学根的其他配置文件", tool: "read", path: "/home/.xuegen/desktop.json", expected: all("allow") },
@@ -138,15 +138,15 @@ const rows: Row[] = [
   { what: "<home> 下名字带 secret 的文件（全大写）", tool: "read", path: "/home/.xuegen/CLIENT_SECRET.json", expected: all("deny") },
   { what: "<home> 子目录里的 key 文件", tool: "read", path: "/home/.xuegen/secrets/api-key.pem", expected: all("deny") },
   { what: "直接 ls <home>（会把凭据文件名列出来）", tool: "ls", path: H, expected: all("deny") },
-  { what: "读 ssh 密钥", tool: "read", path: "/Users/gjy/.ssh/id_ed25519", expected: all("deny") },
-  { what: "读 ssh 目录（config 与 known_hosts 也在里面）", tool: "read", path: "/Users/gjy/.ssh", expected: all("deny") },
-  { what: "读 aws 凭据", tool: "read", path: "/Users/gjy/.aws/credentials", expected: all("deny") },
-  { what: "读 gnupg 私钥", tool: "read", path: "/Users/gjy/.gnupg/secring.gpg", expected: all("deny") },
-  { what: "读 gh 的 token 配置", tool: "read", path: "/Users/gjy/.config/gh/hosts.yml", expected: all("deny") },
-  { what: "读 ~/.netrc（旧式机器凭据）", tool: "read", path: "/Users/gjy/.netrc", expected: all("deny") },
-  { what: "读 ~/.npmrc（registry token）", tool: "read", path: "/Users/gjy/.npmrc", expected: all("deny") },
-  { what: "读 docker 的 registry 凭据", tool: "read", path: "/Users/gjy/.docker/config.json", expected: all("deny") },
-  { what: "读 macOS 钥匙串", tool: "read", path: "/Users/gjy/Library/Keychains/login.keychain-db", expected: all("deny") },
+  { what: "读 ssh 密钥", tool: "read", path: "/Users/learner/.ssh/id_ed25519", expected: all("deny") },
+  { what: "读 ssh 目录（config 与 known_hosts 也在里面）", tool: "read", path: "/Users/learner/.ssh", expected: all("deny") },
+  { what: "读 aws 凭据", tool: "read", path: "/Users/learner/.aws/credentials", expected: all("deny") },
+  { what: "读 gnupg 私钥", tool: "read", path: "/Users/learner/.gnupg/secring.gpg", expected: all("deny") },
+  { what: "读 gh 的 token 配置", tool: "read", path: "/Users/learner/.config/gh/hosts.yml", expected: all("deny") },
+  { what: "读 ~/.netrc（旧式机器凭据）", tool: "read", path: "/Users/learner/.netrc", expected: all("deny") },
+  { what: "读 ~/.npmrc（registry token）", tool: "read", path: "/Users/learner/.npmrc", expected: all("deny") },
+  { what: "读 docker 的 registry 凭据", tool: "read", path: "/Users/learner/.docker/config.json", expected: all("deny") },
+  { what: "读 macOS 钥匙串", tool: "read", path: "/Users/learner/Library/Keychains/login.keychain-db", expected: all("deny") },
   // ---- 未知工具（MCP 等）默认放行，见报告 ----
   { what: "MCP 工具没有 path 参数", tool: "mcp__obsidian__search", path: "", expected: all("allow") },
 ];
@@ -182,14 +182,14 @@ describe("vault-paths — 凭据清单的纯函数", () => {
       "/home/.xuegen/auth.json",
       "/home/.xuegen/mcp-auth.json",
       "/home/.xuegen/models-store.json",
-      "/Users/gjy/.ssh",
-      "/Users/gjy/.aws",
-      "/Users/gjy/.gnupg",
-      "/Users/gjy/.config/gh",
-      "/Users/gjy/.netrc",
-      "/Users/gjy/.npmrc",
-      "/Users/gjy/.docker/config.json",
-      "/Users/gjy/Library/Keychains",
+      "/Users/learner/.ssh",
+      "/Users/learner/.aws",
+      "/Users/learner/.gnupg",
+      "/Users/learner/.config/gh",
+      "/Users/learner/.netrc",
+      "/Users/learner/.npmrc",
+      "/Users/learner/.docker/config.json",
+      "/Users/learner/Library/Keychains",
     ]) {
       expect(list, path).toContain(canon(path));
     }
@@ -200,7 +200,7 @@ describe("vault-paths — 凭据清单的纯函数", () => {
     expect(isDeniedReadPath(`${H}/github-token.txt`, roots, canon)).toBe(true);
     expect(isDeniedReadPath(`${H}/wiki.json`, roots, canon)).toBe(false);
     // 库外的文件名带 `key` 只是个词，不拒（读取已放开）。
-    expect(isDeniedReadPath("/Users/gjy/Downloads/keyword.md", roots, canon)).toBe(false);
+    expect(isDeniedReadPath("/Users/learner/Downloads/keyword.md", roots, canon)).toBe(false);
   });
 });
 
@@ -216,12 +216,12 @@ describe("decide — 读：除凭据外都能读（用户 2026-11-09 定）", ()
 
   it("allows files anywhere outside the credential list, in every role", () => {
     // 库外的下载、别人的桌面、系统文件：用户明确要求能读。
-    for (const path of ["/Users/gjy/Downloads/x.pdf", "/Users/anyone/Desktop/a.md", "/etc/hosts"]) {
+    for (const path of ["/Users/learner/Downloads/x.pdf", "/Users/anyone/Desktop/a.md", "/etc/hosts"]) {
       for (const role of everyRole) expect(allows(role, "read", path), `${roleLabelOf(role)}: ${path}`).toBe(true);
     }
     // grep / find / ls 的 path 是同一个字段，判定与 read 一致。
-    expect(allows(everyRole[1] as SessionRole, "grep", "/Users/gjy/Downloads")).toBe(true);
-    expect(allows(everyRole[2] as SessionRole, "ls", "/Users/gjy/Documents")).toBe(true);
+    expect(allows(everyRole[1] as SessionRole, "grep", "/Users/learner/Downloads")).toBe(true);
+    expect(allows(everyRole[2] as SessionRole, "ls", "/Users/learner/Documents")).toBe(true);
   });
 
   it("allows the non-credential files under <home>", () => {
@@ -238,7 +238,7 @@ describe("decide — 读：除凭据外都能读（用户 2026-11-09 定）", ()
 
   it("denies credentials written in another case on a case-folding volume", () => {
     const folded = (path: string): string => canon(path).toLowerCase();
-    for (const path of ["/HOME/.XUEGEN/AUTH.JSON", "/home/.xuegen/GitHub-TOKEN.txt", "/USERS/GJY/.SSH/ID_ED25519"]) {
+    for (const path of ["/HOME/.XUEGEN/AUTH.JSON", "/home/.xuegen/GitHub-TOKEN.txt", "/USERS/LEARNER/.SSH/ID_ED25519"]) {
       for (const role of everyRole) expect(allows(role, "read", path, roots, folded), path).toBe(false);
     }
   });
@@ -316,9 +316,9 @@ describe("decide — 递归搜索的祖先漏洞（grep / find）", () => {
 
   it("names the credential directory it would reach and asks to narrow the search", () => {
     expect(reason("grep", "~")).toContain("凭据目录");
-    expect(reason("grep", "~")).toContain("/Users/gjy/.ssh");
-    expect(reason("grep", "~/Library")).toContain("/Users/gjy/Library/Keychains");
-    expect(reason("find", "/Users")).toContain("/Users/gjy/.ssh");
+    expect(reason("grep", "~")).toContain("/Users/learner/.ssh");
+    expect(reason("grep", "~/Library")).toContain("/Users/learner/Library/Keychains");
+    expect(reason("find", "/Users")).toContain("/Users/learner/.ssh");
     // 直接搜 `<home>` 走的是「凭据路径」那条原因（`<home>` 本身就在清单里）。
     expect(reason("grep", "/home/.xuegen")).toContain("/home/.xuegen");
     expect(reason("grep", "/home")).toContain("缩小搜索范围");
@@ -334,7 +334,7 @@ describe("decide — 递归搜索的祖先漏洞（grep / find）", () => {
     // `ls` 只列一层，`read` 只开一个文件：它们不递归，不算绕过。
     expect(allows("ls", "~")).toBe(true);
     expect(allows("ls", "/Users")).toBe(true);
-    expect(allows("read", "/Users/gjy/Downloads/x.pdf")).toBe(true);
+    expect(allows("read", "/Users/learner/Downloads/x.pdf")).toBe(true);
     // 而直接 `ls <home>` 仍然拒：文件名就是凭据清单（旧规则不变）。
     expect(allows("ls", "/home/.xuegen")).toBe(false);
   });
@@ -349,15 +349,15 @@ const CREDENTIALS = [
   "/home/.xuegen/API_KEY.md",
   "/home/.xuegen/client-secret.json",
   "/home/.xuegen/backup/ssh-key.pem",
-  "/Users/gjy/.ssh/id_ed25519",
-  "/Users/gjy/.ssh",
-  "/Users/gjy/.aws/credentials",
-  "/Users/gjy/.gnupg/private-keys-v1.d/x.key",
-  "/Users/gjy/.config/gh/hosts.yml",
-  "/Users/gjy/.netrc",
-  "/Users/gjy/.npmrc",
-  "/Users/gjy/.docker/config.json",
-  "/Users/gjy/Library/Keychains/login.keychain-db",
+  "/Users/learner/.ssh/id_ed25519",
+  "/Users/learner/.ssh",
+  "/Users/learner/.aws/credentials",
+  "/Users/learner/.gnupg/private-keys-v1.d/x.key",
+  "/Users/learner/.config/gh/hosts.yml",
+  "/Users/learner/.netrc",
+  "/Users/learner/.npmrc",
+  "/Users/learner/.docker/config.json",
+  "/Users/learner/Library/Keychains/login.keychain-db",
 ];
 
 function roleLabelOf(role: SessionRole): string {
