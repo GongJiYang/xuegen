@@ -17,19 +17,20 @@ description: 课程的状态与流程：创建或选择课程、绑定教材、�
 - **课程会话**：收课、存档点、开课时给讲后读打勾、开课顺延，都只经 `course_close`（见「收课」「逐日排期」与 `references/close.md`）。
 - **总控会话**：新建课程、改计划、刷新看板，经 `course_plan`。课程会话调不了它。
 
-`course_plan` 的用法（总控）：
+`course_plan` 的用法（总控）——和收课同一套事务：先在暂存副本里改，检查通过才一次写进库，jj 记一笔「计划」，看板自动重画：
 
 | 要做的事 | 调用 |
 |---|---|
-| 写入前看锁与一致性 | bash：`node "<技能实际目录>/course-state.mjs" verify "<库根>/wiki/courses"`（只读，可以照常跑） |
-| 改已有课程页 | `course_plan` `action: "unlock"`、`slug` → 用编辑工具局部修改 → `course_plan` `action: "lock"`、`slug` |
-| 新建课程 | `course_plan` `action: "unlock"`（不给 slug，只放开课程目录）→ 用编辑工具新建 `wiki/courses/<slug>.md` → `course_plan` `action: "lock"`、`slug` |
-| 排期写入 | `course_plan` `action: "schedule"`、`slug`、`lessons: <临时文件>`，加 `start` `end` `rest` `days` `extra` `reviews`（同「逐日排期」的参数）。它一步完成解锁、写入、上锁，不用另外 unlock |
-| 刷新看板 | `course_plan` `action: "board"`（Markdown 和网页看板一起重画） |
+| 写入前看锁与一致性 | bash：`node "<技能实际目录>/course-state.mjs" verify "<库根>/wiki/courses"`（只读，照常跑） |
+| 改已有课程（计划、Key Facts、科目页补链接） | `course_plan` `action: "stage"`、`slug` → 用编辑工具改它返回的暂存目录里的副本（课程页、`wiki/subjects/<科目>.md`、`index.md`、`log.md`）→ `check` → `commit` |
+| 新建课程 | `course_plan` `action: "stage"`、`slug`、`new: true`、`subject: <科目 id>` → 在暂存目录里新建 `wiki/courses/<slug>.md`，登记 `index.md`、科目页 → `check` → `commit` |
+| 排期写入 | 在同一个暂存里调 `course_plan` `action: "schedule"`、`staging`、`lessons: <临时文件>`，加 `start` `end` `rest` `days` `extra` `reviews`（同「逐日排期」的参数）；然后 `check` → `commit` |
+| 放弃 | `course_plan` `action: "abort"`、`staging` |
+| 只重画看板 | `course_plan` `action: "board"` |
 
-- 改完课程页（unlock → 编辑 → lock）后跑一次 `board`。收课、顺延、撤销由 `course_close` 在提交时自动重画看板，不用再跑。
-- 编辑工具报 `EACCES` 就是还没 `unlock`；bash 报 `Operation not permitted` 是沙盒拦下了，课程页和看板改用上面的工具写，不要换别的命令绕过。
-- 任一步失败就停下如实报告，不要把部分写入说成完成；`unlock` 之后无论成败都要 `lock`。
+- 计划暂存只能写课程页（含 `wiki/courses/<slug>/`）、本科目页、`index.md`、`log.md`；概念页和卡片不在其中（总控不写知识页）。
+- `check` 不通过就按 `problems` 改暂存里的文件再 `check`；报 `conflict`（库里的文件在暂存后被别处改过）时 `abort` 后重新 `stage`。只有 `commit` 返回 `committed: true` 才说已保存。
+- 不用编辑工具直接改 `wiki/courses/` 和看板（会被拦）；bash 报 `Operation not permitted` 是沙盒拦下了，改用上面的工具，不要换别的命令绕过。
 - `verify` 报出「目录可写」「缺少标记」「看板过期」等，说明人工改过或上次写入没收尾，先报告再按上面流程修好。
 
 ## 定位课程
@@ -172,7 +173,7 @@ node "$S" next "$F" --date <日期> --json             # 某天的安排
 - **开始今天的学习时**，先调 `course_close` 的 `shift`（`slug`、`today: <本机今天>`；它一步完成暂存、顺延、校验、提交，jj 记「顺延」；没有要顺延的什么都不写）；不要在课程会话里 unlock 后跑 `course-schedule.mjs shift --write`。**顺延的结果照单接受**：没学的课整体后推是设计如此；课程会话里不手改排期表的日期，也不为改日期开收课事务。用户对排期有异议，说明情况，请用户回总控改计划。有变化就用一句话告诉用户「没学的新课顺延了 N 个上课日（最后一节 X），M 条过期复习挪到今天」，再开始教学。没有排期标记的旧课程跳过这一步。
 - **顺延不越过周期结束日**：`plan --end` 把结束日记进排期标记（`end=YYYY-MM-DD`），之后的 `shift` 自动沿用；标记里没有 `end=` 的周期课（11-10 之前排的），`shift` 时加 `end`/`--end <周期最后一天>`（周期页 `cycles/cN.md` 的起止日期），写入后标记就带上了。顺延后落在结束日之后的新课移出排期表，追加到计划表「留到下个周期」一节，脚本会多输出一句「N 节排不进本周期，已移到「留到下个周期」：…」，照转告用户。
 - 收课时在本次 Learning Record 里写一行 `完成：D3、R1-D2`（用计划表「天」列的 id），脚本靠这一行判断哪些已完成；没完成的不写。
-- 写入只经 `course_plan` 的 `schedule`（总控）或 `course_close` 的 `shift`（课程会话）；bash 里带 `--write` 的排期命令会被沙盒拦下。
+- 写入只经 `course_plan` 的 `schedule`（总控，在计划暂存里）或 `course_close` 的 `shift`（课程会话）；bash 里带 `--write` 的排期命令会被沙盒拦下。
 - 旧课程（计划表没有排期标记）要按天排期时，用户说一句截止日期即可：列出剩余课次后用 `plan` 写入，原来的人工计划内容保留在标记之外。
 
 ## 周核实（整合日）
@@ -198,6 +199,6 @@ node "$S" next "$F" --date <日期> --json             # 某天的安排
 
 ## 日期截图
 
-收课第 9 步要出图时，读同目录 `references/snapshot.md`（截图内容、`render-snapshot.mjs` 用法、命名、上锁与失败处理）；其他时候不用读。
+收课第 9 步要出图时，读同目录 `references/snapshot.md`（截图内容、`course_close snapshot` 用法、命名、失败处理）；其他时候不用读。
 
-课程页与概念页的写入由 `course_close` 统一做：校验、冲突检查、原子提交、上锁、jj 记一笔，都在工具里；会话的权限清单不让模型绕过它直接写。这仍不是学习能力认证。AI 与用户同一系统账号，用户解锁后仍能手工改，看板校验只能发现并报告不一致。进度界面有两个派生视图：`wiki/_generated/courses.md`（Obsidian 内看）与 `wiki/_generated/courses.html`（浏览器里看的只读页面）。两者都从同一份 Markdown 生成，不另存状态，也不提供人工修改入口；网页看板的段落顺序即标准计划输出（`PLAN-STANDARD.md`）。
+课程页与概念页的写入由同一台事务机做（课程会话经 `course_close`，总控经 `course_plan`）：校验、冲突检查、原子提交、上锁、jj 记一笔，都在工具里；会话的权限清单不让模型绕过它直接写。这仍不是学习能力认证。AI 与用户同一系统账号，用户解锁后仍能手工改，看板校验只能发现并报告不一致。进度界面有两个派生视图：`wiki/_generated/courses.md`（Obsidian 内看）与 `wiki/_generated/courses.html`（浏览器里看的只读页面）。两者都从同一份 Markdown 生成，不另存状态，也不提供人工修改入口；网页看板的段落顺序即标准计划输出（`PLAN-STANDARD.md`）。
