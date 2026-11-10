@@ -6,7 +6,8 @@
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
 ### 0. 先看后台任务
-- **整理批完成（11-10 18:30）**：整理 4 步骤表生成 → 见 git log「整理 4：固定流程步骤表」（`npm run feature-steps` 重新生成；lint 查一致；5 个流程 32 步都有短名，界面「第 n 步」可直接用 `node scripts/feature-steps.mjs --json`）。**只剩「发版 + RENAME-DAY → 0.9.0 删旧名」，等用户说「发版」**；之后是界面讨论（显示当前步骤、工具行改人话、课程停用通道）。
+- **v0.8.0 已发布（11-10 19:15）**：`7462ff7`，tag `v0.8.0`，desktop 快进 main 已推送；GitHub Release 有 zip + notes.md。打包程序的沙盒运行库已离线冒烟（允许目录可写、范围外被拒）。
+- **下一步**：用户自己退出学根后，在学根里点「学根 → 检查更新…」装 0.8.0（或请 Claude 拷贝安装）→ 用户退出学根和 Obsidian、在场同意后照 `docs/platform/RENAME-DAY.md` 改真实库英文名 → 之后 0.9.0 删旧名。
 - 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
 - 整理 1 补测 → `f01018e`；整理 1 真机验收通过（见下）。
 - 整理 2 拆分 → `4f0d1b2`（course-close.mjs 487 行 + close/ 6 个模块，测试 65=65，依赖单向）。
