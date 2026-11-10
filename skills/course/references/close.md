@@ -19,7 +19,7 @@ node course-close.mjs recover <库> --workspace <工作区> [--json]
 - `check`：只校验不写库；`--json` 输出 `{ ok, problems, changes }`，未通过 exit 1。
 - `commit`：再校验 → 写提交日志 → 逐文件「临时文件 → fsync → rename」→ 上锁 → `jj commit`（库在 jj 下时，只提交本次写入的文件）。
 - `abort`：删整个暂存目录，库不动；已提交的暂存不能 abort。
-- `undo`：jj 恢复最近一次「收课 <slug>」提交改过的文件，再提交「撤销收课」；列出那次新增的卡片页供询问，不自动删。
+- `undo`：jj 把最近一次「收课 <slug>」提交改过的文件恢复到提交前，再提交「撤销收课」；那次新建的页面（卡片页、概念页）保留不删，在输出里列出，问用户后再删。
 - `recover`：发现残留提交日志就补完；每个命令开头都自动跑一次，可重复跑（已 rename 的跳过）。
 
 ## 暂存目录

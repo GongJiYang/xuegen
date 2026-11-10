@@ -818,13 +818,16 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
   } catch (error) {
     fail(`jj diff 失败：${error instanceof Error ? error.message : error}`);
   }
-  const files = [...new Set(entries.flatMap((entry) => entry.paths))];
-  const newCards = entries
-    .filter((entry) => entry.status === "A")
-    .flatMap((entry) => entry.paths)
-    .filter((path) => path.split("/").includes("flashcards"));
+  // 那次收课新建的页面（状态 A）留着不动：Anki 里的卡不删，库与 Anki 要对得上，
+  // 删不删由用户决定。其余（修改、删除、改名涉及的路径）恢复到提交前。
+  const keptNew = [...new Set(entries.filter((entry) => entry.status === "A").flatMap((entry) => entry.paths))];
+  const restoreFiles = [
+    ...new Set(entries.filter((entry) => entry.status !== "A").flatMap((entry) => entry.paths)),
+  ];
+  const newCards = keptNew.filter((path) => path.split("/").includes("flashcards"));
   // 收课之后同一批文件又被改过（提交或工作副本）就不能直接撤回，否则会盖掉那次改动。
-  guardLaterChanges(vault, slug, id, files);
+  // 新建的页也要查：它们之后被改过同样拦下来（保持原行为）。
+  guardLaterChanges(vault, slug, id, [...new Set([...keptNew, ...restoreFiles])]);
   // 放开可能上了只读锁的课程目录与文件，记下原权限事后恢复。
   const restored = new Map();
   const open = (abs, bits) => {
@@ -833,7 +836,7 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
     if (!restored.has(abs)) restored.set(abs, mode);
     chmodSync(abs, mode | bits);
   };
-  for (const rel of files) {
+  for (const rel of restoreFiles) {
     const abs = join(vault, rel);
     let dir = dirname(abs);
     // 只放开库内的祖先目录（用 relative 判断，避免 /vault2 被 startsWith("/vault") 误当成库内）。
@@ -845,34 +848,40 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
     }
     if (existsSync(abs) && statSync(abs).isFile()) open(abs, 0o200);
   }
-  try {
-    // 一次调用传全部路径：中间某个失败时不会已经撤了一半。
-    jj(["restore", "--from", `${id}-`, "--to", "@", "--", ...files.map(filesetLiteral)], vault);
-  } catch (error) {
+  // 只新建过文件时没有可恢复的东西：不调 jj restore、不提交，直接输出。
+  let jjResult = "skipped";
+  if (restoreFiles.length > 0) {
+    try {
+      // 一次调用传全部路径：中间某个失败时不会已经撤了一半。
+      jj(["restore", "--from", `${id}-`, "--to", "@", "--", ...restoreFiles.map(filesetLiteral)], vault);
+    } catch (error) {
+      for (const [dir, mode] of restored) {
+        try {
+          chmodSync(dir, mode);
+        } catch {
+          /* 恢复失败不遮主错 */
+        }
+      }
+      fail(`jj restore 失败：${error instanceof Error ? error.message : error}`);
+    }
     for (const [dir, mode] of restored) {
       try {
         chmodSync(dir, mode);
       } catch {
-        /* 恢复失败不遮主错 */
+        /* 同上 */
       }
     }
-    fail(`jj restore 失败：${error instanceof Error ? error.message : error}`);
+    lockCourse(vault, slug, restoreFiles);
+    jjResult = jjCommit(vault, `撤销收课 ${slug} ${originalDate}`, restoreFiles);
   }
-  for (const [dir, mode] of restored) {
-    try {
-      chmodSync(dir, mode);
-    } catch {
-      /* 同上 */
-    }
-  }
-  lockCourse(vault, slug, files);
-  const jjResult = jjCommit(vault, `撤销收课 ${slug} ${originalDate}`, files);
-  const out = { undone: id, files, newCards, jj: jjResult };
+  const out = { undone: id, restoreFiles, keptNew, newCards, jj: jjResult };
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   } else {
-    process.stdout.write(`已撤销收课提交 ${id}，恢复 ${files.length} 个文件（jj: ${jjResult}）\n`);
-    for (const card of newCards) process.stdout.write(`新增的卡片页（可询问后删除）：${card}\n`);
+    process.stdout.write(`已撤销收课提交 ${id}，恢复 ${restoreFiles.length} 个文件\n`);
+    for (const path of keptNew) {
+      process.stdout.write(`这次收课新建的页面（保留，可询问后删除）：${path}\n`);
+    }
   }
 }
 

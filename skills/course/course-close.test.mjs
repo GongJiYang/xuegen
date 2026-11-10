@@ -975,7 +975,8 @@ jjTest("jj：收课之后只有无关改动 → undo 成功，课程页回到收
 
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.equal(undone.undone, id);
-    assert.deepEqual(undone.files.sort(), ["wiki/courses/epp.md", "wiki/log.md"]);
+    assert.deepEqual(undone.restoreFiles.sort(), ["wiki/courses/epp.md", "wiki/log.md"]);
+    assert.deepEqual(undone.keptNew, []);
     assert.deepEqual(undone.newCards, []);
     assert.equal(await readFile(fixture.page, "utf8"), before, "课程页回到收课前");
     assert.equal(await readFile(join(fixture.vault, "wiki", "log.md"), "utf8"), LOG, "log 也回到收课前");
@@ -1045,22 +1046,112 @@ jjTest("jj：另一门课收课改了共享的 index.md → undo 拒绝（会盖
   }
 });
 
-jjTest("jj：undo 列出那次新增的卡片页但不自动从 Anki 删卡（只读地报路径）", async () => {
+jjTest("jj：undo 保留那次新增的卡片页（不自动从 Anki 删卡）并只读地报路径", async () => {
   const fixture = await makeVault();
   try {
     const { env } = await initJj(fixture.vault, fixture.root);
     const cardRel = "wiki/knowledge/flashcards/discrete-math/card.md";
+    const cardText = "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n";
     await closeCourse(fixture, env, "epp", async (staging) => {
       await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
       await mkdir(dirname(join(staging, cardRel)), { recursive: true });
-      await writeFile(join(staging, cardRel), "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n");
+      await writeFile(join(staging, cardRel), cardText);
     });
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.deepEqual(undone.newCards, [cardRel]);
-    // jj restore 会把这次新增的页一起撤掉（见结束报告「未完成项」）。
-    assert.equal(existsSync(join(fixture.vault, cardRel)), false);
+    assert.deepEqual(undone.keptNew, [cardRel]);
+    assert.deepEqual(undone.restoreFiles, ["wiki/courses/epp.md"]);
+    // 那次新建的卡片页留着不动，Anki 里的卡与库仍然对得上。
+    assert.equal(existsSync(join(fixture.vault, cardRel)), true);
+    assert.equal(await readFile(join(fixture.vault, cardRel), "utf8"), cardText, "新建的页内容不变");
     const plain = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
     assert.match(plain.stderr, /不能直接撤销|没有找到这门课的收课提交/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：undo 恢复改过的文件，那次新建的概念页与卡片页保留并列出", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const conceptRel = "wiki/知识/concepts/x.md";
+    const cardRel = "wiki/知识/flashcards/y.md";
+    const conceptText = "---\ntitle: x\nsources:\n  - [[reading/epp|Epp]] §1.1\n---\n\n# x\n\n定义。\n";
+    const cardText = "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n";
+    const { id } = await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+      await mkdir(dirname(join(staging, conceptRel)), { recursive: true });
+      await writeFile(join(staging, conceptRel), conceptText);
+      await mkdir(dirname(join(staging, cardRel)), { recursive: true });
+      await writeFile(join(staging, cardRel), cardText);
+    });
+    const jj = (args) => execFileSync("jj", args, { cwd: fixture.vault, encoding: "utf8", env: { ...process.env, ...env } });
+
+    const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.equal(undone.undone, id);
+    assert.deepEqual(undone.restoreFiles, ["wiki/courses/epp.md"]);
+    assert.deepEqual(undone.keptNew.sort(), [conceptRel, cardRel].sort());
+    assert.deepEqual(undone.newCards, [cardRel]);
+    assert.equal(await readFile(fixture.page, "utf8"), before, "课程页回到收课前");
+    assert.equal(await readFile(join(fixture.vault, conceptRel), "utf8"), conceptText, "新建的概念页保留、内容不变");
+    assert.equal(await readFile(join(fixture.vault, cardRel), "utf8"), cardText, "新建的卡片页保留、内容不变");
+
+    const undoId = jj([
+      "log",
+      "-r",
+      'description(glob:"撤销收课 epp *")',
+      "--no-graph",
+      "-T",
+      "commit_id",
+      "--limit",
+      "1",
+    ]).trim();
+    assert.notEqual(undoId, "");
+    const summary = jj(["diff", "-r", undoId, "--summary"])
+      .trim()
+      .split("\n")
+      .map((line) => line.slice(1).trim())
+      .sort();
+    assert.deepEqual(summary, ["wiki/courses/epp.md"], "「撤销收课」提交里只有改过的文件");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：收课只新建了文件 → undo 不报错，没有可恢复的文件就不提交「撤销收课」", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env } = await initJj(fixture.vault, fixture.root);
+    const conceptRel = "wiki/知识/concepts/x.md";
+    const cardRel = "wiki/知识/flashcards/y.md";
+    const conceptText = "---\ntitle: x\nsources:\n  - [[reading/epp|Epp]] §1.1\n---\n\n# x\n\n定义。\n";
+    const cardText = "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n";
+    const { id } = await closeCourse(fixture, env, "epp", async (staging) => {
+      await mkdir(dirname(join(staging, conceptRel)), { recursive: true });
+      await writeFile(join(staging, conceptRel), conceptText);
+      await mkdir(dirname(join(staging, cardRel)), { recursive: true });
+      await writeFile(join(staging, cardRel), cardText);
+    });
+    const jj = (args) => execFileSync("jj", args, { cwd: fixture.vault, encoding: "utf8", env: { ...process.env, ...env } });
+    const before = await readFile(fixture.page, "utf8");
+
+    const plain = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.ok(plain.stdout.includes(`已撤销收课提交 ${id}，恢复 0 个文件`), plain.stdout);
+    assert.ok(plain.stdout.includes(`这次收课新建的页面（保留，可询问后删除）：${conceptRel}`), plain.stdout);
+    assert.ok(plain.stdout.includes(`这次收课新建的页面（保留，可询问后删除）：${cardRel}`), plain.stdout);
+
+    // 没有可恢复的文件，再跑一次也不会报错（什么都没变，可以重复跑）。
+    const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.equal(undone.undone, id);
+    assert.deepEqual(undone.restoreFiles, []);
+    assert.deepEqual(undone.keptNew.sort(), [conceptRel, cardRel].sort());
+    assert.deepEqual(undone.newCards, [cardRel]);
+    assert.equal(await readFile(fixture.page, "utf8"), before, "课程页没被动过");
+    assert.equal(await readFile(join(fixture.vault, conceptRel), "utf8"), conceptText);
+    assert.equal(await readFile(join(fixture.vault, cardRel), "utf8"), cardText);
+    assert.doesNotMatch(jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销收课/, "没有新增撤销提交");
   } finally {
     await cleanup(fixture);
   }
@@ -1127,7 +1218,7 @@ jjTest("jj：slug 前缀相同的另一门课（epp-advanced）的收课不被�
     // 撤销 epp 不能去撤 epp-advanced 的提交
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.equal(undone.undone, epp.id);
-    assert.deepEqual(undone.files, ["wiki/courses/epp.md"]);
+    assert.deepEqual(undone.restoreFiles, ["wiki/courses/epp.md"]);
     assert.equal(await readFile(fixture.page, "utf8"), eppBefore, "epp 回到收课前");
     assert.match(await readFile(advanced, "utf8"), /进阶课收课/, "epp-advanced 的收课没被撤");
     assert.ok(advancedBefore.length > 0);
