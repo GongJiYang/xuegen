@@ -31,6 +31,8 @@ import { createSandboxRunner, type SandboxRunner } from "./runner.js";
 
 const runFile = promisify(execFile);
 const DARWIN = process.platform === "darwin";
+/** The TMPDIR the sandbox hands its children (see `sandboxTmpDir` in `./runner.ts`). */
+const SANDBOX_TMP = "/private/tmp/claude";
 
 const courseRole: SessionRole = { kind: "course", slug: "discrete-math-epp" };
 const freeRole: SessionRole = { kind: "free" };
@@ -124,12 +126,18 @@ describe.skipIf(!DARWIN)("沙盒真实生效（真 seatbelt）", () => {
   let kit: Bench;
 
   beforeAll(async () => {
+    // Start from "the directory the runtime assumes but never creates": the
+    // fix's whole point is that `wrap` builds it, so the test must not inherit
+    // one left behind by an earlier run (or by a real session).
+    if (DARWIN) rmSync(SANDBOX_TMP, { recursive: true, force: true });
     kit = await bench();
   }, 120_000);
 
   afterAll(async () => {
     await kit?.runner.reset();
     if (kit !== undefined) rmSync(kit.base, { recursive: true, force: true });
+    // Leave nothing of ours in the shared temp dir either.
+    if (DARWIN) rmSync(SANDBOX_TMP, { recursive: true, force: true });
   }, 120_000);
 
   it("命令真的被改写进沙盒（不是原样跑）", async () => {
@@ -206,6 +214,26 @@ describe.skipIf(!DARWIN)("沙盒真实生效（真 seatbelt）", () => {
     expect(result.code).not.toBe(0);
   });
 
+  it("沙盒里的 TMPDIR 真的能用：here-doc 与 mkdtemp(os.tmpdir()) 都成功", async () => {
+    // sandbox-runtime 给子进程设 TMPDIR=/tmp/claude 并把它列进可写清单，但自己不建
+    // 目录；本机没有这个目录时，here-doc 与脚本里的临时文件全部 ENOENT/EPERM。
+    const tmpDir = SANDBOX_TMP;
+    expect(existsSync(tmpDir), `前提：${tmpDir} 应当由 wrap 建好`).toBe(true);
+
+    // 1) here-doc（bash 自己要往 TMPDIR 里写临时文件）。
+    const hereDoc = join(kit.workspace, "h.txt");
+    const heredocRun = await kit.run("tmpdir-heredoc", `cat <<EOF > ${hereDoc}\nhi\nEOF`);
+    expect(heredocRun.code, heredocRun.stderr).toBe(0);
+    expect(readFileSync(hereDoc, "utf8")).toBe("hi\n");
+
+    // 2) 脚本里的 mkdtemp(os.tmpdir())：目录必须建得出来。
+    const mkdtempRun = await kit.run(
+      "tmpdir-mkdtemp",
+      `node -e "require('fs').mkdtempSync(require('os').tmpdir()+'/x')"`,
+    );
+    expect(mkdtempRun.code, mkdtempRun.stderr).toBe(0);
+  });
+
   it("被拦下的 stderr 经 annotate 补上沙盒原因", async () => {
     const page = join(kit.vault, "wiki", "courses", "blocked.md");
     const result = await kit.run("annotate-course-page", `echo hi > ${page}`);
@@ -260,6 +288,8 @@ describe.skipIf(!DARWIN)("沙盒里的 Anki：经沙盒代理连 127.0.0.1:8765"
     await kit?.runner.reset();
     if (anki !== null) await new Promise<void>((done) => anki?.close(() => done()));
     if (kit !== undefined) rmSync(kit.base, { recursive: true, force: true });
+    // This describe also wraps commands, so it also builds the sandbox TMPDIR.
+    if (DARWIN) rmSync(SANDBOX_TMP, { recursive: true, force: true });
   }, 120_000);
 
   it("沙盒里跑 anki-sync push 能把卡加进 127.0.0.1:8765 并回填 ID", async (context) => {
