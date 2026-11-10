@@ -7,10 +7,12 @@
 
 ### 0. 先看后台任务（11-10 19:30 交接）
 - **v0.8.0 已发布并已安装**（`7462ff7`，tag v0.8.0；`/Applications/学根.app` = 0.8.0；`~/.xuegen/app` → 安装包资源）。
-- **RENAME-DAY 进行中，停在第 2 步**（`docs/platform/RENAME-DAY.md`）：
-  - 第 1 步已做：库 `jj st` 干净；**基线提交 `796fa733855d`**（「顺延 c-language 2026-11-10…」）；改名前断链扫描 `/tmp/rename-day-before.json`（files=18614 links=1256 broken=53）。
-  - 第 2 步试运行被脚本自己拒绝：「学根或 Obsidian 正在运行（pid 45984、46261）」。45984 是用户更新后重启的学根；**46261 是 Claude 误跑 `学根 --version` 启动的实例**（想 kill 被权限拦下）。**等用户把学根全部退出（两个都 ⌘Q）**，再跑：`node ~/.xuegen/app/skills/wiki-save/rename-vault.mjs ~/学根/库 /Users/gjy/pi-learning/xuegen/docs/platform/vault-rename-map.json`（试运行）→ 核对计划数（约 30 目录、160 文件、892 条链接）→ 加 `--apply` → 第 3 步核对（新增断链 0、权限 0555/0444、`jj st` 无 `A raw/library/`、bookshelf today、vault-lint）→ 第 4–7 步。
-  - 教训：**不要用 `学根 --version` 查版本**（会启动 app），用 `plutil -p /Applications/学根.app/Contents/Info.plist | grep ShortVersion`。
+- **RENAME-DAY：第 0–3 步完成并核对，第 4 步推送待用户执行**（`docs/platform/RENAME-DAY.md`）：
+  - 改名已应用：目录 30、文件 160（搬动 119）、链接改写 926 条（164 个文件）、`.gitignore` `raw/学习路径/`→`raw/library/`。库里已是 `wiki/knowledge`、`wiki/shelf`、`clippings`、`raw/library`。
+  - 核对全过：按目标比**新增断链 0**（前后都是 53 条老断链）；`wiki/courses` 0555、9 个课程页 0444；`jj st` 无 `A raw/library/`；`bookshelf today`、`cycle.mjs day`、`course-state verify` 正常；vault-lint 60 个问题与试运行一致（老问题，多为「后缀解析」）。
+  - 已 `jj commit`：**`ce4adc4c` 「改名：库全英文命名（rename-vault）」**（基线 `796fa733855d`，撤回用 `jj restore --from 796fa733855d`）。
+  - **第 4 步推送被 Claude Code 自动模式拦（Git Destructive）**，请用户自己跑：`cd ~/学根/库 && jj bookmark set main -r @- && jj git push`（快进：远端 main 在 `323b010f`，新增顺延 + 改名两笔）。
+  - **未做**：第 5 步数据根 `~/学根` → `~/xuegen-data`（及子目录改英文、留旧链接、`xuegen-data-root.mjs`）；第 6 步收尾（库 AGENTS.md 去「Migration status」、NEW-MACHINE.md/PROGRESS/prepare.sh 路径、用户在 Obsidian 重新选库）；第 7 步卡片（停 Obsidian_to_Anki 插件、`anki-sync push --dry-run` 给用户看）。第 5 步要用户在场、学根与 Obsidian 退出。
 - 之后：0.9.0 删旧名（收缩，清单见 `TIDY-1110.md` §3）→ 界面讨论（显示当前步骤、工具行人话、课程停用通道）。
 - 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
 - 整理 1 补测 → `f01018e`；整理 1 真机验收通过（见下）。
