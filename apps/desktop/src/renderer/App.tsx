@@ -11,13 +11,13 @@
  * through the registered skins.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReadingDue, ReadingPriority } from "@shared/data-protocol.js";
 import { useChat } from "./core/chat/useChat.js";
 import { MessageRenderer } from "./core/chat/message-renderer.js";
 import { useSettings } from "./core/settings/use-settings.js";
 import { useBodyScaleShortcuts } from "./core/settings/use-body-scale-shortcuts.js";
-import { coerceBodyScaleForFont } from "./core/settings/body-font.js";
+import { useDocumentAppearance } from "./core/settings/use-document-appearance.js";
 import { useCourses } from "./core/board/use-courses.js";
 import { useActiveCourse, useCourseSessions } from "./core/board/use-course-sessions.js";
 import { useBoardReload } from "./core/board/use-board-reload.js";
@@ -186,25 +186,13 @@ export function App() {
   const { module: skin, loadedId, notice } = useSkin(requestedSkin);
   const appearance = useSkinAppearance(settings, update, loadedId);
 
-  useEffect(() => {
-    if (settings.windowBackground) {
-      document.documentElement.style.backgroundColor = settings.windowBackground;
-    }
-  }, [settings.windowBackground]);
-
-  useEffect(() => {
-    if (!skin) return;
-    document.documentElement.dataset.skin = loadedId;
-    document.documentElement.dataset.bodyFont = settings.bodyFont;
-    document.documentElement.dataset.bodyScale = String(
-      coerceBodyScaleForFont(settings.bodyScale, settings.bodyFont),
-    );
-    return () => {
-      delete document.documentElement.dataset.skin;
-      delete document.documentElement.dataset.bodyFont;
-      delete document.documentElement.dataset.bodyScale;
-    };
-  }, [skin, loadedId, settings.bodyFont, settings.bodyScale]);
+  useDocumentAppearance({
+    windowBackground: settings.windowBackground,
+    skinLoaded: Boolean(skin),
+    skinId: loadedId,
+    bodyFont: settings.bodyFont,
+    bodyScale: settings.bodyScale,
+  });
 
   useBoardReload(controller.streaming, [courses, reading, cards, calendar.resource, cycle, subjects]);
 
