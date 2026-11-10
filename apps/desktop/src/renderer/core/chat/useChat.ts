@@ -10,86 +10,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type {
-  AgentStatus,
-  AgentToHostMessage,
-  ChatMessage,
-  CommandInfo,
-  ContextUsagePayload,
-  ModelInfo,
-  SessionRole,
-  TeachingStyle,
-} from "@shared/protocol.js";
+import type { AgentToHostMessage, SessionRole, TeachingStyle } from "@shared/protocol.js";
 import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
 import { withStylePrefix } from "./style-prefix.js";
 import { splitActionMarker } from "./action-marker.js";
 import { isComposerDisabled, noticesFor } from "./view-models.js";
 import { resetScrollMemory } from "./use-scroll-memory.js";
-import type { NoticeItem, ThreadNote } from "../../skins/contract.js";
 import { threadNotes } from "./context-usage.js";
 import * as client from "../client.js";
-
-export interface ChatController {
-  messages: ChatMessage[];
-  models: ModelInfo[];
-  modelsReason: string | null;
-  currentModel: ModelInfo | null;
-  /** The session's thinking level, or null when the model does not support it. */
-  thinkingLevel: string | null;
-  /** Levels the active model supports; the 思考强度 menu only enables these. */
-  thinkingLevels: string[];
-  agentStatus: AgentStatus;
-  streaming: boolean;
-  thinking: boolean;
-  /** True when the interface is unusable because no model is available. */
-  disabled: boolean;
-  notices: NoticeItem[];
-  /** `/skill:<name>` commands the agent offers (enabled skills only). */
-  commands: CommandInfo[];
-  /** Estimated context usage, or null before the agent reports one. */
-  contextUsage: ContextUsagePayload | null;
-  /** True while Pi is summarizing older messages. */
-  compacting: boolean;
-  /** Local-only transcript lines (compaction markers), ready to render. */
-  systemNotes: ThreadNote[];
-  /** Ask Pi to compact the conversation now. */
-  compact(): void;
-  send(text: string): void;
-  /**
-   * Send a prompt on behalf of a `/` command.
-   *
-   * Same as {@link send} but without the `[风格：X]` prefix: a slash command is
-   * the whole instruction, so the session style must not ride along (B9).
-   */
-  sendCommand(text: string): void;
-  /** A note put in front of the next prompts (send and sendCommand) until set back to null. */
-  setRefreshNote(note: string | null): void;
-  /**
-   * Stop the running answer.
-   *
-   * Returns the text of the prompt just sent (the user's own words, without the
-   * style prefix or a refresh note), or null when there is no such prompt left —
-   * a skin puts it back into an empty composer so an accidental stop, or send,
-   * can be undone.
-   */
-  stop(): string | null;
-  /** Resend the most recent user message, after a stop or a failed answer. */
-  retry(): void;
-  newSession(): void;
-  continueSession(): void;
-  /**
-   * Switch to a course's own session (its earlier file, or null for a new one);
-   * resolves with the session file now active once the agent has switched.
-   * `role` names the guard's permission set for the session being opened.
-   */
-  openSession(sessionFile: string | null, role: SessionRole): Promise<string | null>;
-  /** The active session's transcript file, or null before one exists. */
-  sessionFile: string | null;
-  setModel(provider: string, id: string): void;
-  /** Change the thinking level and persist it as the default (B4). */
-  setThinkingLevel(level: string): void;
-  dismissNotice(index: number): void;
-}
+import type { ChatController } from "./chat-controller.js";
+export type { ChatController } from "./chat-controller.js";
 
 /**
  * @param style Teaching style prefixed onto outgoing messages. Defaults to
@@ -97,7 +27,10 @@ export interface ChatController {
  * @param disabledSkills Skills the user turned off; the agent filters these from
  *   its command list, and the list is re-requested whenever they change.
  */
-export function useChat(style: TeachingStyle = "default", disabledSkills: readonly string[] = []): ChatController {
+export function useChat(
+  style: TeachingStyle = "default",
+  disabledSkills: readonly string[] = [],
+): ChatController {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
   // Keep the latest style without re-creating `send`, so a style change never
   // forces child re-renders through a new callback identity. Updated in an
