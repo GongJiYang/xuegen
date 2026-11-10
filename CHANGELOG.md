@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.10.0 — 2026-11-10
+
+- Cycles: a cycle is 7 weeks of study, not fixed dates. `cycle.mjs` derives each cycle's actual end from its main courses' last scheduled lesson (`loadElasticCycles`, `elasticCycles`), shifts later cycles, recovery weeks and the route's end by the same delay (`shiftRoute`); `day` / `week` / `month` / `overview` report actual dates, `overview` adds `plannedEnd` and `delayDays`. Weeks keep counting by calendar (a late cycle gets a W8). Cycle pages and `route.md` keep the planned dates. Auxiliary courses do not move the end.
+- Scripts: `course-schedule.mjs plan --elastic` (and `course-close.mjs schedule --elastic`, `course_plan` `elastic: true`) lays lessons out up to `--end` but does not record `end=` in the schedule marker, so a main course's postponement is never cut at the planned cycle end.
+- Desktop: `course_plan` gains `shift` — the 总控 session postpones a course (`slug` + `today`, same transaction as `course_close shift`, jj 「顺延」). Saying 「顺延今日内容」 in 总控 postpones every course's unlearned lessons of today.
+- Desktop: the route timeline in 总进度 draws one cell per calendar week of each cycle (7, or more when it ran late).
 ## v0.9.0 — 2026-11-10
 
 - Vault layout: the old Chinese names are gone (`wiki/知识`, `wiki/书房`, `Clippings`, board at `wiki/courses.md`). Code and skills only know the English layout (`wiki/knowledge`, `wiki/shelf`, `clippings`, `wiki/_generated/courses.{md,html}`, created when missing). Run `rename-vault.mjs` on an old vault before upgrading.
