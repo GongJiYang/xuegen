@@ -325,3 +325,47 @@ describe("createGuardExtension", () => {
     expect(guard.audit().at(-1)?.allow).toBe(false);
   });
 });
+
+describe("createGuardExtension — course_plan 的审计 target（阶段 4a）", () => {
+  it("audits course_plan as `<action> <slug>`, and `<action>` alone when there is no slug", () => {
+    const guard = harness(options({}), { kind: "control" });
+    const schedule: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "20",
+      toolName: "course_plan",
+      input: { action: "schedule", slug: "ctm", lessons: "/tmp/lessons.json" },
+    };
+    expect(guard.call(schedule)).toBeUndefined();
+    const [entry] = guard.audit();
+    expect(entry?.tool).toBe("course_plan");
+    expect(entry?.role).toBe("control");
+    expect(entry?.allow).toBe(true);
+    expect(entry?.target).toBe("schedule ctm");
+
+    // unlock 不带 slug（新建课程时只放开课程目录）：target 只有动作名。
+    const unlock: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "21",
+      toolName: "course_plan",
+      input: { action: "unlock" },
+    };
+    expect(guard.call(unlock)).toBeUndefined();
+    expect(guard.audit().at(-1)?.target).toBe("unlock");
+  });
+
+  it("blocks and audits course_plan from the course session", () => {
+    const guard = harness(options({}), { kind: "course", slug: "discrete-math-epp" });
+    const board: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "22",
+      toolName: "course_plan",
+      input: { action: "board" },
+    };
+    const result = guard.call(board) as { block?: boolean; reason?: string } | undefined;
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain("总控");
+    const [entry] = guard.audit();
+    expect(entry?.allow).toBe(false);
+    expect(entry?.target).toBe("board");
+  });
+});

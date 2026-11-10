@@ -720,3 +720,25 @@ describe("decide — 库放在临时目录里时，库规则优先于「临时�
     });
   });
 });
+
+describe("decide — course_plan：只有总控能用（阶段 4a）", () => {
+  const plan = (role: SessionRole, action: string): Decision =>
+    decide(role, "course_plan", { action }, roots, canon, nothing);
+
+  it("lets 总控 unlock / lock / schedule / board all through", () => {
+    for (const action of ["unlock", "lock", "schedule", "board"]) {
+      const decision = plan(roles.control as SessionRole, action);
+      expect(decision.allow, `${action}: ${decision.reason}`).toBe(true);
+    }
+  });
+
+  it("refuses the course session and the free session, naming 总控", () => {
+    for (const role of [roles.course as SessionRole, roles.free as SessionRole]) {
+      for (const action of ["unlock", "lock", "schedule", "board"]) {
+        const decision = plan(role, action);
+        expect(decision.allow, `${roleLabelOf(role)} ${action}: ${decision.reason}`).toBe(false);
+        expect(decision.reason).toContain("总控");
+      }
+    }
+  });
+});

@@ -1714,3 +1714,119 @@ test("course-close --help 打印用法并以 0 退出", async () => {
   assert.match(stdout, /commit/);
   assert.match(stdout, /undo/);
 });
+
+// ---- 阶段 4a-i1：提交前重画看板，与本次改动一起进 jj ----
+
+jjTest("jj：收课提交带上重画的两份看板，board 为 ok（旧布局：看板在 wiki/ 根）", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { result, id } = await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    });
+    assert.equal(result.board, "ok", result.board);
+    const inCommit = jj(["diff", "-r", id, "-T", 'json(target.path()) ++ "\\n"'])
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .sort();
+    assert.deepEqual(inCommit, ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md"]);
+    const dash = join(fixture.vault, "wiki", "courses.md");
+    const html = join(fixture.vault, "wiki", "courses.html");
+    assert.ok(existsSync(dash), "Markdown 看板已生成");
+    assert.ok(existsSync(html), "网页看板已生成");
+    assert.equal(await mode(dash), 0o444, "看板只读");
+    assert.equal(await mode(html), 0o444, "网页看板只读");
+    assert.match(await readFile(html, "utf8"), /课程看板/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：库里有 wiki/_generated/ → 看板写在那里，不进 wiki/ 根", async () => {
+  const fixture = await makeVault();
+  try {
+    await mkdir(join(fixture.vault, "wiki", "_generated"), { recursive: true });
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { result, id } = await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    });
+    assert.equal(result.board, "ok", result.board);
+    const inCommit = jj(["diff", "-r", id, "-T", 'json(target.path()) ++ "\\n"'])
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .sort();
+    assert.deepEqual(inCommit, [
+      "wiki/_generated/courses.html",
+      "wiki/_generated/courses.md",
+      "wiki/courses/epp.md",
+    ]);
+    assert.ok(existsSync(join(fixture.vault, "wiki", "_generated", "courses.md")));
+    assert.ok(existsSync(join(fixture.vault, "wiki", "_generated", "courses.html")));
+    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.md")), false, "新布局下不在 wiki/ 根再看一份");
+    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.html")), false);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：别门课收课只动到看板 → 本课 undo 不被挡，keptNew 里没有看板文件", async () => {
+  const fixture = await makeVault();
+  try {
+    await writeFile(
+      join(fixture.vault, "wiki", "courses", "algo.md"),
+      coursePage({ subject: "- [[subjects/algorithms|算法]]" }).replace("离散数学", "算法"),
+    );
+    const { env } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const eppClose = await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    });
+    assert.equal(eppClose.result.board, "ok", eppClose.result.board);
+    // 另一门课收课：只改自己的课程页（外加自动重画的共享看板）。
+    const algoClose = await closeCourse(fixture, env, "algo", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "algo.md"), `${coursePage().replace("离散数学", "算法")}\n- 收课：algo。\n`);
+    });
+    assert.equal(algoClose.result.board, "ok", algoClose.result.board);
+
+    const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.equal(undone.undone, eppClose.id);
+    for (const path of ["wiki/courses.md", "wiki/courses.html"]) {
+      assert.equal(undone.keptNew.includes(path), false, `keptNew 里不该有看板：${path}`);
+      assert.equal(undone.restoreFiles.includes(path), false, `restoreFiles 里不该有看板：${path}`);
+    }
+    assert.deepEqual(undone.restoreFiles, ["wiki/courses/epp.md"]);
+    assert.deepEqual(undone.keptNew, []);
+    assert.equal(await readFile(fixture.page, "utf8"), before, "课程页回到收课前");
+    assert.equal(await mode(fixture.page), 0o444, "撤销后重新上锁");
+    // 别门课的收课结果没被这次撤销带走。
+    assert.match(await readFile(join(fixture.vault, "wiki", "courses", "algo.md"), "utf8"), /收课：algo/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：看板重画失败 → commit 仍 committed、board 是中文错误、课程页已落盘", async () => {
+  const fixture = await makeVault();
+  try {
+    // 课程目录里放一个「解析会报错」的课程页：同名目录，读它会 EISDIR。
+    await mkdir(join(fixture.vault, "wiki", "courses", "broken.md"), { recursive: true });
+    const { env } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    const closed = withCloseRecord(coursePage());
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), closed);
+    const result = await cliJson(["commit", staging], { env });
+
+    assert.equal(result.committed, true, "看板坏了不影响已落盘的收课");
+    assert.notEqual(result.board, "ok");
+    assert.match(result.board, /重画/, "board 是中文错误说明");
+    assert.equal(await readFile(fixture.page, "utf8"), closed, "课程页已落盘");
+    assert.equal(await mode(fixture.page), 0o444, "照常上锁");
+    assert.ok(existsSync(join(staging, "committed")));
+    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.md")), false, "看板没写成半成品");
+    assert.equal(result.jj, "ok", `只提交本次改动：${result.jj}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
