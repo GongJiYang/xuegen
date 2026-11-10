@@ -1237,6 +1237,84 @@ jjTest("jj：undo 在非 jj 库里直接拒绝", async () => {
   }
 });
 
+// ══ commit --label：存档点不叫「收课」，undo 也就撤不到它 ══
+
+/** 把课程页 Next Session 改成 §1.3（存档点的典型改动）。 */
+const checkpoint = (text) => text.replace("[[reading/epp|Epp]] §1.2。", "[[reading/epp|Epp]] §1.3。");
+
+jjTest("jj：commit --label 存档点 → jj 记「存档点 <slug> <今天>」，之后 undo 说没有收课提交", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    const text = checkpoint(await readFile(fixture.page, "utf8"));
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), text);
+    const result = await cliJson(["commit", staging, "--label", "存档点"], { env });
+    assert.equal(result.jj, "ok");
+    assert.equal(descriptionOf(jj), `存档点 epp ${localDate()}`, "jj 记的是存档点，不是收课");
+    assert.equal(await readFile(fixture.page, "utf8"), text, "存档点写进库了");
+
+    // 只有存档点时，undo 找不到这门课的「收课」提交，什么都不撤。
+    const failed = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
+    assert.match(failed.stderr, /没有找到这门课的收课提交/);
+    assert.equal(await readFile(fixture.page, "utf8"), text, "undo 没动课程页");
+    assert.doesNotMatch(jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销收课/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：收课 → 存档点改了课程页 → undo 被拒（之后又被改过），库和 jj 都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const closed = withCloseRecord(coursePage());
+    const { id } = await closeCourse(fixture, env, "epp", async (staging) => {
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), closed);
+    });
+    assert.equal(descriptionOf(jj), `收课 epp ${localDate()}`, "不给 --label 仍是收课");
+
+    // 长会话中途：stage → 改 Next Session → commit --label 存档点
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    const text = checkpoint(closed);
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), text);
+    const saved = await cliJson(["commit", staging, "--label", "存档点"], { env });
+    assert.equal(saved.committed, true);
+    assert.equal(descriptionOf(jj), `存档点 epp ${localDate()}`);
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+
+    // undo 认的是那次收课，但存档点之后又改过课程页：拒绝，什么都不动。
+    const failed = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
+    assert.match(failed.stderr, /这次收课之后 wiki\/courses\/epp\.md 又被改过，不能直接撤销/);
+    assert.ok(id);
+    assert.equal(await readFile(fixture.page, "utf8"), text, "存档点写的内容没被盖掉");
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 没多出撤销提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：commit --label 别的 → 非 0、中文报错，库、jj、暂存都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+
+    const failed = await cli(["commit", staging, "--label", "收工"], { expectFail: true, env });
+    assert.notEqual(failed.code, 0);
+    assert.match(failed.stderr, /--label 只能是 收课 或 存档点/);
+    assert.equal(await readFile(fixture.page, "utf8"), before, "库不动");
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 不多提交");
+    assert.equal(existsSync(join(staging, "committed")), false, "暂存仍未提交");
+    assert.equal(existsSync(join(staging, "manifest.json")), true, "暂存目录还在");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 // ══ shift：顺延走暂存 → 校验 → 提交（jj 记「顺延」） ══
 
 /** CLI 用的本机今天（与 course-close.mjs 的 localDate 同一算法）。 */

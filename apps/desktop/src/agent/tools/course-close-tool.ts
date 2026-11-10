@@ -46,6 +46,13 @@ export type RunExecFile = (
 /** The actions the tool schema accepts, in the order the flow uses them. */
 export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo";
 
+/**
+ * What `commit` calls the jj commit: 「收课」 by default, 「存档点」 for a
+ * mid-session save (long sessions stage → edit Next Session → commit). `undo`
+ * only looks for 「收课 <slug> <date>」, so a checkpoint is never undone by it.
+ */
+export type CommitLabel = "收课" | "存档点";
+
 const SCRIPT = join("skills", "course", "course-close.mjs");
 /** A close can copy snapshots; give it more room than the data-channel 15 s. */
 const TIMEOUT_MS = 120_000;
@@ -66,6 +73,7 @@ export function courseCloseArgs(
     path?: string | undefined;
     today?: string | undefined;
     end?: string | undefined;
+    label?: CommitLabel | undefined;
   },
   vault: string,
   cwd: string,
@@ -80,9 +88,12 @@ export function courseCloseArgs(
         throw new Error("course_close add 缺少 path：要复制进暂存的库内相对路径。");
       return ["add", params.staging, params.path, "--json"];
     case "check":
-    case "commit":
       if (params.staging === undefined) throw new Error(`course_close ${params.action} 缺少 staging。`);
       return [params.action, params.staging, "--json"];
+    case "commit":
+      if (params.staging === undefined) throw new Error(`course_close ${params.action} 缺少 staging。`);
+      // 存档点（长会话中途保存）不能记成「收课」，否则 undo 会撤错那次提交。
+      return ["commit", params.staging, ...(params.label ? ["--label", params.label] : []), "--json"];
     case "abort":
       if (params.staging === undefined) throw new Error("course_close abort 缺少 staging。");
       return ["abort", params.staging, "--json"];
@@ -169,6 +180,11 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
         today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
         end: Type.Optional(
           Type.String({ description: "shift 用：周期最后一天 YYYY-MM-DD（排期标记里已有 end= 时不填）" }),
+        ),
+        label: Type.Optional(
+          Type.Union([Type.Literal("收课"), Type.Literal("存档点")], {
+            description: "commit 用：存档点（长会话中途保存）填「存档点」；收课不填",
+          }),
         ),
       }),
       async execute(_toolCallId, params): Promise<AgentToolResult<undefined>> {

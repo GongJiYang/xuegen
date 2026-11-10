@@ -77,6 +77,36 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
     ]);
   });
 
+  it("commit passes --label 存档点 before --json", () => {
+    expect(
+      courseCloseArgs(
+        { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1", label: "存档点" },
+        VAULT,
+        CWD,
+      ),
+    ).toEqual(["commit", "/home/learning/.close/discrete-math-epp-1", "--label", "存档点", "--json"]);
+  });
+
+  it("commit passes --label 收课 before --json", () => {
+    expect(
+      courseCloseArgs(
+        { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1", label: "收课" },
+        VAULT,
+        CWD,
+      ),
+    ).toEqual(["commit", "/home/learning/.close/discrete-math-epp-1", "--label", "收课", "--json"]);
+  });
+
+  it("label is ignored by actions other than commit", () => {
+    expect(
+      courseCloseArgs(
+        { action: "check", staging: "/home/learning/.close/discrete-math-epp-1", label: "存档点" },
+        VAULT,
+        CWD,
+      ),
+    ).toEqual(["check", "/home/learning/.close/discrete-math-epp-1", "--json"]);
+  });
+
   it("abort passes the staging directory", () => {
     expect(courseCloseArgs(COMPLETE.abort, VAULT, CWD)).toEqual([
       "abort",

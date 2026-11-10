@@ -4,7 +4,7 @@
 //   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--json]
 //   node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
 //   node course-close.mjs check   <暂存目录> [--json]
-//   node course-close.mjs commit  <暂存目录> [--json]
+//   node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]
 //   node course-close.mjs abort   <暂存目录>
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
@@ -757,9 +757,9 @@ function commitInternal(staging, label) {
   return out;
 }
 
-function cmdCommit(stagingArg, json) {
+function cmdCommit(stagingArg, label, json) {
   const staging = resolve(stagingArg ?? fail("commit 需要 <暂存目录>"));
-  const out = commitInternal(staging, "收课");
+  const out = commitInternal(staging, label);
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   } else {
@@ -768,6 +768,15 @@ function cmdCommit(stagingArg, json) {
     }
     process.stdout.write(`已提交（jj: ${out.jj}）\n`);
   }
+}
+
+/** commit 的 --label：只允许「收课」（默认）与「存档点」；别的值直接拒绝，什么都不写。 */
+const COMMIT_LABELS = ["收课", "存档点"];
+
+function commitLabel(raw) {
+  if (raw === undefined) return "收课";
+  if (!COMMIT_LABELS.includes(raw)) fail("--label 只能是 收课 或 存档点");
+  return raw;
 }
 
 function cmdAbort(stagingArg) {
@@ -1012,7 +1021,7 @@ function usage() {
     "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--json]",
     "  node course-close.mjs add     <暂存目录> <库内相对路径> [--json]",
     "  node course-close.mjs check   <暂存目录> [--json]",
-    "  node course-close.mjs commit  <暂存目录> [--json]",
+    "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
@@ -1031,7 +1040,7 @@ function main() {
   if (command === "stage") cmdStage(rest[0], rest[1], flags.workspace, json);
   else if (command === "add") cmdAdd(rest[0], rest[1], json);
   else if (command === "check") cmdCheck(rest[0], json);
-  else if (command === "commit") cmdCommit(rest[0], json);
+  else if (command === "commit") cmdCommit(rest[0], commitLabel(flags.label), json);
   else if (command === "abort") cmdAbort(rest[0]);
   else if (command === "shift") cmdShift(rest[0], rest[1], flags.workspace, flags.today, flags.end, json);
   else if (command === "undo") cmdUndo(rest[0], rest[1], flags.workspace, json);
