@@ -13,15 +13,15 @@ description: 用户要求安排某天/某周（「在周五安排…」「11 月
 
 ## 输入与脚本
 
-所有命令都通过本技能目录的 `calendar.mjs` 运行，`<vault>` 是 Wiki 库根目录（含 `wiki/`）：
+查看用本技能目录的 `calendar.mjs`，写入用 `calendar_write` 工具，`<vault>` 是 Wiki 库根目录（含 `wiki/`）：
 
 ```sh
 C="<技能实际目录>/calendar.mjs"; W="<库根目录绝对路径，即 wiki.json 的 root>"
 node "$C" month "$W" 2026-10 --json    # 整月聚合
 node "$C" get "$W" 2026-10-22 --json   # 某天详情
-node "$C" write "$W" 2026-11-05 --text "周五：复习 BA，看 Stachniss 视频"   # 写笔记
-node "$C" write "$W" 2026-11-05 --stdin   # 从标准输入写
 ```
+
+**写笔记用 `calendar_write` 工具**（`date: "2026-11-05"`、`text: "周五：复习 BA，看 Stachniss 视频"`）；bash 在系统沙盒里写不了 `wiki/calendar/`。`month`、`get` 只读，照常用 bash 跑。
 
 脚本报错就停下如实报告，不改用别的方式写状态文件。
 
@@ -48,7 +48,7 @@ node "$C" write "$W" 2026-11-05 --stdin   # 从标准输入写
 - 文件带 frontmatter `date: YYYY-MM-DD`，正文是用户的话（可整理成条目，不要加解释或计划外内容）。
 - **正文为空则删除该文件**（脚本负责），不写「（空）」占位。
 - 一个日期一个文件，重复写入覆盖当天旧内容；先读到最新再写。
-- 原子写入由脚本完成，不手工创建或编辑日历文件。
+- 原子写入由 `calendar_write`（内部调 `calendar.mjs write`）完成，不手工创建或编辑日历文件。
 
 ## 边界与返回
 
