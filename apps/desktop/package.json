@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@animate-ui/react": "2.4.2",
+    "@anthropic-ai/sandbox-runtime": "0.0.81",
     "@earendil-works/pi-coding-agent": "1.2.0",
     "motion": "14.9.1",
     "radix-ui": "1.8.1"
