@@ -97,10 +97,12 @@ export async function createSandboxRunner(roots: Roots, canon: CanonFn): Promise
       // the guard's text-level bash checks are the whole protection.
       if (process.platform !== "darwin") return command;
       const config = sandboxConfigFor(role, roots, canon);
+      // Every wrap, not just the first: macOS clears /tmp, so a directory made
+      // at start-up can vanish during a long session. mkdir -p is cheap when it exists.
+      ensureSandboxTmpDir(process.env);
       if (!initialized) {
         // Before initialize: the TMPDIR the sandbox will set for the child has
         // to exist by the time a command runs under it.
-        ensureSandboxTmpDir(process.env);
         // enableLogMonitor so seatbelt denials land in the violation store and
         // annotate() can name them.
         await SandboxManager.initialize(config, undefined, true);

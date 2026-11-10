@@ -234,6 +234,19 @@ describe.skipIf(!DARWIN)("沙盒真实生效（真 seatbelt）", () => {
     expect(mkdtempRun.code, mkdtempRun.stderr).toBe(0);
   });
 
+  it("TMPDIR 被系统清掉后，下一次 wrap 会重建它，here-doc 仍成功（macOS 会清 /tmp）", async () => {
+    // 第一次 wrap 之后模拟 /tmp 被清理；之后每次 wrap 都要重建目录，而不是只在首次建。
+    rmSync(SANDBOX_TMP, { recursive: true, force: true });
+    expect(existsSync(SANDBOX_TMP)).toBe(false);
+    // mkdtemp(os.tmpdir()) 是真正会因目录缺失而失败的调用（here-doc 在 bash 3.2 上不一定依赖它）。
+    const run = await kit.run(
+      "tmpdir-after-clean",
+      `node -e "require('fs').mkdtempSync(require('os').tmpdir()+'/x')"`,
+    );
+    expect(run.code, run.stderr).toBe(0);
+    expect(existsSync(SANDBOX_TMP), "wrap 重新建出了 TMPDIR").toBe(true);
+  });
+
   it("被拦下的 stderr 经 annotate 补上沙盒原因", async () => {
     const page = join(kit.vault, "wiki", "courses", "blocked.md");
     const result = await kit.run("annotate-course-page", `echo hi > ${page}`);

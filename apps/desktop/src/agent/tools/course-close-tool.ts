@@ -36,7 +36,7 @@ export interface CourseCloseToolOptions {
 }
 
 /** The actions the tool schema accepts, in the order the flow uses them. */
-export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo";
+export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo" | "snapshot";
 
 /**
  * What `commit` calls the jj commit: 「收课」 by default, 「存档点」 for a
@@ -63,6 +63,8 @@ export function courseCloseArgs(
     today?: string | undefined;
     end?: string | undefined;
     label?: CommitLabel | undefined;
+    report?: string | undefined;
+    out?: string | undefined;
   },
   vault: string,
   cwd: string,
@@ -101,6 +103,11 @@ export function courseCloseArgs(
     case "undo":
       if (params.slug === undefined) throw new Error("course_close undo 缺少 slug：要撤销哪门课的收课。");
       return ["undo", vault, params.slug, "--workspace", cwd, "--json"];
+    case "snapshot":
+      if (params.staging === undefined) throw new Error("course_close snapshot 缺少 staging：哪个暂存目录。");
+      if (params.report === undefined) throw new Error("course_close snapshot 缺少 report：暂存目录里的报告 JSON 相对路径。");
+      if (params.out === undefined) throw new Error("course_close snapshot 缺少 out：暂存目录里的 PNG 相对路径。");
+      return ["snapshot", params.staging, params.report, params.out, "--json"];
   }
 }
 
@@ -118,7 +125,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       label: "收课",
       description:
         "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
-        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。课程页和概念页只能经这个工具写。",
+        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。课程页和概念页只能经这个工具写。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -129,10 +136,11 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
             Type.Literal("abort"),
             Type.Literal("shift"),
             Type.Literal("undo"),
+            Type.Literal("snapshot"),
           ],
           {
             description:
-              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。shift 开课时顺延排期（一步完成暂存、校验、提交）。",
+              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。shift 开课时顺延排期（一步完成暂存、校验、提交）。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。",
           },
         ),
         slug: Type.Optional(Type.String({ description: "课程 slug（stage、shift、undo 必填）" })),
@@ -143,6 +151,12 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
         today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
         end: Type.Optional(
           Type.String({ description: "shift 用：周期最后一天 YYYY-MM-DD（排期标记里已有 end= 时不填）" }),
+        ),
+        report: Type.Optional(Type.String({ description: "snapshot 用：暂存目录里的报告 JSON 相对路径" })),
+        out: Type.Optional(
+          Type.String({
+            description: "snapshot 用：暂存目录里的 PNG 相对路径，wiki/courses/<slug>/snapshots/YYYY-MM-DD-NN.png",
+          }),
         ),
         label: Type.Optional(
           Type.Union([Type.Literal("收课"), Type.Literal("存档点")], {

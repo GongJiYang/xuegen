@@ -1830,3 +1830,141 @@ jjTest("jj：看板重画失败 → commit 仍 committed、board 是中文错误
     await cleanup(fixture);
   }
 });
+
+// ══ snapshot（收课第 9 步截图：在沙盒外由 course_close 跑 render-snapshot.mjs） ══
+
+const SNAP_REPORT_REL = ".snapshot.json";
+const SNAP_PNG_REL = "wiki/courses/epp/snapshots/2026-11-09-01.png";
+
+/** 合法的截图报告（render-snapshot 要求的字段都在）；source 指向库里已保存的课程页。 */
+function snapReport(source) {
+  return {
+    title: "离散数学 · 收课记录",
+    date: "2026-11-09",
+    source,
+    goal: "读完 Epp 前三章",
+    week: { label: "W1 · 命题逻辑", tasks: [{ label: "讲 §1.1", done: true, detail: "已作答" }] },
+    overall: { label: "全程里程碑", tasks: [{ label: "命题逻辑", done: false }] },
+    evidence: ["§1.1 作答：真值表写对了"],
+    next: "§1.2 量词",
+    note: "测试夹具",
+  };
+}
+
+/** 一个会立刻退出的假 Chrome：render-snapshot 在它身上会报 "Chrome exited before becoming ready"。 */
+async function fakeChrome(root) {
+  const file = join(root, "fake-chrome");
+  await writeFile(file, "#!/bin/sh\nexit 1\n");
+  await chmod(file, 0o755);
+  return file;
+}
+
+const CHROME_FOUND = [
+  process.env.CHROME_PATH,
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome",
+].some((candidate) => candidate && existsSync(candidate));
+
+test("snapshot 路径校验：绝对、..、非 .png、别课、不在 snapshots 下、报告缺失 → 非 0、中文、不写任何文件", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await writeFile(join(staging, SNAP_REPORT_REL), JSON.stringify(snapReport(fixture.page)));
+    const cases = [
+      [["snapshot", staging, SNAP_REPORT_REL, "/tmp/x.png"], /不安全/],
+      [["snapshot", staging, SNAP_REPORT_REL, "wiki/courses/epp/../epp/snapshots/a.png"], /不安全/],
+      [["snapshot", staging, SNAP_REPORT_REL, "wiki/courses/epp/snapshots/a.jpg"], /\.png/],
+      [["snapshot", staging, SNAP_REPORT_REL, "wiki/courses/other/snapshots/a.png"], /不属于本课/],
+      [["snapshot", staging, SNAP_REPORT_REL, "wiki/courses/epp/a.png"], /snapshots\//],
+      [["snapshot", staging, "../x.json", SNAP_PNG_REL], /不安全/],
+      [["snapshot", staging, ".missing.json", SNAP_PNG_REL], /报告文件不存在/],
+    ];
+    for (const [args, expected] of cases) {
+      const { code, stderr } = await cli([...args, "--json"], { expectFail: true });
+      assert.notEqual(code, 0, args.join(" "));
+      assert.match(stderr, expected, args.join(" "));
+      assert.equal(existsSync(join(staging, "wiki", "courses", "epp", "snapshots")), false, `什么都不写：${args.join(" ")}`);
+      assert.equal(existsSync(join(staging, "wiki", "courses", "other")), false, `什么都不写：${args.join(" ")}`);
+    }
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不动");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("snapshot 渲染失败（CHROME_PATH 指向立即退出的假程序）→ 中文报错、暂存里不留半张图、暂存可 abort", async () => {
+  const fixture = await makeVault();
+  try {
+    const chrome = await fakeChrome(fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await writeFile(join(staging, SNAP_REPORT_REL), JSON.stringify(snapReport(fixture.page)));
+    const { code, stderr } = await cli(["snapshot", staging, SNAP_REPORT_REL, SNAP_PNG_REL, "--json"], {
+      expectFail: true,
+      env: { CHROME_PATH: chrome },
+    });
+    assert.equal(code, 1);
+    assert.match(stderr, /截图失败：.*Chrome exited before becoming ready/);
+    assert.equal(existsSync(join(staging, SNAP_PNG_REL)), false, "没有半张图");
+    assert.equal(existsSync(join(staging, "wiki", "courses", "epp", "snapshots")), false, "没有建 snapshots 目录");
+    assert.equal(existsSync(join(staging, "wiki", "courses", "epp")), false, "建的父目录也一并撤掉");
+    await cli(["abort", staging]);
+    assert.equal(existsSync(staging), false);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("snapshot：库里已有同名截图 → 拒绝（不覆盖），库和暂存都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const chrome = await fakeChrome(fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await writeFile(join(staging, SNAP_REPORT_REL), JSON.stringify(snapReport(fixture.page)));
+    await mkdir(join(fixture.vault, "wiki", "courses", "epp", "snapshots"), { recursive: true });
+    await writeFile(join(fixture.vault, SNAP_PNG_REL), "old");
+    const taken = await cli(["snapshot", staging, SNAP_REPORT_REL, SNAP_PNG_REL, "--json"], {
+      expectFail: true,
+      env: { CHROME_PATH: chrome },
+    });
+    assert.notEqual(taken.code, 0);
+    assert.match(taken.stderr, /库里已有这张截图/);
+    assert.equal(await readFile(join(fixture.vault, SNAP_PNG_REL), "utf8"), "old", "库里的旧图不动");
+    assert.equal(existsSync(join(staging, SNAP_PNG_REL)), false);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest(
+  "jj 真渲染：stage → 写报告 → snapshot → check → commit，png 作为新文件进提交（需要本机 Chrome）",
+  { skip: CHROME_FOUND ? false : "本机没有 Chrome，跳过真渲染" },
+  async () => {
+    const fixture = await makeVault();
+    try {
+      const { env } = await initJj(fixture.vault, fixture.root);
+      const jj = (args) => execFileSync("jj", args, { cwd: fixture.vault, encoding: "utf8", env: { ...process.env, ...env } });
+      const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+      await writeFile(join(staging, SNAP_REPORT_REL), JSON.stringify(snapReport(fixture.page)));
+
+      const shot = await cliJson(["snapshot", staging, SNAP_REPORT_REL, SNAP_PNG_REL], { env });
+      assert.deepEqual(shot, { snapshot: SNAP_PNG_REL });
+      const png = await readFile(join(staging, SNAP_PNG_REL));
+      assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", "确实是 PNG");
+
+      const checked = await cliJson(["check", staging], { env });
+      assert.equal(checked.ok, true, JSON.stringify(checked.problems));
+      assert.ok(checked.changes.some((c) => c.path === SNAP_PNG_REL && c.action === "create"));
+
+      const result = await cliJson(["commit", staging], { env });
+      assert.equal(result.committed, true);
+      assert.equal(result.jj, "ok");
+      const summary = jj(["diff", "-r", 'description(glob:"收课 epp *")', "--summary"]);
+      assert.match(summary, new RegExp(`A ${SNAP_PNG_REL.replace(/[.\/]/g, (c) => `\\${c}`)}`));
+      assert.equal(await mode(join(fixture.vault, SNAP_PNG_REL)), 0o444, "截图随课程目录上锁");
+    } finally {
+      await cleanup(fixture);
+    }
+  },
+);

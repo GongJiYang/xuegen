@@ -38,9 +38,25 @@ const COMPLETE: Record<CloseAction, Params> = {
   abort: { action: "abort", staging: "/home/learning/.close/discrete-math-epp-1" },
   shift: { action: "shift", slug: "discrete-math-epp" },
   undo: { action: "undo", slug: "discrete-math-epp" },
+  snapshot: {
+    action: "snapshot",
+    staging: "/home/learning/.close/discrete-math-epp-1",
+    report: ".snapshot.json",
+    out: "wiki/courses/discrete-math-epp/snapshots/2026-11-10-01.png",
+  },
 };
 
 describe("courseCloseArgs — 一个动作一条 argv", () => {
+  it("snapshot passes the staging, the report and the png (in that order), with --json", () => {
+    expect(courseCloseArgs(COMPLETE.snapshot, VAULT, CWD)).toEqual([
+      "snapshot",
+      "/home/learning/.close/discrete-math-epp-1",
+      ".snapshot.json",
+      "wiki/courses/discrete-math-epp/snapshots/2026-11-10-01.png",
+      "--json",
+    ]);
+  });
+
   it("stage passes the vault, the slug and --workspace, always with --json", () => {
     expect(courseCloseArgs(COMPLETE.stage, VAULT, CWD)).toEqual([
       "stage",
@@ -183,6 +199,9 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
       [{ action: "commit" }, /commit 缺少 staging/],
       [{ action: "abort" }, /abort 缺少 staging/],
       [{ action: "shift" }, /shift 缺少 slug/],
+      [{ action: "snapshot" }, /snapshot 缺少 staging/],
+      [{ action: "snapshot", staging: "/s" }, /snapshot 缺少 report/],
+      [{ action: "snapshot", staging: "/s", report: ".snapshot.json" }, /snapshot 缺少 out/],
     ];
     for (const [params, expected] of cases) {
       expect(() => courseCloseArgs(params, VAULT, CWD), params.action).toThrow(expected);

@@ -9,6 +9,7 @@
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
 //   node course-close.mjs recover <vault> --workspace <工作区> [--json]
+//   node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路径> [--json]
 //
 // 落盘可靠性：写临时文件后 fsync 再 rename。Node 的 fsync/FileHandle.sync() 在 macOS 上
 // 由 libuv uv__fs_fsync（src/unix/fs.c）实现：__APPLE__ 分支先 fcntl(F_FULLFSYNC)，
@@ -22,6 +23,7 @@ import {
   copyFileSync,
   existsSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -977,6 +979,82 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
   }
 }
 
+/** 截图渲染（render-snapshot.mjs）。在沙盒外跑：bash 里起不了 Chrome。 */
+const SNAPSHOT_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "render-snapshot.mjs");
+
+/** 从 render-snapshot 的 stderr 取一行可读原因（去掉它自己的 `Snapshot failed:` 前缀）。 */
+function snapshotReason(error) {
+  const stderr = error && error.stderr ? String(error.stderr) : "";
+  const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line !== "");
+  const line = lines.find((text) => /Snapshot failed:/.test(text)) ?? lines[0];
+  if (line) return line.replace(/^Snapshot failed:\s*/, "");
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * 在暂存目录里生成收课截图：report 与 png 都是暂存内相对路径。png 必须是本课
+ * snapshots/ 下的 .png；渲染失败时撤掉本次新建的目录，暂存里不留半张图。
+ * 输出 { snapshot: png 相对路径 }。截图随后照常 check/commit。
+ */
+function cmdSnapshot(stagingArg, reportRel, pngRel, json) {
+  const staging = resolve(stagingArg ?? fail("snapshot 需要 <暂存目录>"));
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  if (existsSync(join(staging, "committed"))) fail("这次收课已提交，不能再生成截图（要改请重新 stage）");
+  if (!isSafeRelPath(reportRel)) fail(`报告路径不安全（只能是暂存目录内的相对路径）：${reportRel}`);
+  if (!isSafeRelPath(pngRel)) fail(`截图路径不安全（只能是暂存目录内的相对路径）：${pngRel}`);
+  if (!pngRel.endsWith(".png")) fail(`截图必须以 .png 结尾：${pngRel}`);
+  const snapshotsPrefix = `wiki/courses/${manifest.slug}/snapshots/`;
+  if (!isOwned(pngRel, manifest.slug, manifest.subject)) fail(`截图不属于本课：${pngRel}`);
+  if (!pngRel.startsWith(snapshotsPrefix)) fail(`截图必须放在 ${snapshotsPrefix} 下：${pngRel}`);
+  const reportAbs = join(staging, reportRel);
+  // lstat：报告必须是暂存里的普通文件，符号链接不跟随。
+  if (!existsSync(reportAbs) || !lstatSync(reportAbs).isFile()) fail(`报告文件不存在或不是普通文件：${reportRel}`);
+  if (existsSync(join(manifest.vault, pngRel))) fail(`库里已有这张截图，不覆盖：${pngRel}`);
+  const pngAbs = join(staging, pngRel);
+  if (existsSync(pngAbs)) fail(`暂存里已有这张截图，不覆盖：${pngRel}`);
+  // 截图路径经过暂存里的符号链接会写到目录外，拒绝。
+  let cursor = staging;
+  for (const part of pngRel.split("/")) {
+    cursor = join(cursor, part);
+    if (existsSync(cursor) && lstatSync(cursor).isSymbolicLink()) {
+      fail(`暂存目录里的路径经过符号链接，拒绝写入：${pngRel}`);
+    }
+  }
+  // 本次新建的最上层目录，失败时整棵撤掉。
+  let createdTop = null;
+  let dir = dirname(pngAbs);
+  while (!existsSync(dir)) {
+    createdTop = dir;
+    dir = dirname(dir);
+  }
+  const rollback = () => {
+    try {
+      if (existsSync(pngAbs)) rmSync(pngAbs, { force: true });
+      if (createdTop !== null) rmSync(createdTop, { recursive: true, force: true });
+    } catch {
+      /* 删不掉不遮主错 */
+    }
+  };
+  try {
+    mkdirSync(dirname(pngAbs), { recursive: true });
+    execFileSync(process.execPath, [SNAPSHOT_SCRIPT, pngAbs], {
+      input: readFileSync(reportAbs),
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 60000,
+    });
+  } catch (error) {
+    rollback();
+    fail(`截图失败：${snapshotReason(error)}`);
+  }
+  if (!existsSync(pngAbs)) {
+    rollback();
+    fail("截图失败：渲染没有产出 PNG 文件");
+  }
+  process.stdout.write(json ? `${JSON.stringify({ snapshot: pngRel })}\n` : `已生成截图 ${pngRel}\n`);
+}
+
 function cmdRecover(vaultArg, workspaceArg, json) {
   resolve(vaultArg ?? fail("recover 需要 <vault>"));
   const workspace = resolve(workspaceArg ?? fail("recover 需要 --workspace <工作区>"));
@@ -1099,6 +1177,7 @@ function usage() {
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
     "  node course-close.mjs recover <vault> --workspace <工作区> [--json]",
+    "  node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路径> [--json]",
   ].join("\n");
 }
 
@@ -1118,6 +1197,7 @@ function main() {
   else if (command === "shift") cmdShift(rest[0], rest[1], flags.workspace, flags.today, flags.end, json);
   else if (command === "undo") cmdUndo(rest[0], rest[1], flags.workspace, json);
   else if (command === "recover") cmdRecover(rest[0], flags.workspace, json);
+  else if (command === "snapshot") cmdSnapshot(rest[0], rest[1], rest[2], json);
   else fail(`未知命令：${command}\n${usage()}`);
 }
 
