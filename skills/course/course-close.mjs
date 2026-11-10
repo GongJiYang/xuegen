@@ -422,6 +422,56 @@ function guardLaterChanges(vault, slug, id, files) {
   }
 }
 
+// ---- 课程看板：提交前重画，与本次改动一起进 jj ----
+
+/** 看板可能出现过的库内路径（新旧两种布局）。undo 把这几条踢出「那次收课
+ * 改过的文件」：看板是每次提交自动重画的产物，留着它分析会让别门课的收课
+ * （同样动看板）把本课撤销挡下，keptNew 也会把看板误报成新建页。 */
+const BOARD_RELS = new Set([
+  "wiki/courses.md",
+  "wiki/courses.html",
+  "wiki/_generated/courses.md",
+  "wiki/_generated/courses.html",
+]);
+
+/** 看板的库内相对路径：新库在 wiki/_generated/，旧库在 wiki/ 根。 */
+function boardPaths(vault) {
+  if (existsSync(join(vault, "wiki/_generated"))) {
+    return { md: "wiki/_generated/courses.md", html: "wiki/_generated/courses.html" };
+  }
+  return { md: "wiki/courses.md", html: "wiki/courses.html" };
+}
+
+/** 用本目录的 course-state.mjs dashboard + render-board.mjs 重画看板（沙盒外的
+ * Node 子进程，与桌面 agent 同一个 ELECTRON_RUN_AS_NODE 模式）。成功返回
+ * { ok: true, paths: [库内相对路径] }；任一步失败返回 { ok: false, paths: [],
+ * error: 中文一句 + 原因 }，不抛——看板坏了不影响已落盘的收课。 */
+function refreshBoard(vault) {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const { md, html } = boardPaths(vault);
+  const coursesDir = join(vault, "wiki", "courses");
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
+  const steps = [
+    ["Markdown 看板", [join(here, "course-state.mjs"), "dashboard", coursesDir, join(vault, md)]],
+    ["网页看板", [join(here, "render-board.mjs"), coursesDir, join(vault, html)]],
+  ];
+  for (const [label, argv] of steps) {
+    try {
+      execFileSync(process.execPath, argv, { env, stdio: "pipe" });
+    } catch (error) {
+      const stderr = error && error.stderr ? String(error.stderr) : "";
+      const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line !== "");
+      // 脚本报错形如 `render-board: <原因>`；脚本文件缺失时 stderr 是 Node 的
+      // 加载器堆栈，这时含 "Error" 的那行（Cannot find module …）才有用。
+      const reason =
+        lines.find((line) => /Error|失败|无法|缺少/.test(line)) ?? lines[0] ??
+        (error instanceof Error ? error.message : String(error));
+      return { ok: false, paths: [], error: `重画${label}失败：${reason}` };
+    }
+  }
+  return { ok: true, paths: [md, html] };
+}
+
 // ---- 暂存目录与 manifest ----
 
 function loadManifest(staging) {
@@ -552,14 +602,17 @@ function recoverInternal(workspace) {
   lockCourse(journal.vault, journal.slug, journal.files.map((entry) => entry.path));
   rmSync(file);
   if (existsSync(journal.staging)) writeFileSync(join(journal.staging, "committed"), "");
+  // 补完也把看板重画进同一次提交；看板失败只写 stderr，不影响补完。
+  const board = refreshBoard(journal.vault);
   const jjResult = jjCommit(
     journal.vault,
     `收课 ${journal.slug} ${localDate()}`,
-    journal.files.map((entry) => entry.path),
+    [...journal.files.map((entry) => entry.path), ...board.paths],
   );
   process.stderr.write(`已补完上次中断的收课：${journal.slug}\n`);
   // 文件已经补完；jj 失败只报（设计：jj 失败不回滚，文件已原子落盘）。
   if (jjResult.startsWith("failed")) process.stderr.write(`course-close: jj ${jjResult}\n`);
+  if (!board.ok) process.stderr.write(`course-close: ${board.error}\n`);
   return journal.slug;
 }
 
@@ -745,15 +798,17 @@ function commitInternal(staging, label) {
     }
     fail(`提交失败（journal 未写，临时文件已清理）：${message}`);
   }
-  // 5. 删 journal、标 committed、jj 提交（失败不回滚，文件已原子落盘）。
+  // 5. 删 journal、标 committed、重画看板、jj 提交（失败不回滚，文件已原子落盘；
+  // 看板文件与本次改动一起进提交，重画失败只报告）。
   rmSync(journalPath(workspaceOf(staging)));
   writeFileSync(join(staging, "committed"), "");
+  const board = refreshBoard(vault);
   const jjResult = jjCommit(
     vault,
     `${label} ${manifest.slug} ${localDate()}`,
-    result.changes.map((change) => change.path),
+    [...result.changes.map((change) => change.path), ...board.paths],
   );
-  const out = { committed: true, changes: result.changes, jj: jjResult };
+  const out = { committed: true, changes: result.changes, jj: jjResult, board: board.ok ? "ok" : board.error };
   return out;
 }
 
@@ -767,6 +822,7 @@ function cmdCommit(stagingArg, label, json) {
       process.stdout.write(`${change.action === "create" ? "新增" : "修改"} ${change.path}\n`);
     }
     process.stdout.write(`已提交（jj: ${out.jj}）\n`);
+    if (out.board !== "ok") process.stdout.write(`看板未刷新：${out.board}\n`);
   }
 }
 
@@ -840,9 +896,15 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
   }
   // 那次收课新建的页面（状态 A）留着不动：Anki 里的卡不删，库与 Anki 要对得上，
   // 删不删由用户决定。其余（修改、删除、改名涉及的路径）恢复到提交前。
-  const keptNew = [...new Set(entries.filter((entry) => entry.status === "A").flatMap((entry) => entry.paths))];
+  // 看板文件不算「改过的文件」（BOARD_RELS，见上方注释）。
+  const contentEntries = entries
+    .map((entry) => ({ status: entry.status, paths: entry.paths.filter((path) => !BOARD_RELS.has(path)) }))
+    .filter((entry) => entry.paths.length > 0);
+  const keptNew = [
+    ...new Set(contentEntries.filter((entry) => entry.status === "A").flatMap((entry) => entry.paths)),
+  ];
   const restoreFiles = [
-    ...new Set(entries.filter((entry) => entry.status !== "A").flatMap((entry) => entry.paths)),
+    ...new Set(contentEntries.filter((entry) => entry.status !== "A").flatMap((entry) => entry.paths)),
   ];
   const newCards = keptNew.filter((path) => path.split("/").includes("flashcards"));
   // 收课之后同一批文件又被改过（提交或工作副本）就不能直接撤回，否则会盖掉那次改动。
@@ -870,6 +932,7 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
   }
   // 只新建过文件时没有可恢复的东西：不调 jj restore、不提交，直接输出。
   let jjResult = "skipped";
+  let board = null;
   if (restoreFiles.length > 0) {
     try {
       // 一次调用传全部路径：中间某个失败时不会已经撤了一半。
@@ -892,9 +955,17 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
       }
     }
     lockCourse(vault, slug, restoreFiles);
-    jjResult = jjCommit(vault, `撤销收课 ${slug} ${originalDate}`, restoreFiles);
+    board = refreshBoard(vault);
+    jjResult = jjCommit(vault, `撤销收课 ${slug} ${originalDate}`, [...restoreFiles, ...board.paths]);
   }
-  const out = { undone: id, restoreFiles, keptNew, newCards, jj: jjResult };
+  const out = {
+    undone: id,
+    restoreFiles,
+    keptNew,
+    newCards,
+    jj: jjResult,
+    board: board === null ? "skipped" : board.ok ? "ok" : board.error,
+  };
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   } else {
@@ -902,6 +973,7 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
     for (const path of keptNew) {
       process.stdout.write(`这次收课新建的页面（保留，可询问后删除）：${path}\n`);
     }
+    if (out.board !== "ok" && out.board !== "skipped") process.stdout.write(`看板未刷新：${out.board}\n`);
   }
 }
 
@@ -989,6 +1061,7 @@ function cmdShift(vaultArg, slug, workspaceArg, todayArg, endArg, json) {
       `没学的新课顺延 ${shiftedDays} 个上课日（最后一节 ${lastLesson}），${movedReviews} 条过期复习挪到今天` +
         `${deferred ? `；${deferred}` : ""}（已提交，jj: ${out.jj}）\n`,
     );
+    if (out.board !== "ok") process.stdout.write(`看板未刷新：${out.board}\n`);
   }
 }
 

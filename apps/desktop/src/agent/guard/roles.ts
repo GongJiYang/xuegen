@@ -123,7 +123,16 @@ export function decide(
   if (WRITE_TOOLS.has(tool)) return decideWrite(role, tool, path, roots, canon, exists);
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
   if (tool === "course_close") return decideCourseClose(role, input, roots, canon);
+  if (tool === "course_plan") return decideCoursePlan(role);
   return ALLOW;
+}
+
+/** `course_plan`（tools/course-plan-tool.ts）：建课、改排期、刷新看板都写课程
+ * 目录或看板文件，只有总控会话能做；参数形状（slug 合法性、必填项）由工具
+ * 自己用中文报错。 */
+function decideCoursePlan(role: SessionRole): Decision {
+  if (role.kind === "control") return ALLOW;
+  return deny(`${roleLabel(role)}不能用 course_plan：建课、改计划在总控会话里做。`);
 }
 
 /** `course_close`（tools/course-close-tool.ts）：只有课程会话能收课，且只收本课

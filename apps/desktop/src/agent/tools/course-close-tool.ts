@@ -20,6 +20,9 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import type { AgentToolResult, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { readVaultRoot } from "../guard/facts.js";
+import { runScript, type RunExecFile } from "./run-script.js";
+
+export type { RunExecFile } from "./run-script.js";
 
 export interface CourseCloseToolOptions {
   /** Repository root, where `skills/` lives. */
@@ -32,17 +35,6 @@ export interface CourseCloseToolOptions {
   execFile?: RunExecFile;
 }
 
-/**
- * The part of `execFile` this tool uses, so a test can replay an exit code
- * without spawning Node or needing `skills/` on disk.
- */
-export type RunExecFile = (
-  file: string,
-  args: readonly string[],
-  options: { env: NodeJS.ProcessEnv; timeout: number; maxBuffer: number },
-  callback: (error: Error | null, stdout: string, stderr: string) => void,
-) => void;
-
 /** The actions the tool schema accepts, in the order the flow uses them. */
 export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo";
 
@@ -54,9 +46,6 @@ export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shif
 export type CommitLabel = "收课" | "存档点";
 
 const SCRIPT = join("skills", "course", "course-close.mjs");
-/** A close can copy snapshots; give it more room than the data-channel 15 s. */
-const TIMEOUT_MS = 120_000;
-const MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 
 /**
  * Map a tool call to the script's argv (always with `--json` so a failing
@@ -115,32 +104,6 @@ export function courseCloseArgs(
   }
 }
 
-/** Spawn the script in the app's Node; resolves with its output, never rejects. */
-function runScript(
-  exec: RunExecFile,
-  repo: string,
-  args: string[],
-): Promise<{ ok: boolean; stdout: string; stderr: string; message: string }> {
-  return new Promise((resolvePromise) => {
-    exec(
-      process.execPath,
-      [join(repo, SCRIPT), ...args],
-      {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
-        timeout: TIMEOUT_MS,
-        maxBuffer: MAX_BUFFER_BYTES,
-      },
-      (error, stdout, stderr) =>
-        resolvePromise({
-          ok: error === null,
-          stdout,
-          stderr,
-          message: error?.message ?? "",
-        }),
-    );
-  });
-}
-
 /**
  * The extension factory. Registered in `session.ts` after the guard so the
  * role check on `course_close` calls is already in place.
@@ -193,7 +156,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
           throw new Error("读不到库的位置（wiki.json 缺失或没有 root）；先选好库再收课。");
         }
         const args = courseCloseArgs(params, vault, options.cwd);
-        const { ok, stdout, stderr, message } = await runScript(exec, options.repo, args);
+        const { ok, stdout, stderr, message } = await runScript(exec, options.repo, SCRIPT, args);
         // A failed check exits 1 with the problems JSON on stdout; stderr only
         // fills in when the script failed before printing anything.
         const text = stdout || stderr || message;

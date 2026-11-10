@@ -651,7 +651,7 @@ test("什么都没改时 commit 也不报错：没有变更、不写库、不留
   try {
     const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
     const result = await cliJson(["commit", staging]);
-    assert.deepEqual(result, { committed: true, changes: [], jj: "skipped" });
+    assert.deepEqual(result, { committed: true, changes: [], jj: "skipped", board: "ok" });
     assert.equal(await mode(fixture.page), 0o444, "没变更也保持锁");
     assert.ok(!existsSync(join(fixture.ws, ".close", "journal.json")));
   } finally {
@@ -901,7 +901,11 @@ jjTest("jj：收课提交只收本次写入的文件，库里别的未提交改�
       .split("\n")
       .map((line) => line.slice(1).trim())
       .sort();
-    assert.deepEqual(summary, ["wiki/courses/epp.md", "wiki/log.md"], "收课提交里只有本次文件");
+    assert.deepEqual(
+      summary,
+      ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md", "wiki/log.md"],
+      "收课提交里是本次文件加重画的两份看板",
+    );
     const status = jj(["st"]);
     assert.match(status, /wiki\/profile\.md/, "无关改动仍在工作副本里未提交");
     assert.doesNotMatch(status, /wiki\/courses\/epp\.md/, "本次文件已被提交");
@@ -1114,7 +1118,12 @@ jjTest("jj：undo 恢复改过的文件，那次新建的概念页与卡片页�
       .split("\n")
       .map((line) => line.slice(1).trim())
       .sort();
-    assert.deepEqual(summary, ["wiki/courses/epp.md"], "「撤销收课」提交里只有改过的文件");
+    // 看板随撤销重画：这份课程页的 Markdown 看板重画后与提交前一致，没进 diff。
+    assert.deepEqual(
+      summary,
+      ["wiki/courses.html", "wiki/courses/epp.md"],
+      "「撤销收课」提交里是恢复的文件加有变化的重画看板",
+    );
   } finally {
     await cleanup(fixture);
   }
@@ -1190,7 +1199,7 @@ jjTest("jj：路径带空格与花括号时，提交只收这几个文件，undo
       .split("\n")
       .map((line) => JSON.parse(line))
       .sort();
-    assert.deepEqual(inCommit, ["wiki/courses/epp.md", rel].sort());
+    assert.deepEqual(inCommit, ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md", rel].sort());
 
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.equal(undone.undone, id);
@@ -1424,7 +1433,11 @@ jjTest("jj：shift 有变化 → 提交描述「顺延 <slug> <今天>」，只�
       .split("\n")
       .map((line) => line.slice(1).trim())
       .sort();
-    assert.deepEqual(summary, ["wiki/courses/epp.md"], "顺延提交里只有课程页");
+    assert.deepEqual(
+      summary,
+      ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md"],
+      "顺延提交里是课程页加重画的两份看板",
+    );
 
     // 课程页 0444，内容确实顺延了。
     assert.equal(await mode(fixture.page), 0o444);

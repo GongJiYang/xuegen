@@ -45,7 +45,7 @@ export interface GuardOptions {
 /** Tools whose input carries a `path` the guard can check and rewrite. */
 const PATH_TOOLS = new Set(["read", "grep", "find", "ls", "write", "edit"]);
 /** Tools the guard judges at all. Anything else is a pass-through (see the header). */
-const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close"]);
+const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close", "course_plan"]);
 /** How the audit line marks a call the lists do not cover. */
 const PASS_THROUGH = "这个工具不在权限清单里，默认放行（待界面阶段收紧）";
 

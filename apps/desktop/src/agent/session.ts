@@ -4,8 +4,9 @@
  * Builds a Pi `AgentSession` whose configuration matches the CLI (`bin/xuegen.mjs`):
  * no automatic discovery of extensions, skills, prompt templates, themes, or
  * context files; only the repository `skills/` directory; `instructions.md`
- * appended to the system prompt; the guard, `course_close`, tool-search and
- * MCP extensions enabled; project trust declined (the CLI's `--no-approve`).
+ * appended to the system prompt; the guard, `course_close`, `course_plan`,
+ * tool-search and MCP extensions enabled; project trust declined (the CLI's
+ * `--no-approve`).
  *
  * Pi captures filesystem paths from the environment when its modules load, so
  * this module applies the isolation first and then imports Pi dynamically.
@@ -23,6 +24,7 @@ import { createGuardExtension } from "./guard/extension.js";
 import { guardRoots, nodePathFacts } from "./guard/facts.js";
 import { inferSessionRole } from "./guard/session-role.js";
 import { createCourseCloseExtension } from "./tools/course-close-tool.js";
+import { createCoursePlanExtension } from "./tools/course-plan-tool.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { CommandInfo, ModelInfo, SessionRole } from "../shared/protocol.js";
 
@@ -146,6 +148,7 @@ export async function createXuegenSession(
       // The close tool registers after the guard so `course_close` calls are
       // already judged by the role rules; it runs the script itself, off bash.
       { name: "course-close", factory: createCourseCloseExtension({ repo: repoRoot, home, cwd }) },
+      { name: "course-plan", factory: createCoursePlanExtension({ repo: repoRoot, home, cwd }) },
       { name: "tool-search", factory: createToolSearchExtension() },
       { name: "mcp", factory: createMcpExtension() },
     ],
