@@ -2,13 +2,13 @@
 
 ## ▶ 下一步（新会话直接从这里开始）
 
-**总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。用户 11-09：先不发版。**
+**总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
 ### 0. 当前状态（11-10 21:30 交接）——除界面讨论外的活都做完了
 - **RENAME-DAY 全部完成**（第 0–7 步）：库英文名、数据根 `~/xuegen-data/{vault,sessions,workspace}`（中文名留链接）、库 AGENTS.md 去 Migration status 并改路径、Obsidian_to_Anki 插件已停用。**待用户**：Obsidian 重新选库 `~/xuegen-data/vault`；打开学根看一眼；以后检查每次开课 AI 的 8 步（用户 11-10 说会做）。
 - **Anki 11-10 修复**：收藏集 11-09 08:21 损坏（当时 Claude 会话用 Python 直接打开正在运行的 Anki 数据库），用 11-08 19:10 自动备份无损恢复（545 笔记/220 复习）。规矩见记忆 anki-db-hands-off。卡片与 Anki 对齐：501 块全有 ID；从没同步过 AnkiWeb（建议用户开）。
-- **本地提交（desktop 分支，未推送）**：`9fcf024` 数据根脚本英文名；`f8fd333` 0.9.0 收缩删旧名（Devin + Claude 补 4 处）；`7420ff2` anki-sync 重复卡回填 ID；`5f9711e` exactOptionalPropertyTypes；`8e12c92` App.tsx 459→447。CHANGELOG Unreleased 已写。
+- **已随 v0.9.0 推送**：`9fcf024` 数据根脚本英文名；`f8fd333` 0.9.0 收缩删旧名（Devin + Claude 补 4 处）；`7420ff2` anki-sync 重复卡回填 ID；`5f9711e` exactOptionalPropertyTypes；`8e12c92` App.tsx 459→447。CHANGELOG Unreleased 已写。
 - **11-10 真机验收（测试窗口，库副本）通过**：今日卡；CTM 开课 8 步全合规、全新路径；收课 stage→snapshot→check→commit，看板进 `_generated/`；断线重试提示（假 503 服务）显示正常。**发现**：①测试窗口以前没设 `XUEGEN_DESKTOP_CWD`，收课暂存写进了真实工作区（已删，验收规程已改）；②连续失败两次时，第一条失败消息一直停在「正在自动重试（第 1 / 3 次）…」不撤（`agent/event-mapper.ts` 只记最后一条失败消息 `lastFailedMessage`；协议没有撤消息的类型），恢复行还写「断开过一次」——待做方向第 10 条只完成一半，怎么显示多次失败在界面讨论时定，再派 DeepSeek（先写测试：两次 503 后成功 → 只剩一行恢复提示）。
 - 库 vault-lint 剩 5 条是 raw 深层 `.gitkeep` 误报，装上 0.9.0 后消失。
 - **v0.9.0 已发布**（`05f4bf0`，tag v0.9.0，GitHub latest）；用户自己在学根里「检查更新」安装（替换前确认没在上课/收课）。
@@ -48,11 +48,8 @@
 - 顺延修复（DeepSeek，+5 测试）+ SKILL.md 加 `--end` → 本地提交 `b0f3563`。用户同意后已对真实库 C 语言页顺延（D1→11-11、D13 12-23、D14 进「留到下个周期」、标记 `end=2026-12-24`），刷新看板，jj 提交 `796fa733`；备份 `/tmp/vault-backup-1110-shift/`。
 - 用户 11-10 定：撤销收课时**改过的恢复，新建的页面保留并列出** → DeepSeek 已改（+2 测试）→ 本地提交 `c7ed8c0`。
 
-### 2. DeepSeek 队列（一次一个）
-（空）下一张：4a 接入后的 4a-2 回归测试。
-
-### 3. Devin 队列（一次一批）
-1. 4a-i1（在跑）→ 4a-i2：guard 改写 bash + `calendar_write` + anki-sync 走代理（`cycle_write` 用户 11-10 定不做）。接入时还要定：`<home>` 下凭据命名规则沙盒表达不了（bash 仍可读名字含 token/key 的文件）。
+### 2. DeepSeek / Devin 队列
+（空。4a 接入、4a-2 回归、整理批、0.9.0 收缩都已完成并发布。）
 
 ### 4. 阶段 3 真机验收 —— 11-10 完成（副本 `/tmp/xg-e2e/vault/GJY`，模型 OpenDesign deepseek-v4.1-flash）
 - 全过：1 正常收课、2 无关改动不被收走、3 冲突（报 conflict、abort、库不动）、4 撤销（撤最近一笔，之后又改过就拒）、5 崩溃恢复（recover 补完、上锁、jj 提交、幂等）、6 权限（直写课程页/概念页拦、收别的课拦、总控调 course_close 拦）、7 开课顺延走 course_close shift。真实库与 ~/.xuegen 无改动；测试暂存已删。
@@ -66,7 +63,7 @@
 - 测试窗口曾误用 DeepSeek 官方直连（测试 home 模型清单没有非 eco 版，已补 `deepseek-v4.1-flash`）；真实 `~/.xuegen/models.json` 也只有 eco 版，要不要加待用户定。
 
 ### 5. 之后
-4a 接入（guard 改写 bash 命令 + 专用工具 `calendar_write`/`cycle_write`）→ 4a-2 DeepSeek 回归测试 → 界面讨论 → 4b。发版时照 `docs/platform/RENAME-DAY.md` 改库名、数据根改名、停插件后真同步卡片。
+界面讨论 → 4b 多进程 → 阶段 5 领域记忆 → 阶段 6 功能（见 ROUTE）。
 
 ### 设计与决定（11-09 用户定，详见文档）
 - 顺序：3 收课事务 → 4a 沙盒 → 界面讨论 → 4b 多进程；RAG 推迟（领域记忆会话用，资料超 100 万上下文再做；范围会话+知识页+raw）。
@@ -76,9 +73,10 @@
 - 已提交（desktop 分支，未推送）：4ddb88a 阶段 1、58724db 阶段 2、9649662 文档、3444bb7 guard 库优先、44ee2f2 3a+3b、037283d 3c、b0f3563 顺延、c7ed8c0 撤销保留新建页、c32672d 3d、2150f12 4a-1。文档、归档**未提交**。
 
 ### 小尾巴
-- 课程没有删除/停用的通道（总控验收时模型指出）：以后加 course_plan 的 `archive`（课程页标停用 + 从索引/看板撤下，走计划事务）。
-**推送前必清**：`apps/desktop/src/agent/guard/path.test.ts` 第 60–63 行有 `/Users/gjy/...` 真实路径（阶段 2 提交里），公开仓库，推送前换成中性路径。
-`main/data/{sources,handler}.ts` 新旧布局测试未补；`tsconfig` 的 `exactOptionalPropertyTypes` 与 AGENTS.md 不符；断线重试提示没真机测到；英文术语卡方向待用户定。
+- 课程没有删除/停用的通道：以后加 course_plan 的 `archive`（界面讨论时定显示）。
+- 断线重试：连续失败多次时第一条不撤（见第 0 节）。
+- 桌面单测偶发 1 条失败（11-10 发版前一次，之后连跑 4 遍全过，没抓到是哪条）。
+- 英文术语卡方向、检查更新 504 截图、真实 `~/.xuegen/models.json` 要不要加非 eco 模型：待用户。
 
 ## 当前位置（11-09 15:15）
 - **已发布并安装 v0.7.0**（书房、输入框 IME/Esc、盯板表格、R3/R4）；0.6.1 备份 `/tmp/学根-v0.6.1-backup.app`。
