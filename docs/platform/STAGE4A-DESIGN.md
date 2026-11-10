@@ -23,6 +23,10 @@
   - Anki 端口：沙盒里直连 `127.0.0.1:8765` 会被拦（`NO_PROXY` 含 127.0.0.1，seatbelt 只放行到代理端口）。**不开 `allowLocalBinding`**；anki-sync 连 AnkiConnect 时显式走沙盒代理（`HTTP_PROXY`），其他本机端口照挡。
   - 课程看板 `courses.md`（`coursesBoard`）留在 denyWrite；**看板由 `course_close` 在提交时进程内重画**，不再经 bash 跑 `render-board.mjs`/`course-state.mjs dashboard`。
 
+- **用户 11-10 定**：**不做 `cycle_write`**——`cycle.mjs` 只有只读命令，周期页由编辑工具写、guard 按角色管，不经 bash。专用工具只剩 `course_close`、`calendar_write`，加上待定的总控写课程页的工具（见下）。
+- **用户 11-10 定：做专用工具 `course_plan`（只给总控）**。原问题：总控「新建课程 / 改计划 / 刷新看板」现在经 bash 跑 `course-state.mjs unlock|lock|dashboard`、`course-schedule.mjs plan --write`、`render-board.mjs`、`render-snapshot.mjs`，接入沙盒后 `wiki/courses/` 与看板在 denyWrite 里，这些命令会报 Operation not permitted。
+- **接入分两批**：4a-i1（Devin）`course_plan` + `course-close.mjs` 提交前重画看板并一起进 jj（任务单 `batch-stage4a-i1-course-plan.md`）；4a-i2（Devin）guard 把 bash 包进沙盒 + 拦下原因补进 stderr + anki-sync 走代理 + `calendar_write`。之后 4a-2 DeepSeek 回归、Claude 改技能文字、真机验收。
+
 ## 分批（阶段 3 之后）
 - **4a-1（Devin）**：沙盒配置生成（纯函数）+ bash 改写 + 三个专用工具的外壳（`course_close` 先接 3a 的脚本）。
 - **4a-2（DeepSeek）**：审核 + 回归测试（写受保护路径失败、mv 绕过失败、读凭据失败、Anki 端口可连、外网不通）。

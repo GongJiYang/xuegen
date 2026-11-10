@@ -1,18 +1,65 @@
-# PROGRESS（更新于 2026-11-09 15:15；最新发布 v0.7.0；工作区有未提交改动：阶段 1、2 代码与返修）
+# PROGRESS（更新于 2026-11-10 12:30；最新发布 v0.7.0；阶段 1、2 已本地提交未推送；阶段 3 进行中）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
-**总清单 = `docs/platform/ROUTE-1109.md`（桌面 `学根改进路线-1109.md` 同步）。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。用户 11-09：界面相关一律暂停，等重新讨论 UI（记忆 xuegen-ui-hold）。**
+**总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。用户 11-09：先不发版。**
+**派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
-1. **阶段 1 审核已交回（Claude 抽查通过）；Devin 的改名批已交回（15:53，真实库未动）→ DeepSeek 正在审（任务单 `docs/platform/batch-stage1-rename-review.md`，日志 `/Users/gjy/pi-learning/deepseek-stage1-rename-review.log`）；阶段 2 审核仍在跑。（16:18–17:04 OpenDesign 中转三次 503 billing scope，17:22 探测恢复后两审核都已续派）待办：`agent/guard/roles.ts` 写死了旧路径（`wiki/知识`、`Clippings`、`wiki/courses.md`），改名后会误拦——等阶段 2 审核交回后派 DeepSeek 返修为新旧都放行，必须在真实库改名之前完成**。审核日志：
-   - `/Users/gjy/pi-learning/deepseek-stage1-review.log`（任务单 `docs/platform/batch-stage1-review.md`：卡片直连 `skills/wiki-save/anki-sync.mjs`、`bin/xuegen-data-root.mjs`、`cards.sync` 超时 120 秒，补测试）。
-   - `/Users/gjy/pi-learning/deepseek-stage2-review.log`（任务单 `docs/platform/batch-stage2-review.md`：会话角色 + 路径规范化 + 写死权限清单 + 工具层拦截，`apps/desktop/src/agent/guard/**`；**重点是 B 节「误拦排查」对照表**——待定项要拿来问用户）。
-   - 日志为空且没有 `pi -p` 进程 = 被打断，用 CLAUDE.md 的 DeepSeek 命令重跑对应任务单。
-2. **中转（11-09 20:40）**：eco 模型今晚 5 次 503 + 2 次空报告；用户建议改用不带 eco 的 `deepseek-v4.1-flash`（已加进 `.deepseek-agent/models.json`，备份 `/tmp/deepseek-models.json.bak`），正在试用；稳定的话改 CLAUDE.md 的命令。备选 Haiku 5.5。**用户同意发 0.8.0 前本地提交（不推送，先查无个人内容）。** 现在跑：`deepseek-stage1-rename-fix.log`（返修 4 条 + 补完测试）、`deepseek-stage2-session-id-review.log`。
-   **改名批状态（11-09 20:35）**：DeepSeek 补测试中（`batch-stage1-rename-tests.md`，日志 `deepseek-stage1-rename-tests.log`；原 `-review` 单三次中转断/空报告已作废）。Claude 副本核对（`/tmp/xg-rename-check/`，独立脚本 `tools/links.py`）查出 4 个必修问题，返修单已写好 `docs/platform/batch-stage1-rename-fix.md`——**补测试交回后立即派 DeepSeek**；修完 Claude 在新副本重跑，要求新增断链 0、jj 不多收大文件。其中第 1 条（经链接调用脚本静默不执行）影响书房和卡片同步，发版前必须修。原计划：派 Devin：`docs/platform/batch-stage1-rename.md`（代码新旧布局都认 + `vault-lint.mjs` + `rename-vault.mjs`），派发命令见 xuegen-arch-gate；之后 DeepSeek 审 + 补测试 → 发版 → **请用户自己退出学根和 Obsidian** → Claude 跑 `rename-vault.mjs`（先试运行，库在 jj 下可 `jj undo`）→ 核对 → `jj` 提交推送 → 数据根 `~/学根` 改名 `~/xuegen-data/{vault,sessions,workspace}`（旧位置留链接）→ 去掉库 `AGENTS.md` 里的「Migration status」说明。映射表 `docs/platform/vault-rename-map.json`（已审，160 文件 + 32 目录），规则 `docs/platform/VAULT-NAMING.md`（已写进库 `AGENTS.md`）。
-3. **阶段 2 审核已交回（19:20），Claude 已逐文件审完（866 测试过）**。用户 19:30 定：读取放宽为「除凭据外都能读」（返修派 DeepSeek，任务单 `docs/platform/batch-stage2-read-fix.md`，日志 `deepseek-stage2-read-fix.log`）；总控不写知识页、库根 AGENTS.md 禁写、MCP 放行+日志 都保持。已知缺口：bash 不受角色清单约束（阶段 4 沙盒）、课程会话可写任何科目页。返修交回后Claude 真机验收（测试窗口；用 `/tmp/xg-e2e/prepare.sh`，REAL 已指向 `~/学根/库`）——会话角色传递、被拦时模型收到中文原因、`~/.xuegen/guard.log`；连同断线重试提示、技能路径 `~/.xuegen/app`、卡片直连（需真 Anki，先 `--dry-run`）一起验，再问用户发版（版本 0.8.0：新功能）。
-4. **全局核对（11-09 19:50）补的事项**：① 阶段 2 第 1 项「协议加 sessionId」漏派——Devin 已写完（20:00，900 测试过）→ DeepSeek 审 + 补测试中（`docs/platform/batch-stage2-session-id-review.md`，日志 `deepseek-stage2-session-id-review.log`）；读取返修已完成（900 测试过）；② 卡片直连真同步前先请用户停用 Obsidian_to_Anki 插件（否则重复建卡），顺序：发版 → 改名 → 停插件 → `anki-sync --dry-run` → 真同步；③ 工作区堆了 5 批未提交改动（91 项）——建议用户同意后在发 0.8.0 前做一次本地提交（仓库公开，提交前查无个人内容）。
-5. 然后阶段 2.5 RAG v1（方案已定，见路线）→ 阶段 3 收课事务（`course-close.mjs`）→ 阶段 4。
+### 0. 先看后台任务
+- **整理批完成（11-10 18:30）**：整理 4 步骤表生成 → 见 git log「整理 4：固定流程步骤表」（`npm run feature-steps` 重新生成；lint 查一致；5 个流程 32 步都有短名，界面「第 n 步」可直接用 `node scripts/feature-steps.mjs --json`）。**只剩「发版 + RENAME-DAY → 0.9.0 删旧名」，等用户说「发版」**；之后是界面讨论（显示当前步骤、工具行改人话、课程停用通道）。
+- 整理 4 技能文字 → `86aa245`（7 处不一致：截图改第 7 步、`.snapshot.json`、周核实经 course_close、讲后读只用 bookshelf lecture、改计划单独成节、SKELETON 1.3、顺延不手改）。
+- 整理 1 补测 → `f01018e`；整理 1 真机验收通过（见下）。
+- 整理 2 拆分 → `4f0d1b2`（course-close.mjs 487 行 + close/ 6 个模块，测试 65=65，依赖单向）。
+- 补模块测试（Haiku，34 条）→ `ab7c1f4`（Haiku 写完后自己又起了一个 DeepSeek 子任务卡住，Claude 杀掉后验收）。
+- 整理 1 → `b5f8288`（89/402/1067 全过）；技能改写 → `0b0899c`。补测 + 两处缺口（Haiku，+19）→ `f01018e`。**整理 1 真机验收 11-10 18:02 通过**：老总控会话自己走 course_plan stage → 改暂存 → check → commit，jj「计划 ctm」「计划 xg-test」，新课程页 0444，看板 10 门、verify 通过。发现：**没有删除/停用课程的通道**（记入小尾巴）。原补测单：`docs/platform/batch-tidy1-tests.md`（崩溃恢复把「计划」记成「收课」；`--new` 不写课程页也能提交），日志 `/Users/gjy/pi-learning/haiku-tidy1-tests.log`。之后：测试窗口真机验收总控建课/改计划 → 整理 4。原单：`docs/platform/batch-tidy1-plan-transaction.md`（manifest kind=plan、`stage --new --subject`、`schedule`、「计划」提交；course_plan 去 unlock/lock；总控不能再直写课程页/看板）。交回后审 → DeepSeek/Haiku 补测 → Claude 改 SKILL.md 总控写入路径（stage → 改暂存 → schedule → check → commit）→ 真机验收。
+- **用户 11-10 定：先不发版**；先做整理批，改名（RENAME-DAY）放到下次发版同一天做。顺序见 `docs/platform/TIDY-1110.md`「顺序」。4a 已全部完成并验收（`70070c1` 之前），个人路径已清（`2f0fea1`），CHANGELOG 待发条目已写（`09a12b4`）。
+- 发版前要用户定：要不要压缩本地提交历史再推（不压也行，同样的路径早已在公开文档里）；`PROGRESS.md`/`docs/platform/` 以后还推不推公开仓库。
+- 4a-fix2 截图（Haiku，跑 1 小时后 503，代码已完成；Claude 验收 65/342 全过）→ `0c5a6ca`；技能截图改用 course_close snapshot → `ec93aca`。
+- 4a-fix1 → `172b8e5`。OpenDesign 11-10 下午 deepseek/haiku 都间歇 503（workspace_billing_scope_unavailable）；Haiku 5.5 已加进 `.deepseek-agent/models.json`（备份 `/tmp/deepseek-agent-models.json.bak-1110`）。
+- 4a-2 回归 → `fcc9f4d`。
+- **4a 真机验收（11-10 14:20，测试窗口）结果**：总控 `calendar_write` ✓；总控 `course_plan` unlock/编辑/lock/board ✓（**但老总控会话凭旧技能做事，不会自己用 course_plan**，提示重读后才对）；课程会话 bash 写课程页被沙盒拦 ✓（原因进结果）；收课 stage→check→commit 在沙盒下 ✓，看板进 jj ✓。**发现**：① 沙盒 TMPDIR 目录不存在，here-doc / mkdtemp 全挂（fix1 在修）；② 收课截图：Chrome 在沙盒里起不来 → `course_close snapshot` 动作，任务单 `docs/platform/batch-stage4a-fix2-snapshot.md`（fix1 后派 DeepSeek；之后 Claude 改 `references/snapshot.md` 与收课第 9 步）；③ 总控会话一个周期一个，「技能可能已更新」提醒只发给课程会话 → 任务单 `docs/desktop/batch-control-refresh.md`（fix2 后派 DeepSeek）。验收暂存已删；真实库无改动。
+- 重要事实：**装好的 v0.7.0 用 app 包里自带的技能**，不读开发仓库。
+
+### 1. 已交回、已处理（11-10）
+- 4a-i1（Devin）`course_plan` + 提交前重画看板 → 本地提交 `70ded22`。Bear 去两处文字 → `295b84a`。3e 存档点 label → `dbc450b`。
+- 用户 11-10：整体架构不乱；Claude 建议 4a 后、界面讨论前插一个**整理批**（拆 course-close.mjs 1138 行、修 FEATURE-WIKI 列的 6 处技能不一致、清 path.test.ts 个人路径、提交文档）——**用户 11-10 同意**，计划 `docs/platform/TIDY-1110.md`（已排进 ROUTE）：4a 完 → 清个人路径 + CHANGELOG → 发 0.8.0 → RENAME-DAY → 整理 1/2/4（每条发 0.8.x）→ 0.9.0 删旧名 → 界面讨论。
+- 3d（Devin）`course_close shift` + SKILL.md 开课第 3 步改用它 → 本地提交 `c32672d`。4a-1 沙盒代码 + DeepSeek 12 条配置测试（沙盒没有一处比 guard 宽；剪藏 `clippings` 是刻意窄，bash 不能写，走 write 工具）→ 本地提交 `2150f12`。拆 useChat（Devin，307→240 行，只搬接口）→ 本地提交 `788eb15`。3d 补测（DeepSeek，中途 503 重派一次；+9 node +3 vitest，修顺延出错残留暂存）→ 本地提交（git log 最新一条「3d 补测」）。
+- 3b（DeepSeek）审完，43 条测试含真 jj → 本地提交 `44ee2f2`。3c 补测（22 条）+ 审计 → 本地提交 `037283d`。
+- 4a-1（Devin）交回：`apps/desktop/src/agent/sandbox/{config,runner,README}`，未接入、未提交；sandbox-runtime 锁 0.0.81。自测 8 条：受保护写/mv/读凭据/外网都拦住；Anki 直连被拦；wrap 每条约 174ms。用户 11-10 定（已写进 `STAGE4A-DESIGN.md`）：**Anki 走代理**（不开 allowLocalBinding）；**看板由 course_close 提交时进程内重画**，`coursesBoard` 留在 denyWrite。Devin 报告里还有：control 的 `cycles` 在 allow 与 deny 里重复（deny 优先，等 4a 接入时清掉）；`sysctl-read` 违规噪音可用 `ignoreViolations` 收。
+- 顺延修复（DeepSeek，+5 测试）+ SKILL.md 加 `--end` → 本地提交 `b0f3563`。用户同意后已对真实库 C 语言页顺延（D1→11-11、D13 12-23、D14 进「留到下个周期」、标记 `end=2026-12-24`），刷新看板，jj 提交 `796fa733`；备份 `/tmp/vault-backup-1110-shift/`。
+- 用户 11-10 定：撤销收课时**改过的恢复，新建的页面保留并列出** → DeepSeek 已改（+2 测试）→ 本地提交 `c7ed8c0`。
+
+### 2. DeepSeek 队列（一次一个）
+（空）下一张：4a 接入后的 4a-2 回归测试。
+
+### 3. Devin 队列（一次一批）
+1. 4a-i1（在跑）→ 4a-i2：guard 改写 bash + `calendar_write` + anki-sync 走代理（`cycle_write` 用户 11-10 定不做）。接入时还要定：`<home>` 下凭据命名规则沙盒表达不了（bash 仍可读名字含 token/key 的文件）。
+
+### 4. 阶段 3 真机验收 —— 11-10 完成（副本 `/tmp/xg-e2e/vault/GJY`，模型 OpenDesign deepseek-v4.1-flash）
+- 全过：1 正常收课、2 无关改动不被收走、3 冲突（报 conflict、abort、库不动）、4 撤销（撤最近一笔，之后又改过就拒）、5 崩溃恢复（recover 补完、上锁、jj 提交、幂等）、6 权限（直写课程页/概念页拦、收别的课拦、总控调 course_close 拦）、7 开课顺延走 course_close shift。真实库与 ~/.xuegen 无改动；测试暂存已删。
+- 发现并处理：① 模型不认可顺延结果会手改日期 → SKILL.md 已加「顺延结果照单接受」（随 3e 提交）；② 存档点提交也叫「收课」，撤销会撤错 → DeepSeek 已返修（+3 测试）并与 SKILL.md 一起本地提交（阶段 3e）。
+- 小记：收课后看板（courses.md/html）由 bash 刷新、不进事务，留在 jj 工作副本里未提交——4a 接入时 course_close 提交时重画看板，一并解决。
+
+### 4b. 用户 11-10 界面反馈（界面讨论时一起定；去掉两处文字用户已直接同意）
+- 去掉「复制 Markdown」、去掉「（太久了可以点输入框的停止）」→ 任务单 `docs/desktop/batch-bear-trim-1110.md` 已写；**Devin 派发被自动模式拦（Create Unsafe Agents）**，等用户自己跑或放行。
+- 运行时显示「正在做哪一步」（开课、收课等固定流程显示「开课 · 第 3/8 步 · 顺延排期」），代替「学根做了 N 步」+ 计时：要出设计稿。依据 `docs/platform/FEATURE-WIKI.md`（11-10 新写：功能 → 技能 → 步骤）。
+- 工具步骤行（`read {"path":…}` 原样 JSON）不好看：要出设计稿（改成人话：「读课程页」「顺延排期」）。
+- 测试窗口曾误用 DeepSeek 官方直连（测试 home 模型清单没有非 eco 版，已补 `deepseek-v4.1-flash`）；真实 `~/.xuegen/models.json` 也只有 eco 版，要不要加待用户定。
+
+### 5. 之后
+4a 接入（guard 改写 bash 命令 + 专用工具 `calendar_write`/`cycle_write`）→ 4a-2 DeepSeek 回归测试 → 界面讨论 → 4b。发版时照 `docs/platform/RENAME-DAY.md` 改库名、数据根改名、停插件后真同步卡片。
+
+### 设计与决定（11-09 用户定，详见文档）
+- 顺序：3 收课事务 → 4a 沙盒 → 界面讨论 → 4b 多进程；RAG 推迟（领域记忆会话用，资料超 100 万上下文再做；范围会话+知识页+raw）。
+- 阶段 3（`STAGE3-DESIGN.md`）：暂存目录 `~/学根/工作区/.close/`；课程会话的课程页和概念页只经 `course_close`；校验过直接提交；Anki 不进事务。
+- 阶段 4a（`STAGE4A-DESIGN.md`）：受保护脚本做成专用工具；bash 网络只放 AnkiConnect；`@anthropic-ai/sandbox-runtime` 锁 0.0.81。
+- 权限：读取除凭据外都放开；总控不写知识页；库根 AGENTS.md 禁写；MCP 放行+日志。阶段 2 定位为防误操作护栏+审计，真正边界是 4a 沙盒。
+- 已提交（desktop 分支，未推送）：4ddb88a 阶段 1、58724db 阶段 2、9649662 文档、3444bb7 guard 库优先、44ee2f2 3a+3b、037283d 3c、b0f3563 顺延、c7ed8c0 撤销保留新建页、c32672d 3d、2150f12 4a-1。文档、归档**未提交**。
+
+### 小尾巴
+- 课程没有删除/停用的通道（总控验收时模型指出）：以后加 course_plan 的 `archive`（课程页标停用 + 从索引/看板撤下，走计划事务）。
+**推送前必清**：`apps/desktop/src/agent/guard/path.test.ts` 第 60–63 行有 `/Users/gjy/...` 真实路径（阶段 2 提交里），公开仓库，推送前换成中性路径。
+`main/data/{sources,handler}.ts` 新旧布局测试未补；`tsconfig` 的 `exactOptionalPropertyTypes` 与 AGENTS.md 不符；断线重试提示没真机测到；英文术语卡方向待用户定。
 
 ## 当前位置（11-09 15:15）
 - **已发布并安装 v0.7.0**（书房、输入框 IME/Esc、盯板表格、R3/R4）；0.6.1 备份 `/tmp/学根-v0.6.1-backup.app`。
