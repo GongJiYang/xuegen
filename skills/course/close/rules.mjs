@@ -33,14 +33,21 @@ export function subjectOf(courseText) {
 /**
  * 这门课允许写入的库内路径（见设计「校验 1」）。返回字符串数组：
  * 以 "/" 结尾的是目录前缀，其余是必须精确相等的文件路径。新旧两种布局都列。
+ * kind 是暂存的种类（manifest.kind，旧的没有一律当 "close"）：
+ * "close" 收课暂存还放本科目的概念页与卡片目录；"plan" 计划暂存只放
+ * 课程页与科目页、index、log——总控不写知识页。
  */
-export function ownedPrefixes(slug, subject) {
+export function ownedPrefixes(slug, subject, kind = "close") {
   const owned = [
     `wiki/courses/${slug}.md`,
     `wiki/courses/${slug}/`,
     "wiki/index.md",
     "wiki/log.md",
   ];
+  if (kind === "plan") {
+    if (subject) owned.push(`wiki/subjects/${subject}.md`);
+    return owned;
+  }
   if (subject) {
     owned.push(
       `wiki/knowledge/concepts/${subject}/`,
@@ -71,9 +78,9 @@ export function isSafeRelPath(path) {
 }
 
 /** path 为库内相对路径（posix 分隔符）；不安全或不属于本课时返回 false。 */
-export function isOwned(path, slug, subject) {
+export function isOwned(path, slug, subject, kind = "close") {
   if (!isSafeRelPath(path)) return false;
-  for (const entry of ownedPrefixes(slug, subject)) {
+  for (const entry of ownedPrefixes(slug, subject, kind)) {
     if (entry.endsWith("/") ? path.startsWith(entry) : path === entry) return true;
   }
   return false;
@@ -154,8 +161,8 @@ export function planCheck(manifest, staged, current) {
     }
     const inBase = Object.prototype.hasOwnProperty.call(manifest.base, path);
     const cur = current.get(path);
-    if (!isOwned(path, manifest.slug, manifest.subject)) {
-      problems.push({ path, kind: "owner", detail: "路径不属于这门课，不能收课写入" });
+    if (!isOwned(path, manifest.slug, manifest.subject, manifest.kind ?? "close")) {
+      problems.push({ path, kind: "owner", detail: "路径不属于这门课，不能写入" });
       continue;
     }
     let conflicted = false;

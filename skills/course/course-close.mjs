@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// Xuegen 收课事务：课程会话在库外暂存目录里改课程页与概念页，校验通过后一次性提交进库。
-// 无第三方依赖。设计见 docs/platform/STAGE3-DESIGN.md。
-//   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--json]
+// Xuegen 收课/计划事务：在库外暂存目录里改课程页等文件，校验通过后一次性提交进库。
+// 两个入口走同一台事务机：课程会话的 course_close（kind=close，收课）与总控的
+// course_plan（kind=plan，建课/改计划）。无第三方依赖。设计见 docs/platform/STAGE3-DESIGN.md
+// 与 docs/platform/TIDY-1110.md §1。
+//   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]
 //   node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
 //   node course-close.mjs check   <暂存目录> [--json]
 //   node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]
 //   node course-close.mjs abort   <暂存目录>
+//   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews] [--json]
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
 //   node course-close.mjs recover <vault> --workspace <工作区> [--json]
@@ -75,10 +78,15 @@ export { parseDiffEntries } from "./close/jj.mjs";
 
 // ---- 命令 ----
 
-function cmdStage(vaultArg, slug, workspaceArg, json) {
+function cmdStage(vaultArg, slug, flags, json) {
   const vault = resolve(vaultArg ?? fail("stage 需要 <vault>"));
-  const workspace = resolve(workspaceArg ?? fail("stage 需要 --workspace <工作区>"));
-  const staging = stageInternal(vault, slug, workspace);
+  const workspace = resolve(flags.workspace ?? fail("stage 需要 --workspace <工作区>"));
+  if (!slug) fail("stage 需要 <slug>");
+  const staging = stageInternal(vault, slug, workspace, {
+    kind: flags.kind ?? "close",
+    isNew: flags.new === true,
+    subject: flags.subject ?? null,
+  });
   process.stdout.write(json ? `${JSON.stringify({ staging })}\n` : `${staging}\n`);
 }
 
@@ -87,7 +95,7 @@ function cmdAdd(stagingArg, rel, json) {
   if (!rel) fail("add 需要 <库内相对路径>");
   recoverInternal(workspaceOf(staging));
   const manifest = loadManifest(staging);
-  if (!isOwned(rel, manifest.slug, manifest.subject)) fail(`这个路径不属于本课：${rel}`);
+  if (!isOwned(rel, manifest.slug, manifest.subject, manifest.kind ?? "close")) fail(`这个路径不属于本课：${rel}`);
   const src = join(manifest.vault, rel);
   if (!existsSync(src) || !statSync(src).isFile()) fail(`库里没有这个文件：${rel}`);
   if (Object.prototype.hasOwnProperty.call(manifest.base, rel)) fail(`已在暂存清单里：${rel}`);
@@ -116,8 +124,14 @@ function cmdCheck(stagingArg, json) {
   if (!result.ok) process.exit(1);
 }
 
-function cmdCommit(stagingArg, label, json) {
+function cmdCommit(stagingArg, rawLabel, json) {
   const staging = resolve(stagingArg ?? fail("commit 需要 <暂存目录>"));
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  // 提交名按暂存种类分：计划暂存一律记「计划」，--label 不给也不许改。
+  const kind = manifest.kind ?? "close";
+  if (kind === "plan" && rawLabel !== undefined) fail("计划暂存的提交一律记「计划」，不接受 --label");
+  const label = kind === "plan" ? "计划" : commitLabel(rawLabel);
   const out = commitInternal(staging, label);
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
@@ -130,7 +144,7 @@ function cmdCommit(stagingArg, label, json) {
   }
 }
 
-/** commit 的 --label：只允许「收课」（默认）与「存档点」；别的值直接拒绝，什么都不写。 */
+/** commit 的 --label（收课暂存）：只允许「收课」（默认）与「存档点」；别的值直接拒绝，什么都不写。 */
 const COMMIT_LABELS = ["收课", "存档点"];
 
 function commitLabel(raw) {
@@ -284,6 +298,60 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
 /** 截图渲染（render-snapshot.mjs）。在沙盒外跑：bash 里起不了 Chrome。 */
 const SNAPSHOT_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "render-snapshot.mjs");
 
+/** 逐日排期（course-schedule.mjs）。schedule 命令在暂存副本上跑它的 plan --write。 */
+const SCHEDULE_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "course-schedule.mjs");
+
+/** 从 course-schedule 的 stderr 取一行可读原因（去掉 `course-schedule:` 前缀）。 */
+function scheduleReason(error) {
+  const stderr = error && error.stderr ? String(error.stderr) : "";
+  const lines = stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  const line = lines.find((text) => /course-schedule:/.test(text)) ?? lines[0];
+  if (line) return line.replace(/^course-schedule:\s*/, "");
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * 计划暂存的排期：只允许 kind: plan 的暂存；在暂存里的课程页副本上跑
+ * `course-schedule.mjs plan … --write`（沙盒外 Node 子进程）。--lessons 给相对
+ * 路径时按暂存目录解析；脚本报错（课次多于上课日等）原样返回，暂存不动。
+ */
+function cmdSchedule(stagingArg, flags, json) {
+  const staging = resolve(stagingArg ?? fail("schedule 需要 <暂存目录>"));
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  if ((manifest.kind ?? "close") !== "plan") fail("schedule 只能用在计划暂存（stage --kind plan）；收课顺延用 shift");
+  if (existsSync(join(staging, "committed"))) fail("这次计划已提交，不能再排期（要改请重新 stage）");
+  if (flags.lessons === undefined) fail("schedule 需要 --lessons <课次清单 JSON 文件>");
+  const courseRel = `wiki/courses/${manifest.slug}.md`;
+  const courseAbs = join(staging, courseRel);
+  if (!existsSync(courseAbs) || !lstatSync(courseAbs).isFile()) fail(`暂存里没有课程页（先写好再排期）：${courseRel}`);
+  const args = [SCHEDULE_SCRIPT, "plan", courseAbs, "--lessons", resolve(staging, flags.lessons)];
+  for (const [flag, value] of [
+    ["--start", flags.start],
+    ["--end", flags.end],
+    ["--rest", flags.rest],
+    ["--days", flags.days],
+    ["--extra", flags.extra],
+    ["--reviews", flags.reviews],
+  ]) {
+    if (value !== undefined) args.push(flag, value);
+  }
+  args.push("--write");
+  try {
+    execFileSync(process.execPath, args, {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 60000,
+    });
+  } catch (error) {
+    fail(`排期失败：${scheduleReason(error)}`);
+  }
+  process.stdout.write(json ? `${JSON.stringify({ scheduled: courseRel })}\n` : `已把排期写进暂存课程页：${courseRel}\n`);
+}
+
 /** 从 render-snapshot 的 stderr 取一行可读原因（去掉它自己的 `Snapshot failed:` 前缀）。 */
 function snapshotReason(error) {
   const stderr = error && error.stderr ? String(error.stderr) : "";
@@ -307,7 +375,7 @@ function cmdSnapshot(stagingArg, reportRel, pngRel, json) {
   if (!isSafeRelPath(pngRel)) fail(`截图路径不安全（只能是暂存目录内的相对路径）：${pngRel}`);
   if (!pngRel.endsWith(".png")) fail(`截图必须以 .png 结尾：${pngRel}`);
   const snapshotsPrefix = `wiki/courses/${manifest.slug}/snapshots/`;
-  if (!isOwned(pngRel, manifest.slug, manifest.subject)) fail(`截图不属于本课：${pngRel}`);
+  if (!isOwned(pngRel, manifest.slug, manifest.subject, manifest.kind ?? "close")) fail(`截图不属于本课：${pngRel}`);
   if (!pngRel.startsWith(snapshotsPrefix)) fail(`截图必须放在 ${snapshotsPrefix} 下：${pngRel}`);
   const reportAbs = join(staging, reportRel);
   // lstat：报告必须是暂存里的普通文件，符号链接不跟随。
@@ -424,7 +492,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = arg.slice(2);
-    if (["json", "help"].includes(key)) flags[key] = true;
+    if (["json", "help", "new"].includes(key)) flags[key] = true;
     else {
       flags[key] = argv[i + 1];
       i += 1;
@@ -435,18 +503,24 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "收课事务（course-close）：暂存目录 → 校验 → 原子提交进库",
+    "收课/计划事务（course-close）：暂存目录 → 校验 → 原子提交进库",
+    "暂存分两种：close（默认，课程会话收课）与 plan（总控建课/改计划，commit 记「计划」）。",
     "",
     "用法：",
-    "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--json]",
+    "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]",
     "  node course-close.mjs add     <暂存目录> <库内相对路径> [--json]",
     "  node course-close.mjs check   <暂存目录> [--json]",
     "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
+    "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews] [--json]",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
     "  node course-close.mjs recover <vault> --workspace <工作区> [--json]",
     "  node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路径> [--json]",
+    "",
+    "  --kind plan：计划暂存。--new（只能配 --kind plan）开新建课程暂存：课程页必须不存在，",
+    "  暂存里不放课程页，只复制 index/log/科目页。schedule 只在计划暂存上跑，把排期写进暂存课程页。",
+    "  plan 暂存的 commit 一律记「计划 <slug> <日期>」，不接受 --label；undo 仍只认「收课」。",
   ].join("\n");
 }
 
@@ -458,11 +532,12 @@ function main() {
     return;
   }
   const json = Boolean(flags.json);
-  if (command === "stage") cmdStage(rest[0], rest[1], flags.workspace, json);
+  if (command === "stage") cmdStage(rest[0], rest[1], flags, json);
   else if (command === "add") cmdAdd(rest[0], rest[1], json);
   else if (command === "check") cmdCheck(rest[0], json);
-  else if (command === "commit") cmdCommit(rest[0], commitLabel(flags.label), json);
+  else if (command === "commit") cmdCommit(rest[0], flags.label, json);
   else if (command === "abort") cmdAbort(rest[0]);
+  else if (command === "schedule") cmdSchedule(rest[0], flags, json);
   else if (command === "shift") cmdShift(rest[0], rest[1], flags.workspace, flags.today, flags.end, json);
   else if (command === "undo") cmdUndo(rest[0], rest[1], flags.workspace, json);
   else if (command === "recover") cmdRecover(rest[0], flags.workspace, json);

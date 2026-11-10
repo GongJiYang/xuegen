@@ -1,17 +1,19 @@
 /**
  * `course_plan`: the control session's dedicated course-planning tool
- * (阶段 4a, docs/platform/STAGE4A-DESIGN.md).
+ * (阶段 4a, docs/platform/STAGE4A-DESIGN.md; 整理批 1, docs/platform/TIDY-1110.md §1).
  *
- * Why it exists: once the stage-4a shell sandbox is on, `bash` can no longer
- * write `wiki/courses/` or the course board, so the flows the control session
- * used to drive through `bash` — `course-state.mjs unlock|lock|dashboard`,
- * `course-schedule.mjs plan --write`, `render-board.mjs` — move into this
- * dedicated tool, which spawns the scripts in the app's own Node outside the
- * sandbox, the same arrangement as `course_close` (`course-close-tool.ts`).
+ * Why it exists: the vault's course pages have exactly one write path — the
+ * close transaction (`skills/course/course-close.mjs`): stage a copy into the
+ * workspace `.close` staging directory, edit the copy, `check`, then one
+ * atomic `commit` that jj-records as 「计划」. The control session drives that
+ * transaction through this tool (`--kind plan`), while the course session
+ * drives it through `course_close` — two role-gated doors onto one machine.
+ * `board` still runs the board redraw scripts directly, outside the sandbox.
  *
  * Who may call it: only the 总控 (control) session — that is the guard's call
  * (`guard/roles.ts`); the tool itself just maps the call to argv and hands the
- * scripts' stdout back to the model.
+ * scripts' stdout back to the model. A failed `check` exits non-zero while its
+ * JSON problems are still on stdout, so the output is returned, not thrown.
  *
  * Pi values stay behind a dynamic import: `session.ts` applies the
  * environment isolation before Pi loads (see its header), so `Type` is
@@ -30,19 +32,22 @@ export interface CoursePlanToolOptions {
   repo: string;
   /** `XUEGEN_HOME`; `wiki.json` inside it names the vault. */
   home: string;
-  /** The session workspace; no action needs it yet, kept for symmetry with the close tool. */
+  /** The session workspace; `stage` passes it as `--workspace`. */
   cwd: string;
   /** Injectable for tests: the child spawn. Defaults to `node:child_process`'s. */
   execFile?: RunExecFile;
 }
 
-/** The actions the tool schema accepts. */
-export type PlanAction = "unlock" | "lock" | "schedule" | "board";
+/** The actions the tool schema accepts, in the order the flow uses them. */
+export type PlanAction = "stage" | "schedule" | "check" | "commit" | "abort" | "board";
 
 /** The parameters the tool schema accepts, as `coursePlanCalls` sees them. */
 export interface CoursePlanParams {
   action: PlanAction;
   slug?: string | undefined;
+  new?: boolean | undefined;
+  subject?: string | undefined;
+  staging?: string | undefined;
   lessons?: string | undefined;
   start?: string | undefined;
   end?: string | undefined;
@@ -54,60 +59,72 @@ export interface CoursePlanParams {
 
 /** One script invocation in a plan action's sequence. */
 export interface CoursePlanCall {
-  /** Repo-relative script path, e.g. `skills/course/course-state.mjs`. */
+  /** Repo-relative script path, e.g. `skills/course/course-close.mjs`. */
   script: string;
   args: string[];
 }
 
+const CLOSE_SCRIPT = join("skills", "course", "course-close.mjs");
 const STATE_SCRIPT = join("skills", "course", "course-state.mjs");
-const SCHEDULE_SCRIPT = join("skills", "course", "course-schedule.mjs");
 const BOARD_SCRIPT = join("skills", "course", "render-board.mjs");
 
 /** File names and directory names are generated from the slug, so it must stay a slug. */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 /**
- * Map a tool call to the sequence of script calls it stands for.
+ * Map a tool call to the script calls it stands for.
  *
- * `unlock`/`lock` are one call; `schedule` is unlock → plan --write → lock (the
- * caller still runs the trailing lock when the middle step fails, so a course
- * page is never left writable); `board` is dashboard → render-board. Missing
- * required parameters throw in Chinese — Pi turns the throw into a failed tool
- * result, which tells the model exactly which field to fill.
+ * Every transaction action is a single `course-close.mjs` invocation — the
+ * script itself stages, schedules, checks, commits, or aborts; `board` is the
+ * dashboard → render-board pair. Missing required parameters throw in
+ * Chinese — Pi turns the throw into a failed tool result, which tells the
+ * model exactly which field to fill.
  */
-export function coursePlanCalls(params: CoursePlanParams, vault: string): CoursePlanCall[] {
-  const coursesDir = join(vault, "wiki", "courses");
+export function coursePlanCalls(params: CoursePlanParams, vault: string, cwd: string): CoursePlanCall[] {
   if (params.slug !== undefined && !SLUG_RE.test(params.slug)) {
     throw new Error("slug 只能是小写字母、数字和连字符。");
   }
-  const page = params.slug === undefined ? null : join(coursesDir, `${params.slug}.md`);
+  if (params.subject !== undefined && !SLUG_RE.test(params.subject)) {
+    throw new Error("subject 只能是小写字母、数字和连字符。");
+  }
   switch (params.action) {
-    case "unlock":
-      return [unlockCall(coursesDir, page)];
-    case "lock":
-      if (page === null) throw new Error("course_plan lock 缺少 slug：要上锁哪门课。");
-      return [{ script: STATE_SCRIPT, args: ["lock", page, coursesDir] }];
+    case "stage":
+      return [stageCall(params, vault, cwd)];
     case "schedule":
-      if (page === null) throw new Error("course_plan schedule 缺少 slug：要排哪门课。");
-      return scheduleCalls(coursesDir, page, params);
+      return [scheduleCall(params)];
+    case "check":
+    case "commit":
+    case "abort":
+      return [{ script: CLOSE_SCRIPT, args: [params.action, needStaging(params), "--json"] }];
     case "board":
-      return boardCalls(vault, coursesDir);
+      return boardCalls(vault, join(vault, "wiki", "courses"));
   }
 }
 
-/** unlock the course page plus its directory — or only the directory when creating a course. */
-function unlockCall(coursesDir: string, page: string | null): CoursePlanCall {
-  return page === null
-    ? { script: STATE_SCRIPT, args: ["unlock", coursesDir] }
-    : { script: STATE_SCRIPT, args: ["unlock", page, coursesDir] };
+/** `stage --kind plan`（新建课程再加 `--new --subject`）；`stage` 必须带 slug。 */
+function stageCall(params: CoursePlanParams, vault: string, cwd: string): CoursePlanCall {
+  if (params.slug === undefined) {
+    throw new Error("course_plan stage 缺少 slug：要计划哪门课（新建课程也要先定 slug）。");
+  }
+  const args = ["stage", vault, params.slug, "--workspace", cwd, "--kind", "plan"];
+  if (params.new === true) {
+    if (params.subject === undefined) {
+      throw new Error("course_plan stage 新建课程缺少 subject：科目 id（小写字母/数字/连字符）。");
+    }
+    args.push("--new", "--subject", params.subject);
+  } else if (params.subject !== undefined) {
+    throw new Error("course_plan stage 的 subject 只在新建课程（new: true）时用。");
+  }
+  return { script: CLOSE_SCRIPT, args: [...args, "--json"] };
 }
 
-/** unlock → `course-schedule.mjs plan … --write` → lock; only the flags given are passed on. */
-function scheduleCalls(coursesDir: string, page: string, params: CoursePlanParams): CoursePlanCall[] {
+/** `schedule`：在暂存副本上跑排期；`staging` 与 `lessons` 必填。 */
+function scheduleCall(params: CoursePlanParams): CoursePlanCall {
+  const staging = needStaging(params);
   if (params.lessons === undefined) {
     throw new Error("course_plan schedule 缺少 lessons：课次清单 JSON 文件的路径。");
   }
-  const plan = ["plan", page, "--lessons", params.lessons];
+  const args = ["schedule", staging, "--lessons", params.lessons];
   const flags = [
     ["--start", params.start],
     ["--end", params.end],
@@ -117,14 +134,16 @@ function scheduleCalls(coursesDir: string, page: string, params: CoursePlanParam
     ["--reviews", params.reviews],
   ] as const;
   for (const [flag, value] of flags) {
-    if (value !== undefined) plan.push(flag, value);
+    if (value !== undefined) args.push(flag, value);
   }
-  plan.push("--write");
-  return [
-    unlockCall(coursesDir, page),
-    { script: SCHEDULE_SCRIPT, args: plan },
-    { script: STATE_SCRIPT, args: ["lock", page, coursesDir] },
-  ];
+  return { script: CLOSE_SCRIPT, args: [...args, "--json"] };
+}
+
+function needStaging(params: CoursePlanParams): string {
+  if (params.staging === undefined) {
+    throw new Error(`course_plan ${params.action} 缺少 staging：stage 开出来的暂存目录。`);
+  }
+  return params.staging;
 }
 
 /** dashboard → render-board; the board lives in `wiki/_generated/` on new vaults. */
@@ -151,27 +170,31 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
       name: "course_plan",
       label: "课程计划",
       description:
-        "总控专用：建课、改计划、刷新看板。unlock 放开课程页（不给 slug 只放开课程目录，用于新建课程）→ " +
-        "用编辑工具改 → lock 上锁；schedule 一步完成解锁、排期写入、上锁；board 重画课程看板。课程会话不能用。",
+        "总控专用：建课、改计划。stage 开一个计划暂存（新建课程加 new 和 subject）→ " +
+        "用编辑工具改暂存目录里的课程页 / 科目页 / index / log → 需要排期时 schedule → check → " +
+        "commit（jj 记『计划』，看板自动重画）；abort 放弃；board 只重画看板。课程会话不能用。",
       parameters: Type.Object({
         action: Type.Union(
           [
-            Type.Literal("unlock"),
-            Type.Literal("lock"),
+            Type.Literal("stage"),
             Type.Literal("schedule"),
+            Type.Literal("check"),
+            Type.Literal("commit"),
+            Type.Literal("abort"),
             Type.Literal("board"),
           ],
           {
             description:
-              "unlock 放开课程页（不带 slug 只放开课程目录）；lock 上锁；schedule 解锁→排期写入→上锁；board 重画看板（Markdown + 网页）。",
+              "stage 开一个计划暂存（new: true 加 subject 建新课程）；schedule 把排期写进暂存课程页；check 校验；commit 一次提交（jj 记「计划」）；abort 放弃暂存；board 重画看板（Markdown + 网页）。",
           },
         ),
-        slug: Type.Optional(
-          Type.String({ description: "课程 slug，小写字母/数字/连字符（lock、schedule 必填）" }),
+        slug: Type.Optional(Type.String({ description: "课程 slug，小写字母/数字/连字符（stage 必填）" })),
+        new: Type.Optional(Type.Boolean({ description: "stage 用：true 表示新建课程（课程页必须不存在），需要 subject" })),
+        subject: Type.Optional(Type.String({ description: "stage 新建课程必填：科目 id，小写字母/数字/连字符" })),
+        staging: Type.Optional(
+          Type.String({ description: "暂存目录（schedule、check、commit、abort 必填；stage 输出它）" }),
         ),
-        lessons: Type.Optional(
-          Type.String({ description: "schedule 必填：课次清单 JSON 文件的路径" }),
-        ),
+        lessons: Type.Optional(Type.String({ description: "schedule 必填：课次清单 JSON 文件的路径" })),
         start: Type.Optional(Type.String({ description: "schedule 用：周期第一天 YYYY-MM-DD" })),
         end: Type.Optional(Type.String({ description: "schedule 用：周期最后一天 YYYY-MM-DD" })),
         rest: Type.Optional(Type.String({ description: "schedule 用：休息日，如 sun、sat,sun、none" })),
@@ -184,17 +207,16 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
         if (vault === null) {
           throw new Error("读不到库的位置（wiki.json 缺失或没有 root）；先选好库再排课程计划。");
         }
-        const calls = coursePlanCalls(params, vault);
+        const calls = coursePlanCalls(params, vault, options.cwd);
         const outputs: string[] = [];
         let failure: { stdout: string; stderr: string; message: string } | null = null;
-        for (const [index, call] of calls.entries()) {
-          // schedule 的排期写入失败也要跑完最后一步 lock，别把课程页留在解锁状态。
-          if (failure !== null && !(params.action === "schedule" && index === calls.length - 1)) {
-            break;
-          }
+        for (const call of calls) {
+          // Each call is one step of the transaction: stop at the first
+          // failure — there is no trailing lock to run anymore.
+          if (failure !== null) break;
           const result = await runScript(exec, options.repo, call.script, call.args);
           outputs.push(result.stdout || result.stderr || result.message);
-          if (!result.ok && failure === null) failure = result;
+          if (!result.ok) failure = result;
         }
         const text = outputs.filter((part) => part !== "").join("\n");
         return failure === null

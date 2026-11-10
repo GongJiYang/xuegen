@@ -236,8 +236,9 @@ describe("createGuardExtension", () => {
       },
     } as unknown as Parameters<typeof factory>[0]);
 
+    // 周期页：自由会话拒、总控放行（课程页整理 1 起两个角色都拒，不能用它做这条用例）。
     const write = (): unknown =>
-      handler?.({ type: "tool_call", toolCallId: "7", toolName: "write", input: { path: "/vault/wiki/courses/ctm.md" } });
+      handler?.({ type: "tool_call", toolCallId: "7", toolName: "write", input: { path: "/vault/wiki/cycles/c2.md" } });
 
     expect((write() as { block?: boolean } | undefined)?.block).toBe(true);
     role = { kind: "control" };
@@ -348,30 +349,31 @@ describe("createGuardExtension", () => {
 });
 
 describe("createGuardExtension — course_plan 的审计 target（阶段 4a）", () => {
-  it("audits course_plan as `<action> <slug>`, and `<action>` alone when there is no slug", () => {
+  it("audits course_plan as `<action> <slug>`, and `<action> <staging>` when it names a staging", () => {
     const guard = harness(options({}), { kind: "control" });
-    const schedule: ToolCallEvent = {
+    const stage: ToolCallEvent = {
       type: "tool_call",
       toolCallId: "20",
       toolName: "course_plan",
-      input: { action: "schedule", slug: "ctm", lessons: "/tmp/lessons.json" },
+      input: { action: "stage", slug: "ctm" },
     };
-    expect(guard.call(schedule)).toBeUndefined();
+    expect(guard.call(stage)).toBeUndefined();
     const [entry] = guard.audit();
     expect(entry?.tool).toBe("course_plan");
     expect(entry?.role).toBe("control");
     expect(entry?.allow).toBe(true);
-    expect(entry?.target).toBe("schedule ctm");
+    expect(entry?.target).toBe("stage ctm");
 
-    // unlock 不带 slug（新建课程时只放开课程目录）：target 只有动作名。
-    const unlock: ToolCallEvent = {
+    // 整理 1：staging 在 <workspace>/.close/ 里的调用放行，审计名暂存目录。
+    const staging = "/home/learning/.close/ctm-20261110-101010";
+    const check: ToolCallEvent = {
       type: "tool_call",
       toolCallId: "21",
       toolName: "course_plan",
-      input: { action: "unlock" },
+      input: { action: "check", staging },
     };
-    expect(guard.call(unlock)).toBeUndefined();
-    expect(guard.audit().at(-1)?.target).toBe("unlock");
+    expect(guard.call(check)).toBeUndefined();
+    expect(guard.audit().at(-1)?.target).toBe(`check ${staging}`);
   });
 
   it("blocks and audits course_plan from the course session", () => {

@@ -38,7 +38,6 @@ import type { SessionRole } from "../../shared/protocol.js";
 import { decideBash } from "./bash.js";
 import {
   containedCredential,
-  inAnyDir,
   isAnyFile,
   isDeniedReadPath,
   isOutsideVaultScratch,
@@ -123,19 +122,28 @@ export function decide(
   if (WRITE_TOOLS.has(tool)) return decideWrite(role, tool, path, roots, canon, exists);
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
   if (tool === "course_close") return decideCourseClose(role, input, roots, canon);
-  if (tool === "course_plan") return decideCoursePlan(role);
+  if (tool === "course_plan") return decideCoursePlan(role, input, roots, canon);
   // `calendar_write`（tools/calendar-write-tool.ts）：任何会话都能记日历，与
   // 以前 bash 跑 calendar.mjs 的范围一致；原子写入与「空正文删除」由脚本管。
   if (tool === "calendar_write") return ALLOW;
   return ALLOW;
 }
 
-/** `course_plan`（tools/course-plan-tool.ts）：建课、改排期、刷新看板都写课程
- * 目录或看板文件，只有总控会话能做；参数形状（slug 合法性、必填项）由工具
- * 自己用中文报错。 */
-function decideCoursePlan(role: SessionRole): Decision {
-  if (role.kind === "control") return ALLOW;
-  return deny(`${roleLabel(role)}不能用 course_plan：建课、改计划在总控会话里做。`);
+/** `course_plan`（tools/course-plan-tool.ts）：建课、改计划走收课那台事务机的
+ * plan 暂存，只有总控会话能用；带 staging 参数时它必须在 `<工作区>/.close/` 里
+ * （计划暂存只开在那）。参数形状（slug 合法性、必填项）由工具自己用中文报错。 */
+function decideCoursePlan(role: SessionRole, input: Record<string, unknown>, roots: Roots, canon: CanonFn): Decision {
+  if (role.kind !== "control") {
+    return deny(`${roleLabel(role)}不能用 course_plan：建课、改计划在总控会话里做。`);
+  }
+  if (
+    typeof input.staging === "string" &&
+    input.staging !== "" &&
+    !within(canon(input.staging), canon(`${roots.workspace}/.close`))
+  ) {
+    return deny("暂存目录不在工作区的 .close 里。");
+  }
+  return ALLOW;
 }
 
 /** `course_close`（tools/course-close-tool.ts）：只有课程会话能收课，且只收本课
@@ -253,14 +261,13 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
   switch (role.kind) {
     case "control":
       // Plan-level work: cycles, subject pages (material registration, 讲解偏好),
-      // the board, and the course plan pages.
+      // the subject board, and the global profile. 课程页与课程看板不经
+      // write/edit——只经 course_plan 事务（整理批 1）。
       return (
         withinAny(target, rules.cycles) ||
         withinAny(target, rules.subjects) ||
         isAnyFile(target, rules.subjectBoard) ||
-        isAnyFile(target, rules.profile) ||
-        isAnyFile(target, rules.coursesBoard) ||
-        inAnyDir(target, rules.courses, ".md")
+        isAnyFile(target, rules.profile)
       );
     case "course":
       // 阶段 3：课程页（含 records、snapshots、<slug>-*.png）与概念页只经
@@ -279,6 +286,10 @@ function writeDenyReason(role: SessionRole, target: string, rules: RulePaths): s
   // 这里的 `wiki/知识` 路径只剩概念页，共享子目录已在 writeAllowed 放行）。
   if (role.kind === "course" && (withinAny(target, rules.courses) || withinAny(target, rules.knowledge))) {
     return "课程页和概念页只能经 course_close 收课写入：先 stage，在暂存目录里改，再 check、commit。";
+  }
+  // 整理批 1：总控也不能用编辑工具直接写课程页/看板——只有一条写入路径（course_plan 事务）。
+  if (role.kind === "control" && (withinAny(target, rules.courses) || isAnyFile(target, rules.coursesBoard))) {
+    return "课程页只经 course_plan 写：stage → 改暂存目录里的副本 → check → commit。";
   }
   if (role.kind !== "control" && (withinAny(target, rules.courses) || isAnyFile(target, rules.coursesBoard))) {
     return `${roleLabel(role)}不能改课程页和课程看板；要改计划请到总控会话。`;

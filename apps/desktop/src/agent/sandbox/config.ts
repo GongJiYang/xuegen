@@ -49,13 +49,14 @@ const ANY_SESSION_WRITE: readonly (keyof RulePaths)[] = [
 ];
 
 /**
- * The role-keyed extras of `writeAllowed`. `cycles` and `coursesBoard` appear
- * in `DENY_WRITE` too, so on `control` they are dead entries — kept anyway so
- * this table stays a mechanical mirror of the guard.
+ * The role-keyed extras of `writeAllowed`. `cycles` appears in `DENY_WRITE`
+ * too, so on `control` it is a dead entry — kept anyway so this table stays a
+ * mechanical mirror of the guard. `coursesBoard` is gone for good: 整理批 1
+ * 起总控也不能直接写课程页/看板（只经 course_plan 事务）。
  * 与 roles.ts writeAllowed 对应，改一处要改两处。
  */
 const ROLE_WRITE: Record<SessionRole["kind"], readonly (keyof RulePaths)[]> = {
-  control: ["cycles", "subjects", "subjectBoard", "profile", "coursesBoard"],
+  control: ["cycles", "subjects", "subjectBoard", "profile"],
   course: ["subjects"],
   free: ["knowledge"],
 };

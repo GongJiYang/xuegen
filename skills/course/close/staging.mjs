@@ -1,5 +1,7 @@
 // 暂存目录：<工作区>/.close/<slug>-<时间戳>/ 的布局、manifest、镜像收集与提交编排。
 // 独占的知识：暂存里有什么文件、基线怎么记、commit 按什么顺序把暂存镜像写进库。
+// 暂存分两种（manifest.kind）："close" 收课暂存（默认，旧 manifest 没有 kind 一律算它）与
+// "plan" 计划暂存（总控建课/改计划用；--new 时不复制课程页，归属只含课程页/科目页/index/log）。
 // 对外接口：loadManifest、saveManifest、walkStaged、workspaceOf、gatherCheck、stageInternal、commitInternal、shiftStaged、escapeRegExp。
 // 调用方：course-close.mjs 的 cmd* 命令层。
 import {
@@ -134,11 +136,23 @@ function uniqueStagingDir(closeDir, name) {
   return candidate;
 }
 
-export function stageInternal(vault, slug, workspace) {
+/** slug 与科目 id 都会成为库内文件名，只能是 slug 形状。 */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export function stageInternal(vault, slug, workspace, { kind = "close", isNew = false, subject = null } = {}) {
   recoverInternal(workspace);
+  if (kind !== "close" && kind !== "plan") fail(`--kind 只能是 close 或 plan：${kind}`);
+  if (!SLUG_RE.test(slug)) fail(`slug 只能是小写字母、数字和连字符：${slug}`);
+  if (isNew && kind !== "plan") fail("--new 只能和 --kind plan 一起用");
+  if (!isNew && subject !== null) fail("--subject 只能和 --new 一起用");
+  if (isNew && (subject === null || !SLUG_RE.test(subject))) {
+    fail("--new 需要 --subject <科目id>（小写字母、数字和连字符）");
+  }
   const courseRel = `wiki/courses/${slug}.md`;
   const courseAbs = join(vault, courseRel);
-  if (!existsSync(courseAbs)) fail(`没有这门课：${courseRel}`);
+  if (isNew ? existsSync(courseAbs) : !existsSync(courseAbs)) {
+    fail(isNew ? `这门课已存在：${courseRel}` : `没有这门课：${courseRel}`);
+  }
   const closeDir = join(workspace, ".close");
   if (existsSync(closeDir)) {
     // 只认本课自己的暂存名：<slug>-YYYYMMDD-HHMMSS[-n]；slug 前缀相同的别门课不算。
@@ -153,15 +167,19 @@ export function stageInternal(vault, slug, workspace) {
   }
   const staging = uniqueStagingDir(closeDir, stagingName(slug, new Date()));
   mkdirSync(staging, { recursive: true });
-  const subject = subjectOf(readFileSync(courseAbs, "utf8"));
-  const rels = [courseRel, "wiki/index.md", "wiki/log.md", `wiki/courses/${slug}/records/${localMonth()}.md`];
+  const courseSubject = isNew ? subject : subjectOf(readFileSync(courseAbs, "utf8"));
+  const rels = isNew
+    ? ["wiki/index.md", "wiki/log.md"]
+    : [courseRel, "wiki/index.md", "wiki/log.md", `wiki/courses/${slug}/records/${localMonth()}.md`];
+  // 计划暂存还带上科目页（总控可以改资料登记/讲解偏好），存在才复制。
+  if (kind === "plan" && courseSubject !== null) rels.push(`wiki/subjects/${courseSubject}.md`);
   const base = {};
   try {
     for (const rel of rels) {
       const src = join(vault, rel);
       if (!existsSync(src)) {
-        // 当月 records 可以还没有；index.md 与 log.md 是收课必写的清单页。
-        if (rel.startsWith(`wiki/courses/${slug}/records/`)) continue;
+        // 当月 records 与科目页可以还没有；index.md 与 log.md 是必写的清单页。
+        if (rel.startsWith(`wiki/courses/${slug}/records/`) || rel.startsWith("wiki/subjects/")) continue;
         throw new Error(`库里缺少 ${rel}`);
       }
       cloneInto(src, join(staging, rel));
@@ -170,9 +188,10 @@ export function stageInternal(vault, slug, workspace) {
     }
     saveManifest(staging, {
       version: 1,
+      kind,
       vault,
       slug,
-      subject,
+      subject: courseSubject,
       createdAt: new Date().toISOString(),
       base,
     });
@@ -196,7 +215,7 @@ export function commitInternal(staging, label) {
     fail(`校验未通过（什么都不写）：\n${lines}`);
   }
   const vault = manifest.vault;
-  const journal = { staging, vault, slug: manifest.slug, files: [], startedAt: new Date().toISOString() };
+  const journal = { staging, vault, slug: manifest.slug, label, files: [], startedAt: new Date().toISOString() };
   let journalWritten = false;
   try {
     // 1. 新内容先全部写成库内同目录的临时文件并 fsync。

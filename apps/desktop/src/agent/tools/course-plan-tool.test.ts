@@ -3,8 +3,9 @@
  * argv；`execute` 只负责按顺序把脚本跑完、把输出交回模型，所以它的测试注入一个假的
  * `execFile`（不 spawn 真进程、不依赖 `skills/`）。
  *
- * 这里最要紧的两条：`schedule` 的中间一步失败时，最后一步 `lock` 仍然要跑（课程页
- * 不能留在解锁状态）；`unlock` 失败时后面两步都不该跑（别在没解锁时写文件）。
+ * 整理批 1 之后，事务动作（stage/schedule/check/commit/abort）都是
+ * `course-close.mjs` 的单步调用——再也没有「失败也要跑完最后一步 lock」的三步序列；
+ * 只有 `board` 仍是 dashboard → render-board 两步。
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -18,9 +19,10 @@ import type { RunExecFile } from "./run-script.js";
 const VAULT = "/vault";
 const CWD = "/home/learning";
 const REPO = "/repo";
+const STAGING = "/home/learning/.close/ctm-20261110-101010";
 
+const CLOSE = join("skills", "course", "course-close.mjs");
 const STATE = join("skills", "course", "course-state.mjs");
-const SCHEDULE = join("skills", "course", "course-schedule.mjs");
 const BOARD = join("skills", "course", "render-board.mjs");
 
 /** A temp directory shaped like a vault: `wiki/courses` always, `wiki/_generated` on request. */
@@ -31,41 +33,31 @@ function vaultWith(dirs: readonly string[]): string {
 }
 
 describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
-  it("unlock 带 slug：unlock <课程页> <课程目录>", () => {
-    expect(coursePlanCalls({ action: "unlock", slug: "ctm" }, VAULT)).toEqual([
-      { script: STATE, args: ["unlock", "/vault/wiki/courses/ctm.md", "/vault/wiki/courses"] },
+  it("stage 带 slug：stage <库> <slug> --workspace <工作区> --kind plan --json", () => {
+    expect(coursePlanCalls({ action: "stage", slug: "ctm" }, VAULT, CWD)).toEqual([
+      { script: CLOSE, args: ["stage", VAULT, "ctm", "--workspace", CWD, "--kind", "plan", "--json"] },
     ]);
   });
 
-  it("unlock 不带 slug：只放开课程目录（新建课程用）", () => {
-    expect(coursePlanCalls({ action: "unlock" }, VAULT)).toEqual([
-      { script: STATE, args: ["unlock", "/vault/wiki/courses"] },
+  it("stage 新建课程（new + subject）：多带 --new --subject", () => {
+    expect(coursePlanCalls({ action: "stage", slug: "newc", new: true, subject: "discrete-math" }, VAULT, CWD)).toEqual([
+      {
+        script: CLOSE,
+        args: ["stage", VAULT, "newc", "--workspace", CWD, "--kind", "plan", "--new", "--subject", "discrete-math", "--json"],
+      },
     ]);
   });
 
-  it("lock：lock <课程页> <课程目录>", () => {
-    expect(coursePlanCalls({ action: "lock", slug: "ctm" }, VAULT)).toEqual([
-      { script: STATE, args: ["lock", "/vault/wiki/courses/ctm.md", "/vault/wiki/courses"] },
-    ]);
-  });
-
-  it("schedule 只给必填：unlock → plan --lessons … --write → lock", () => {
-    expect(coursePlanCalls({ action: "schedule", slug: "ctm", lessons: "/tmp/lessons.json" }, VAULT)).toEqual(
-      [
-        { script: STATE, args: ["unlock", "/vault/wiki/courses/ctm.md", "/vault/wiki/courses"] },
-        {
-          script: SCHEDULE,
-          args: ["plan", "/vault/wiki/courses/ctm.md", "--lessons", "/tmp/lessons.json", "--write"],
-        },
-        { script: STATE, args: ["lock", "/vault/wiki/courses/ctm.md", "/vault/wiki/courses"] },
-      ],
+  it("schedule 只给必填：schedule <暂存> --lessons … --json", () => {
+    expect(coursePlanCalls({ action: "schedule", staging: STAGING, lessons: "/tmp/lessons.json" }, VAULT, CWD)).toEqual(
+      [{ script: CLOSE, args: ["schedule", STAGING, "--lessons", "/tmp/lessons.json", "--json"] }],
     );
   });
 
-  it("schedule 给全参数：标志按 start end rest days extra reviews 的顺序排在 --write 前", () => {
+  it("schedule 给全参数：标志按 start end rest days extra reviews 的顺序排在 --json 前", () => {
     const params: CoursePlanParams = {
       action: "schedule",
-      slug: "ctm",
+      staging: STAGING,
       lessons: "/tmp/lessons.json",
       start: "2026-11-09",
       end: "2026-12-31",
@@ -74,54 +66,63 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
       extra: "2026-11-15",
       reviews: "spaced",
     };
-    const calls = coursePlanCalls(params, VAULT);
-    expect(calls[1]).toEqual({
-      script: SCHEDULE,
-      args: [
-        "plan",
-        "/vault/wiki/courses/ctm.md",
-        "--lessons",
-        "/tmp/lessons.json",
-        "--start",
-        "2026-11-09",
-        "--end",
-        "2026-12-31",
-        "--rest",
-        "sun",
-        "--days",
-        "mon,wed",
-        "--extra",
-        "2026-11-15",
-        "--reviews",
-        "spaced",
-        "--write",
-      ],
-    });
-    expect(calls.map((call) => call.script)).toEqual([STATE, SCHEDULE, STATE]);
+    expect(coursePlanCalls(params, VAULT, CWD)).toEqual([
+      {
+        script: CLOSE,
+        args: [
+          "schedule",
+          STAGING,
+          "--lessons",
+          "/tmp/lessons.json",
+          "--start",
+          "2026-11-09",
+          "--end",
+          "2026-12-31",
+          "--rest",
+          "sun",
+          "--days",
+          "mon,wed",
+          "--extra",
+          "2026-11-15",
+          "--reviews",
+          "spaced",
+          "--json",
+        ],
+      },
+    ]);
   });
 
   it("schedule 只给一部分可选参数：只带上给了的那几个", () => {
     const calls = coursePlanCalls(
-      { action: "schedule", slug: "ctm", lessons: "/tmp/l.json", start: "2026-11-09", reviews: "anki" },
+      { action: "schedule", staging: STAGING, lessons: "/tmp/l.json", start: "2026-11-09", reviews: "anki" },
       VAULT,
+      CWD,
     );
-    expect(calls[1]?.args).toEqual([
-      "plan",
-      "/vault/wiki/courses/ctm.md",
+    expect(calls[0]?.args).toEqual([
+      "schedule",
+      STAGING,
       "--lessons",
       "/tmp/l.json",
       "--start",
       "2026-11-09",
       "--reviews",
       "anki",
-      "--write",
+      "--json",
     ]);
+  });
+
+  it("check / commit / abort：单步 <action> <staging> --json", () => {
+    for (const action of ["check", "commit", "abort"] as const) {
+      expect(coursePlanCalls({ action, staging: STAGING }, VAULT, CWD), action).toEqual([
+        { script: CLOSE, args: [action, STAGING, "--json"] },
+      ]);
+    }
   });
 
   it("board 在旧库（没有 wiki/_generated）写到 wiki/ 根", () => {
     const vault = vaultWith([join("wiki"), join("wiki", "courses")]);
     try {
-      expect(coursePlanCalls({ action: "board" }, vault)).toEqual([
+      expect(coursePlanCalls({ action: "board" }, vault, CWD)).toEqual([
         {
           script: STATE,
           args: ["dashboard", join(vault, "wiki", "courses"), join(vault, "wiki", "courses.md")],
@@ -136,7 +137,7 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
   it("board 在新库（有 wiki/_generated）写到 wiki/_generated", () => {
     const vault = vaultWith([join("wiki"), join("wiki", "courses"), join("wiki", "_generated")]);
     try {
-      expect(coursePlanCalls({ action: "board" }, vault)).toEqual([
+      expect(coursePlanCalls({ action: "board" }, vault, CWD)).toEqual([
         {
           script: STATE,
           args: [
@@ -155,20 +156,30 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
     }
   });
 
-  it("缺 slug、缺 lessons 抛中文错", () => {
+  it("缺 slug、缺 staging、缺 lessons、new 缺 subject、subject 不带 new 都抛中文错", () => {
     const cases: [CoursePlanParams, RegExp][] = [
-      [{ action: "lock" }, /lock 缺少 slug/],
-      [{ action: "schedule" }, /schedule 缺少 slug/],
-      [{ action: "schedule", slug: "ctm" }, /schedule 缺少 lessons/],
+      [{ action: "stage" }, /stage 缺少 slug/],
+      [{ action: "stage", slug: "newc", new: true }, /缺少 subject/],
+      [{ action: "stage", slug: "ctm", subject: "x" }, /只在新建课程/],
+      [{ action: "schedule", staging: STAGING }, /schedule 缺少 lessons/],
+      [{ action: "check" }, /check 缺少 staging/],
+      [{ action: "commit" }, /commit 缺少 staging/],
+      [{ action: "abort" }, /abort 缺少 staging/],
+      [{ action: "schedule", lessons: "/tmp/l.json" }, /schedule 缺少 staging/],
     ];
     for (const [params, expected] of cases) {
-      expect(() => coursePlanCalls(params, VAULT), params.action).toThrow(expected);
+      expect(() => coursePlanCalls(params, VAULT, CWD), params.action).toThrow(expected);
     }
   });
 
-  it("slug 含大写、`..`、`/` 都抛中文错（它会成为文件名）", () => {
+  it("slug / subject 含大写、`..`、`/` 都抛中文错（它们会成为文件名）", () => {
     for (const slug of ["CTM", "ctm.md", "..", "../x", "a/b", ""]) {
-      expect(() => coursePlanCalls({ action: "unlock", slug }, VAULT), slug).toThrow(/slug 只能是/);
+      expect(() => coursePlanCalls({ action: "stage", slug }, VAULT, CWD), slug).toThrow(/slug 只能是/);
+    }
+    for (const subject of ["离散", "a/b", "..", "A-b"]) {
+      expect(() => coursePlanCalls({ action: "stage", slug: "newc", new: true, subject }, VAULT, CWD), subject).toThrow(
+        /subject 只能是/,
+      );
     }
   });
 });
@@ -226,24 +237,17 @@ async function tool(exec: RunExecFile, home: string): Promise<CapturedTool> {
   return captured;
 }
 
-const SCHEDULE_PARAMS: CoursePlanParams = { action: "schedule", slug: "ctm", lessons: "/tmp/lessons.json" };
+const STAGE_PARAMS: CoursePlanParams = { action: "stage", slug: "ctm" };
 
 describe("course_plan — execute 按顺序跑完脚本，把输出交回模型", () => {
-  it("schedule 三步全成功 → 普通结果，三步按 unlock → plan → lock 顺序跑", async () => {
+  it("stage 一步成功 → 普通结果，跑一次 course-close.mjs", async () => {
     const home = homeWithVault(VAULT);
     try {
       const exec = fakeExec();
-      const result = await (await tool(exec, home)).execute("1", SCHEDULE_PARAMS);
+      const result = await (await tool(exec, home)).execute("1", STAGE_PARAMS);
       expect(result.isError).toBeUndefined();
-      expect(result.content[0]).toEqual({
-        type: "text",
-        text: ["ok " + join(REPO, STATE), "ok " + join(REPO, SCHEDULE), "ok " + join(REPO, STATE)].join("\n"),
-      });
-      expect(exec.calls.map((call) => [call.script, call.args[0]])).toEqual([
-        [join(REPO, STATE), "unlock"],
-        [join(REPO, SCHEDULE), "plan"],
-        [join(REPO, STATE), "lock"],
-      ]);
+      expect(result.content[0]).toEqual({ type: "text", text: `ok ${join(REPO, CLOSE)}` });
+      expect(exec.calls.map((call) => [call.script, call.args[0]])).toEqual([[join(REPO, CLOSE), "stage"]]);
       // 脚本用应用自己的 Node 跑，路径取自 repo。
       expect(exec.calls[0]?.env?.ELECTRON_RUN_AS_NODE).toBe("1");
     } finally {
@@ -251,30 +255,14 @@ describe("course_plan — execute 按顺序跑完脚本，把输出交回模型"
     }
   });
 
-  it("schedule 第 2 步（plan）失败 → 第 3 步 lock 仍跑，结果 isError", async () => {
+  it("check 失败（check 输出问题清单、退出非 0）→ isError，stdout 原样交回", async () => {
     const home = homeWithVault(VAULT);
     try {
-      const exec = fakeExec((script) => (script === join(REPO, SCHEDULE) ? { fail: "排期写入失败" } : {}));
-      const result = await (await tool(exec, home)).execute("2", SCHEDULE_PARAMS);
+      const exec = fakeExec((script) => (script === join(REPO, CLOSE) ? { fail: "排期失败：课次多于上课日" } : {}));
+      const result = await (await tool(exec, home)).execute("2", { action: "check", staging: STAGING });
       expect(result.isError).toBe(true);
-      expect(exec.calls.map((call) => call.args[0])).toEqual(["unlock", "plan", "lock"]);
-      // 失败原因与最后一步的输出都在文本里。
-      const text = (result.content[0] as { text: string }).text;
-      expect(text).toContain("排期写入失败");
-      expect(text).toContain(`ok ${join(REPO, STATE)}`);
-    } finally {
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
-
-  it("schedule 第 1 步 unlock 失败 → 后两步都不跑", async () => {
-    const home = homeWithVault(VAULT);
-    try {
-      const exec = fakeExec((script) => (script === join(REPO, STATE) ? { fail: "解锁失败" } : {}));
-      const result = await (await tool(exec, home)).execute("3", SCHEDULE_PARAMS);
-      expect(result.isError).toBe(true);
-      expect(exec.calls.map((call) => call.args[0])).toEqual(["unlock"]);
-      expect((result.content[0] as { text: string }).text).toContain("解锁失败");
+      expect(exec.calls.map((call) => call.args[0])).toEqual(["check"]);
+      expect((result.content[0] as { text: string }).text).toContain("课次多于上课日");
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
@@ -313,7 +301,7 @@ describe("course_plan — execute 按顺序跑完脚本，把输出交回模型"
     const home = homeWithVault(null);
     try {
       const exec = fakeExec();
-      await expect((await tool(exec, home)).execute("6", { action: "unlock" })).rejects.toThrow(/wiki\.json/);
+      await expect((await tool(exec, home)).execute("6", STAGE_PARAMS)).rejects.toThrow(/wiki\.json/);
       expect(exec.calls).toHaveLength(0);
     } finally {
       rmSync(home, { recursive: true, force: true });

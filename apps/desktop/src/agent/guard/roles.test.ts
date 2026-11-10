@@ -69,14 +69,14 @@ const rows: Row[] = [
   { what: "全局偏好页（用户明确要求时）", tool: "edit", path: "wiki/profile.md", expected: ["allow", "deny", "deny"] },
   { what: "科目路线表（登记资料）", tool: "edit", path: "wiki/subjects.md", expected: ["allow", "deny", "deny"] },
   // ---- 课程页 ----
-  { what: "总控改课程计划", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
-  { what: "课程会话直接改自己的课程页（3c 起只经 course_close 收课写）", tool: "edit", path: "wiki/courses/discrete-math-epp.md", expected: ["allow", "deny", "deny"] },
-  { what: "课程会话改别的课程页（拒）", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
+  { what: "总控改课程计划（整理 1 起只经 course_plan 事务）", tool: "edit", path: "wiki/courses/ctm.md", expected: ["deny", "deny", "deny"] },
+  { what: "课程会话直接改自己的课程页（3c 起只经 course_close 收课写）", tool: "edit", path: "wiki/courses/discrete-math-epp.md", expected: ["deny", "deny", "deny"] },
+  { what: "课程会话改别的课程页（拒）", tool: "edit", path: "wiki/courses/ctm.md", expected: ["deny", "deny", "deny"] },
   { what: "课程自己的附属目录（records；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/records/2026-11.md", expected: ["deny", "deny", "deny"] },
   { what: "课程截图（改名后的 courses/<slug>/snapshots/；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/snapshots/2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
   { what: "课程截图（courses/<slug>-*.png；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp-2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
-  { what: "课程看板 courses.md", tool: "edit", path: "wiki/courses.md", expected: ["allow", "deny", "deny"] },
-  { what: "课程看板（改名后的 wiki/_generated/courses.md）", tool: "edit", path: "wiki/_generated/courses.md", expected: ["allow", "deny", "deny"] },
+  { what: "课程看板 courses.md（整理 1 起只经 course_plan board）", tool: "edit", path: "wiki/courses.md", expected: ["deny", "deny", "deny"] },
+  { what: "课程看板（改名后的 wiki/_generated/courses.md）", tool: "edit", path: "wiki/_generated/courses.md", expected: ["deny", "deny", "deny"] },
   // ---- 知识 ----
   { what: "概念页（收课时写，中文目录；3c 起课程会话只经 course_close）", tool: "write", path: "wiki/知识/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
   { what: "概念页（改名后的英文目录）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
@@ -721,12 +721,12 @@ describe("decide — 库放在临时目录里时，库规则优先于「临时�
   });
 });
 
-describe("decide — course_plan：只有总控能用（阶段 4a）", () => {
+describe("decide — course_plan：只有总控能用（阶段 4a，整理 1 起走计划暂存）", () => {
   const plan = (role: SessionRole, action: string): Decision =>
     decide(role, "course_plan", { action }, roots, canon, nothing);
 
-  it("lets 总控 unlock / lock / schedule / board all through", () => {
-    for (const action of ["unlock", "lock", "schedule", "board"]) {
+  it("lets 总控 stage / schedule / check / commit / abort / board all through", () => {
+    for (const action of ["stage", "schedule", "check", "commit", "abort", "board"]) {
       const decision = plan(roles.control as SessionRole, action);
       expect(decision.allow, `${action}: ${decision.reason}`).toBe(true);
     }
@@ -734,7 +734,7 @@ describe("decide — course_plan：只有总控能用（阶段 4a）", () => {
 
   it("refuses the course session and the free session, naming 总控", () => {
     for (const role of [roles.course as SessionRole, roles.free as SessionRole]) {
-      for (const action of ["unlock", "lock", "schedule", "board"]) {
+      for (const action of ["stage", "schedule", "check", "commit", "abort", "board"]) {
         const decision = plan(role, action);
         expect(decision.allow, `${roleLabelOf(role)} ${action}: ${decision.reason}`).toBe(false);
         expect(decision.reason).toContain("总控");
