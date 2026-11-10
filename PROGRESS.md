@@ -1,9 +1,14 @@
-# PROGRESS（更新于 2026-11-10 21:30；最新发布 v0.9.0；阶段 0–4a、整理批全部完成；只剩界面讨论及其后续）
+# PROGRESS（更新于 2026-11-10 23:40；最新发布 v0.10.0；阶段 0–4a、整理批全部完成；只剩界面讨论及其后续）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
 **总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
+
+### ★ 新会话从这里开始（11-10 23:40 交接）：全量测试
+- **v0.10.0 已发布**（tag v0.10.0，GitHub latest；排期弹性 + 总控「顺延今日内容」）。用户自己在学根里「检查更新」安装（替换前确认没在上课/收课）。
+- **用户 11-10 要求：全量测试并修 bug**。计划 = `docs/platform/FULL-TEST-1110.md`（A 机器检查 / B 脚本端到端分给 DeepSeek / C 桌面真机 / D 用户场景回归）。方法：找 bug 用 `systematic-debugging`（先四步查根因再改），修 bug 用 `test-driven-development`（先写失败测试），报完成前 `verification-before-completion`（贴验证输出）；界面点击用 `webapp-testing`（Python Playwright `connect_over_cdp` 接测试窗口 9460）。四个技能已装在 `pi-learning/.claude/skills/`（项目级，已扫过：无联网/删除脚本）。DeepSeek 单子切小、只写测试报告失败，返修另开单。
+- 测试窗口必须带 `XUEGEN_DESKTOP_CWD=/tmp/xg-e2e/workspace`。
 
 ### 0. 当前状态（11-10 21:30 交接）——除界面讨论外的活都做完了
 - **RENAME-DAY 全部完成**（第 0–7 步）：库英文名、数据根 `~/xuegen-data/{vault,sessions,workspace}`（中文名留链接）、库 AGENTS.md 去 Migration status 并改路径、Obsidian_to_Anki 插件已停用。**待用户**：Obsidian 重新选库 `~/xuegen-data/vault`；打开学根看一眼；以后检查每次开课 AI 的 8 步（用户 11-10 说会做）。
@@ -13,7 +18,7 @@
 - 库 vault-lint 剩 5 条是 raw 深层 `.gitkeep` 误报，装上 0.9.0 后消失。
 - **v0.9.0 已发布**（`05f4bf0`，tag v0.9.0，GitHub latest）；用户自己在学根里「检查更新」安装（替换前确认没在上课/收课）。
 - **11-10 夜：排期弹性 + 总控手动顺延（本地提交 `d3374cf`、`d7a8e80`，未发版）**。用户定：周期固定 7 周学时、不固定日期；结束日只看主项课；周序号按日历往后数（可出 W8）；总进度周格子跟实际周数走；英文术语卡做双向；504 已不出现；真实 models.json 不加非 eco。实现：`cycle.mjs` 推算实际起止（`loadElasticCycles`/`elasticCycles`/`shiftRoute`，路线结束日同步平移），`plan-view` 格子按周数；主项排课 `--elastic` 不写 `end=`；`course_plan` 新增 `shift`（总控说「顺延今日内容」→ 每门课 today=明天）。真机验收通过（测试窗口，`XUEGEN_DESKTOP_CWD=/tmp/xg-e2e/workspace`）：推迟 14 天的库总进度显示 2028-08-03、C1 9 格；总控只用 course_plan shift 把 CTM/数据结构 D1 挪到 11-12、jj「顺延」、辅助 D14 进「留到下个周期」。小偏差：总控没按技能最后跑 overview 报晚几天（只估了「约 5 天」）。用户今天（11-10）没上的 CTM D1、数据结构 D1：明天开课自动顺延（或装新版后在总控说「顺延今日内容」）。
-- **下一步**：等用户说「发版」→ 0.10.0；然后界面讨论（显示当前步骤、工具行人话、课程停用通道 archive、重试提示文案）。
+- **下一步**：全量测试（见上 ★）；然后界面讨论（显示当前步骤、工具行人话、课程停用通道 archive、重试提示文案）。
 
 ### 0b. 之前的记录（11-10 19:30 交接）
 - **v0.8.0 已发布并已安装**（`7462ff7`，tag v0.8.0；`/Applications/学根.app` = 0.8.0；`~/.xuegen/app` → 安装包资源）。

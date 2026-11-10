@@ -22,6 +22,7 @@
 | `docs/desktop/skins/chicago.md` | Chicago 皮肤的视觉与交互规范。 |
 | `docs/platform/PRINCIPLES.md` | 学根准则：库的四类划分、记忆分层、上下文预算、读原书；所有改动先对照。 |
 | `docs/platform/SKELETON.md` | 功能骨架（第一性原理）：根 → 8 根树枝 → 不可再分的叶子（动作 → 结果、靠什么、写在哪、入口、状态）；新需求先挂上去，用户手册从它生成。 |
+| `docs/platform/FULL-TEST-1110.md` | 全量测试计划（v0.10.0 后）：机器检查、脚本端到端（DeepSeek）、桌面真机、用户场景回归；找 bug / 修 bug / 验证的方法。 |
 | `docs/platform/ROADMAP.md` | 平台能力（skill 仓库、RAG）路线。 |
 | `docs/skills/AUTHORING.md` | 学习 skill 的编写规范。 |
 
