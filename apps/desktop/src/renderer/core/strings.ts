@@ -76,7 +76,6 @@ export const strings = {
     /** Elapsed time and step count next to the in-progress line: 「3 分 12 秒 · 第 6 步」. */
     activityMeta: (seconds: number, steps: number): string =>
       `${seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`}${steps > 0 ? ` · 第 ${steps} 步` : ""}`,
-    activityLong: "（太久了可以点输入框的停止）",
     pinDefs: "本课要点",
     pinQuestions: "当前题目",
     pinJumpDefs: "跳到原文 ↑",

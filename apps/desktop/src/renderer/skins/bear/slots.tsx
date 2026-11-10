@@ -248,8 +248,6 @@ export function UserMessage({ message, body, styleTag, actionLabel }: UserMessag
 
 export function AssistantMessage({
   message,
-  onCopy,
-  copied,
   onRetry,
   nodes,
   streaming,
@@ -268,16 +266,13 @@ export function AssistantMessage({
       ))}
       {message.errorMessage && <RetryLine message={message} />}
       {showsError(message) && <MessageError raw={message.errorMessage ?? ""} />}
-      <div className="bear-answer-foot">
-        <button type="button" title={strings.chat.copyTitle} onClick={onCopy}>
-          {copied ? strings.chat.copied : strings.chat.copy}
-        </button>
-        {showsError(message) && (
+      {showsError(message) && (
+        <div className="bear-answer-foot">
           <button type="button" title={strings.chat.retryTitle} onClick={onRetry}>
             {strings.chat.retry}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -299,7 +294,6 @@ function ActivityLine({ activity }: { activity: Activity }) {
       {activity.meta && (
         <span className={activity.long ? "bear-activity-meta is-long" : "bear-activity-meta"}>
           {activity.meta}
-          {activity.long ? strings.chat.activityLong : ""}
         </span>
       )}
     </div>

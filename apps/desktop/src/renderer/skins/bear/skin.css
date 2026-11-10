@@ -1848,7 +1848,7 @@
 /* ── 工具步骤折叠 (BE-7) ─────────────────────────────────────────────────
    One line per answer stands for all its tool steps; the rows show only
    when that line is opened. Tool-only steps in the middle of an answer
-   vanish while folded, and only the answer's last part keeps 复制 Markdown. */
+   vanish while folded, and only the answer's last part keeps its foot (重试). */
 
 [data-skin="bear"] .bear-turn-tools {
   display: inline-flex;
