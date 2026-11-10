@@ -2,10 +2,15 @@
 
 截图展示课程、报告日期、总目标、本周任务和总目标里程碑的完成数、真实作答证据、下次起点。完成数由脚本计算，标签说明统计粒度；没有目标时显示“尚未设定”，不显示虚假的 0% 或掌握率。某模块已有讲解/作答但未满足验收条件时，既保持未勾选，也在证据区说明已经做过什么。
 
-使用本技能同目录的 `render-snapshot.mjs`，通过标准输入传入临时 JSON。`source` 是已经保存的课程/计划 Markdown 的绝对路径；脚本不修改它。不需要额外 npm 依赖，使用本机 Chrome/Chromium；非默认安装位置可设置 `CHROME_PATH`。
+截图用 `course_close` 的 `snapshot` 动作在沙盒外生成（bash 在系统沙盒里起不了 Chrome，不要用 bash 跑 `render-snapshot.mjs`）：
 
-```sh
-node "/技能实际目录/render-snapshot.mjs" "/课程目录/course-slug-YYYY-MM-DD-NN.png" <<'REPORT'
+1. 用写文件工具把报告 JSON 写进本次暂存目录，例如 `<暂存目录>/report.json`（格式见下）。`source` 是课程页的绝对路径，脚本只读它。
+2. 调 `course_close`：`action: "snapshot"`、`staging: <暂存目录>`、`report: "report.json"`、`out: "wiki/courses/<slug>/snapshots/YYYY-MM-DD-NN.png"`（两个都是暂存目录内的相对路径）。
+3. 成功返回 `{ "snapshot": "<png 相对路径>" }`，图随后续 `check`/`commit` 一起提交和上锁；失败时暂存里不留半张图，照返回的原因告诉用户，进度照常提交。
+
+报告 JSON：
+
+```json
 {
   "title": "课程名称 · 收课记录",
   "date": "2026-10-16",
@@ -17,9 +22,8 @@ node "/技能实际目录/render-snapshot.mjs" "/课程目录/course-slug-YYYY-M
   "next": "从已有记录确定的下一步",
   "note": "必要时说明证据范围、未知项或计划缺口"
 }
-REPORT
 ```
 
 上述路径、日期和内容均须替换。`done` 只接受布尔值，不传字符串；从已保存的原任务/验收结果逐项提取。核对源文件后才调用，不把模型刚生成但未保存的计划当来源。截图日期是实际收课/报告日期；复盘旧会话时另外在证据中注明原会话日期，不能伪装为当天新学。
 
-默认图片与课程文件同目录，以课程名、日期、记录序号命名，避免额外文件夹。若 Wiki 已规定可写附件位置则沿用，绝不写入只读 `raw/`。生成成功后确认脚本退出码为 0、PNG 存在，把它和状态文件一起用 `lock` 上锁（脚本对文件设 0444），再用库内相对链接嵌入对应记录，例如 `![[course-slug-YYYY-MM-DD-NN.png|600]]`，并在回复中给出图片路径。已有图片不会被覆盖；重复收课直接引用已有图片。未安装浏览器或渲染失败时，保留已保存的 Markdown，明确说明“进度已保存，截图失败”及原因，不谎报截图完成，不自动安装软件。
+图片放在 `wiki/courses/<slug>/snapshots/YYYY-MM-DD-NN.png`（本次收课的暂存目录里同一路径），由 `commit` 随事务上锁；再用库内相对链接嵌入对应记录，例如 `![[courses/<slug>/snapshots/YYYY-MM-DD-NN.png|600]]`，并在回复中给出图片路径。已有图片不会被覆盖；重复收课直接引用已有图片。未安装浏览器或渲染失败时，保留已保存的 Markdown，明确说明「进度已保存，截图失败」及原因，不谎报截图完成，不自动安装软件。
