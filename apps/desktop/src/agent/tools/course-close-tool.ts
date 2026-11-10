@@ -44,7 +44,7 @@ export type RunExecFile = (
 ) => void;
 
 /** The actions the tool schema accepts, in the order the flow uses them. */
-export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "undo";
+export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo";
 
 const SCRIPT = join("skills", "course", "course-close.mjs");
 /** A close can copy snapshots; give it more room than the data-channel 15 s. */
@@ -64,6 +64,8 @@ export function courseCloseArgs(
     slug?: string | undefined;
     staging?: string | undefined;
     path?: string | undefined;
+    today?: string | undefined;
+    end?: string | undefined;
   },
   vault: string,
   cwd: string,
@@ -84,6 +86,18 @@ export function courseCloseArgs(
     case "abort":
       if (params.staging === undefined) throw new Error("course_close abort 缺少 staging。");
       return ["abort", params.staging, "--json"];
+    case "shift":
+      if (params.slug === undefined) throw new Error("course_close shift 缺少 slug：要顺延哪门课。");
+      return [
+        "shift",
+        vault,
+        params.slug,
+        "--workspace",
+        cwd,
+        ...(params.today ? ["--today", params.today] : []),
+        ...(params.end ? ["--end", params.end] : []),
+        "--json",
+      ];
     case "undo":
       if (params.slug === undefined) throw new Error("course_close undo 缺少 slug：要撤销哪门课的收课。");
       return ["undo", vault, params.slug, "--workspace", cwd, "--json"];
@@ -130,7 +144,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       label: "收课",
       description:
         "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
-        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。课程页和概念页只能经这个工具写。",
+        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。课程页和概念页只能经这个工具写。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -139,18 +153,23 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
             Type.Literal("check"),
             Type.Literal("commit"),
             Type.Literal("abort"),
+            Type.Literal("shift"),
             Type.Literal("undo"),
           ],
           {
             description:
-              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。",
+              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。shift 开课时顺延排期（一步完成暂存、校验、提交）。",
           },
         ),
-        slug: Type.Optional(Type.String({ description: "课程 slug（stage、undo 必填）" })),
+        slug: Type.Optional(Type.String({ description: "课程 slug（stage、shift、undo 必填）" })),
         staging: Type.Optional(
           Type.String({ description: "暂存目录（add、check、commit、abort 必填；stage 输出它）" }),
         ),
         path: Type.Optional(Type.String({ description: "库内相对路径（add 必填）" })),
+        today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
+        end: Type.Optional(
+          Type.String({ description: "shift 用：周期最后一天 YYYY-MM-DD（排期标记里已有 end= 时不填）" }),
+        ),
       }),
       async execute(_toolCallId, params): Promise<AgentToolResult<undefined>> {
         const vault = readVaultRoot(options.home);

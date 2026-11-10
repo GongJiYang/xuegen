@@ -6,6 +6,7 @@
 //   node course-close.mjs check   <暂存目录> [--json]
 //   node course-close.mjs commit  <暂存目录> [--json]
 //   node course-close.mjs abort   <暂存目录>
+//   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
 //   node course-close.mjs recover <vault> --workspace <工作区> [--json]
 //
@@ -35,7 +36,7 @@ import {
 import { basename, dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCourse } from "./course-parse.mjs";
-import { completedIds, readSchedule } from "./course-schedule.mjs";
+import { completedIds, lastNewLessonDate, readSchedule, renderTable, shiftSchedule, writeSchedule } from "./course-schedule.mjs";
 
 const READONLY_FILE = 0o444;
 const WRITABLE_FILE = 0o644;
@@ -586,9 +587,7 @@ function uniqueStagingDir(closeDir, name) {
   return candidate;
 }
 
-function cmdStage(vaultArg, slug, workspaceArg, json) {
-  const vault = resolve(vaultArg ?? fail("stage 需要 <vault>"));
-  const workspace = resolve(workspaceArg ?? fail("stage 需要 --workspace <工作区>"));
+function stageInternal(vault, slug, workspace) {
   recoverInternal(workspace);
   const courseRel = `wiki/courses/${slug}.md`;
   const courseAbs = join(vault, courseRel);
@@ -639,6 +638,13 @@ function cmdStage(vaultArg, slug, workspaceArg, json) {
     }
     fail(error instanceof Error ? error.message : String(error));
   }
+  return staging;
+}
+
+function cmdStage(vaultArg, slug, workspaceArg, json) {
+  const vault = resolve(vaultArg ?? fail("stage 需要 <vault>"));
+  const workspace = resolve(workspaceArg ?? fail("stage 需要 --workspace <工作区>"));
+  const staging = stageInternal(vault, slug, workspace);
   process.stdout.write(json ? `${JSON.stringify({ staging })}\n` : `${staging}\n`);
 }
 
@@ -676,8 +682,7 @@ function cmdCheck(stagingArg, json) {
   if (!result.ok) process.exit(1);
 }
 
-function cmdCommit(stagingArg, json) {
-  const staging = resolve(stagingArg ?? fail("commit 需要 <暂存目录>"));
+function commitInternal(staging, label) {
   recoverInternal(workspaceOf(staging));
   const { manifest, result } = gatherCheck(staging);
   if (!result.ok) {
@@ -745,17 +750,23 @@ function cmdCommit(stagingArg, json) {
   writeFileSync(join(staging, "committed"), "");
   const jjResult = jjCommit(
     vault,
-    `收课 ${manifest.slug} ${localDate()}`,
+    `${label} ${manifest.slug} ${localDate()}`,
     result.changes.map((change) => change.path),
   );
   const out = { committed: true, changes: result.changes, jj: jjResult };
+  return out;
+}
+
+function cmdCommit(stagingArg, json) {
+  const staging = resolve(stagingArg ?? fail("commit 需要 <暂存目录>"));
+  const out = commitInternal(staging, "收课");
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
   } else {
-    for (const change of result.changes) {
+    for (const change of out.changes) {
       process.stdout.write(`${change.action === "create" ? "新增" : "修改"} ${change.path}\n`);
     }
-    process.stdout.write(`已提交（jj: ${jjResult}）\n`);
+    process.stdout.write(`已提交（jj: ${out.jj}）\n`);
   }
 }
 
@@ -893,6 +904,78 @@ function cmdRecover(vaultArg, workspaceArg, json) {
   else if (!recovered) process.stdout.write("没有中断的收课\n");
 }
 
+/** 在暂存副本上顺延排期（算法同 course-schedule.mjs shift）：不碰库，改动写回暂存里的课程页。 */
+function shiftStaged(staging, today, endFlag) {
+  const manifest = loadManifest(staging);
+  const rel = `wiki/courses/${manifest.slug}.md`;
+  const file = join(staging, rel);
+  const text = readFileSync(file, "utf8");
+  const schedule = readSchedule(text);
+  if (schedule === null) return null;
+  const end = endFlag ?? schedule.end;
+  const done = completedIds(text);
+  const { rows, shiftedDays, movedReviews, dropped } = shiftSchedule(
+    schedule.rows,
+    done,
+    today,
+    schedule.rest,
+    schedule.days,
+    end,
+  );
+  const changed = shiftedDays > 0 || movedReviews > 0 || dropped.length > 0;
+  const lastLesson = lastNewLessonDate(rows);
+  const deferred =
+    dropped.length === 0
+      ? ""
+      : `${dropped.length} 节排不进本周期，已移到「留到下个周期」：${dropped.map((row) => row.id).join("、")}`;
+  if (changed) {
+    writeFileSync(
+      file,
+      writeSchedule(text, renderTable(rows, schedule.rest, schedule.days, schedule.reviews, end), dropped),
+    );
+  }
+  return { changed, shiftedDays, movedReviews, lastLesson, end: end ?? null, dropped, deferred };
+}
+
+function cmdShift(vaultArg, slug, workspaceArg, todayArg, endArg, json) {
+  const vault = resolve(vaultArg ?? fail("shift 需要 <vault>"));
+  const workspace = resolve(workspaceArg ?? fail("shift 需要 --workspace <工作区>"));
+  if (!slug) fail("shift 需要 <slug>");
+  const today = todayArg ?? localDate();
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (todayArg && !dateRe.test(todayArg)) fail("--today 要写成 YYYY-MM-DD");
+  if (endArg && !dateRe.test(endArg)) fail("--end 要写成 YYYY-MM-DD");
+  const staging = stageInternal(vault, slug, workspace);
+  const shifted = shiftStaged(staging, today, endArg ?? null);
+  if (shifted === null || !shifted.changed) {
+    // 没有要顺延的：删掉暂存、什么都不提交，免得挡住当天收课的 stage。
+    rmSync(staging, { recursive: true, force: true });
+    if (json) process.stdout.write(`${JSON.stringify({ shifted: false })}\n`);
+    else if (shifted === null) process.stdout.write("这门课没有排期表，不用顺延\n");
+    else process.stdout.write("没有需要顺延的安排\n");
+    return;
+  }
+  const { result } = gatherCheck(staging);
+  if (!result.ok) {
+    const lines = result.problems.map((p) => `  ${p.path}: [${p.kind}] ${p.detail}`).join("\n");
+    // 校验不过也不能留未提交暂存：它会挡住当天收课的 stage。
+    rmSync(staging, { recursive: true, force: true });
+    fail(`校验未通过（什么都不写）：\n${lines}`);
+  }
+  const out = commitInternal(staging, "顺延");
+  const { shiftedDays, movedReviews, lastLesson, end, dropped, deferred } = shifted;
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify({ ...out, shiftedDays, movedReviews, lastLesson, end, dropped, deferred }, null, 2)}\n`,
+    );
+  } else {
+    process.stdout.write(
+      `没学的新课顺延 ${shiftedDays} 个上课日（最后一节 ${lastLesson}），${movedReviews} 条过期复习挪到今天` +
+        `${deferred ? `；${deferred}` : ""}（已提交，jj: ${out.jj}）\n`,
+    );
+  }
+}
+
 // ---- CLI ----
 
 function parseArgs(argv) {
@@ -924,6 +1007,7 @@ function usage() {
     "  node course-close.mjs check   <暂存目录> [--json]",
     "  node course-close.mjs commit  <暂存目录> [--json]",
     "  node course-close.mjs abort   <暂存目录>",
+    "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
     "  node course-close.mjs recover <vault> --workspace <工作区> [--json]",
   ].join("\n");
@@ -942,6 +1026,7 @@ function main() {
   else if (command === "check") cmdCheck(rest[0], json);
   else if (command === "commit") cmdCommit(rest[0], json);
   else if (command === "abort") cmdAbort(rest[0]);
+  else if (command === "shift") cmdShift(rest[0], rest[1], flags.workspace, flags.today, flags.end, json);
   else if (command === "undo") cmdUndo(rest[0], rest[1], flags.workspace, json);
   else if (command === "recover") cmdRecover(rest[0], flags.workspace, json);
   else fail(`未知命令：${command}\n${usage()}`);

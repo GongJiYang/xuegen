@@ -36,6 +36,7 @@ const COMPLETE: Record<CloseAction, Params> = {
   check: { action: "check", staging: "/home/learning/.close/discrete-math-epp-1" },
   commit: { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1" },
   abort: { action: "abort", staging: "/home/learning/.close/discrete-math-epp-1" },
+  shift: { action: "shift", slug: "discrete-math-epp" },
   undo: { action: "undo", slug: "discrete-math-epp" },
 };
 
