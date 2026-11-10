@@ -4,6 +4,10 @@
 // 无第三方依赖（AnkiConnect 用全局 fetch）。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；
 // 知识目录 = wiki/knowledge（旧库：wiki/知识，再旧：wiki；与 flashcards.mjs 同一约定）。
 //   node anki-sync.mjs push <vault> [--dry-run] [--json] [--url http://127.0.0.1:8765]
+// 沙盒内直连 127.0.0.1:8765 会被 seatbelt 拦下（NO_PROXY 含 127.0.0.1，只有代理端口被放行），
+// 所以进程里有 HTTP_PROXY / http_proxy 且目标是本机地址时，不用 fetch，改经代理发
+// HTTP 正向代理的绝对 URL POST（见 postViaProxy）；没有代理变量时照旧直连。
+import { request as httpRequest } from "node:http";
 import { readFile, writeFile, readdir, rename } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -202,17 +206,66 @@ export function insertIds(text, pairs) {
   return out.join("\n");
 }
 
-/** AnkiConnect 单次调用：超时或 error 字段都抛错。 */
+/**
+ * 经 HTTP 正向代理发一个 POST：请求行是完整目标 URL，Host 头写目标主机。
+ * signal 与 fetch 的同款：abort 时底层 request 被销毁、Promise 以 AbortError 拒绝。
+ */
+function postViaProxy(proxyUrl, targetUrl, bodyText, signal) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const proxy = new URL(proxyUrl);
+    const target = new URL(targetUrl);
+    const headers = {
+      Host: target.host,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(bodyText),
+    };
+    // 沙盒代理按 URL 里的凭据认连接（user 还编码了命令 id，放行清单靠它匹配）。
+    if (proxy.username !== "" || proxy.password !== "") {
+      headers["Proxy-Authorization"] =
+        `Basic ${Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString("base64")}`;
+    }
+    const req = httpRequest(
+      {
+        host: proxy.hostname,
+        port: proxy.port,
+        method: "POST",
+        path: targetUrl,
+        headers,
+        signal,
+      },
+      (response) => {
+        let data = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => resolvePromise({ status: response.statusCode, body: data }));
+      },
+    );
+    req.on("error", rejectPromise);
+    req.write(bodyText);
+    req.end();
+  });
+}
+
+/**
+ * AnkiConnect 单次调用：超时或 error 字段都抛错。
+ * 有 HTTP_PROXY 且目标是本机地址时经代理发（沙盒里直连本机端口被拦，见文件头）；
+ * 否则照旧 fetch。两条分支的语义一致：abort 拒绝、响应 JSON 的 error 字段抛错。
+ */
 async function invoke(url, action, params = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ANKI_TIMEOUT_MS);
+  const bodyText = JSON.stringify({ action, params, version: 6 });
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      body: JSON.stringify({ action, params, version: 6 }),
-      signal: controller.signal,
-    });
-    const body = await response.json();
+    const proxy = process.env.HTTP_PROXY ?? process.env.http_proxy;
+    const local = url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost");
+    const body =
+      proxy && local
+        ? JSON.parse((await postViaProxy(proxy, url, bodyText, controller.signal)).body)
+        : await (
+            await fetch(url, { method: "POST", body: bodyText, signal: controller.signal })
+          ).json();
     if (body.error) throw new Error(String(body.error));
     return body.result;
   } finally {

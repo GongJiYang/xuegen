@@ -124,6 +124,9 @@ export function decide(
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
   if (tool === "course_close") return decideCourseClose(role, input, roots, canon);
   if (tool === "course_plan") return decideCoursePlan(role);
+  // `calendar_write`（tools/calendar-write-tool.ts）：任何会话都能记日历，与
+  // 以前 bash 跑 calendar.mjs 的范围一致；原子写入与「空正文删除」由脚本管。
+  if (tool === "calendar_write") return ALLOW;
   return ALLOW;
 }
 

@@ -5,8 +5,13 @@
  * no automatic discovery of extensions, skills, prompt templates, themes, or
  * context files; only the repository `skills/` directory; `instructions.md`
  * appended to the system prompt; the guard, `course_close`, `course_plan`,
- * tool-search and MCP extensions enabled; project trust declined (the CLI's
- * `--no-approve`).
+ * `calendar_write`, tool-search and MCP extensions enabled; project trust
+ * declined (the CLI's `--no-approve`).
+ *
+ * On macOS the guard also wraps every allowed `bash` command in the stage-4a
+ * seatbelt sandbox (`sandbox/runner.ts`). `XUEGEN_SANDBOX=off` skips creating
+ * the runner entirely — the escape hatch while a sandbox problem is being
+ * diagnosed; the guard's own checks still apply either way.
  *
  * Pi captures filesystem paths from the environment when its modules load, so
  * this module applies the isolation first and then imports Pi dynamically.
@@ -18,11 +23,15 @@
 
 import { applyXuegenEnvironment, repoRoot, stableRoot } from "./environment.js";
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { isOwnSessionFile } from "./session-file.js";
 import { createGuardExtension } from "./guard/extension.js";
 import { guardRoots, nodePathFacts } from "./guard/facts.js";
+import { canonicalParts, expandTilde } from "./guard/path.js";
 import { inferSessionRole } from "./guard/session-role.js";
+import { createSandboxRunner } from "./sandbox/runner.js";
+import { createCalendarWriteExtension } from "./tools/calendar-write-tool.js";
 import { createCourseCloseExtension } from "./tools/course-close-tool.js";
 import { createCoursePlanExtension } from "./tools/course-plan-tool.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
@@ -108,13 +117,23 @@ export async function createXuegenSession(
   const facts = nodePathFacts();
   const role = { current: options.role ?? ({ kind: "free" } as SessionRole) };
   let sessionId = "";
+  const roots = guardRoots(home, cwd, facts);
+  // The sandbox gets the same canonicalization the guard checks with, so the
+  // lists it enforces name exactly the paths the guard judged.
+  const canon = (path: string): string =>
+    canonicalParts(expandTilde(path, homedir()), cwd, facts).canonical;
+  const sandbox =
+    process.platform === "darwin" && process.env.XUEGEN_SANDBOX !== "off"
+      ? await createSandboxRunner(roots, canon)
+      : undefined;
   const guard = createGuardExtension({
     role: () => role.current,
     sessionId: () => sessionId,
-    roots: guardRoots(home, cwd, facts),
+    roots,
     home,
     cwd,
     facts,
+    ...(sandbox !== undefined ? { sandbox } : {}),
   });
 
   const {
@@ -149,6 +168,7 @@ export async function createXuegenSession(
       // already judged by the role rules; it runs the script itself, off bash.
       { name: "course-close", factory: createCourseCloseExtension({ repo: repoRoot, home, cwd }) },
       { name: "course-plan", factory: createCoursePlanExtension({ repo: repoRoot, home, cwd }) },
+      { name: "calendar-write", factory: createCalendarWriteExtension({ repo: repoRoot, home }) },
       { name: "tool-search", factory: createToolSearchExtension() },
       { name: "mcp", factory: createMcpExtension() },
     ],
@@ -180,6 +200,18 @@ export async function createXuegenSession(
   // Emits session_start, which connects the MCP servers in the background and
   // lets the MCP extension activate tool_search for deferred-exposure servers.
   await session.bindExtensions({});
+
+  // Tear the sandbox down (proxies, log monitor) when the session is replaced
+  // or disposed. `dispose` is synchronous while `reset` is not, and the
+  // process is leaving anyway — fire and forget.
+  if (sandbox !== undefined) {
+    const runner = sandbox;
+    const dispose = session.dispose.bind(session);
+    session.dispose = () => {
+      dispose();
+      void runner.reset();
+    };
+  }
 
   sessionId = session.sessionId;
   if (options.role === undefined) {

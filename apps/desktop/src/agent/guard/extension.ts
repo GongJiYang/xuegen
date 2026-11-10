@@ -13,12 +13,19 @@
  * not cover (`mcp__*`, other custom tools) is passed through and audited as a
  * pass-through: the guard cannot judge its arguments, and the log is the place
  * where that gap stays visible (see `guard/README.md`).
+ *
+ * Stage 4a: when `options.sandbox` is set, an allowed `bash` call's
+ * `input.command` is rewritten to run inside the seatbelt sandbox before the
+ * tool sees it, and a failing bash result's first text block is annotated with
+ * the sandbox violations the run recorded — the model sees *why* the OS
+ * refused, not just "Operation not permitted".
  */
 
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { SessionRole } from "../../shared/protocol.js";
+import type { SandboxRunner } from "../sandbox/runner.js";
 import { appendAudit } from "./audit.js";
 import { existsOnDisk, nodePathFacts } from "./facts.js";
 import { canonicalParts, expandTilde, type CanonicalPath, type PathFacts } from "./path.js";
@@ -40,12 +47,18 @@ export interface GuardOptions {
   facts?: PathFacts;
   /** Injectable for tests: does a canonical path already exist? */
   exists?: (path: string) => boolean;
+  /**
+   * The stage-4a bash sandbox. When set, an allowed `bash` call's `command` is
+   * rewritten to its seatbelt-wrapped form before the tool runs; absent, the
+   * guard behaves exactly as stage 2/3 left it (the tests' path).
+   */
+  sandbox?: SandboxRunner;
 }
 
 /** Tools whose input carries a `path` the guard can check and rewrite. */
 const PATH_TOOLS = new Set(["read", "grep", "find", "ls", "write", "edit"]);
 /** Tools the guard judges at all. Anything else is a pass-through (see the header). */
-const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close", "course_plan"]);
+const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close", "course_plan", "calendar_write"]);
 /** How the audit line marks a call the lists do not cover. */
 const PASS_THROUGH = "这个工具不在权限清单里，默认放行（待界面阶段收紧）";
 
@@ -68,6 +81,9 @@ function auditTarget(input: Record<string, unknown>, canon: (path: string) => st
       return input.path;
     }
   }
+  // `calendar_write` carries neither a command nor a path; the date it writes
+  // is what the audit line should name.
+  if (typeof input.date === "string") return input.date;
   return closeTarget(input, canon);
 }
 
@@ -100,7 +116,51 @@ export function createGuardExtension(options: GuardOptions): ExtensionFactory {
   const userHome = homedir();
   const auditFile = join(options.home, "guard.log");
 
+  /**
+   * Rewrite `input.command` to its sandboxed form. Fail closed when `wrap`
+   * throws — a command the sandbox could not take must not run unwrapped —
+   * and record a second audit line (allow:false) naming the *original*
+   * command, so the log shows both that the lists allowed it and that the
+   * sandbox refused to start it.
+   */
+  const sandboxWrap = async (
+    input: Record<string, unknown>,
+    toolCallId: string,
+    role: SessionRole,
+  ): Promise<{ block: true; reason: string } | undefined> => {
+    const sandbox = options.sandbox;
+    if (sandbox === undefined) return undefined;
+    const command = String(input.command);
+    try {
+      input.command = await sandbox.wrap(command, toolCallId, role);
+      return undefined;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      appendAudit(auditFile, {
+        time: new Date().toISOString(),
+        session: options.sessionId(),
+        role: roleId(role),
+        tool: "bash",
+        target: command.slice(0, 200),
+        allow: false,
+        reason: `沙盒启动失败（${detail}）`,
+      });
+      return { block: true, reason: `沙盒启动失败（${detail}），这次 bash 没有运行；请告诉用户。` };
+    }
+  };
+
   return (pi) => {
+    pi.on("tool_result", (event) => {
+      const sandbox = options.sandbox;
+      if (event.toolName !== "bash" || sandbox === undefined || !event.isError) return;
+      const index = event.content.findIndex((part) => part.type === "text");
+      const part = index === -1 ? undefined : event.content[index];
+      if (part === undefined || part.type !== "text") return;
+      const content = event.content.slice();
+      content[index] = { ...part, text: sandbox.annotate(event.toolCallId, part.text) };
+      return { content };
+    });
+
     pi.on("tool_call", (event) => {
       const role = options.role();
       // One cache per call: whichever path the rules canonicalize is the same
@@ -153,6 +213,12 @@ export function createGuardExtension(options: GuardOptions): ExtensionFactory {
       if (PATH_TOOLS.has(event.toolName) && typeof input.path === "string" && input.path !== "") {
         const parts = resolved.get(input.path);
         if (parts !== undefined) input.path = parts.resolved;
+      }
+      // Only the sandboxed bash path goes async: `Pi` accepts a promise here,
+      // while every other call keeps its plain return so the decision path
+      // stays synchronous.
+      if (event.toolName === "bash" && options.sandbox !== undefined) {
+        return sandboxWrap(input, event.toolCallId, role);
       }
       return undefined;
     });

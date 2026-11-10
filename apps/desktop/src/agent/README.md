@@ -14,8 +14,9 @@
 - `snapshot.ts`：纯函数 `sessionState()`，Pi 会话（可为 null）+ 外壳状态 → `SessionStatePayload`，不依赖 SDK 即可测。
 - `session-request.ts`：`withSessionId()`（给每条发出的消息盖章）与 `isStaleRequest()`（判断请求是否属于当前会话）。
 - `turn.ts`：`prompt` / `compact` / `abort` 三条会话内请求的执行与错误上报；先做陈旧校验，不通过就回 `error`、不碰会话。
-- `guard/`：工具层权限拦截（路线阶段 2，见 `guard/README.md`）。`session.ts` 把它注册为第一个 extension；角色由 `new-session`/`open-session` 消息带来，缺省或恢复的会话从转录文件开头的开课标记与 `desktop.json` 映射推断，推不出按 `free`。
-- `tools/`：专用工具。`run-script.ts` 是共用的「在应用自己的 Node 里跑 `skills/` 脚本」子进程封装。`course-close-tool.ts` 的 `course_close`（阶段 3c）在 agent 进程里用 `ELECTRON_RUN_AS_NODE=1` 子进程调 `skills/course/course-close.mjs`，不经 bash；谁可用、收哪门课由 guard 判（`guard/README.md`「专用工具」）。`course-plan-tool.ts` 的 `course_plan`（阶段 4a）照同一模式调 `course-state.mjs` / `course-schedule.mjs` / `render-board.mjs`，只有总控会话能用。以后 `calendar_write`、`cycle_write` 照同一模式加。
+- `guard/`：工具层权限拦截（路线阶段 2，见 `guard/README.md`）。`session.ts` 把它注册为第一个 extension；角色由 `new-session`/`open-session` 消息带来，缺省或恢复的会话从转录文件开头的开课标记与 `desktop.json` 映射推断，推不出按 `free`。阶段 4a 起，被放行的 `bash` 调用还把命令改写成沙盒包装形式（`sandbox/`），被沙盒拦下的 stderr 经 `tool_result` 补回原因。
+- `sandbox/`：bash 命令的系统沙盒（阶段 4a，见 `sandbox/README.md`）。`session.ts` 在 macOS 上创建 runner 传给 guard；`XUEGEN_SANDBOX=off` 时整个不建。
+- `tools/`：专用工具。`run-script.ts` 是共用的「在应用自己的 Node 里跑 `skills/` 脚本」子进程封装。`course-close-tool.ts` 的 `course_close`（阶段 3c）在 agent 进程里用 `ELECTRON_RUN_AS_NODE=1` 子进程调 `skills/course/course-close.mjs`，不经 bash；谁可用、收哪门课由 guard 判（`guard/README.md`「专用工具」）。`course-plan-tool.ts` 的 `course_plan`（阶段 4a）照同一模式调 `course-state.mjs` / `course-schedule.mjs` / `render-board.mjs`，只有总控会话能用。`calendar-write-tool.ts` 的 `calendar_write`（阶段 4a）调 `skills/calendar/calendar.mjs write`，任何会话都能记日历笔记（正文为空即删除）。
 - `smoke.ts`：集成冒烟，不发模型请求。
 
 会话编号（`sessionId`）：agent 发出的每条消息都带它（`SessionStatePayload` 里也有），main 原样转发给 renderer。`prompt` / `abort` / `compact` 三条「作用于当前会话」的请求可带目标 `sessionId`，与 agent 当前会话对不上即在 `turn.ts` 里丢弃并回 `error`（不碰会话），防止切换会话间隙的旧请求落到新会话上；不带编号照常执行。renderer 在收到 `ready` / `state` 时立即更新自己记的编号（不只靠 effect），所以切换会话后的第一条请求带的是新编号；收到的消息暂不按 `sessionId` 过滤，路由留给路线阶段 4 的多进程。
