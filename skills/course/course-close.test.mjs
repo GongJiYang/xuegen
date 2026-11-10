@@ -1237,6 +1237,312 @@ jjTest("jj：undo 在非 jj 库里直接拒绝", async () => {
   }
 });
 
+// ══ shift：顺延走暂存 → 校验 → 提交（jj 记「顺延」） ══
+
+/** CLI 用的本机今天（与 course-close.mjs 的 localDate 同一算法）。 */
+function localDate() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** 排期：D1 在 2026-11-10 之前且没学，末节挨着结束日。 */
+const SHIFT_ROWS = [
+  { id: "D1", date: "2026-11-04", content: "第 1 课" },
+  { id: "D2", date: "2026-11-09", content: "第 2 课" },
+  { id: "D3", date: "2026-11-11", content: "第 3 课" },
+  { id: "D4", date: "2026-11-16", content: "第 4 课" },
+  { id: "D5", date: "2026-11-18", content: "第 5 课" },
+];
+
+/**
+ * 可顺延的课程页：排期标记 `rest=sun days=mon,wed reviews=anki`（end 可选），
+ * 计划表里有「### 留到下个周期」一节，且只有一行占位「- 无：…」。
+ */
+function shiftPage({ rows = SHIFT_ROWS, end = null, defer = "- 无：本周期还没挤出课次" } = {}) {
+  return [
+    "<!-- xuegen:course-state -->",
+    "",
+    "# 离散数学（Epp）学习计划",
+    "",
+    "## Key Facts",
+    "",
+    "- 当前周：W1 · 命题逻辑",
+    "",
+    "## This Week",
+    "",
+    "W1 · 命题逻辑",
+    "",
+    "- [ ] 讲 §1.1",
+    "",
+    "## Today",
+    "",
+    "日期：2026-11-10",
+    "",
+    "- [ ] 讲 §1.1",
+    "",
+    "## Next Session",
+    "",
+    "[[reading/epp|Epp]] §1.2。",
+    "",
+    "## 计划表（参考）",
+    "",
+    "### 留到下个周期",
+    "",
+    defer,
+    "",
+    `<!-- xuegen:schedule:start rest=sun days=mon,wed reviews=anki${end === null ? "" : ` end=${end}`} -->`,
+    "| 天 | 日期 | 内容 | 材料 | 完成条件 |",
+    "|---|---|---|---|---|",
+    ...rows.map((row) => `| ${row.id} | ${row.date} | ${row.content} | — | — |`),
+    "<!-- xuegen:schedule:end -->",
+    "",
+    "## Learning Record",
+    "",
+    "## Relationships",
+    "",
+    "- [[subjects/discrete-math|离散数学]]",
+    "",
+  ].join("\n");
+}
+
+/** 用 shiftPage 覆盖课程页（仍保持 0444）。 */
+async function makeShiftVault(options) {
+  const fixture = await makeVault();
+  await chmod(fixture.page, 0o644);
+  await writeFile(fixture.page, shiftPage(options));
+  await chmod(fixture.page, 0o444);
+  return fixture;
+}
+
+/** 某次提交的描述（jj 存的是 commit message，末尾带一个换行，比较前去掉）。 */
+function descriptionOf(jj, revset = "@-") {
+  return JSON.parse(jj(["log", "-r", revset, "--no-graph", "-T", "json(description)"]).trim()).trim();
+}
+
+/** `<ws>/.close/` 下的条目（不存在时为空数组）。 */
+async function closeEntries(ws) {
+  return existsSync(join(ws, ".close")) ? (await readdir(join(ws, ".close"))).sort() : [];
+}
+
+jjTest("jj：shift 有变化 → 提交描述「顺延 <slug> <今天>」，只含课程页，课程页 0444，暂存带 committed", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const result = await cliJson(
+      ["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"],
+      { env },
+    );
+    assert.equal(result.committed, true);
+    assert.equal(result.jj, "ok");
+    assert.equal(result.shiftedDays, 2, "D1 从 11-04 顺延到 11-11（周一/周三两个上课日）");
+    assert.deepEqual(result.dropped, [], "标记里没有 end=，不挤出课次");
+
+    // 最近一次提交（工作副本的父提交）就是这次的顺延，且只含课程页。
+    assert.equal(descriptionOf(jj), `顺延 epp ${localDate()}`);
+    const summary = jj(["diff", "-r", "@-", "--summary"])
+      .trim()
+      .split("\n")
+      .map((line) => line.slice(1).trim())
+      .sort();
+    assert.deepEqual(summary, ["wiki/courses/epp.md"], "顺延提交里只有课程页");
+
+    // 课程页 0444，内容确实顺延了。
+    assert.equal(await mode(fixture.page), 0o444);
+    const after = await readFile(fixture.page, "utf8");
+    assert.notEqual(after, before);
+    assert.match(after, /\| D1 \| 2026-11-11（周三） \|/, "D1 顺延到 2026-11-11");
+
+    // 本次暂存留在 <ws>/.close/，且带 committed 标记。
+    const entries = await closeEntries(fixture.ws);
+    assert.equal(entries.length, 1, `暂存目录应只有一个：${entries.join("、")}`);
+    assert.ok(existsSync(join(fixture.ws, ".close", entries[0], "committed")), "暂存带 committed");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：shift 有结束日、末节被挤出 → dropped 列出该课次，「留到下个周期」的「- 无：」被替换", async () => {
+  const fixture = await makeShiftVault({ end: "2026-11-23" });
+  try {
+    const { env } = await initJj(fixture.vault, fixture.root);
+    const result = await cliJson(["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"], {
+      env,
+    });
+    assert.equal(result.committed, true);
+    assert.equal(result.end, "2026-11-23", "没给 --end 时用排期标记里的 end=");
+    assert.deepEqual(result.dropped.map((row) => row.id), ["D5"], "只有末节 D5 越过结束日");
+    assert.equal(result.lastLesson, "2026-11-23");
+    assert.equal(result.deferred, "1 节排不进本周期，已移到「留到下个周期」：D5");
+
+    const page = await readFile(fixture.page, "utf8");
+    const deferredSection = page.slice(page.indexOf("### 留到下个周期"), page.indexOf("<!-- xuegen:schedule:start"));
+    assert.doesNotMatch(deferredSection, /-\s*无\s*[：:]/, "占位行被替换掉");
+    assert.match(deferredSection, /- D5：第 5 课（—）/, "挤出的课次登记在「留到下个周期」");
+    assert.match(page, /\| D4 \| 2026-11-23（周一） \|/, "末节之前的课次仍留在表里");
+    assert.doesNotMatch(page, /\| D5 \|/, "挤出的课次不再出现在排期表里");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：shift 没有要顺延的 → {shifted:false}、退出 0、无新提交、.close 无残留", async () => {
+  // 所有课次都在今天之后：没有过期的新课，也没有过期复习。
+  const rows = [
+    { id: "D1", date: "2026-11-16", content: "第 1 课" },
+    { id: "D2", date: "2026-11-18", content: "第 2 课" },
+  ];
+  const fixture = await makeShiftVault({ rows });
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const result = await cliJson(["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"], {
+      env,
+    });
+    assert.deepEqual(result, { shifted: false });
+    assert.equal(await readFile(fixture.page, "utf8"), before, "课程页没动");
+    assert.deepEqual(await closeEntries(fixture.ws), [], "没有残留暂存目录");
+    assert.equal(descriptionOf(jj), "基线", "jj 没有新提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：课程页没有排期标记 → 文本「这门课没有排期表，不用顺延」、无残留、无提交", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    // 去掉排期标记整段（标记外的计划表段照旧留着），也去掉「完成：」记录。
+    await chmod(fixture.page, 0o644);
+    const page = shiftPage()
+      .replace(/<!-- xuegen:schedule:start[\s\S]*?<!-- xuegen:schedule:end -->\n/, "")
+      .replace("| 天 | 日期 | 内容 | 材料 | 完成条件 |\n|---|---|---|---|---|\n", "");
+    await writeFile(fixture.page, page);
+    await chmod(fixture.page, 0o444);
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const before = await readFile(fixture.page, "utf8");
+    const { stdout } = await cli(["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"], {
+      env,
+    });
+    assert.match(stdout, /这门课没有排期表，不用顺延/);
+    assert.equal(await readFile(fixture.page, "utf8"), before, "课程页没动");
+    assert.deepEqual(await closeEntries(fixture.ws), [], "没有残留暂存目录");
+    assert.equal(descriptionOf(jj), "基线", "jj 没有新提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("shift：--today / --end 不是 YYYY-MM-DD → 非 0 退出、中文报错、不建暂存", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    const badToday = await cli(
+      ["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "11/10", "--end", "2026/12/24"],
+      { expectFail: true },
+    );
+    assert.notEqual(badToday.code, 0);
+    assert.match(badToday.stderr, /--today 要写成 YYYY-MM-DD/);
+    assert.equal(existsSync(join(fixture.ws, ".close")), false, "参数不合格时不建暂存目录");
+
+    const badEnd = await cli(
+      ["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10", "--end", "2026/12/24"],
+      { expectFail: true },
+    );
+    assert.notEqual(badEnd.code, 0);
+    assert.match(badEnd.stderr, /--end 要写成 YYYY-MM-DD/);
+    assert.equal(existsSync(join(fixture.ws, ".close")), false, "参数不合格时不建暂存目录");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("shift：已有本课未提交暂存 → 被拒（与 stage 一致），原暂存不动", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const staged = await readdir(staging);
+    const manifestBefore = await readFile(join(staging, "manifest.json"), "utf8");
+    const failed = await cli(
+      ["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"],
+      { expectFail: true },
+    );
+    assert.match(failed.stderr, /这门课已有未提交的暂存/);
+    assert.deepEqual(await readdir(staging), staged, "原暂存目录内容不变");
+    assert.equal(await readFile(join(staging, "manifest.json"), "utf8"), manifestBefore, "manifest 没被重写");
+    assert.equal(existsSync(join(staging, "committed")), false, "仍算未提交暂存");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：shift 之后立刻 stage 同课能成功；收课再 undo 只撤「收课」，顺延提交还在", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const shifted = await cliJson(["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"], {
+      env,
+    });
+    assert.equal(shifted.committed, true);
+    const shiftedPage = await readFile(fixture.page, "utf8");
+    const shiftId = jj(["log", "-r", 'description(glob:"顺延 epp *")', "--no-graph", "-T", "commit_id", "--limit", "1"]).trim();
+    assert.notEqual(shiftId, "");
+
+    // 顺延没留下未提交暂存：当天收课可以正常 stage。
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(shiftedPage));
+    await writeFile(join(staging, "wiki", "log.md"), `${LOG}- 收课：epp D1\n`);
+    const closed = await cliJson(["commit", staging], { env });
+    assert.equal(closed.committed, true);
+    const closeId = jj(["log", "-r", 'description(glob:"收课 epp *")', "--no-graph", "-T", "commit_id", "--limit", "1"]).trim();
+    assert.notEqual(closeId, "");
+    assert.notEqual(closeId, shiftId);
+
+    const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.equal(undone.undone, closeId, "undo 撤的是「收课」提交，不是顺延");
+    assert.equal(await readFile(fixture.page, "utf8"), shiftedPage, "课程页回到顺延后、收课前的样子");
+    const descriptions = jj(["log", "--no-graph", "-T", 'json(description.first_line()) ++ "\\n"'])
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.ok(descriptions.includes(`顺延 epp ${localDate()}`), "顺延提交还在");
+    assert.ok(descriptions.some((text) => text === `撤销收课 epp ${localDate()}`), "多了一条撤销收课");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("shift：排期标记损坏（缺 end 标记）→ 中文报错、不留未提交暂存", async () => {
+  const fixture = await makeShiftVault();
+  try {
+    await chmod(fixture.page, 0o644);
+    await writeFile(fixture.page, shiftPage().replace("<!-- xuegen:schedule:end -->\n", ""));
+    await chmod(fixture.page, 0o444);
+    const failed = await cli(["shift", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-10"], {
+      expectFail: true,
+    });
+    assert.match(failed.stderr, /排期标记不完整/);
+    assert.deepEqual(await closeEntries(fixture.ws), [], "顺延中断也不留未提交暂存（否则挡住当天 stage）");
+    // 残留暂存会挡住 stage：这里必须能正常开暂存。
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    assert.ok(staging.length > 0);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：commitInternal 抽出后提交信息仍是「收课 <slug> <日期>」", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
+    await cliJson(["commit", staging], { env });
+    assert.equal(descriptionOf(jj), `收课 epp ${localDate()}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 test("上锁只限本课：别的课与 wiki/courses 本身不动，records 里旧文件也上锁", async () => {
   const fixture = await makeVault();
   try {

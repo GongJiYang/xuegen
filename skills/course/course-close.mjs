@@ -946,7 +946,14 @@ function cmdShift(vaultArg, slug, workspaceArg, todayArg, endArg, json) {
   if (todayArg && !dateRe.test(todayArg)) fail("--today 要写成 YYYY-MM-DD");
   if (endArg && !dateRe.test(endArg)) fail("--end 要写成 YYYY-MM-DD");
   const staging = stageInternal(vault, slug, workspace);
-  const shifted = shiftStaged(staging, today, endArg ?? null);
+  let shifted;
+  try {
+    shifted = shiftStaged(staging, today, endArg ?? null);
+  } catch (error) {
+    // 顺延本身抛错（排期标记坏了等）也不能留未提交暂存：它会挡住当天收课的 stage。
+    rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
   if (shifted === null || !shifted.changed) {
     // 没有要顺延的：删掉暂存、什么都不提交，免得挡住当天收课的 stage。
     rmSync(staging, { recursive: true, force: true });

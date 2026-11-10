@@ -96,6 +96,53 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
     ]);
   });
 
+  it("shift passes only the slug when no dates are given", () => {
+    expect(courseCloseArgs({ action: "shift", slug: "discrete-math-epp" }, VAULT, CWD)).toEqual([
+      "shift",
+      VAULT,
+      "discrete-math-epp",
+      "--workspace",
+      CWD,
+      "--json",
+    ]);
+  });
+
+  it("shift passes --today when today is given", () => {
+    expect(
+      courseCloseArgs({ action: "shift", slug: "discrete-math-epp", today: "2026-11-10" }, VAULT, CWD),
+    ).toEqual([
+      "shift",
+      VAULT,
+      "discrete-math-epp",
+      "--workspace",
+      CWD,
+      "--today",
+      "2026-11-10",
+      "--json",
+    ]);
+  });
+
+  it("shift passes --today and --end in that order when both are given", () => {
+    expect(
+      courseCloseArgs(
+        { action: "shift", slug: "discrete-math-epp", today: "2026-11-10", end: "2026-12-24" },
+        VAULT,
+        CWD,
+      ),
+    ).toEqual([
+      "shift",
+      VAULT,
+      "discrete-math-epp",
+      "--workspace",
+      CWD,
+      "--today",
+      "2026-11-10",
+      "--end",
+      "2026-12-24",
+      "--json",
+    ]);
+  });
+
   it("throws a Chinese error naming the missing field", () => {
     const cases: [Params, RegExp][] = [
       [{ action: "stage" }, /stage 缺少 slug/],
@@ -105,6 +152,7 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
       [{ action: "check" }, /check 缺少 staging/],
       [{ action: "commit" }, /commit 缺少 staging/],
       [{ action: "abort" }, /abort 缺少 staging/],
+      [{ action: "shift" }, /shift 缺少 slug/],
     ];
     for (const [params, expected] of cases) {
       expect(() => courseCloseArgs(params, VAULT, CWD), params.action).toThrow(expected);
