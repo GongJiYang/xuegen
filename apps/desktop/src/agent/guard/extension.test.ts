@@ -296,4 +296,32 @@ describe("createGuardExtension", () => {
     };
     expect(guard.call(grepDownloads)).toBeUndefined();
   });
+
+  it("audits course_close with its action and slug/staging, not an empty target", () => {
+    const guard = harness(options(), { kind: "course", slug: "discrete-math-epp" });
+    const staging = "/home/learning/.close/discrete-math-epp-20261109-2300";
+    const commit: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "14",
+      toolName: "course_close",
+      input: { action: "commit", staging },
+    };
+    expect(guard.call(commit)).toBeUndefined();
+    const [entry] = guard.audit();
+    expect(entry?.tool).toBe("course_close");
+    expect(entry?.role).toBe("course:discrete-math-epp");
+    expect(entry?.allow).toBe(true);
+    expect(entry?.target).toBe(`commit ${staging}`);
+
+    // 只有 slug 的动作（stage / undo）用 slug 作 target；被拦的调用也记。
+    const stage: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "15",
+      toolName: "course_close",
+      input: { action: "stage", slug: "ctm" },
+    };
+    expect((guard.call(stage) as { block?: boolean } | undefined)?.block).toBe(true);
+    expect(guard.audit().at(-1)?.target).toBe("stage ctm");
+    expect(guard.audit().at(-1)?.allow).toBe(false);
+  });
 });

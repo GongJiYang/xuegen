@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nodePathFacts } from "./facts.js";
 import { canonical, within } from "./path.js";
-import { decide, type CanonFn, type Roots } from "./roles.js";
+import { decide, type CanonFn, type Decision, type Roots } from "./roles.js";
 import { deniedReadPaths, isCredentialName, isDeniedReadPath } from "./vault-paths.js";
 import type { SessionRole } from "../../shared/protocol.js";
 
@@ -70,16 +70,16 @@ const rows: Row[] = [
   { what: "科目路线表（登记资料）", tool: "edit", path: "wiki/subjects.md", expected: ["allow", "deny", "deny"] },
   // ---- 课程页 ----
   { what: "总控改课程计划", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
-  { what: "课程会话改自己的课程页（收课打勾）", tool: "edit", path: "wiki/courses/discrete-math-epp.md", expected: ["allow", "allow", "deny"] },
+  { what: "课程会话直接改自己的课程页（3c 起只经 course_close 收课写）", tool: "edit", path: "wiki/courses/discrete-math-epp.md", expected: ["allow", "deny", "deny"] },
   { what: "课程会话改别的课程页（拒）", tool: "edit", path: "wiki/courses/ctm.md", expected: ["allow", "deny", "deny"] },
-  { what: "课程自己的附属目录（records）", tool: "write", path: "wiki/courses/discrete-math-epp/records/2026-11.md", expected: ["deny", "allow", "deny"] },
-  { what: "课程截图（改名后的 courses/<slug>/snapshots/，脚本生成）", tool: "write", path: "wiki/courses/discrete-math-epp/snapshots/2026-11-09-01.png", expected: ["deny", "allow", "deny"] },
-  { what: "课程截图（courses/<slug>-*.png，脚本生成；write 只有课程会话）", tool: "write", path: "wiki/courses/discrete-math-epp-2026-11-09-01.png", expected: ["deny", "allow", "deny"] },
+  { what: "课程自己的附属目录（records；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/records/2026-11.md", expected: ["deny", "deny", "deny"] },
+  { what: "课程截图（改名后的 courses/<slug>/snapshots/；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/snapshots/2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
+  { what: "课程截图（courses/<slug>-*.png；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp-2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
   { what: "课程看板 courses.md", tool: "edit", path: "wiki/courses.md", expected: ["allow", "deny", "deny"] },
   { what: "课程看板（改名后的 wiki/_generated/courses.md）", tool: "edit", path: "wiki/_generated/courses.md", expected: ["allow", "deny", "deny"] },
   // ---- 知识 ----
-  { what: "概念页（收课时写，中文目录）", tool: "write", path: "wiki/知识/concepts/discrete-math/010-variables.md", expected: ["deny", "allow", "allow"] },
-  { what: "概念页（改名后的英文目录）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "allow", "allow"] },
+  { what: "概念页（收课时写，中文目录；3c 起课程会话只经 course_close）", tool: "write", path: "wiki/知识/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
+  { what: "概念页（改名后的英文目录）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
   { what: "闪卡页（wiki-save 制卡，中文目录）", tool: "write", path: "wiki/知识/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
   { what: "闪卡页（英文目录）", tool: "write", path: "wiki/knowledge/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
   { what: "摘录页（reading 技能，自由会话里也说）", tool: "write", path: "wiki/知识/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
@@ -451,6 +451,180 @@ describe("decide — bash", () => {
   });
 });
 
+describe("decide — course_close：只有课程会话、只收本课（阶段 3c）", () => {
+  const course: SessionRole = { kind: "course", slug: "discrete-math-epp" };
+  const control: SessionRole = { kind: "control" };
+  const freeRole: SessionRole = { kind: "free" };
+  const close = (
+    role: SessionRole,
+    input: Record<string, unknown>,
+    rootsFor: Roots = roots,
+    canonFn: CanonFn = canon,
+  ): Decision => decide(role, "course_close", input, rootsFor, canonFn, nothing);
+
+  it("refuses 总控 and 自由 sessions outright", () => {
+    for (const role of [control, freeRole]) {
+      const decision = close(role, { action: "stage", slug: "discrete-math-epp" });
+      expect(decision.allow, roleLabelOf(role)).toBe(false);
+      expect(decision.reason).toContain("不能收课");
+    }
+  });
+
+  it("lets the course session stage and undo its own course", () => {
+    expect(close(course, { action: "stage", slug: "discrete-math-epp" }).allow).toBe(true);
+    expect(close(course, { action: "undo", slug: "discrete-math-epp" }).allow).toBe(true);
+  });
+
+  it("refuses another course's slug", () => {
+    for (const action of ["stage", "undo"]) {
+      const decision = close(course, { action, slug: "ctm" });
+      expect(decision.allow, action).toBe(false);
+      expect(decision.reason).toContain("只能收自己这门课");
+    }
+  });
+
+  it("allows this course's staging inside <workspace>/.close/<slug>-…", () => {
+    for (const action of ["add", "check", "commit", "abort"]) {
+      const decision = close(course, {
+        action,
+        staging: `${W}/.close/discrete-math-epp-20261109-2300`,
+        ...(action === "add" ? { path: "wiki/知识/concepts/discrete-math/010-variables.md" } : {}),
+      });
+      expect(decision.allow, `${action}: ${decision.reason}`).toBe(true);
+    }
+  });
+
+  it("refuses another course's staging and a staging outside the workspace", () => {
+    for (const staging of [
+      `${W}/.close/ctm-20261109-2300`,
+      "/elsewhere/.close/discrete-math-epp-20261109-2300",
+      `${W}/other/discrete-math-epp-20261109-2300`,
+    ]) {
+      const decision = close(course, { action: "check", staging });
+      expect(decision.allow, staging).toBe(false);
+      expect(decision.reason).toContain("暂存目录不属于这门课");
+    }
+  });
+
+  it("refuses an add path that is absolute or climbs out with `..`", () => {
+    const staging = `${W}/.close/discrete-math-epp-20261109-2300`;
+    for (const path of ["/vault/wiki/知识/concepts/x.md", "wiki/知识/../courses/ctm.md", "../outside/x.md"]) {
+      const decision = close(course, { action: "add", staging, path });
+      expect(decision.allow, path).toBe(false);
+      expect(decision.reason).toContain("库内相对路径");
+    }
+  });
+
+  it("resolves `..` and symlinks before judging the staging directory", () => {
+    const facts = nodePathFacts();
+    const dir = mkdtempSync(join(tmpdir(), "xuegen-close-staging-"));
+    try {
+      const workspace = join(dir, "workspace");
+      const outside = join(dir, "outside");
+      mkdirSync(join(workspace, ".close"), { recursive: true });
+      mkdirSync(join(outside, ".close"), { recursive: true });
+      const real = (path: string): string => canonical(path, workspace, facts);
+      const localRoots: Roots = {
+        vault: real(join(dir, "vault")),
+        workspace: real(workspace),
+        home: real(join(dir, "home")),
+        repo: real(join(dir, "repo")),
+      };
+      // `..` 跳出工作区，即使拼出来的字符串以 `<workspace>/.close` 开头。
+      const escaped = join(workspace, ".close", "..", "..", "outside", ".close", "discrete-math-epp-1");
+      const escape = decide(course, "course_close", { action: "check", staging: escaped }, localRoots, real, nothing);
+      expect(escape.allow, escape.reason).toBe(false);
+      // 好名字的符号链接指向库外：按解析后的真位置判断。
+      symlinkSync(outside, join(workspace, ".close", "discrete-math-epp-link"));
+      const linked = decide(
+        course,
+        "course_close",
+        { action: "check", staging: join(workspace, ".close", "discrete-math-epp-link") },
+        localRoots,
+        real,
+        nothing,
+      );
+      expect(linked.allow, linked.reason).toBe(false);
+      // 符号链接指向别的课的暂存目录：名字是本课的，位置不是。
+      mkdirSync(join(workspace, ".close", "ctm-1"), { recursive: true });
+      symlinkSync(join(workspace, ".close", "ctm-1"), join(workspace, ".close", "discrete-math-epp-alias"));
+      const aliased = decide(
+        course,
+        "course_close",
+        { action: "check", staging: join(workspace, ".close", "discrete-math-epp-alias") },
+        localRoots,
+        real,
+        nothing,
+      );
+      expect(aliased.allow, aliased.reason).toBe(false);
+      // 本课真正的暂存目录仍放行（自检：上面的拒绝不是因为路径都不存在）。
+      const own = decide(
+        course,
+        "course_close",
+        { action: "commit", staging: join(workspace, ".close", "discrete-math-epp-20261109-2300") },
+        localRoots,
+        real,
+        nothing,
+      );
+      expect(own.allow, own.reason).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("decide — 阶段 3c：课程会话的课程页与概念页只经 course_close", () => {
+  const course: SessionRole = { kind: "course", slug: "discrete-math-epp" };
+  const freeRole: SessionRole = { kind: "free" };
+  const verdict = (role: SessionRole, tool: string, path: string, canonFn: CanonFn = canon): Decision =>
+    decide(role, tool, { path }, roots, canonFn, nothing);
+
+  it("denies write and edit of course pages and concept pages, naming course_close", () => {
+    for (const tool of ["write", "edit"]) {
+      for (const path of [
+        "wiki/courses/discrete-math-epp.md",
+        "wiki/courses/ctm.md",
+        "wiki/知识/concepts/discrete-math/010-variables.md",
+        "wiki/知识/concepts/x.md",
+        "wiki/knowledge/concepts/x.md",
+        "wiki/knowledge/concepts/discrete-math/010-variables.md",
+      ]) {
+        const decision = verdict(course, tool, path);
+        expect(decision.allow, `${tool} ${path}`).toBe(false);
+        expect(decision.reason, `${tool} ${path}`).toContain("course_close");
+      }
+    }
+  });
+
+  it("keeps the pages every session may write open in a course session", () => {
+    for (const tool of ["write", "edit"]) {
+      for (const path of [
+        "wiki/subjects/discrete-math.md",
+        "wiki/知识/extracts/epp/2026-11-09-闭包.md",
+        "wiki/knowledge/extracts/epp/2026-11-09-闭包.md",
+        "wiki/知识/sources/2026-11-09-epp.md",
+        "wiki/书房/epp.md",
+        "wiki/shelf/epp.md",
+        "wiki/log.md",
+        "wiki/index.md",
+      ]) {
+        const decision = verdict(course, tool, path);
+        expect(decision.allow, `${tool} ${path}: ${decision.reason}`).toBe(true);
+      }
+    }
+  });
+
+  it("still lets a free session write concept pages directly", () => {
+    for (const path of [
+      "wiki/知识/concepts/x.md",
+      "wiki/knowledge/concepts/discrete-math/010-variables.md",
+    ]) {
+      const decision = verdict(freeRole, "write", path);
+      expect(decision.allow, path).toBe(true);
+    }
+  });
+});
+
 describe("decide — 库放在临时目录里时，库规则优先于「临时目录可写」", () => {
   /**
    * 真机验收（11-09）复现的那条：测试库在 `/private/tmp/xg-e2e/vault/GJY`，
@@ -504,13 +678,14 @@ describe("decide — 库放在临时目录里时，库规则优先于「临时�
     });
   });
 
-  it("keeps the course session on its own plan page and refuses another course's", () => {
+  it("refuses the course session writing any course page directly (3c: course_close only)", () => {
     withTmpVault((rootsFor, canonFn) => {
       const own = decide(courseEpp, "edit", { path: "wiki/courses/discrete-math-epp.md" }, rootsFor, canonFn, nothing);
-      expect(own.allow, own.reason).toBe(true);
+      expect(own.allow, own.reason).toBe(false);
+      expect(own.reason).toContain("course_close");
       const other = decide(courseEpp, "edit", { path: "wiki/courses/ctm.md" }, rootsFor, canonFn, nothing);
       expect(other.allow, other.reason).toBe(false);
-      expect(other.reason).toContain("只能改自己的课程页");
+      expect(other.reason).toContain("course_close");
     });
   });
 

@@ -14,12 +14,13 @@
  * - 原料 (`raw/`、剪藏): `raw/` is 用户放入的材料，AI only reads it; 剪藏
  *   (`Clippings`/`clippings`) may only grow — a `write` to a path that does not
  *   exist yet passes, an existing file is never overwritten or edited (原料不变).
- * - 知识 (`wiki/知识`): written by the course and free sessions (概念页在收课时
- *   写); the extract, card, source, entity and synthesis pages come out of the
- *   reading and wiki-save workflows, which the user can run from any session,
- *   so those stay open to every role.
+ * - 知识 (`wiki/知识`): 概念页只经 `course_close` 收课写入（阶段 3）；the
+ *   extract, card, source, entity and synthesis pages come out of the reading
+ *   and wiki-save workflows any session can run, so those stay open to every
+ *   role — and free sessions still write knowledge pages directly.
  * - 意图 (`profile.md`、`subjects*`、`cycles/`) and plan-level 进度
- *   (`courses/*.md`、课程看板) belong to the 总控 session.
+ *   (`courses/*.md`、课程看板) belong to the 总控 session；课程页同样只经
+ *   `course_close`，不经 write/edit。
  * - 进度 pages no course owns (`书房`、`reading/`、`log.md`、`index.md`) are
  *   written from whatever session the user is in; 日历 (`calendar/`) is written
  *   only through `calendar.mjs`, so no role writes it with a file tool.
@@ -32,6 +33,7 @@
  *   too, otherwise `grep ~` would read it without naming it.
  */
 
+import { posix } from "node:path";
 import type { SessionRole } from "../../shared/protocol.js";
 import { decideBash } from "./bash.js";
 import {
@@ -40,7 +42,7 @@ import {
   isAnyFile,
   isDeniedReadPath,
   isOutsideVaultScratch,
-  prefixedInAnyDir,
+  isOwnCloseStaging,
   rulePaths,
   withinAny,
   type CanonFn,
@@ -120,6 +122,24 @@ export function decide(
   if (READ_TOOLS.has(tool)) return decideRead(role, tool, path, roots, canon);
   if (WRITE_TOOLS.has(tool)) return decideWrite(role, tool, path, roots, canon, exists);
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
+  if (tool === "course_close") return decideCourseClose(role, input, roots, canon);
+  return ALLOW;
+}
+
+/** `course_close`（tools/course-close-tool.ts）：只有课程会话能收课，且只收本课
+ * （slug 等于本课 slug、staging 是本课的 `.close/<slug>-*`）；`add` 的 `path`
+ * 只查形状（归属由脚本 `isOwned` 判）；缺参数留给工具自己报错。 */
+function decideCourseClose(role: SessionRole, input: Record<string, unknown>, roots: Roots, canon: CanonFn): Decision {
+  if (role.kind !== "course") return deny(`${roleLabel(role)}不能收课；收课请在那门课的会话里做。`);
+  if (typeof input.slug === "string" && input.slug !== "" && input.slug !== role.slug) {
+    return deny(`课程会话（${role.slug}）只能收自己这门课。`);
+  }
+  if (typeof input.staging === "string" && input.staging !== "" && !isOwnCloseStaging(canon(input.staging), role.slug, roots, canon)) {
+    return deny("暂存目录不属于这门课。");
+  }
+  if (input.action === "add" && typeof input.path === "string" && (posix.isAbsolute(input.path) || input.path.split("/").includes(".."))) {
+    return deny("add 的 path 必须是库内相对路径：不能是绝对路径，也不能含 ..。");
+  }
   return ALLOW;
 }
 
@@ -231,15 +251,9 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
         inAnyDir(target, rules.courses, ".md")
       );
     case "course":
-      // 知识 pages, this subject's page (讲解偏好), then only its own plan page,
-      // its attachments and its snapshots.
-      return (
-        withinAny(target, rules.knowledge) ||
-        withinAny(target, rules.subjects) ||
-        withinAny(target, rules.courses.map((dir) => `${dir}/${role.slug}.md`)) ||
-        withinAny(target, rules.courses.map((dir) => `${dir}/${role.slug}`)) ||
-        prefixedInAnyDir(target, rules.courses, `${role.slug}-`, ".png")
-      );
+      // 阶段 3：课程页（含 records、snapshots、<slug>-*.png）与概念页只经
+      // `course_close` 收课写入；直接写的只剩本科目页（「讲解偏好」）。
+      return withinAny(target, rules.subjects);
     case "free":
       // Free questions still整理 into 知识 when the user asks; nothing
       // plan-level is writable from here.
@@ -249,8 +263,10 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
 
 /** A specific denial for writes that named a place the role cannot touch. */
 function writeDenyReason(role: SessionRole, target: string, rules: RulePaths): string {
-  if (role.kind === "course" && withinAny(target, rules.courses)) {
-    return `课程会话（${role.slug}）只能改自己的课程页（courses/${role.slug}.md 与 courses/${role.slug}/ 里的附属物）；要改别的课程的计划请回总控会话。`;
+  // 阶段 3：课程会话写课程页/概念页只走收课事务（这条挡在其它原因之前；能走到
+  // 这里的 `wiki/知识` 路径只剩概念页，共享子目录已在 writeAllowed 放行）。
+  if (role.kind === "course" && (withinAny(target, rules.courses) || withinAny(target, rules.knowledge))) {
+    return "课程页和概念页只能经 course_close 收课写入：先 stage，在暂存目录里改，再 check、commit。";
   }
   if (role.kind !== "control" && (withinAny(target, rules.courses) || isAnyFile(target, rules.coursesBoard))) {
     return `${roleLabel(role)}不能改课程页和课程看板；要改计划请到总控会话。`;

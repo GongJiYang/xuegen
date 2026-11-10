@@ -152,6 +152,16 @@ export function isAnyFile(target: string, files: readonly string[]): boolean {
   return files.includes(target);
 }
 
+/**
+ * Whether `target` (canonical) is a staging directory owned by `slug`:
+ * `<workspace>/.close/<slug>-…`（阶段 3 收课事务的暂存目录）. The course session
+ * may only run `course_close` on its own staging, so a `<slug>-` prefix that is
+ * not this session's slug, or any directory outside `.close`, is refused.
+ */
+export function isOwnCloseStaging(target: string, slug: string, roots: Roots, canon: CanonFn): boolean {
+  return within(target, canon(`${roots.workspace}/.close`)) && posix.basename(target).startsWith(`${slug}-`);
+}
+
 /** `target` sits directly inside one of `dirs` and ends with `suffix` (`courses/*.md`). */
 export function inAnyDir(target: string, dirs: readonly string[], suffix: string): boolean {
   return dirs.some((dir) => posix.dirname(target) === dir && target.endsWith(suffix));

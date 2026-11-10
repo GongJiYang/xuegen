@@ -45,7 +45,7 @@ export interface GuardOptions {
 /** Tools whose input carries a `path` the guard can check and rewrite. */
 const PATH_TOOLS = new Set(["read", "grep", "find", "ls", "write", "edit"]);
 /** Tools the guard judges at all. Anything else is a pass-through (see the header). */
-const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell"]);
+const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close"]);
 /** How the audit line marks a call the lists do not cover. */
 const PASS_THROUGH = "这个工具不在权限清单里，默认放行（待界面阶段收紧）";
 
@@ -54,7 +54,11 @@ function roleId(role: SessionRole): string {
   return role.kind === "course" ? `course:${role.slug}` : role.kind;
 }
 
-/** What the audit line names: the canonical path, or the command's first 200 chars. */
+/**
+ * What the audit line names: the command's first 200 characters, the canonical
+ * path, or — for `course_close`, which carries neither — its `"<action> <slug
+ * 或 staging>"` so a close stays traceable after the fact.
+ */
 function auditTarget(input: Record<string, unknown>, canon: (path: string) => string): string {
   if (typeof input.command === "string") return input.command.slice(0, 200);
   if (typeof input.path === "string" && input.path !== "") {
@@ -64,7 +68,26 @@ function auditTarget(input: Record<string, unknown>, canon: (path: string) => st
       return input.path;
     }
   }
-  return "";
+  return closeTarget(input, canon);
+}
+
+/** `course_close` names the staging directory (or the slug) it acts on. */
+function closeTarget(input: Record<string, unknown>, canon: (path: string) => string): string {
+  if (typeof input.action !== "string" || input.action === "") return "";
+  const subject = typeof input.staging === "string" && input.staging !== "" ? input.staging : input.slug;
+  if (typeof subject !== "string" || subject === "") return input.action;
+  // A staging directory gets the same resolution as a tool path, so a relative
+  // one lands in the log as the absolute directory the check used.
+  const named = typeof input.staging === "string" ? safeCanon(subject, canon) : subject;
+  return `${input.action} ${named}`;
+}
+
+function safeCanon(path: string, canon: (path: string) => string): string {
+  try {
+    return canon(path);
+  } catch {
+    return path;
+  }
 }
 
 /**
