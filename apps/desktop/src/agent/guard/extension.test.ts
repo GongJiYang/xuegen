@@ -202,7 +202,7 @@ describe("createGuardExtension", () => {
       type: "tool_call",
       toolCallId: "5",
       toolName: "write",
-      input: { path: "/vault/Clippings/新文章.md", content: "x" },
+      input: { path: "/vault/clippings/新文章.md", content: "x" },
     };
     expect(fresh.call(newClip)).toBeUndefined();
 
@@ -211,7 +211,7 @@ describe("createGuardExtension", () => {
       type: "tool_call",
       toolCallId: "6",
       toolName: "write",
-      input: { path: "/vault/Clippings/已有.md", content: "x" },
+      input: { path: "/vault/clippings/已有.md", content: "x" },
     };
     const result = existingClip.call(overwrite) as { block?: boolean } | undefined;
     expect(result?.block).toBe(true);

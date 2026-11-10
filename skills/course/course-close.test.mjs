@@ -699,7 +699,7 @@ jjTest("jj：收课提交只收本次写入的文件，库里别的未提交改�
       .sort();
     assert.deepEqual(
       summary,
-      ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md", "wiki/log.md"],
+      ["wiki/_generated/courses.html", "wiki/_generated/courses.md", "wiki/courses/epp.md", "wiki/log.md"],
       "收课提交里是本次文件加重画的两份看板",
     );
     const status = jj(["st"]);
@@ -876,8 +876,8 @@ jjTest("jj：undo 恢复改过的文件，那次新建的概念页与卡片页�
   try {
     const { env } = await initJj(fixture.vault, fixture.root);
     const before = await readFile(fixture.page, "utf8");
-    const conceptRel = "wiki/知识/concepts/x.md";
-    const cardRel = "wiki/知识/flashcards/y.md";
+    const conceptRel = "wiki/knowledge/concepts/discrete-math/x.md";
+    const cardRel = "wiki/knowledge/flashcards/discrete-math/y.md";
     const conceptText = "---\ntitle: x\nsources:\n  - [[reading/epp|Epp]] §1.1\n---\n\n# x\n\n定义。\n";
     const cardText = "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n";
     const { id } = await closeCourse(fixture, env, "epp", async (staging) => {
@@ -917,7 +917,7 @@ jjTest("jj：undo 恢复改过的文件，那次新建的概念页与卡片页�
     // 看板随撤销重画：这份课程页的 Markdown 看板重画后与提交前一致，没进 diff。
     assert.deepEqual(
       summary,
-      ["wiki/courses.html", "wiki/courses/epp.md"],
+      ["wiki/_generated/courses.html", "wiki/courses/epp.md"],
       "「撤销收课」提交里是恢复的文件加有变化的重画看板",
     );
   } finally {
@@ -929,8 +929,8 @@ jjTest("jj：收课只新建了文件 → undo 不报错，没有可恢复的文
   const fixture = await makeVault();
   try {
     const { env } = await initJj(fixture.vault, fixture.root);
-    const conceptRel = "wiki/知识/concepts/x.md";
-    const cardRel = "wiki/知识/flashcards/y.md";
+    const conceptRel = "wiki/knowledge/concepts/discrete-math/x.md";
+    const cardRel = "wiki/knowledge/flashcards/discrete-math/y.md";
     const conceptText = "---\ntitle: x\nsources:\n  - [[reading/epp|Epp]] §1.1\n---\n\n# x\n\n定义。\n";
     const cardText = "TARGET DECK\n离散\n\nSTART\nBasic\nQ\nBack: A\nEND\n";
     const { id } = await closeCourse(fixture, env, "epp", async (staging) => {
@@ -966,7 +966,7 @@ jjTest("jj：路径带空格与花括号时，提交只收这几个文件，undo
   const fixture = await makeVault();
   try {
     const { env } = await initJj(fixture.vault, fixture.root);
-    const rel = "wiki/知识/concepts/离散 数学/真值 表 {v1}.md";
+    const rel = "wiki/knowledge/concepts/discrete-math/真值 表 {v1}.md";
     const before = "---\nsources: [[reading/epp|Epp]] §1.1\n---\n\n# 真值表\n\n旧的。\n";
     await mkdir(dirname(join(fixture.vault, rel)), { recursive: true });
     await writeFile(join(fixture.vault, rel), before);
@@ -995,7 +995,7 @@ jjTest("jj：路径带空格与花括号时，提交只收这几个文件，undo
       .split("\n")
       .map((line) => JSON.parse(line))
       .sort();
-    assert.deepEqual(inCommit, ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md", rel].sort());
+    assert.deepEqual(inCommit, ["wiki/_generated/courses.html", "wiki/_generated/courses.md", "wiki/courses/epp.md", rel].sort());
 
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.equal(undone.undone, id);
@@ -1231,7 +1231,7 @@ jjTest("jj：shift 有变化 → 提交描述「顺延 <slug> <今天>」，只�
       .sort();
     assert.deepEqual(
       summary,
-      ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md"],
+      ["wiki/_generated/courses.html", "wiki/_generated/courses.md", "wiki/courses/epp.md"],
       "顺延提交里是课程页加重画的两份看板",
     );
 
@@ -1513,7 +1513,7 @@ test("course-close --help 打印用法并以 0 退出", async () => {
 
 // ---- 阶段 4a-i1：提交前重画看板，与本次改动一起进 jj ----
 
-jjTest("jj：收课提交带上重画的两份看板，board 为 ok（旧布局：看板在 wiki/ 根）", async () => {
+jjTest("jj：收课提交带上重画的两份看板，board 为 ok", async () => {
   const fixture = await makeVault();
   try {
     const { env, jj } = await initJj(fixture.vault, fixture.root);
@@ -1526,9 +1526,9 @@ jjTest("jj：收课提交带上重画的两份看板，board 为 ok（旧布局�
       .split("\n")
       .map((line) => JSON.parse(line))
       .sort();
-    assert.deepEqual(inCommit, ["wiki/courses.html", "wiki/courses.md", "wiki/courses/epp.md"]);
-    const dash = join(fixture.vault, "wiki", "courses.md");
-    const html = join(fixture.vault, "wiki", "courses.html");
+    assert.deepEqual(inCommit, ["wiki/_generated/courses.html", "wiki/_generated/courses.md", "wiki/courses/epp.md"]);
+    const dash = join(fixture.vault, "wiki", "_generated", "courses.md");
+    const html = join(fixture.vault, "wiki", "_generated", "courses.html");
     assert.ok(existsSync(dash), "Markdown 看板已生成");
     assert.ok(existsSync(html), "网页看板已生成");
     assert.equal(await mode(dash), 0o444, "看板只读");
@@ -1539,10 +1539,9 @@ jjTest("jj：收课提交带上重画的两份看板，board 为 ok（旧布局�
   }
 });
 
-jjTest("jj：库里有 wiki/_generated/ → 看板写在那里，不进 wiki/ 根", async () => {
+jjTest("jj：看板始终写进 wiki/_generated/，不进 wiki/ 根", async () => {
   const fixture = await makeVault();
   try {
-    await mkdir(join(fixture.vault, "wiki", "_generated"), { recursive: true });
     const { env, jj } = await initJj(fixture.vault, fixture.root);
     const { result, id } = await closeCourse(fixture, env, "epp", async (staging) => {
       await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
@@ -1560,7 +1559,7 @@ jjTest("jj：库里有 wiki/_generated/ → 看板写在那里，不进 wiki/ �
     ]);
     assert.ok(existsSync(join(fixture.vault, "wiki", "_generated", "courses.md")));
     assert.ok(existsSync(join(fixture.vault, "wiki", "_generated", "courses.html")));
-    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.md")), false, "新布局下不在 wiki/ 根再看一份");
+    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.md")), false, "看板不进 wiki/ 根");
     assert.equal(existsSync(join(fixture.vault, "wiki", "courses.html")), false);
   } finally {
     await cleanup(fixture);
@@ -1588,7 +1587,7 @@ jjTest("jj：别门课收课只动到看板 → 本课 undo 不被挡，keptNew 
 
     const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
     assert.equal(undone.undone, eppClose.id);
-    for (const path of ["wiki/courses.md", "wiki/courses.html"]) {
+    for (const path of ["wiki/_generated/courses.md", "wiki/_generated/courses.html"]) {
       assert.equal(undone.keptNew.includes(path), false, `keptNew 里不该有看板：${path}`);
       assert.equal(undone.restoreFiles.includes(path), false, `restoreFiles 里不该有看板：${path}`);
     }
@@ -1620,7 +1619,7 @@ jjTest("jj：看板重画失败 → commit 仍 committed、board 是中文错误
     assert.equal(await readFile(fixture.page, "utf8"), closed, "课程页已落盘");
     assert.equal(await mode(fixture.page), 0o444, "照常上锁");
     assert.ok(existsSync(join(staging, "committed")));
-    assert.equal(existsSync(join(fixture.vault, "wiki", "courses.md")), false, "看板没写成半成品");
+    assert.equal(existsSync(join(fixture.vault, "wiki", "_generated", "courses.md")), false, "看板没写成半成品");
     assert.equal(result.jj, "ok", `只提交本次改动：${result.jj}`);
   } finally {
     await cleanup(fixture);
@@ -1793,7 +1792,7 @@ jjTest("计划暂存：改课程页 + 科目页 → commit → jj「计划 <slug
     assert.equal(result.committed, true);
     assert.equal(result.jj, "ok");
     assert.equal(latestDescription(jj), `计划 epp ${localDate()}`);
-    // 提交里还会带上重画的看板（wiki/courses.md 等）；这里只断言两个暂存文件都在。
+    // 提交里还会带上重画的看板（wiki/_generated/courses.md 等）；这里只断言两个暂存文件都在。
     const files = jj(["diff", "-r", "@-", "--name-only"]).trim().split("\n").sort();
     assert.ok(files.includes("wiki/courses/epp.md"), "课程页进提交");
     assert.ok(files.includes("wiki/subjects/discrete-math.md"), "科目页进提交");

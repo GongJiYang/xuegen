@@ -70,9 +70,9 @@ describe("canonical", () => {
   });
 
   it("normalizes NFD spelling to NFC", () => {
-    const facts = fakeFacts({ exists: ancestors("/vault/wiki/知识") });
-    const nfd = "wiki/知识/e\u0301tude.md"; // e + combining acute
-    const nfc = "wiki/知识/étude.md"; // precomposed
+    const facts = fakeFacts({ exists: ancestors("/vault/wiki/knowledge") });
+    const nfd = "wiki/knowledge/e\u0301tude.md"; // e + combining acute
+    const nfc = "wiki/knowledge/étude.md"; // precomposed
     expect(canonical(nfd, cwd, facts)).toBe(canonical(nfc, cwd, facts));
     expect(canonical(nfd, cwd, facts)).toContain("é");
   });

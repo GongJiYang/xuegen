@@ -489,7 +489,7 @@ export const strings = {
     later: "之后",
     nowEmpty: "今天没有要读的。",
     laterEmpty: "队列里没有其他文章。",
-    errorNoSource: "原文必须位于 raw/ 或 clippings/（旧库：Clippings/）下。",
+    errorNoSource: "原文必须位于 raw/ 或 clippings/ 下。",
     shelfPlanned: "书房 · 计划内",
     shelfQueue: "排队",
     shelfFree: "书房 · 计划外",

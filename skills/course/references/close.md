@@ -41,7 +41,7 @@ node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路
 
 ## 校验规则（check 与 commit 都跑）
 
-1. 归属：路径须是 `wiki/courses/<slug>.md`、`wiki/courses/<slug>/**`、`wiki/index.md`、`wiki/log.md`，或本科目概念/卡片目录（新库 `wiki/knowledge/{concepts,flashcards}/<科目>/`，旧库 `wiki/知识/{concepts,flashcards}/`）。计划暂存（`kind: plan`）的归属只有 `wiki/courses/<slug>.md`、`wiki/courses/<slug>/`、`wiki/index.md`、`wiki/log.md`、`wiki/subjects/<科目>.md`——总控不写知识页。带 `..`、绝对路径、大小写变体的写法一律不算本课。
+1. 归属：路径须是 `wiki/courses/<slug>.md`、`wiki/courses/<slug>/**`、`wiki/index.md`、`wiki/log.md`，或本科目概念/卡片目录（`wiki/knowledge/{concepts,flashcards}/<科目>/`）。计划暂存（`kind: plan`）的归属只有 `wiki/courses/<slug>.md`、`wiki/courses/<slug>/`、`wiki/index.md`、`wiki/log.md`、`wiki/subjects/<科目>.md`——总控不写知识页。带 `..`、绝对路径、大小写变体的写法一律不算本课。
 2. 课程页：`course-parse` 能解析且有标记；「完成：」课次都在排期表；≤ 200 行。
 3. 只追加：`log.md` 以基线全文开头；`index.md` 不删基线的行。
 4. 冲突：基线文件在库里的 sha256 未变；新文件在库里仍不存在。

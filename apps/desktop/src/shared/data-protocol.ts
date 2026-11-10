@@ -394,7 +394,7 @@ export interface SessionMeta {
 
 /** One source file that can still be added to the reading queue. */
 export interface ReadingSource {
-  /** Vault-relative path under `raw/` or `clippings/`（旧库 `Clippings/`）, e.g. `raw/papers/x.pdf`. */
+  /** Vault-relative path under `raw/` or `clippings/`, e.g. `raw/papers/x.pdf`. */
   path: string;
   /** Display name (file name without its extension). */
   name: string;

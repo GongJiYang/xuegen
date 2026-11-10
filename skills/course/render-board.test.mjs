@@ -70,7 +70,7 @@ async function makeCoursesDir(files) {
 
 /** 生成 Markdown 看板（course-state.mjs dashboard），供校验输出一致性。 */
 async function makeDashboard(coursesDir) {
-  const dash = join(dirname(coursesDir), "courses.md");
+  const dash = join(dirname(coursesDir), "_generated", "courses.md");
   await run("node", [join(HERE, "course-state.mjs"), "dashboard", coursesDir, dash], { encoding: "utf8" });
   return dash;
 }
@@ -120,7 +120,7 @@ test("渲染看板：跳过无标记文件，未命中课程时非零退出", as
   await rm(coursesDir, { recursive: true, force: true });
 });
 
-// ---- 生成物位置（新 wiki/_generated，旧 wiki 根） ----
+// ---- 生成物位置：wiki/_generated ----
 
 /** 建 <wiki>/courses 下带标记的课程，返回 { wikiDir, coursesDir }。 */
 async function makeWikiWithCourses(name = "wiki") {
@@ -132,48 +132,34 @@ async function makeWikiWithCourses(name = "wiki") {
   return { root, wikiDir, coursesDir };
 }
 
-test("布局：有 wiki/_generated 时看板与 courses.md 都写它", async () => {
+test("布局：wiki/_generated 不存在时自动建目录，重新生成命令指向 _generated", async () => {
   const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
   try {
-    await mkdir(join(wikiDir, "_generated"), { recursive: true });
     const out = join(root, "board.html");
     const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
     const meta = JSON.parse(stdout);
     assert.equal(meta.verify, null, "没有 dashboard 时 verify 为 null");
     const html = await readFile(out, "utf8");
     assert.ok(html.includes(join(wikiDir, "_generated", "courses.html")), "重新生成命令应指向 _generated");
+    // 输出到不存在的子目录也会自动建：把看板写进 _generated 下验证一次。
+    const out2 = join(wikiDir, "_generated", "board.html");
+    await run("node", [SCRIPT, coursesDir, out2], { encoding: "utf8" });
+    await stat(out2);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("布局：没有 _generated 时退回 wiki 根（旧库）", async () => {
+test("布局：dashboard 在 wiki/_generated 时校验通过", async () => {
   const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
   try {
-    const out = join(root, "board.html");
-    const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
-    const meta = JSON.parse(stdout);
-    assert.equal(meta.courses.length, 1);
-    const html = await readFile(out, "utf8");
-    assert.ok(html.includes(join(wikiDir, "courses.html")), "旧库生成物在 wiki 根");
-    assert.ok(!html.includes("_generated"), html.slice(-400));
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("布局：_generated 与旧位置都有时用 _generated 校验 dashboard", async () => {
-  const { root, wikiDir, coursesDir } = await makeWikiWithCourses();
-  try {
-    // 新位置的 dashboard 正常生成；旧位置放一个空文件，校验应仍通过（走新位置）。
-    await mkdir(join(wikiDir, "_generated"), { recursive: true });
+    // dashboard 输出到尚不存在的 _generated：course-state 会自动建目录。
     await run("node", [
       join(HERE, "course-state.mjs"),
       "dashboard",
       coursesDir,
       join(wikiDir, "_generated", "courses.md"),
     ]);
-    await writeFile(join(wikiDir, "courses.md"), "旧的看板\n", "utf8");
     // 收课后的只读锁：校验只在这一状态下通过。
     await chmod(join(coursesDir, "ctm.md"), 0o444);
     await chmod(coursesDir, 0o555);

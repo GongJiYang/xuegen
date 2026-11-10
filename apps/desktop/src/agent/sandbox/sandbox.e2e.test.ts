@@ -66,8 +66,8 @@ async function bench(): Promise<Bench> {
   // （任何会话都能写，Anki 用例要回填 ID）。目录先建好，写失败才只可能是沙盒拦的。
   for (const dir of [
     join(vault, "wiki", "courses"),
-    join(vault, "wiki", "知识", "concepts"),
-    join(vault, "wiki", "知识", "flashcards"),
+    join(vault, "wiki", "knowledge", "concepts"),
+    join(vault, "wiki", "knowledge", "flashcards"),
     workspace,
     home,
   ]) {
@@ -160,8 +160,8 @@ describe.skipIf(!DARWIN)("沙盒真实生效（真 seatbelt）", () => {
     expect(courseRun.stderr, courseRun.stderr).toMatch(/not permitted|Operation not permitted/i);
     expect(existsSync(coursePage)).toBe(false);
 
-    // 3) 概念页：课程会话被拦，自由会话放行（两种知识目录拼写都试一遍）。
-    for (const [index, dir] of ["知识", "knowledge"].entries()) {
+    // 3) 概念页：课程会话被拦，自由会话放行。
+    for (const [index, dir] of ["knowledge"].entries()) {
       const conceptDir = join(kit.vault, "wiki", dir, "concepts");
       // 目录先建好：失败只能是沙盒拦的，不是「目录不存在」。
       mkdirSync(conceptDir, { recursive: true });
@@ -310,8 +310,8 @@ describe.skipIf(!DARWIN)("沙盒里的 Anki：经沙盒代理连 127.0.0.1:8765"
       context.skip();
       return;
     }
-    const cards = join(kit.vault, "wiki", "知识", "flashcards", "deck", "a.md");
-    mkdirSync(join(kit.vault, "wiki", "知识", "flashcards", "deck"), { recursive: true });
+    const cards = join(kit.vault, "wiki", "knowledge", "flashcards", "deck", "a.md");
+    mkdirSync(join(kit.vault, "wiki", "knowledge", "flashcards", "deck"), { recursive: true });
     writeFileSync(
       cards,
       ["TARGET DECK", "书房::Epp", "", "START", "Basic", "逆否命题等价吗？", "Back: 等价", "END", ""].join(
@@ -362,7 +362,7 @@ describe("沙盒配置与库的位置（不跑真沙盒）", () => {
       );
       expect(containing, `这些 allowWrite 条目把整个库都放开了：${containing.join(", ")}`).toEqual([]);
       // 库内那条目录还在（沙盒比 guard 窄只在于库外草稿，角色清单本身没被削掉）。
-      expect(writeRoots).toContain(join(roots.vault, "wiki", "书房"));
+      expect(writeRoots).toContain(join(roots.vault, "wiki", "shelf"));
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

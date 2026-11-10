@@ -3,8 +3,7 @@
  *
  * Every row is a real workflow step taken from the skills: a place the model
  * writes to with `write` / `edit` (not through a script) and the session it
- * happens in. Both vault spellings (`wiki/知识` / `wiki/knowledge`, `wiki/书房`
- * / `wiki/shelf`, `Clippings` / `clippings`) are covered.
+ * happens in. The canonical vault paths (`wiki/knowledge`, `wiki/shelf`, `clippings`) are covered.
  *
  * The table doubles as the review's 误拦 record: a row that says 允许 is a
  * normal flow that used to be blocked and is fixed here; a row marked
@@ -75,24 +74,22 @@ const rows: Row[] = [
   { what: "课程自己的附属目录（records；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/records/2026-11.md", expected: ["deny", "deny", "deny"] },
   { what: "课程截图（改名后的 courses/<slug>/snapshots/；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp/snapshots/2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
   { what: "课程截图（courses/<slug>-*.png；3c 起只经 course_close）", tool: "write", path: "wiki/courses/discrete-math-epp-2026-11-09-01.png", expected: ["deny", "deny", "deny"] },
-  { what: "课程看板 courses.md（整理 1 起只经 course_plan board）", tool: "edit", path: "wiki/courses.md", expected: ["deny", "deny", "deny"] },
-  { what: "课程看板（改名后的 wiki/_generated/courses.md）", tool: "edit", path: "wiki/_generated/courses.md", expected: ["deny", "deny", "deny"] },
+  { what: "课程看板", tool: "edit", path: "wiki/_generated/courses.md", expected: ["deny", "deny", "deny"] },
   // ---- 知识 ----
-  { what: "概念页（收课时写，中文目录；3c 起课程会话只经 course_close）", tool: "write", path: "wiki/知识/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
+  { what: "概念页（收课时写；3c 起课程会话只经 course_close）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
   { what: "概念页（改名后的英文目录）", tool: "write", path: "wiki/knowledge/concepts/discrete-math/010-variables.md", expected: ["deny", "deny", "allow"] },
-  { what: "闪卡页（wiki-save 制卡，中文目录）", tool: "write", path: "wiki/知识/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
+  { what: "闪卡页（wiki-save 制卡）", tool: "write", path: "wiki/knowledge/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
   { what: "闪卡页（英文目录）", tool: "write", path: "wiki/knowledge/flashcards/discrete-math/010-variables.md", expected: ["allow", "allow", "allow"] },
-  { what: "摘录页（reading 技能，自由会话里也说）", tool: "write", path: "wiki/知识/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
+  { what: "摘录页（reading 技能，自由会话里也说）", tool: "write", path: "wiki/knowledge/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
   { what: "摘录页（英文目录）", tool: "write", path: "wiki/knowledge/extracts/epp/2026-11-09-闭包.md", expected: ["allow", "allow", "allow"] },
-  { what: "来源登记页（加书时按 wiki-save 建）", tool: "write", path: "wiki/知识/sources/2026-11-09-epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "来源登记页（加书时按 wiki-save 建）", tool: "write", path: "wiki/knowledge/sources/2026-11-09-epp.md", expected: ["allow", "allow", "allow"] },
   { what: "来源登记页（英文目录）", tool: "write", path: "wiki/knowledge/sources/2026-11-09-epp.md", expected: ["allow", "allow", "allow"] },
-  { what: "综合分析页（wiki-save 整理文档关系，任何会话都能跑，中文目录）", tool: "write", path: "wiki/知识/synthesis/linker-map.md", expected: ["allow", "allow", "allow"] },
+  { what: "综合分析页（wiki-save 整理文档关系，任何会话都能跑）", tool: "write", path: "wiki/knowledge/synthesis/linker-map.md", expected: ["allow", "allow", "allow"] },
   { what: "综合分析页（英文目录）", tool: "write", path: "wiki/knowledge/synthesis/linker-map.md", expected: ["allow", "allow", "allow"] },
-  { what: "实体页（wiki-save 主理，中文目录）", tool: "edit", path: "wiki/知识/entities/math/godel.md", expected: ["allow", "allow", "allow"] },
+  { what: "实体页（wiki-save 主理）", tool: "edit", path: "wiki/knowledge/entities/math/godel.md", expected: ["allow", "allow", "allow"] },
   { what: "实体页（英文目录）", tool: "edit", path: "wiki/knowledge/entities/discrete-math/godel.md", expected: ["allow", "allow", "allow"] },
   // ---- 书房 / 阅读队列 / 日历 ----
-  { what: "书房书页（加书、分段、不读）", tool: "write", path: "wiki/书房/epp.md", expected: ["allow", "allow", "allow"] },
-  { what: "书房书页（改名后）", tool: "write", path: "wiki/shelf/epp.md", expected: ["allow", "allow", "allow"] },
+  { what: "书房书页（加书、分段、不读）", tool: "write", path: "wiki/shelf/epp.md", expected: ["allow", "allow", "allow"] },
   { what: "阅读队列页正文补充 Extracts", tool: "edit", path: "wiki/reading/epp-ch2.md", expected: ["allow", "allow", "allow"] },
   { what: "日历笔记（只由 calendar.mjs 写，write 直接写被拒）", tool: "write", path: "wiki/calendar/2026-11-09.md", expected: ["deny", "deny", "deny"] },
   { what: "改库规则与提示词 wiki/prompts/**（模型不改自己的规则）", tool: "edit", path: "wiki/prompts/wiki/flashcard-rules.md", expected: all("deny") },
@@ -105,7 +102,7 @@ const rows: Row[] = [
   // ---- 原料：raw/ 只读、剪藏只许新增 ----
   { what: "raw/ 新增教材（write 也不写：raw 是用户放进来的外界材料，AI 只读）", tool: "write", path: "raw/books/epp.pdf", expected: all("deny") },
   { what: "raw/ 修改已有原料（edit）", tool: "edit", path: "raw/notes/2026-11-09-剪藏.md", expected: all("deny") },
-  { what: "剪藏新文件（reading 技能抓网页）", tool: "write", path: "Clippings/如何读一本书.md", expected: ["allow", "allow", "allow"] },
+  { what: "剪藏新文件（reading 技能抓网页）", tool: "write", path: "clippings/如何读一本书.md", expected: ["allow", "allow", "allow"] },
   { what: "剪藏新文件（改名后的 clippings）", tool: "write", path: "clippings/如何读一本书.md", expected: ["allow", "allow", "allow"] },
   // ---- 硬性拒绝 ----
   { what: "任何角色写程序目录", tool: "write", path: "/repo/src/x.ts", expected: all("deny") },
@@ -366,12 +363,12 @@ function roleLabelOf(role: SessionRole): string {
 
 describe("decide — 原料只许新增（剪藏）", () => {
   it("allows writing a clip that does not exist yet", () => {
-    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "Clippings/新文章.md" }, roots, canon, () => false);
+    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "clippings/新文章.md" }, roots, canon, () => false);
     expect(decision.allow).toBe(true);
   });
 
   it("denies overwriting an existing clip", () => {
-    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "Clippings/已有.md" }, roots, canon, () => true);
+    const decision = decide(roles.free ?? { kind: "free" }, "write", { path: "clippings/已有.md" }, roots, canon, () => true);
     expect(decision.allow).toBe(false);
     expect(decision.reason).toContain("只许新增");
   });
@@ -383,7 +380,11 @@ describe("decide — 原料只许新增（剪藏）", () => {
 
   it("allows adding a clip but never writes into raw/ (raw is only read)", () => {
     const control: SessionRole = { kind: "control" };
-    expect(decide(control, "write", { path: "Clippings/新文章.md" }, roots, canon, () => false).allow).toBe(true);
+    expect(decide(control, "write", { path: "clippings/新文章.md" }, roots, canon, () => false).allow).toBe(true);
+
+    // 收缩：旧目录名不再被当成知识页——wiki/知识 下的写入按普通 wiki 页面拒绝。
+    const legacy = decide(roles.free ?? { kind: "free" }, "write", { path: "wiki/知识/concepts/x.md" }, roots, canon, nothing);
+    expect(legacy.allow).toBe(false);
     // 教材进 raw/books/ 由用户同意后用 bash 复制（`cp`），不经 write/edit。
     for (const tool of ["write", "edit"]) {
       expect(decide(control, tool, { path: "raw/books/epp.pdf" }, roots, canon, () => false).allow).toBe(false);
@@ -409,7 +410,7 @@ describe("decide — bash", () => {
 
   it("denies rm -rf outside the workspace", () => {
     const rolesFree: SessionRole = { kind: "free" };
-    expect(decide(rolesFree, "bash", { command: "rm -rf wiki/知识" }, roots, canon, nothing).allow).toBe(false);
+    expect(decide(rolesFree, "bash", { command: "rm -rf wiki/knowledge" }, roots, canon, nothing).allow).toBe(false);
     expect(decide(rolesFree, "bash", { command: `rm -rf ${W}/tmp` }, roots, canon, nothing).allow).toBe(true);
     expect(decide(rolesFree, "bash", { command: "rm -rf /private/tmp/xuegen-tmp" }, roots, canon, nothing).allow).toBe(
       true,
@@ -418,7 +419,7 @@ describe("decide — bash", () => {
 
   it("catches the other spellings of a recursive remove", () => {
     const rolesFree: SessionRole = { kind: "free" };
-    for (const command of ["rm -fr wiki", "rm -Rf wiki/知识", "rm --recursive wiki/courses", "rm -r wiki/courses"]) {
+    for (const command of ["rm -fr wiki", "rm -Rf wiki/knowledge", "rm --recursive wiki/courses", "rm -r wiki/courses"]) {
       expect(decide(rolesFree, "bash", { command }, roots, canon, nothing).allow, command).toBe(false);
     }
     // A single-file delete in the vault is a normal workflow step (e.g. an empty
@@ -488,7 +489,7 @@ describe("decide — course_close：只有课程会话、只收本课（阶段 3
       const decision = close(course, {
         action,
         staging: `${W}/.close/discrete-math-epp-20261109-2300`,
-        ...(action === "add" ? { path: "wiki/知识/concepts/discrete-math/010-variables.md" } : {}),
+        ...(action === "add" ? { path: "wiki/knowledge/concepts/discrete-math/010-variables.md" } : {}),
       });
       expect(decision.allow, `${action}: ${decision.reason}`).toBe(true);
     }
@@ -508,7 +509,7 @@ describe("decide — course_close：只有课程会话、只收本课（阶段 3
 
   it("refuses an add path that is absolute or climbs out with `..`", () => {
     const staging = `${W}/.close/discrete-math-epp-20261109-2300`;
-    for (const path of ["/vault/wiki/知识/concepts/x.md", "wiki/知识/../courses/ctm.md", "../outside/x.md"]) {
+    for (const path of ["/vault/wiki/knowledge/concepts/x.md", "wiki/knowledge/../courses/ctm.md", "../outside/x.md"]) {
       const decision = close(course, { action: "add", staging, path });
       expect(decision.allow, path).toBe(false);
       expect(decision.reason).toContain("库内相对路径");
@@ -584,8 +585,8 @@ describe("decide — 阶段 3c：课程会话的课程页与概念页只经 cour
       for (const path of [
         "wiki/courses/discrete-math-epp.md",
         "wiki/courses/ctm.md",
-        "wiki/知识/concepts/discrete-math/010-variables.md",
-        "wiki/知识/concepts/x.md",
+        "wiki/knowledge/concepts/discrete-math/010-variables.md",
+        "wiki/knowledge/concepts/x.md",
         "wiki/knowledge/concepts/x.md",
         "wiki/knowledge/concepts/discrete-math/010-variables.md",
       ]) {
@@ -600,10 +601,10 @@ describe("decide — 阶段 3c：课程会话的课程页与概念页只经 cour
     for (const tool of ["write", "edit"]) {
       for (const path of [
         "wiki/subjects/discrete-math.md",
-        "wiki/知识/extracts/epp/2026-11-09-闭包.md",
         "wiki/knowledge/extracts/epp/2026-11-09-闭包.md",
-        "wiki/知识/sources/2026-11-09-epp.md",
-        "wiki/书房/epp.md",
+        "wiki/knowledge/extracts/epp/2026-11-09-闭包.md",
+        "wiki/knowledge/sources/2026-11-09-epp.md",
+        "wiki/shelf/epp.md",
         "wiki/shelf/epp.md",
         "wiki/log.md",
         "wiki/index.md",
@@ -616,7 +617,7 @@ describe("decide — 阶段 3c：课程会话的课程页与概念页只经 cour
 
   it("still lets a free session write concept pages directly", () => {
     for (const path of [
-      "wiki/知识/concepts/x.md",
+      "wiki/knowledge/concepts/x.md",
       "wiki/knowledge/concepts/discrete-math/010-variables.md",
     ]) {
       const decision = verdict(freeRole, "write", path);
@@ -628,7 +629,7 @@ describe("decide — 阶段 3c：课程会话的课程页与概念页只经 cour
 describe("decide — 库放在临时目录里时，库规则优先于「临时目录可写」", () => {
   /**
    * 真机验收（11-09）复现的那条：测试库在 `/private/tmp/xg-e2e/vault/GJY`，
-   * 总控会话 `write wiki/知识/concepts/x.md` 被「`withinAny(target, rules.tmp)` 放行」
+   * 总控会话 `write wiki/knowledge/concepts/x.md` 被「`withinAny(target, rules.tmp)` 放行」
    * 这一步放过了。`mkdtemp` 落在 `os.tmpdir()` 下，库根天然被临时目录包住，
    * 所以下面的每个断言都在「库 ⊆ 临时目录」这个前提上判。
    */
@@ -663,7 +664,7 @@ describe("decide — 库放在临时目录里时，库规则优先于「临时�
 
   it("denies 总控 writing a 概念页 inside a vault that lives in the temp directory", () => {
     withTmpVault((rootsFor, canonFn) => {
-      const decision = decide(control, "write", { path: "wiki/知识/concepts/x.md" }, rootsFor, canonFn, nothing);
+      const decision = decide(control, "write", { path: "wiki/knowledge/concepts/x.md" }, rootsFor, canonFn, nothing);
       expect(decision.allow, decision.reason).toBe(false);
       expect(decision.reason).toContain("知识页");
     });
@@ -672,7 +673,7 @@ describe("decide — 库放在临时目录里时，库规则优先于「临时�
   it("still allows the 知识 pages every session may write (extracts)", () => {
     withTmpVault((rootsFor, canonFn) => {
       for (const role of [control, courseEpp, { kind: "free" } as SessionRole]) {
-        const decision = decide(role, "write", { path: "wiki/知识/extracts/x.md" }, rootsFor, canonFn, nothing);
+        const decision = decide(role, "write", { path: "wiki/knowledge/extracts/x.md" }, rootsFor, canonFn, nothing);
         expect(decision.allow, `${roleLabelOf(role)}: ${decision.reason}`).toBe(true);
       }
     });

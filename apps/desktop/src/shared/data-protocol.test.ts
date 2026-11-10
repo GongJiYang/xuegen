@@ -71,7 +71,7 @@ describe("isDataRequest", () => {
       { kind: "shelf.done", slug: "epp", today: "2026-13-40" },
       { kind: "shelf.done", slug: "Epp", today: "2026-11-10" },
       { kind: "shelf.done", slug: "judgment/../up", today: "2026-11-10" },
-      { kind: "shelf.done", slug: "书房/epp", today: "2026-11-10" },
+      { kind: "shelf.done", slug: "epp/x", today: "2026-11-10" },
       { kind: "shelf.done", slug: "", today: "2026-11-10" },
       { kind: "shelf.done", slug: "epp" },
       { kind: "shelf.done", slug: 7, today: "2026-11-10" },

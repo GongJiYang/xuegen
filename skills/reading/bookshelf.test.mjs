@@ -26,7 +26,7 @@ const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, "bookshelf.mjs");
 
-// 真实库布局：<vault>/{raw,wiki}，其中 wiki/ 必须预先存在；wiki/书房/ 由书页创建。
+// 真实库布局：<vault>/{raw,wiki}，其中 wiki/ 必须预先存在；wiki/shelf/ 由书页创建。
 async function makeVault() {
   const dir = await mkdtemp(join(tmpdir(), "bookshelf-test-"));
   await mkdir(join(dir, "wiki"), { recursive: true });
@@ -51,7 +51,7 @@ async function jsonB(args) {
 
 // 写一本测试用书：frontmatter 字段用对象给，正文用字符串给。
 async function writeBook(vault, slug, fields, body) {
-  const file = join(vault, "wiki", "书房", `${slug}.md`);
+  const file = join(vault, "wiki", "shelf", `${slug}.md`);
   await mkdir(dirname(file), { recursive: true });
   const fm = Object.entries(fields).map(([key, value]) => `${key}: ${value}`);
   const text = ["---", ...fm, "---", "", body].join("\n");
@@ -60,7 +60,7 @@ async function writeBook(vault, slug, fields, body) {
 }
 
 async function readBook(vault, slug) {
-  return readFile(join(vault, "wiki", "书房", `${slug}.md`), "utf8");
+  return readFile(join(vault, "wiki", "shelf", `${slug}.md`), "utf8");
 }
 
 // 常用书页正文：两个分段，共 7 块（36 页 → 4 块，29 页 → 3 块）。
@@ -312,7 +312,7 @@ test("done：position +1，并追加读书记录", async () => {
   assert.match(page, /^status: reading$/m);
   assert.match(page, /^- 2026-11-10: 第 1 段 pp\.1–9 读完（用户自报）$/m);
   // 读书记录与排期都只保留一份
-  assert.ok(existsSync(join(vault, "wiki", "书房", "index.md")), "done 后应重写 index.md");
+  assert.ok(existsSync(join(vault, "wiki", "shelf", "index.md")), "done 后应重写 index.md");
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -348,11 +348,11 @@ test("done：读完最后一段 → status done，计划内下一本开始读（
   assert.match(next, /^\| 3 \| 2026-11-18 \| S1 pp\.21–29 \|$/m);
 
   // index.md 由 done 重写：last 在「读完」，next-book 在「在读」
-  const index = await readFile(join(vault, "wiki", "书房", "index.md"), "utf8");
+  const index = await readFile(join(vault, "wiki", "shelf", "index.md"), "utf8");
   assert.match(index, /^## 在读$/m);
   // 下一本的预计读完 = 下一段该读的那天（明天 11-16）+ 3 - 1 = 11-18，与 plannedEnd 相同。
-  assert.match(index, /^- \[\[书房\/next-book\|N\]\] · Next · 0\/3 段 · 预计 2026-11-18 读完$/m);
-  assert.match(index, /^- \[\[书房\/last\|Epp\]\] · Discrete Mathematics with Applications · 7\/7 段 · 2026-11-15 读完$/m);
+  assert.match(index, /^- \[\[shelf\/next-book\|N\]\] · Next · 0\/3 段 · 预计 2026-11-18 读完$/m);
+  assert.match(index, /^- \[\[shelf\/last\|Epp\]\] · Discrete Mathematics with Applications · 7\/7 段 · 2026-11-15 读完$/m);
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -438,7 +438,7 @@ test("index --write：在读 / 排队 / 读完 三组归类正确", async () => 
   );
 
   const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
-  assert.equal(result.file, join(vault, "wiki", "书房", "index.md"));
+  assert.equal(result.file, join(vault, "wiki", "shelf", "index.md"));
 
   const index = await readFile(result.file, "utf8");
   assert.match(index, /^# 书房$/m);
@@ -447,16 +447,16 @@ test("index --write：在读 / 排队 / 读完 三组归类正确", async () => 
     assert.match(index, new RegExp(`^${heading}$`, "m"));
   }
   const readingSection = index.slice(index.indexOf("## 在读"), index.indexOf("## 排队"));
-  assert.ok(readingSection.includes("[[书房/reading-book|Epp]]"), readingSection);
+  assert.ok(readingSection.includes("[[shelf/reading-book|Epp]]"), readingSection);
 
   const queueSection = index.slice(index.indexOf("## 排队"), index.indexOf("## 读完"));
-  assert.ok(queueSection.includes("[[书房/queued-book|Q]]"), queueSection);
+  assert.ok(queueSection.includes("[[shelf/queued-book|Q]]"), queueSection);
   // 在读的 11-16 读完，排队书从 11-17 起、3 段 → 11-19；不能从今天（11-10）算。
   assert.ok(queueSection.includes("预计 2026-11-19 读完"), queueSection);
   assert.doesNotMatch(queueSection, /2026-11-12/, "排队书日期不应与在读的书重叠");
 
   const doneSection = index.slice(index.indexOf("## 读完"));
-  assert.ok(doneSection.includes("[[书房/done-book|Epp]]"), doneSection);
+  assert.ok(doneSection.includes("[[shelf/done-book|Epp]]"), doneSection);
   assert.ok(doneSection.includes("2026-11-12 读完"), doneSection);
   assert.doesNotMatch(doneSection, /预计/, "读完的书不写预计日期");
 
@@ -471,8 +471,8 @@ test("index：不带 --write 只打印，不生成文件", async () => {
   await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
   const { stdout } = await b(["index", vault, "--today", "2026-11-10"]);
   assert.match(stdout, /^# 书房$/m);
-  assert.match(stdout, /\[\[书房\/epp\|Epp\]\]/);
-  assert.ok(!existsSync(join(vault, "wiki", "书房", "index.md")));
+  assert.match(stdout, /\[\[shelf\/epp\|Epp\]\]/);
+  assert.ok(!existsSync(join(vault, "wiki", "shelf", "index.md")));
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -520,7 +520,7 @@ test("原子写入：不留临时文件", async () => {
   await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
   await b(["plan", vault, "epp", "--write"]);
   await b(["done", vault, "epp", "--today", "2026-11-10"]);
-  const entries = await readdir(join(vault, "wiki", "书房"));
+  const entries = await readdir(join(vault, "wiki", "shelf"));
   assert.ok(
     entries.every((name) => !name.includes(".tmp-")),
     `残留临时文件：${entries}`,
@@ -1182,11 +1182,11 @@ test("index --write：排队书的日期在在读的书之后", async () => {
     { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Queued"', short: '"Q"', started: '""', position: 0 },
     "# Queued\n\n## 分段\n1. S pp.1–29\n",
   );
-  const file = join(vault, "wiki", "书房", "index.md");
+  const file = join(vault, "wiki", "shelf", "index.md");
   await b(["index", vault, "--today", "2026-11-10", "--write"]);
   const index = await readFile(file, "utf8");
-  const readingEnd = index.match(/\[\[书房\/reading-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
-  const queuedEnd = index.match(/\[\[书房\/queued-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
+  const readingEnd = index.match(/\[\[shelf\/reading-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
+  const queuedEnd = index.match(/\[\[shelf\/queued-book\|.*?\]\] · .*? · 预计 (\d{4}-\d{2}-\d{2}) 读完/);
   assert.ok(readingEnd !== null && queuedEnd !== null, index);
   assert.equal(readingEnd[1], "2026-11-16");
   assert.equal(queuedEnd[1], "2026-11-19", "从在读书读完（11-16）的次日起 3 块");
@@ -1253,7 +1253,7 @@ test("经符号链接调用 --help 有输出（主模块判定比真实路径）
   }
 });
 
-// ---- 新旧布局（新 wiki/shelf，旧 wiki/书房，都有时用新） ----
+// ---- 布局：wiki/shelf ----
 
 async function writeBookAt(dir, slug, fields, body) {
   const file = join(dir, `${slug}.md`);
@@ -1264,44 +1264,26 @@ async function writeBookAt(dir, slug, fields, body) {
   return file;
 }
 
-test("布局：只有新 wiki/shelf 时 list 与 index 用 shelf 前缀", async () => {
-  const vault = await makeVault();
-  const shelf = join(vault, "wiki", "shelf");
-  await writeBookAt(shelf, "epp", EPP_FIELDS, EPP_BODY);
-  const list = await jsonB(["list", vault]);
-  assert.deepEqual(
-    list.map((item) => item.slug),
-    ["epp"],
-  );
-  const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
-  assert.equal(result.file, join(shelf, "index.md"));
-  const index = await readFile(result.file, "utf8");
-  assert.ok(index.includes("[[shelf/epp|Epp]]"), index);
-  assert.ok(!index.includes("[[书房/"), index);
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("布局：只有旧 wiki/书房 时照旧工作（不建 shelf）", async () => {
+test("布局：wiki/shelf 下的书页用于 list 与 index", async () => {
   const vault = await makeVault();
   await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const list = await jsonB(["list", vault]);
+  assert.deepEqual(list.map((item) => item.slug), ["epp"]);
   const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
-  assert.equal(result.file, join(vault, "wiki", "书房", "index.md"));
-  assert.ok((await readBook(vault, "epp")).includes("Epp"));
-  assert.ok(!existsSync(join(vault, "wiki", "shelf")), "旧库里不该新建 shelf 目录");
+  assert.equal(result.file, join(vault, "wiki", "shelf", "index.md"));
+  const index = await readFile(result.file, "utf8");
+  assert.ok(index.includes("[[shelf/epp|Epp]]"), index);
   await rm(vault, { recursive: true, force: true });
 });
 
-test("布局：新旧都有时用新 wiki/shelf，旧目录的书不混进来", async () => {
+test("布局：只有旧 wiki/书房/ 时 today 不读它（当作书房为空）", async () => {
   const vault = await makeVault();
-  const shelf = join(vault, "wiki", "shelf");
-  await writeBookAt(shelf, "new-book", { ...EPP_FIELDS, short: '"New"' }, EPP_BODY);
-  await writeBook(vault, "old-book", { ...EPP_FIELDS, short: '"Old"' }, EPP_BODY);
-  const list = await jsonB(["list", vault]);
-  assert.deepEqual(
-    list.map((item) => item.slug),
-    ["new-book"],
-  );
-  const result = await jsonB(["index", vault, "--today", "2026-11-10", "--write"]);
-  assert.equal(result.file, join(shelf, "index.md"));
+  const legacy = join(vault, "wiki", "书房");
+  await writeBookAt(legacy, "epp", EPP_FIELDS, EPP_BODY);
+  assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-09"]), {
+    planned: null,
+    free: null,
+  });
+  assert.deepEqual(await jsonB(["list", vault]), []);
   await rm(vault, { recursive: true, force: true });
 });

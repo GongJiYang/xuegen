@@ -110,7 +110,7 @@ test("subjectOf：只取 Relationships 节里第一个 [[subjects/<s>]]", () => 
   assert.equal(subjectOf("## Relationships\n\n- [[courses/epp]]\n"), null);
 });
 
-test("ownedPrefixes：无科目时不放概念/卡片目录，有科目时新旧两种布局都放", () => {
+test("ownedPrefixes：无科目时不放概念/卡片目录，有科目时放本科目的概念/卡片目录", () => {
   const bare = ownedPrefixes("epp", null);
   assert.deepEqual(bare, [
     "wiki/courses/epp.md",
@@ -121,8 +121,6 @@ test("ownedPrefixes：无科目时不放概念/卡片目录，有科目时新旧
   const full = ownedPrefixes("epp", "discrete-math");
   assert.ok(full.includes("wiki/knowledge/concepts/discrete-math/"));
   assert.ok(full.includes("wiki/knowledge/flashcards/discrete-math/"));
-  assert.ok(full.includes("wiki/知识/concepts/"));
-  assert.ok(full.includes("wiki/知识/flashcards/"));
 });
 
 test("isSafeRelPath：拒绝绝对路径、反斜杠、NUL、非规范形式、空串", () => {
@@ -156,7 +154,7 @@ test("isOwned：本课路径通过，越界、大小写变体、别课、无科�
   assert.equal(isOwned("wiki/log.md", "epp", null), true);
   assert.equal(isOwned("wiki/knowledge/concepts/discrete-math/a.md", "epp", "discrete-math"), true);
   assert.equal(isOwned("wiki/knowledge/flashcards/discrete-math/a.md", "epp", "discrete-math"), true);
-  assert.equal(isOwned("wiki/知识/concepts/math/a.md", "epp", "discrete-math"), true);
+  assert.equal(isOwned("wiki/knowledge/concepts/discrete-math/a.md", "epp", "discrete-math"), true);
   // 越界与变体
   assert.equal(isOwned("wiki/courses/epp/../profile.md", "epp", "discrete-math"), false);
   assert.equal(isOwned("wiki/courses/../profile.md", "epp", "discrete-math"), false);

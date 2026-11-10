@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// close/board.mjs 的测试：refreshBoard 在新旧两种布局下写到对应位置，出错时返回 ok:false 不抛。
+// close/board.mjs 的测试：refreshBoard 写到 wiki/_generated/，出错时返回 ok:false 不抛。
 // 全部在 mkdtemp 里；重画用的是仓库里真的 course-state.mjs / render-board.mjs 子进程。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -76,7 +76,7 @@ async function cleanup(fixture) {
 
 const mode = async (path) => (await stat(path)).mode & 0o777;
 
-test("refreshBoard：新布局（有 wiki/_generated/）写到 wiki/_generated/courses.{md,html}，返回 ok 与库内路径", async () => {
+test("refreshBoard：写到 wiki/_generated/courses.{md,html}，返回 ok 与库内路径", async () => {
   const fixture = await makeVault({ newLayout: true });
   try {
     const result = refreshBoard(fixture.vault);
@@ -96,14 +96,13 @@ test("refreshBoard：新布局（有 wiki/_generated/）写到 wiki/_generated/c
   }
 });
 
-test("refreshBoard：旧布局（没有 wiki/_generated/）写到 wiki/courses.{md,html}，不动 _generated", async () => {
+test("refreshBoard：wiki/_generated 不存在时自动建，照样写进 _generated", async () => {
   const fixture = await makeVault({ newLayout: false });
   try {
     const result = refreshBoard(fixture.vault);
-    assert.deepEqual(result, { ok: true, paths: ["wiki/courses.md", "wiki/courses.html"] });
-    assert.match(await readFile(join(fixture.vault, "wiki", "courses.md"), "utf8"), /xuegen:courses-dashboard/);
-    assert.match(await readFile(join(fixture.vault, "wiki", "courses.html"), "utf8"), /<html|<!DOCTYPE/i);
-    await assert.rejects(stat(join(fixture.vault, "wiki", "_generated")), /ENOENT/, "旧布局不该凭空造 _generated");
+    assert.deepEqual(result, { ok: true, paths: ["wiki/_generated/courses.md", "wiki/_generated/courses.html"] });
+    assert.match(await readFile(join(fixture.vault, "wiki", "_generated", "courses.md"), "utf8"), /xuegen:courses-dashboard/);
+    assert.match(await readFile(join(fixture.vault, "wiki", "_generated", "courses.html"), "utf8"), /<html|<!DOCTYPE/i);
   } finally {
     await cleanup(fixture);
   }
@@ -125,11 +124,9 @@ test("refreshBoard：课程目录为空时返回 ok:false、中文原因，不�
   }
 });
 
-test("BOARD_RELS：新旧两种布局的四条路径都在集合里（undo 按它把看板踢出改动清单）", () => {
+test("BOARD_RELS：恰为 wiki/_generated/ 下两条看板路径（undo 按它把看板踢出改动清单）", () => {
   assert.deepEqual([...BOARD_RELS].sort(), [
     "wiki/_generated/courses.html",
     "wiki/_generated/courses.md",
-    "wiki/courses.html",
-    "wiki/courses.md",
   ]);
 });

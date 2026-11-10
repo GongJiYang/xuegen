@@ -1,6 +1,6 @@
 # 标准计划输出
 
-每门课一份 `wiki/courses/<course-slug>.md`，段落顺序固定为下面七段。`render-board.mjs` 按同一顺序渲染 `wiki/_generated/courses.html`（旧库：`wiki/courses.html`），所以 Markdown 怎么写，网页就怎么显示；不需要为网页另写一份内容。
+每门课一份 `wiki/courses/<course-slug>.md`，段落顺序固定为下面七段。`render-board.mjs` 按同一顺序渲染 `wiki/_generated/courses.html`，所以 Markdown 怎么写，网页就怎么显示；不需要为网页另写一份内容。
 
 ```
 1 定位      标题 / 当前周 / 当前位置 / 状态源

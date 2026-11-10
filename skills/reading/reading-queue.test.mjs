@@ -15,11 +15,11 @@ const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, "reading-queue.mjs");
 
-// 真实库布局：<vault>/{raw,Clippings,wiki}，其中 wiki/ 必须预先存在。
+// 真实库布局：<vault>/{raw,clippings,wiki}，其中 wiki/ 必须预先存在。
 async function makeWiki() {
   const dir = await mkdtemp(join(tmpdir(), "reading-test-"));
   await mkdir(join(dir, "raw", "articles"), { recursive: true });
-  await mkdir(join(dir, "Clippings"), { recursive: true });
+  await mkdir(join(dir, "clippings"), { recursive: true });
   await mkdir(join(dir, "wiki"), { recursive: true });
   return dir;
 }
@@ -64,14 +64,14 @@ test("add：各优先级生成正确 due 与初始状态", async () => {
   const wiki = await makeWiki();
   await writeSource(wiki, "raw/a.md", "A");
   await writeSource(wiki, "raw/b.md", "B");
-  await writeSource(wiki, "Clippings/c.md", "C");
+  await writeSource(wiki, "clippings/c.md", "C");
   const today = "2026-11-03";
 
   const high = await jsonQ(["add", wiki, "raw/a.md", "--priority", "high", "--today", today]);
   assert.equal(high.due, today);
   const medium = await jsonQ(["add", wiki, "raw/b.md", "--priority", "medium", "--today", today]);
   assert.equal(medium.due, "2026-11-04");
-  const low = await jsonQ(["add", wiki, "Clippings/c.md", "--priority", "low", "--today", today]);
+  const low = await jsonQ(["add", wiki, "clippings/c.md", "--priority", "low", "--today", today]);
   assert.equal(low.due, "2026-11-04");
 
   const page = await readPage(wiki, "a");
@@ -111,7 +111,7 @@ test("add：同 slug 拒绝，可用 --slug 绕过", async () => {
   await rm(wiki, { recursive: true, force: true });
 });
 
-test("add：原文不在 raw/Clippings 下拒绝", async () => {
+test("add：原文不在 raw/clippings 下拒绝", async () => {
   const wiki = await makeWiki();
   await mkdir(join(wiki, "other"), { recursive: true });
   await writeFile(join(wiki, "other/x.md"), "# X\n", "utf8");
@@ -144,10 +144,10 @@ test("add：wiki/ 缺失时视为非库根目录并拒绝", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test("add：原文位于 Clippings/ 下可入队", async () => {
+test("add：原文位于 clippings/ 下可入队", async () => {
   const wiki = await makeWiki();
-  await writeSource(wiki, "Clippings/article.md", "Clipped");
-  const res = await jsonQ(["add", wiki, "Clippings/article.md", "--today", "2026-11-03"]);
+  await writeSource(wiki, "clippings/article.md", "Clipped");
+  const res = await jsonQ(["add", wiki, "clippings/article.md", "--today", "2026-11-03"]);
   assert.equal(res.slug, "article");
   assert.equal(res.status, "queued");
   assert.ok(existsSync(join(wiki, "wiki", "reading", "article.md")));
@@ -279,7 +279,7 @@ test("review done：清空 due 并写 log（含 Extracts 计数）", async () =>
     ),
     "utf8",
   );
-  await mkdir(join(wiki, "wiki", "extracts", "a"), { recursive: true });
+  await mkdir(join(wiki, "wiki", "knowledge", "extracts", "a"), { recursive: true });
 
   const res = await jsonQ(["review", wiki, "a", "--outcome", "done", "--today", "2026-11-05"]);
   assert.equal(res.status, "done");
@@ -414,12 +414,12 @@ test("verify：发现缺失原文与非法日期", async () => {
   await rm(wiki, { recursive: true, force: true });
 });
 
-test("verify：能定位 wiki/extracts/ 下的摘录链接", async () => {
+test("verify：能定位 wiki/knowledge/extracts/ 下的摘录链接", async () => {
   const wiki = await makeWiki();
   await writeSource(wiki, "raw/a.md", "A");
   await q(["add", wiki, "raw/a.md", "--priority", "high"]);
 
-  // 在阅读页写入指向 <vault>/wiki/extracts/ 的链接，并真正创建该文件。
+  // 在阅读页写入指向 <vault>/wiki/knowledge/extracts/ 的链接，并真正创建该文件。
   const file = join(wiki, "wiki", "reading", "a.md");
   const text = await readFile(file, "utf8");
   await writeFile(
@@ -427,14 +427,14 @@ test("verify：能定位 wiki/extracts/ 下的摘录链接", async () => {
     text.replace("## Extracts\n", "## Extracts\n- [[extracts/a/2026-11-03-x]]\n"),
     "utf8",
   );
-  await mkdir(join(wiki, "wiki", "extracts", "a"), { recursive: true });
-  await writeFile(join(wiki, "wiki", "extracts", "a", "2026-11-03-x.md"), "# X\n", "utf8");
+  await mkdir(join(wiki, "wiki", "knowledge", "extracts", "a"), { recursive: true });
+  await writeFile(join(wiki, "wiki", "knowledge", "extracts", "a", "2026-11-03-x.md"), "# X\n", "utf8");
 
   const ok = await q(["verify", wiki], { expectFail: false });
   assert.match(ok.stdout, /verify: OK/);
 
-  // 摘录文件被删后应报错，证明解析指向 wiki/extracts/
-  await rm(join(wiki, "wiki", "extracts", "a", "2026-11-03-x.md"));
+  // 摘录文件被删后应报错，证明解析指向 wiki/knowledge/extracts/
+  await rm(join(wiki, "wiki", "knowledge", "extracts", "a", "2026-11-03-x.md"));
   const bad = await q(["verify", wiki], { expectFail: true });
   assert.match(bad.stderr, /Extracts 链接的文件不存在/);
   await rm(wiki, { recursive: true, force: true });
@@ -470,14 +470,14 @@ test("stats：各状态计数、到期、逾期、近 7 天 review、待制卡",
   // 这里选窗口外（< today-6=2026-11-04）的日期，保持 reviewsLast7 恒为 1。
   await q(["pause", wiki, "a", "--today", "2026-10-01"]);
 
-  await mkdir(join(wiki, "wiki", "extracts", "a"), { recursive: true });
+  await mkdir(join(wiki, "wiki", "knowledge", "extracts", "a"), { recursive: true });
   await writeFile(
-    join(wiki, "wiki", "extracts", "a", "e1.md"),
+    join(wiki, "wiki", "knowledge", "extracts", "a", "e1.md"),
     "---\ncards: pending\n---\n# E1\n",
     "utf8",
   );
   await writeFile(
-    join(wiki, "wiki", "extracts", "a", "e2.md"),
+    join(wiki, "wiki", "knowledge", "extracts", "a", "e2.md"),
     "---\ncards: done\n---\n# E2\n",
     "utf8",
   );
@@ -549,26 +549,13 @@ test("position 引号：含双引号与反斜杠时往返不变且正确转义",
 
 test("add：sources 登记页可作原文，链接去掉 wiki/ 前缀", async () => {
   const wiki = await makeWiki();
-  await mkdir(join(wiki, "wiki", "sources"), { recursive: true });
-  await writeFile(join(wiki, "wiki", "sources", "2026-11-05-epp.md"), "# Epp 离散数学\n", "utf8");
-  const res = await jsonQ(["add", wiki, "wiki/sources/2026-11-05-epp.md", "--slug", "epp", "--today", "2026-11-08"]);
+  await mkdir(join(wiki, "wiki", "knowledge", "sources"), { recursive: true });
+  await writeFile(join(wiki, "wiki", "knowledge", "sources", "2026-11-05-epp.md"), "# Epp 离散数学\n", "utf8");
+  const res = await jsonQ(["add", wiki, "wiki/knowledge/sources/2026-11-05-epp.md", "--slug", "epp", "--today", "2026-11-08"]);
   assert.equal(res.slug, "epp");
   const page = await readPage(wiki, "epp");
   assert.match(page, /^source: "\[\[sources\/2026-11-05-epp\]\]"$/m);
   assert.match(page, /^# Epp 离散数学$/m);
-  const ok = await q(["verify", wiki], { expectFail: false });
-  assert.match(ok.stdout, /verify: OK/);
-  await rm(wiki, { recursive: true, force: true });
-});
-
-test("add：wiki/知识/sources/ 登记页可作原文", async () => {
-  const wiki = await makeWiki();
-  await mkdir(join(wiki, "wiki", "知识", "sources"), { recursive: true });
-  await writeFile(join(wiki, "wiki", "知识", "sources", "2026-11-05-epp.md"), "# Epp 离散数学\n", "utf8");
-  const res = await jsonQ(["add", wiki, "wiki/知识/sources/2026-11-05-epp.md", "--slug", "epp", "--today", "2026-11-08"]);
-  assert.equal(res.slug, "epp");
-  const page = await readPage(wiki, "epp");
-  assert.match(page, /^source: "\[\[sources\/2026-11-05-epp\]\]"$/m);
   const ok = await q(["verify", wiki], { expectFail: false });
   assert.match(ok.stdout, /verify: OK/);
   await rm(wiki, { recursive: true, force: true });
@@ -663,33 +650,13 @@ test("note：只追加 Reading Log，不改排程", async () => {
   await rm(wiki, { recursive: true, force: true });
 });
 
-test("知识目录：wiki/知识/ 存在时 stats 与 verify 用它", async () => {
-  const wiki = await makeWiki();
-  await writeSource(wiki, "raw/a.md", "A");
-  await q(["add", wiki, "raw/a.md", "--priority", "high"]);
-  const file = join(wiki, "wiki", "reading", "a.md");
-  const text = await readFile(file, "utf8");
-  await writeFile(file, text.replace("## Extracts\n", "## Extracts\n- [[extracts/a/x]]\n"), "utf8");
-  await mkdir(join(wiki, "wiki", "知识", "extracts", "a"), { recursive: true });
-  await writeFile(
-    join(wiki, "wiki", "知识", "extracts", "a", "x.md"),
-    "---\ncards: pending\n---\n# X\n",
-    "utf8",
-  );
-  const ok = await q(["verify", wiki], { expectFail: false });
-  assert.match(ok.stdout, /verify: OK/);
-  const stats = await jsonQ(["stats", wiki, "--today", "2026-11-10"]);
-  assert.equal(stats.cardsPending, 1);
-  await rm(wiki, { recursive: true, force: true });
-});
-
-// ---- 知识目录布局（新 wiki/knowledge，旧 wiki/知识，再旧 wiki 根） ----
+// ---- 知识目录布局：wiki/knowledge ----
 
 async function statsOf(vault, today = "2026-11-10") {
   return jsonQ(["stats", vault, "--today", today]);
 }
 
-test("布局：只有新 wiki/knowledge 时 stats 与 verify 用它", async () => {
+test("知识目录：wiki/knowledge 下的 extracts 用于 stats 与 verify", async () => {
   const wiki = await makeWiki();
   await writeSource(wiki, "raw/a.md", "A");
   await q(["add", wiki, "raw/a.md", "--priority", "high"]);
@@ -708,28 +675,15 @@ test("布局：只有新 wiki/knowledge 时 stats 与 verify 用它", async () =
   await rm(wiki, { recursive: true, force: true });
 });
 
-test("布局：新旧知识目录都有时用 wiki/knowledge，旧的不混进来", async () => {
+test("知识目录：只有旧 wiki/知识/ 与 wiki 根下的 extracts 都不再读（cardsPending 为 0）", async () => {
   const wiki = await makeWiki();
   await writeSource(wiki, "raw/a.md", "A");
   await q(["add", wiki, "raw/a.md", "--priority", "high"]);
-  for (const dir of ["knowledge", "知识"]) {
-    await mkdir(join(wiki, "wiki", dir, "extracts", "a"), { recursive: true });
-    await writeFile(
-      join(wiki, "wiki", dir, "extracts", "a", "x.md"),
-      "---\ncards: pending\n---\n# X\n",
-      "utf8",
-    );
+  for (const dir of ["知识", "extracts"]) {
+    const base = dir === "extracts" ? join(wiki, "wiki", "extracts", "a") : join(wiki, "wiki", "知识", "extracts", "a");
+    await mkdir(base, { recursive: true });
+    await writeFile(join(base, "x.md"), "---\ncards: pending\n---\n# X\n", "utf8");
   }
-  assert.equal((await statsOf(wiki)).cardsPending, 1, "只数新目录下的摘录");
-  await rm(wiki, { recursive: true, force: true });
-});
-
-test("布局：两种知识目录都没有时退回 wiki 根（只有 wiki/ 的旧库）", async () => {
-  const wiki = await makeWiki();
-  await writeSource(wiki, "raw/a.md", "A");
-  await q(["add", wiki, "raw/a.md", "--priority", "high"]);
-  await mkdir(join(wiki, "wiki", "extracts", "a"), { recursive: true });
-  await writeFile(join(wiki, "wiki", "extracts", "a", "x.md"), "---\ncards: pending\n---\n# X\n", "utf8");
-  assert.equal((await statsOf(wiki)).cardsPending, 1);
+  assert.equal((await statsOf(wiki)).cardsPending, 0, "旧目录里的摘录不再计入");
   await rm(wiki, { recursive: true, force: true });
 });

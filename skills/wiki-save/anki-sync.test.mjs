@@ -28,7 +28,7 @@ async function makeVault() {
 }
 
 async function writeCard(vault, rel, text) {
-  const file = join(vault, "wiki", "flashcards", rel);
+  const file = join(vault, "wiki", "knowledge", "flashcards", rel);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, text, "utf8");
   return file;
@@ -203,7 +203,7 @@ test("push：添加卡片并把 ID 写回 END 前", async () => {
     assert.match(text, /Back: 等价\n<!--ID: 1001-->\nEND/);
     // 每页只写一次：临时文件不留痕。
     const { readdir } = await import("node:fs/promises");
-    const dir = join(vault, "wiki", "flashcards", "mme");
+    const dir = join(vault, "wiki", "knowledge", "flashcards", "mme");
     assert.ok((await readdir(dir)).every((name) => !name.includes(".tmp-")));
   } finally {
     await anki.close();
@@ -350,6 +350,22 @@ test("push：没有待同步卡时不连 Anki", async () => {
     assert.equal(result.added, 0);
     assert.deepEqual(result.decks, []);
     assert.equal(anki.requests.length, 0, `不应发出任何请求：${actions(anki).join(",")}`);
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：只有旧 wiki/知识/flashcards/ 时不再读它（无待同步卡）", async () => {
+  const vault = await makeVault();
+  const anki = await startAnki();
+  try {
+    const file = join(vault, "wiki", "知识", "flashcards", "old", "a.md");
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`, "utf8");
+    const result = await syncJson(["push", vault, "--url", anki.url, "--dry-run"]);
+    assert.equal(result.pending.length, 0, "旧目录里的卡不再读到");
+    assert.equal(anki.requests.length, 0, "dry-run 不应连 Anki");
   } finally {
     await anki.close();
     await rm(vault, { recursive: true, force: true });

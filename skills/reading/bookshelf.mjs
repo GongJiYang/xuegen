@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Xuegen 书房：自己读的整本书的排期与进度。无第三方依赖。
-// <vault> 为 Wiki 库根目录；书页在 <vault>/wiki/shelf/<slug>.md（旧库：wiki/书房/），目录页是 index.md。
+// <vault> 为 Wiki 库根目录；书页在 <vault>/wiki/shelf/<slug>.md，目录页是 index.md。
 //   node bookshelf.mjs list <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs today <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs done <vault> <slug> [--today YYYY-MM-DD] [--json]
@@ -21,8 +21,6 @@ import { existsSync, realpathSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// 书房目录候选：新布局 wiki/shelf 优先，旧库 wiki/书房 兜底。
-const SHELF_DIRS = ["shelf", "书房"];
 const INDEX_FILE = "index.md";
 const PLAN_START = "<!-- xuegen:shelf:start -->";
 const PLAN_END = "<!-- xuegen:shelf:end -->";
@@ -225,18 +223,14 @@ function requireVault(vault) {
   return dir;
 }
 
-// 书房目录：有新的用新的，没有用旧的；两个都没有时按新名返回（由调用方决定是否创建）。
+// 书房目录：wiki/shelf。
 function shelfDir(vault) {
-  for (const name of SHELF_DIRS) {
-    const dir = join(wikiDir(vault), name);
-    if (existsSync(dir)) return dir;
-  }
-  return join(wikiDir(vault), SHELF_DIRS[0]);
+  return join(wikiDir(vault), "shelf");
 }
 
-// index.md 里 [[…]] 链接的前缀就是实际书房目录名（shelf 或 书房）。
-function shelfName(vault) {
-  return basename(shelfDir(vault));
+// index.md 里 [[…]] 链接的前缀。
+function shelfName() {
+  return "shelf";
 }
 
 // ---- 书页字段访问（frontmatter 原样是字符串，这里统一落成可用值）----
@@ -954,11 +948,11 @@ function usage() {
     "  node bookshelf.mjs extract <vault> <slug> --page <n> --text <原句> [--today YYYY-MM-DD] [--json]",
     "  node bookshelf.mjs card <vault> <slug> --index <逗号分隔的序号> [--today YYYY-MM-DD] [--json]",
     "",
-    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；书页在 wiki/shelf/<slug>.md（旧库：wiki/书房/）。",
+    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；书页在 wiki/shelf/<slug>.md。",
     "done：记完一段（position+1、追加读书记录）；读完时置 done，计划内的书自动开",
     "order 最小的 queued（明天起读），最后重写 index.md。",
     "plan：生成/重写 `## 排期` 的排期表（不带 --write 只打印）。",
-    "index：生成/重写 wiki/shelf/index.md（旧库：wiki/书房/index.md；不带 --write 只打印）。",
+    "index：生成/重写 wiki/shelf/index.md（不带 --write 只打印）。",
     "lecture：讲后读读完——追加读书记录，给了 --pages 再记一行 `## 核心页已读`；不改 position/status。",
     "extract：在 `## 摘录` 末尾存一句摘录（行尾标 `#待做卡`）。",
     "card：把 `## 摘录` 里指定序号的 `#待做卡` 改成 `#卡/<today>`。",

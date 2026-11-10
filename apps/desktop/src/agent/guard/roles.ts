@@ -12,16 +12,16 @@
  * The lists follow `docs/platform/PRINCIPLES.md` 四类划分:
  *
  * - 原料 (`raw/`、剪藏): `raw/` is 用户放入的材料，AI only reads it; 剪藏
- *   (`Clippings`/`clippings`) may only grow — a `write` to a path that does not
+ *   (`clippings`) may only grow — a `write` to a path that does not
  *   exist yet passes, an existing file is never overwritten or edited (原料不变).
- * - 知识 (`wiki/知识`): 概念页只经 `course_close` 收课写入（阶段 3）；the
+ * - 知识 (`wiki/knowledge`): 概念页只经 `course_close` 收课写入（阶段 3）；the
  *   extract, card, source, entity and synthesis pages come out of the reading
  *   and wiki-save workflows any session can run, so those stay open to every
  *   role — and free sessions still write knowledge pages directly.
  * - 意图 (`profile.md`、`subjects*`、`cycles/`) and plan-level 进度
  *   (`courses/*.md`、课程看板) belong to the 总控 session；课程页同样只经
  *   `course_close`，不经 write/edit。
- * - 进度 pages no course owns (`书房`、`reading/`、`log.md`、`index.md`) are
+ * - 进度 pages no course owns (`shelf/`、`reading/`、`log.md`、`index.md`) are
  *   written from whatever session the user is in; 日历 (`calendar/`) is written
  *   only through `calendar.mjs`, so no role writes it with a file tool.
  * - 库规则 (`wiki/prompts/**`、库根 `AGENTS.md`) are never written: the model
@@ -283,7 +283,7 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
 /** A specific denial for writes that named a place the role cannot touch. */
 function writeDenyReason(role: SessionRole, target: string, rules: RulePaths): string {
   // 阶段 3：课程会话写课程页/概念页只走收课事务（这条挡在其它原因之前；能走到
-  // 这里的 `wiki/知识` 路径只剩概念页，共享子目录已在 writeAllowed 放行）。
+  // 这里的 `wiki/knowledge` 路径只剩概念页，共享子目录已在 writeAllowed 放行）。
   if (role.kind === "course" && (withinAny(target, rules.courses) || withinAny(target, rules.knowledge))) {
     return "课程页和概念页只能经 course_close 收课写入：先 stage，在暂存目录里改，再 check、commit。";
   }

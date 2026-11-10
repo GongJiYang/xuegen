@@ -64,7 +64,7 @@ test("checkName：总则正则的合法与非法样例", () => {
   }
 });
 
-test("lintTree：wiki/ 与 clippings/ 下的名字不合规才报，旧库 Clippings/ 同规则", () => {
+test("lintTree：wiki/ 与 clippings/ 下的名字不合规才报；顶层 Clippings/ 按普通目录处理", () => {
   const entries = [
     "wiki/",
     "wiki/index.md",
@@ -86,8 +86,6 @@ test("lintTree：wiki/ 与 clippings/ 下的名字不合规才报，旧库 Clipp
   expectProblems(lintTree(entries), [
     ["name", "wiki/知识/"],
     ["name", "wiki/知识/concepts/discrete-math/010-变量.md"],
-    ["name", "Clippings/"],
-    ["name", "Clippings/网页剪藏.md"],
   ]);
 });
 
@@ -135,6 +133,23 @@ test("lintTree：生成物不在规定位置", () => {
 test("lintTree：空目录（搬空了就该删）", () => {
   const entries = ["wiki/", "wiki/index.md", "wiki/knowledge/", "wiki/knowledge/concepts/"];
   expectProblems(lintTree(entries), [["empty-dir", "wiki/knowledge/concepts"]]);
+});
+
+test("lintTree：raw/ 第二层以下的空目录不报（原料自带结构），raw/<d> 空目录仍报", () => {
+  const entries = [
+    "wiki/",
+    "wiki/index.md",
+    "raw/",
+    "raw/library/",
+    "raw/library/x/",
+    "raw/library/x/y/",
+    "raw/library/x/y/z/",
+    "raw/library/x/y/z/.gitkeep",
+    "raw/empty-section/",
+    "clippings/",
+    "clippings/a.md",
+  ];
+  expectProblems(lintTree(entries), [["empty-dir", "raw/empty-section"]]);
 });
 
 test("lintTree：概念页缺编号、卡片页找不到同名概念页", () => {
@@ -269,7 +284,7 @@ test("退出码：无问题的库 exit 0，有问题的库 exit 1 且 --json 给
     const bad = await makeVault();
     try {
       await writeFileAt(bad, "wiki/index.md", "[[concepts/discrete-math/010-variables|变量]]\n");
-      await writeFileAt(bad, "wiki/知识/concepts/discrete-math/010-variables.md", "# 变量\n");
+      await writeFileAt(bad, "wiki/Bad Dir/concepts/discrete-math/010-variables.md", "# 变量\n");
       const failed = await lint([bad, "--json"]);
       assert.equal(failed.code, 1);
       const parsed = JSON.parse(failed.stdout);
@@ -278,7 +293,7 @@ test("退出码：无问题的库 exit 0，有问题的库 exit 1 且 --json 给
       assert.ok(kinds.includes("name"), JSON.stringify(parsed.problems));
       const text = await lint([bad]);
       assert.equal(text.code, 1);
-      assert.match(text.stdout, /wiki\/知识\/: \[name\]/);
+      assert.match(text.stdout, /wiki\/Bad Dir\/: \[name\]/);
       assert.match(text.stdout, /wiki\/index\.md: \[link\]/);
     } finally {
       await rm(bad, { recursive: true, force: true });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 // Exercises the reading-source listing against a temporary vault: only `.md` /
-// `.pdf` under `raw/` and `Clippings/` are offered, newest first, and files
+// `.pdf` under `raw/` and `clippings/` are offered, newest first, and files
 // already linked from a reading page are excluded.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
@@ -27,14 +27,14 @@ describe("listReadingSources", () => {
     utimesSync(file, seconds, seconds);
   }
 
-  it("lists .md and .pdf under raw/ and Clippings/, newest first", () => {
+  it("lists .md and .pdf under raw/ and clippings/, newest first", () => {
     write("raw/articles/old.md", 1_000);
     write("raw/papers/new.pdf", 3_000);
-    write("Clippings/clip.md", 2_000);
+    write("clippings/clip.md", 2_000);
     const sources = listReadingSources(vault);
     expect(sources.map((source) => source.path)).toEqual([
       "raw/papers/new.pdf",
-      "Clippings/clip.md",
+      "clippings/clip.md",
       "raw/articles/old.md",
     ]);
     expect(sources[0]?.name).toBe("new");

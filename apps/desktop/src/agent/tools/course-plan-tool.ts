@@ -21,7 +21,6 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentToolResult, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { readVaultRoot } from "../guard/facts.js";
@@ -146,11 +145,10 @@ function needStaging(params: CoursePlanParams): string {
   return params.staging;
 }
 
-/** dashboard → render-board; the board lives in `wiki/_generated/` on new vaults. */
+/** dashboard → render-board; the board lives in `wiki/_generated/`. */
 function boardCalls(vault: string, coursesDir: string): CoursePlanCall[] {
-  const generated = existsSync(join(vault, "wiki", "_generated"));
-  const md = join(vault, generated ? "wiki/_generated/courses.md" : "wiki/courses.md");
-  const html = join(vault, generated ? "wiki/_generated/courses.html" : "wiki/courses.html");
+  const md = join(vault, "wiki/_generated/courses.md");
+  const html = join(vault, "wiki/_generated/courses.html");
   return [
     { script: STATE_SCRIPT, args: ["dashboard", coursesDir, md] },
     { script: BOARD_SCRIPT, args: [coursesDir, html] },

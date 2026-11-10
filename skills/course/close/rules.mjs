@@ -52,8 +52,6 @@ export function ownedPrefixes(slug, subject, kind = "close") {
     owned.push(
       `wiki/knowledge/concepts/${subject}/`,
       `wiki/knowledge/flashcards/${subject}/`,
-      "wiki/知识/concepts/",
-      "wiki/知识/flashcards/",
     );
   }
   return owned;

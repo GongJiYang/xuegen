@@ -95,8 +95,8 @@ async function handleScriptRequest(
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
     case "course.afterRead": {
-      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[shelf/<书>]]，
-      // 旧库 [[书房/<书>]]）时记进书页（bookshelf.mjs lecture，可带上「核心页已定」
+      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[shelf/<书>]]）
+      // 时记进书页（bookshelf.mjs lecture，可带上「核心页已定」
       // 的页码）；还链着旧阅读页（[[reading/<页>]]，迁库前的课程页）时照旧记一行
       // Reading Log。最后重建两份派生看板。每一步失败都直接返回它的失败响应。
       const courses = join(vault.vault, "wiki", "courses");

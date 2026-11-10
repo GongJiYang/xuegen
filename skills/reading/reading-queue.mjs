@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Xuegen 渐进阅读队列维护：导入排程、今日清单、复习推进、暂停/恢复、统计与校验。
-// 无第三方依赖。<vault> 为 Wiki 库根目录，内含 raw/、clippings/（旧库：Clippings/）与 wiki/。
+// 无第三方依赖。<vault> 为 Wiki 库根目录，内含 raw/、clippings/ 与 wiki/。
 //   node reading-queue.mjs add <vault> <原文相对路径> [--priority high|medium|low] [--slug s] [--due today|scheduled|YYYY-MM-DD] [--every N] [--today YYYY-MM-DD]
 //   node reading-queue.mjs today <vault> [--limit 3]
 //   node reading-queue.mjs list <vault>
@@ -10,7 +10,7 @@
 //   node reading-queue.mjs stats <vault>
 //   node reading-queue.mjs verify <vault>
 // 所有命令支持 --json；日期由 --today 注入，默认本地日期。
-// 路径：原文 = <vault>/<相对路径>；阅读页 = <vault>/wiki/reading/；摘录 = <知识目录>/extracts/（知识目录 = wiki/knowledge，旧库：wiki/知识，再旧：wiki）；日志 = <vault>/wiki/log.md。
+// 路径：原文 = <vault>/<相对路径>；阅读页 = <vault>/wiki/reading/；摘录 = wiki/knowledge/extracts/；日志 = <vault>/wiki/log.md。
 import { readFile, writeFile, readdir, stat, rename, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve, basename, relative, sep } from "node:path";
@@ -236,15 +236,9 @@ async function appendLog(vault, date, title, message) {
   await writeAtomic(logFile, `${existing}${separator}\n${block}`);
 }
 
-// 知识目录候选：新布局 wiki/knowledge 优先，旧库 wiki/知识，再旧退到 wiki（三种布局都支持）。
-const KNOWLEDGE_DIRS = ["knowledge", "知识"];
-
+// 知识目录：wiki/knowledge。
 function knowledgeDir(vault) {
-  for (const name of KNOWLEDGE_DIRS) {
-    const dir = join(wikiDir(vault), name);
-    if (existsSync(dir)) return dir;
-  }
-  return wikiDir(vault);
+  return join(wikiDir(vault), "knowledge");
 }
 
 function readingDir(vault) {
@@ -272,13 +266,13 @@ async function loadPage(vault, slug) {
   return { page: parsePage(text, file), file };
 }
 
-// 原文位置：raw/、clippings/（旧库：Clippings/），或知识目录下 sources/ 的登记页（教材通读用，脚本不读 PDF）。
+// 原文位置：raw/、clippings/，或知识目录下 sources/ 的登记页（教材通读用，脚本不读 PDF）。
 function validateSourceReachability(relPath) {
   const normalized = relPath.split(sep).join("/");
   const first = normalized.split("/")[0];
-  if (first === "raw" || first === "clippings" || first === "Clippings") return;
-  if (/^wiki\/(?:(?:knowledge|知识)\/)?sources\/[^/]+\.md$/.test(normalized)) return;
-  fail(`原文必须位于 raw/、clippings/（旧库：Clippings/）或 wiki/knowledge/sources/（旧库：wiki/知识/sources/）下：${relPath}`);
+  if (first === "raw" || first === "clippings") return;
+  if (/^wiki\/knowledge\/sources\/[^/]+\.md$/.test(normalized)) return;
+  fail(`原文必须位于 raw/、clippings/ 或 wiki/knowledge/sources/ 下：${relPath}`);
 }
 
 async function commandAdd(vault, positional, options, today) {
@@ -348,7 +342,7 @@ async function commandAdd(vault, positional, options, today) {
 function normalizeSourceLink(relPath) {
   let p = relPath.split(sep).join("/");
   p = p.replace(/\.[^./]+$/, "");
-  p = p.replace(/^wiki\/(?:(?:knowledge|知识)\/)?(?=sources\/)/, "");
+  p = p.replace(/^wiki\/(?:knowledge\/)?(?=sources\/)/, "");
   return p;
 }
 
@@ -689,7 +683,7 @@ function usage() {
     "  node reading-queue.mjs stats <vault>",
     "  node reading-queue.mjs verify <vault>",
     "",
-    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；原文位于 raw/、clippings/（旧库：Clippings/），或 wiki/knowledge/sources/（旧库：wiki/知识/sources/）的登记页。",
+    "<vault> 为 Wiki 库根目录，须包含 wiki/ 子目录；原文位于 raw/、clippings/，或 wiki/knowledge/sources/ 的登记页。",
     "",
     "选项：",
     "  --today YYYY-MM-DD  注入「今天」（测试用），默认本地日期",

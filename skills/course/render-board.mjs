@@ -3,7 +3,7 @@
 // 用法：node render-board.mjs <wiki/courses 目录> <输出 html>
 // 不依赖 npm 包，不联网，不写状态文件；输出页没有表单、按钮或任何编辑入口。
 
-import { readdirSync, readFileSync, writeFileSync, chmodSync, statSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, chmodSync, statSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -269,10 +269,9 @@ function renderCourse(c, rank) {
 </article>`;
 }
 
-// 生成物放哪：<wiki>/_generated 存在就用它（新布局），否则退回 <wiki> 根（旧库）。
+// 生成物放在 <wiki>/_generated。
 function generatedDir(wikiDir) {
-  const generated = join(wikiDir, "_generated");
-  return existsSync(generated) ? generated : wikiDir;
+  return join(wikiDir, "_generated");
 }
 
 function verifyStatus(coursesDir, dash) {
@@ -310,7 +309,7 @@ function main() {
     process.exit(1);
   }
 
-  // 生成物目录：wiki/_generated（旧库为 wiki/ 根下，两种布局都认）。
+  // 生成物目录：wiki/_generated。
   const dashDir = generatedDir(dirname(coursesDir));
   const dash = join(dashDir, "courses.md");
   const verify = verifyStatus(coursesDir, dash);
@@ -420,6 +419,7 @@ footer{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.7;borde
 </html>
 `;
 
+  mkdirSync(dirname(outFile), { recursive: true });
   try {
     if (existsSync(outFile)) chmodSync(outFile, 0o644);
   } catch {}

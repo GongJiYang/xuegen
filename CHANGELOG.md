@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Vault layout: the old Chinese names are gone (`wiki/知识`, `wiki/书房`, `Clippings`, board at `wiki/courses.md`). Code and skills only know the English layout (`wiki/knowledge`, `wiki/shelf`, `clippings`, `wiki/_generated/courses.{md,html}`, created when missing). Run `rename-vault.mjs` on an old vault before upgrading.
+- Scripts: `vault-lint.mjs` no longer reports empty directories deeper than `raw/<d>/<d>/` (structure that came with the material, e.g. a downloaded repository's `.gitkeep` folders).
+- Scripts: `bin/xuegen-data-root.mjs` expects `vault/ sessions/ workspace/` under the data root and explains how to rename an old `库/ 会话/ 工作区/` root.
+
 ## v0.8.0 — 2026-11-10
 
 - Desktop / skills: **close transaction** (`skills/course/course-close.mjs`, tool `course_close`). A course session writes its course page, concept pages, records, `index.md` and `log.md` into a staging copy under `<workspace>/.close/`; `check` validates ownership, conflicts, append-only log/index, the course page and new concept pages; `commit` writes every file atomically (temp file → fsync → rename, journal for crash recovery), relocks, redraws both course boards and records one jj commit. `undo` restores the files the last 收课 changed (new pages are kept and listed), refusing when they were changed since. `shift` does the start-of-lesson postponement the same way (jj 「顺延」); save points commit as 「存档点」 so undo never takes them; `snapshot` renders the dated PNG outside the sandbox.

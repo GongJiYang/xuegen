@@ -151,7 +151,6 @@ describe("sandboxConfigFor — 形状", () => {
           `${V}/wiki/prompts`,
           `${V}/AGENTS.md`,
           `${V}/wiki/courses`,
-          `${V}/wiki/courses.md`,
           `${V}/wiki/_generated/courses.md`,
           `${V}/wiki/cycles`,
           `${V}/wiki/calendar`,
@@ -204,25 +203,26 @@ describe("sandboxConfigFor — 与 guard 一致（沙盒不比 guard 宽）", ()
 });
 
 describe("sandboxConfigFor — 课程会话的写边界", () => {
-  it("course 不许经 bash 写课程页与概念页（两种知识目录拼写），free 写概念页放行", () => {
+  it("course 不许经 bash 写课程页与概念页，free 写概念页放行", () => {
     const courseConfig = sandboxConfigFor(courseRole, roots, canon);
     for (const path of [
       `${V}/wiki/courses/discrete-math-epp.md`,
       `${V}/wiki/knowledge/concepts/x.md`,
+      // 旧目录名不再被当成知识页：课程会话写它落到普通 wiki 页的通用拒绝。
       `${V}/wiki/知识/concepts/x.md`,
     ]) {
       expect(sandboxAllowsWrite(courseConfig, path), path).toBe(false);
     }
 
     const freeConfig = sandboxConfigFor(freeRole, roots, canon);
-    for (const path of [`${V}/wiki/knowledge/concepts/x.md`, `${V}/wiki/知识/concepts/x.md`]) {
-      expect(sandboxAllowsWrite(freeConfig, path), path).toBe(true);
-    }
+    expect(sandboxAllowsWrite(freeConfig, `${V}/wiki/knowledge/concepts/x.md`)).toBe(true);
+    // free 也只能写知识目录：旧目录名不在放行清单里。
+    expect(sandboxAllowsWrite(freeConfig, `${V}/wiki/知识/concepts/x.md`)).toBe(false);
   });
 });
 
 describe("sandboxConfigFor — 原料剪藏刻意不开（清单粒度做不到「只许新增」）", () => {
-  it("clippings / Clippings 不在 allowWrite 里；guard 只对新文件放行", () => {
+  it("clippings 不在 allowWrite 里；guard 只对新文件放行", () => {
     const rules = rulePaths(roots, canon);
     for (const { name, role } of ROLES) {
       const config = sandboxConfigFor(role, roots, canon);
@@ -250,8 +250,7 @@ describe("sandboxConfigFor — 路径里的 glob 字符", () => {
     // 清单里确实是库内路径，且 `[1]` / `*` 原样保留（没有转义、没有展开）。
     const allowWrite = pathsOf(config.filesystem.allowWrite);
     const denyWrite = pathsOf(config.filesystem.denyWrite);
-    // 两种库目录拼写都在清单里（`wiki/书房` / `wiki/shelf`、`wiki/知识` / `wiki/knowledge`）。
-    expect(allowWrite).toContain(`${globVault}/wiki/书房`);
+    expect(allowWrite).toContain(`${globVault}/wiki/shelf`);
     expect(allowWrite).toContain(`${globVault}/wiki/knowledge/flashcards`);
     expect(denyWrite).toContain(`${globVault}/wiki/courses`);
     expect(denyWrite).toContain(`${globVault}/wiki/_generated/courses.md`);

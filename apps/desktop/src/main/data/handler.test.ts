@@ -259,8 +259,8 @@ describe("handleDataRequest", () => {
     expect(course).toContain("- [x] 讲后读 §1.1–1.4 核心页 · 2026-10-22 读（用户自报，未检查，2026-10-22）");
     const page = readFileSync(join(vault, "wiki", "reading", "epp.md"), "utf8");
     expect(page).toContain("- 2026-10-22: 讲后读 §1.1–1.4 核心页 已读（用户自报）");
-    expect(statSync(join(vault, "wiki", "courses.md")).isFile()).toBe(true);
-    expect(statSync(join(vault, "wiki", "courses.html")).isFile()).toBe(true);
+    expect(statSync(join(vault, "wiki", "_generated", "courses.md")).isFile()).toBe(true);
+    expect(statSync(join(vault, "wiki", "_generated", "courses.html")).isFile()).toBe(true);
   });
 
   it("reading.add passes the chosen priority and due through to the queue", async () => {

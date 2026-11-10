@@ -32,8 +32,8 @@ describe("course.afterRead into a shelf book", () => {
     rmSync(vault, { recursive: true, force: true });
   });
 
-  it("course.afterRead writes into the shelf book page when the course links 书房/<book>", async () => {
-    // The course points at a shelf book (`[[书房/t]]`) and keeps no reading link:
+  it("course.afterRead writes into the shelf book page when the course links shelf/<book>", async () => {
+    // The course points at a shelf book (`[[shelf/t]]`) and keeps no reading link:
     // the lesson's read must land in the book page, never in wiki/reading/.
     const courseFile = join(vault, "wiki", "courses", "demo.md");
     const text = [
@@ -57,7 +57,7 @@ describe("course.afterRead into a shelf book", () => {
       "",
       "## Next Session",
       "",
-      "读 [[书房/t|Epp]] §2.1。",
+      "读 [[shelf/t|Epp]] §2.1。",
       "",
       "## Learning Record",
       "",
@@ -68,7 +68,7 @@ describe("course.afterRead into a shelf book", () => {
     ].join("\n");
     touch(courseFile, text);
     touch(
-      join(vault, "wiki", "书房", "t.md"),
+      join(vault, "wiki", "shelf", "t.md"),
       [
         "---",
         "kind: book",
@@ -102,7 +102,7 @@ describe("course.afterRead into a shelf book", () => {
       data: { label: "§1.1–1.4 核心页", reading: null, book: "t" },
     });
 
-    const book = readFileSync(join(vault, "wiki", "书房", "t.md"), "utf8");
+    const book = readFileSync(join(vault, "wiki", "shelf", "t.md"), "utf8");
     expect(book).toContain("- 2026-11-10: 讲后读 §1.1–1.4 核心页 已读（demo，用户自报）");
     expect(book).toContain("- pp.1–5、7–12 · demo · §1.1–1.4 核心页 · 2026-11-10");
     expect(book).toContain("position: 0");
@@ -111,6 +111,6 @@ describe("course.afterRead into a shelf book", () => {
     expect(readFileSync(courseFile, "utf8")).toContain(
       "- [x] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.1–5、7–12，跳过 6）（用户自报，未检查，2026-11-10）",
     );
-    expect(statSync(join(vault, "wiki", "courses.md")).isFile()).toBe(true);
+    expect(statSync(join(vault, "wiki", "_generated", "courses.md")).isFile()).toBe(true);
   });
 });

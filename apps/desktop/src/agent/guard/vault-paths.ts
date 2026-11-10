@@ -1,11 +1,8 @@
 /**
  * The vault's rule paths and the alias handling the guard needs.
  *
- * The vault is being renamed to English (`wiki/知识` → `wiki/knowledge`,
- * `wiki/书房` → `wiki/shelf`, `Clippings` → `clippings`; see
- * docs/platform/VAULT-NAMING.md). Until the rename runs both names are real
- * directories, so every rule has to recognise both — knowing only one would let
- * the other spelling through a check, or refuse a directory that still exists.
+ * The vault uses the English layout (docs/platform/VAULT-NAMING.md); each rule
+ * has one canonical path.
  *
  * All paths here are canonical (`guard/path.ts`); the helpers compare by path
  * segment so `/a/bc` is never inside `/a/b`.
@@ -40,24 +37,22 @@ export type CanonFn = (path: string) => string;
 /** Whether a canonical path already exists on disk (原料只许新增，要靠它分辨). */
 export type ExistsFn = (canonicalPath: string) => boolean;
 
-const KNOWLEDGE = "wiki/知识";
-const KNOWLEDGE_EN = "wiki/knowledge";
-const SHELF = "wiki/书房";
-const SHELF_EN = "wiki/shelf";
+const KNOWLEDGE = "wiki/knowledge";
+const SHELF = "wiki/shelf";
 
 /** Canonical rule paths; each entry lists the aliases a logical location has. */
 export interface RulePaths {
-  /** `wiki/知识`: every 知识 page. */
+  /** `wiki/knowledge`: every 知识 page. */
   knowledge: string[];
-  /** `wiki/知识/extracts`: 摘录页 (reading workflow, any session). */
+  /** `wiki/knowledge/extracts`: 摘录页 (reading workflow, any session). */
   extracts: string[];
-  /** `wiki/知识/flashcards`: 卡片页 (wiki-save workflow, any session). */
+  /** `wiki/knowledge/flashcards`: 卡片页 (wiki-save workflow, any session). */
   flashcards: string[];
-  /** `wiki/知识/sources`: 来源登记页 (registration, any session). */
+  /** `wiki/knowledge/sources`: 来源登记页 (registration, any session). */
   sources: string[];
-  /** `wiki/知识/synthesis`: 综合分析页 (wiki-save「整理文档关系」, any session). */
+  /** `wiki/knowledge/synthesis`: 综合分析页 (wiki-save「整理文档关系」, any session). */
   synthesis: string[];
-  /** `wiki/知识/entities`: 实体页 (同上). */
+  /** `wiki/knowledge/entities`: 实体页 (同上). */
   entities: string[];
   /** `wiki/subjects`: 科目页 (讲解偏好 / 资料登记). */
   subjects: string[];
@@ -65,16 +60,16 @@ export interface RulePaths {
   cycles: string[];
   /** `wiki/courses`: one plan page per course. */
   courses: string[];
-  /** 课程看板：旧库 `wiki/courses.md`、新库 `wiki/_generated/courses.md`。 */
+  /** 课程看板 `wiki/_generated/courses.md`。 */
   coursesBoard: string[];
   log: string[];
   index: string[];
   profile: string[];
-  /** `wiki/书房`: 整本书的进度页 (reading workflow, any session). */
+  /** `wiki/shelf`: 整本书的进度页 (reading workflow, any session). */
   shelf: string[];
   /** `wiki/reading`: 阅读队列页 (reading workflow, any session). */
   reading: string[];
-  /** 剪藏目录 (`Clippings` / `clippings`): 原料，只许新增. */
+  /** 剪藏目录 (`clippings`): 原料，只许新增. */
   clippings: string[];
   /** `raw/`: 原料，只许新增、不许改. */
   raw: string[];
@@ -86,32 +81,29 @@ export interface RulePaths {
   tmp: string[];
 }
 
-/** Every rule path, canonicalized, aliases included. */
+/** Every rule path, canonicalized. */
 export function rulePaths(roots: Roots, canon: CanonFn): RulePaths {
   const at = (path: string): string => canon(`${roots.vault}/${path}`);
   const raw = (paths: readonly string[]): string[] => paths.map(canon);
   const all = (paths: readonly string[]): string[] => paths.map(at);
-  const both = (zh: string, en: string): string[] => [at(zh), at(en)];
   return {
-    knowledge: both(KNOWLEDGE, KNOWLEDGE_EN),
-    extracts: both(`${KNOWLEDGE}/extracts`, `${KNOWLEDGE_EN}/extracts`),
-    flashcards: both(`${KNOWLEDGE}/flashcards`, `${KNOWLEDGE_EN}/flashcards`),
-    sources: both(`${KNOWLEDGE}/sources`, `${KNOWLEDGE_EN}/sources`),
-    synthesis: both(`${KNOWLEDGE}/synthesis`, `${KNOWLEDGE_EN}/synthesis`),
-    entities: both(`${KNOWLEDGE}/entities`, `${KNOWLEDGE_EN}/entities`),
+    knowledge: all([KNOWLEDGE]),
+    extracts: all([`${KNOWLEDGE}/extracts`]),
+    flashcards: all([`${KNOWLEDGE}/flashcards`]),
+    sources: all([`${KNOWLEDGE}/sources`]),
+    synthesis: all([`${KNOWLEDGE}/synthesis`]),
+    entities: all([`${KNOWLEDGE}/entities`]),
     subjects: all(["wiki/subjects"]),
     subjectBoard: all(["wiki/subjects.md"]),
     cycles: all(["wiki/cycles"]),
     courses: all(["wiki/courses"]),
-    // The board moved into `wiki/_generated/` with the rename (VAULT-NAMING §3);
-    // both spellings are real until the rename runs, so both must be recognised.
-    coursesBoard: all(["wiki/courses.md", "wiki/_generated/courses.md"]),
+    coursesBoard: all(["wiki/_generated/courses.md"]),
     log: all(["wiki/log.md"]),
     index: all(["wiki/index.md"]),
     profile: all(["wiki/profile.md"]),
-    shelf: both(SHELF, SHELF_EN),
+    shelf: all([SHELF]),
     reading: all(["wiki/reading"]),
-    clippings: all(["Clippings", "clippings"]),
+    clippings: all(["clippings"]),
     raw: all(["raw"]),
     calendar: all(["wiki/calendar"]),
     vaultRules: all(["wiki/prompts", "AGENTS.md"]),
@@ -139,7 +131,7 @@ export function isInVault(target: string, roots: Roots): boolean {
  *
  * 库优先：库内的路径**永远**不算草稿位置。库可能整个放在临时目录下（测试库、
  * 备份、用户把库放在 `~/tmp` 里），而规则路径又都按库根拼出来——若先看临时目录，
- * 库里的每一条规则都会被「临时目录可写」一句盖掉，`write wiki/知识/concepts/x.md`
+ * 库里的每一条规则都会被「临时目录可写」一句盖掉，`write wiki/knowledge/concepts/x.md`
  * 就从总控会话里漏了过去（11-09 真机验收）。工作区落在库里时同理：库的规则先判。
  */
 export function isOutsideVaultScratch(target: string, roots: Roots, rules: RulePaths): boolean {

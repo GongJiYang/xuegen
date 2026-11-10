@@ -31,7 +31,7 @@ const COMPLETE: Record<CloseAction, Params> = {
   add: {
     action: "add",
     staging: "/home/learning/.close/discrete-math-epp-1",
-    path: "wiki/知识/concepts/x.md",
+    path: "wiki/knowledge/concepts/x.md",
   },
   check: { action: "check", staging: "/home/learning/.close/discrete-math-epp-1" },
   commit: { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1" },
@@ -72,7 +72,7 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
     expect(courseCloseArgs(COMPLETE.add, VAULT, CWD)).toEqual([
       "add",
       "/home/learning/.close/discrete-math-epp-1",
-      "wiki/知识/concepts/x.md",
+      "wiki/knowledge/concepts/x.md",
       "--json",
     ]);
   });
@@ -282,7 +282,7 @@ describe("course_close — execute 把脚本输出交回模型", () => {
   it("keeps a failed check's problems (stdout) and marks the result as an error", async () => {
     const home = homeWithVault(VAULT);
     try {
-      const problems = '{"ok":false,"problems":[{"code":"missing-link","page":"wiki/知识/concepts/x.md"}]}';
+      const problems = '{"ok":false,"problems":[{"code":"missing-link","page":"wiki/knowledge/concepts/x.md"}]}';
       const exec = fakeExec({
         error: new Error("Command failed: exit code 1"),
         stdout: problems,

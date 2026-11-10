@@ -119,41 +119,18 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
     }
   });
 
-  it("board 在旧库（没有 wiki/_generated）写到 wiki/ 根", () => {
+  it("board 写到 wiki/_generated（目录不存在也一样）", () => {
     const vault = vaultWith([join("wiki"), join("wiki", "courses")]);
-    try {
-      expect(coursePlanCalls({ action: "board" }, vault, CWD)).toEqual([
-        {
-          script: STATE,
-          args: ["dashboard", join(vault, "wiki", "courses"), join(vault, "wiki", "courses.md")],
-        },
-        { script: BOARD, args: [join(vault, "wiki", "courses"), join(vault, "wiki", "courses.html")] },
-      ]);
-    } finally {
-      rmSync(vault, { recursive: true, force: true });
-    }
-  });
-
-  it("board 在新库（有 wiki/_generated）写到 wiki/_generated", () => {
-    const vault = vaultWith([join("wiki"), join("wiki", "courses"), join("wiki", "_generated")]);
-    try {
-      expect(coursePlanCalls({ action: "board" }, vault, CWD)).toEqual([
-        {
-          script: STATE,
-          args: [
-            "dashboard",
-            join(vault, "wiki", "courses"),
-            join(vault, "wiki", "_generated", "courses.md"),
-          ],
-        },
-        {
-          script: BOARD,
-          args: [join(vault, "wiki", "courses"), join(vault, "wiki", "_generated", "courses.html")],
-        },
-      ]);
-    } finally {
-      rmSync(vault, { recursive: true, force: true });
-    }
+    expect(coursePlanCalls({ action: "board" }, vault, "/ws")).toEqual([
+      {
+        script: STATE,
+        args: ["dashboard", join(vault, "wiki", "courses"), join(vault, "wiki", "_generated", "courses.md")],
+      },
+      {
+        script: BOARD,
+        args: [join(vault, "wiki", "courses"), join(vault, "wiki", "_generated", "courses.html")],
+      },
+    ]);
   });
 
   it("缺 slug、缺 staging、缺 lessons、new 缺 subject、subject 不带 new 都抛中文错", () => {

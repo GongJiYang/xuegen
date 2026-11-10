@@ -1,6 +1,6 @@
 ---
 name: course-board
-description: 用户想知道现在在学什么、有哪些课程、进度总览、课程看板、网页看板，或要确认课程状态有没有被人改动时使用。只读渲染 wiki/_generated/courses.md（旧库：wiki/courses.md）与 wiki/_generated/courses.html（旧库：wiki/courses.html）两个派生看板，以及 wiki/courses/*.md 状态源，列出课程、当前周、本周活动、总目标进度、上次记录和下次起点，并校验只读锁与看板一致性。不写任何文件、不勾选、不改计划；要打勾、抵消、收课、出图或重新生成看板时转 course 技能。
+description: 用户想知道现在在学什么、有哪些课程、进度总览、课程看板、网页看板，或要确认课程状态有没有被人改动时使用。只读渲染 wiki/_generated/courses.md 与 wiki/_generated/courses.html 两个派生看板，以及 wiki/courses/*.md 状态源，列出课程、当前周、本周活动、总目标进度、上次记录和下次起点，并校验只读锁与看板一致性。不写任何文件、不勾选、不改计划；要打勾、抵消、收课、出图或重新生成看板时转 course 技能。
 ---
 
 # 课程看板（只读展示）

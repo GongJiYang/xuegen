@@ -2,7 +2,7 @@
 // Xuegen 卡片直连 AnkiConnect：把 <知识目录>/flashcards/ 里没有 <!--ID:--> 的卡片块写进 Anki，
 // 并在块内 END 前回填 ID（Obsidian_to_Anki 以后再扫会因已有 ID 跳过，格式保持兼容）。
 // 无第三方依赖（AnkiConnect 用全局 fetch）。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；
-// 知识目录 = wiki/knowledge（旧库：wiki/知识，再旧：wiki；与 flashcards.mjs 同一约定）。
+// 知识目录 = wiki/knowledge（与 flashcards.mjs 同一约定）。
 //   node anki-sync.mjs push <vault> [--dry-run] [--json] [--url http://127.0.0.1:8765]
 // 沙盒内直连 127.0.0.1:8765 会被 seatbelt 拦下（NO_PROXY 含 127.0.0.1，只有代理端口被放行），
 // 所以进程里有 HTTP_PROXY / http_proxy 且目标是本机地址时，不用 fetch，改经代理发
@@ -60,15 +60,9 @@ function wikiDir(vault) {
   return join(vault, "wiki");
 }
 
-// 知识目录候选：新布局 wiki/knowledge 优先，旧库 wiki/知识，再旧退到 wiki（三种布局都支持）。
-const KNOWLEDGE_DIRS = ["knowledge", "知识"];
-
+// 知识目录：wiki/knowledge。
 function knowledgeDir(vault) {
-  for (const name of KNOWLEDGE_DIRS) {
-    const dir = join(wikiDir(vault), name);
-    if (existsSync(dir)) return dir;
-  }
-  return wikiDir(vault);
+  return join(wikiDir(vault), "knowledge");
 }
 
 function requireVault(vault) {
@@ -458,7 +452,7 @@ function usage() {
     "用法：",
     "  node anki-sync.mjs push <vault> [--dry-run] [--json] [--url http://127.0.0.1:8765]",
     "",
-    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge（旧库：wiki/知识，再旧：wiki）。",
+    "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge。",
     "push：把 <知识目录>/flashcards/ 下没有 <!--ID:--> 的 Basic 块写进 Anki，ID 回填到块内。",
     "--dry-run 只列出要同步的卡，不连 Anki、不写文件。",
   ].join("\n");

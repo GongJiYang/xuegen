@@ -101,7 +101,7 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
 1. 依据 `wiki/subjects.md` 的路线表确定主项与辅助（上一周期的辅助转为主项）；用户可改。
 2. 定 `start`、`end`：以 `wiki/cycles/route.md` 里这一周期的那一行为准（`end = start + 48 天`）；再定周模板。
 3. 写 `wiki/cycles/<cN>.md`（上面的格式 + Overview / Acceptance / Pending / Log），登记到 `wiki/index.md` 的 `## Cycles`，把路线页这一行的周期格改成 `[[cycles/cN\|CN]]`、状态改「进行中」（上一周期改「完成」），更新 `wiki/subjects.md` 的「当前周期」，`wiki/log.md` 追加 `## [YYYY-MM-DD] cycle | CN`。
-4. 每门主项的课程由 `course` 建立或重排：`plan … --days <该课的深度日> --reviews anki`，第一天不是深度日但用户要上课时加 `--extra`。主项课必须读原书：原书方式「讲后读（错开）」（核心页开课时定，读在另一门主项的下一个上课日），另有不受周期限制的通读，在书房（`wiki/shelf/`（旧库：`wiki/书房/`），每天一段，计划内一次一本，见 `reading` 技能「书房」）。
+4. 每门主项的课程由 `course` 建立或重排：`plan … --days <该课的深度日> --reviews anki`，第一天不是深度日但用户要上课时加 `--extra`。主项课必须读原书：原书方式「讲后读（错开）」（核心页开课时定，读在另一门主项的下一个上课日），另有不受周期限制的通读，在书房（`wiki/shelf/`，每天一段，计划内一次一本，见 `reading` 技能「书房」）。
 5. 运行 `check`，零问题才算完成。
 
 ### 调整周模板
@@ -120,8 +120,8 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
 
 ## 读写边界
 
-- 可写：`wiki/cycles/`、`wiki/subjects.md`、`wiki/subjects/`、登记用的 `wiki/knowledge/sources/`（旧库：`wiki/知识/sources/`） 新页、`wiki/index.md`、`wiki/log.md`（只追加）。
-- 只读：`wiki/courses/`（改课程一律交给 `course`）、`wiki/knowledge/flashcards/`、`wiki/reading/`、`raw/`、`clippings/`（旧库：`Clippings/`）、`wiki/prompts/`、凭据目录。
+- 可写：`wiki/cycles/`、`wiki/subjects.md`、`wiki/subjects/`、登记用的 `wiki/knowledge/sources/` 新页、`wiki/index.md`、`wiki/log.md`（只追加）。
+- 只读：`wiki/courses/`（改课程一律交给 `course`）、`wiki/knowledge/flashcards/`、`wiki/reading/`、`raw/`、`clippings/`、`wiki/prompts/`、凭据目录。
 - 记忆：科目页的 `## 讲解偏好` 归 `course`（按用户确认写），本技能不改；总控可以读各科偏好，只在用户明确要求时写 `wiki/profile.md`（全局）。
 - 状态记号与库规则一致：● 学习中 · ! 需注意 · ✓ 已完成 · ○ 已排期 · ◌ 未制定计划 / 搁置。
 - 没有证据不说「已完成」：课次是否学过只看课程页的 `完成：` 行与勾选。

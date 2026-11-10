@@ -8,8 +8,8 @@
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
 //   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报）
-import { readFile, writeFile, stat, chmod } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { readFile, writeFile, stat, chmod, mkdir } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
 
 const READONLY_MODE = 0o444;
@@ -140,7 +140,7 @@ async function afterRead(file, label, date) {
   }
   await chmod(target, originalMode);
   const reading = /\[\[reading\/([^\]|]+)/.exec(text)?.[1] ?? null;
-  const book = /\[\[(?:shelf|书房)\/([^\]|]+)/.exec(text)?.[1] ?? null;
+  const book = /\[\[shelf\/([^\]|]+)/.exec(text)?.[1] ?? null;
   const course = basename(target, ".md");
   process.stdout.write(`${JSON.stringify({ file: target, label, reading, book, course, pages })}\n`);
 }
@@ -246,6 +246,7 @@ if (command === "lock" || command === "unlock") {
   const courses = await loadCourses(resolve(args[0]));
   const outFile = resolve(args[1]);
   const text = renderDashboard(courses, localDate());
+  await mkdir(dirname(outFile), { recursive: true });
   await chmod(outFile, WRITABLE_MODE).catch(() => {});
   await writeFile(outFile, text, "utf8");
   await chmod(outFile, READONLY_MODE);

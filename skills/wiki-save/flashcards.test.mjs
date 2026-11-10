@@ -37,7 +37,7 @@ async function jsonFc(args) {
 }
 
 async function writeCard(vault, rel, text) {
-  const file = join(vault, "wiki", "flashcards", rel);
+  const file = join(vault, "wiki", "knowledge", "flashcards", rel);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, text, "utf8");
   return file;
@@ -53,7 +53,7 @@ test("stats：块内 ID 视为已同步，无 ID 视为未同步", async () => {
   const res = await jsonFc(["stats", vault]);
   assert.equal(res.total, 2);
   assert.equal(res.unsynced, 1);
-  assert.deepEqual(res.decks, [{ deck: "Math", total: 2, unsynced: 1, files: ["wiki/flashcards/math/a.md"] }]);
+  assert.deepEqual(res.decks, [{ deck: "Math", total: 2, unsynced: 1, files: ["wiki/knowledge/flashcards/math/a.md"] }]);
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -80,7 +80,7 @@ test("stats：多牌组分别统计，牌组取最近 TARGET DECK", async () => 
     deck: "Math",
     total: 2,
     unsynced: 1,
-    files: ["wiki/flashcards/math/a.md"],
+    files: ["wiki/knowledge/flashcards/math/a.md"],
   });
   await rm(vault, { recursive: true, force: true });
 });
@@ -96,14 +96,14 @@ test("stats：不扫描 wiki/prompts/ 与库根 AGENTS.md 里的示例块", asyn
   await writeFile(join(vault, "AGENTS.md"), `START\nBasic\n根目录示例？\nBack: x\nEND\n`, "utf8");
   await writeCard(vault, "real/a.md", `TARGET DECK\nReal\n\n${SYNCED_BLOCK}\n`);
   const res = await jsonFc(["stats", vault]);
-  assert.equal(res.total, 1, "只应统计 wiki/flashcards/ 下的卡片");
+  assert.equal(res.total, 1, "只应统计 wiki/knowledge/flashcards/ 下的卡片");
   assert.equal(res.decks[0].deck, "Real");
   await rm(vault, { recursive: true, force: true });
 });
 
 test("stats：pendingExtracts 统计 cards: pending 的摘录", async () => {
   const vault = await makeVault();
-  const dir = join(vault, "wiki", "extracts", "src");
+  const dir = join(vault, "wiki", "knowledge", "extracts", "src");
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "e1.md"), "---\ncards: pending\n---\n\n# E1\n", "utf8");
   await writeFile(join(dir, "e2.md"), "---\ncards: done\n---\n\n# E2\n", "utf8");
@@ -137,8 +137,8 @@ test("add：新牌组各自建目录，不同新牌组不会落进同一个文�
   const vault = await makeVault();
   const foo = await jsonFc(["add", vault, "--deck", "Foo", "--front", "F", "--back", "B"]);
   const bar = await jsonFc(["add", vault, "--deck", "Math::Bar 2", "--front", "F2", "--back", "B2"]);
-  assert.equal(foo.file, join(vault, "wiki", "flashcards", "Foo", "inbox.md"));
-  assert.equal(bar.file, join(vault, "wiki", "flashcards", "Math-Bar-2", "inbox.md"));
+  assert.equal(foo.file, join(vault, "wiki", "knowledge", "flashcards", "Foo", "inbox.md"));
+  assert.equal(bar.file, join(vault, "wiki", "knowledge", "flashcards", "Math-Bar-2", "inbox.md"));
   assert.match(await readFile(foo.file, "utf8"), /TARGET DECK\nFoo\n/);
   assert.match(await readFile(bar.file, "utf8"), /TARGET DECK\nMath::Bar 2\n/);
   await rm(vault, { recursive: true, force: true });
@@ -150,8 +150,8 @@ test("add：同一目录里有两个牌组时，各自用自己的收件箱", as
   await writeCard(vault, "link/b.md", `TARGET DECK\nLink::符号处理\n\n${SYNCED_BLOCK}\n`);
   const link = await jsonFc(["add", vault, "--deck", "Link", "--front", "L", "--back", "1"]);
   const sym = await jsonFc(["add", vault, "--deck", "Link::符号处理", "--front", "S", "--back", "2"]);
-  assert.equal(link.file, join(vault, "wiki", "flashcards", "link", "inbox.md"));
-  assert.equal(sym.file, join(vault, "wiki", "flashcards", "link", "inbox-Link-符号处理.md"));
+  assert.equal(link.file, join(vault, "wiki", "knowledge", "flashcards", "link", "inbox.md"));
+  assert.equal(sym.file, join(vault, "wiki", "knowledge", "flashcards", "link", "inbox-Link-符号处理.md"));
   assert.match(await readFile(sym.file, "utf8"), /TARGET DECK\nLink::符号处理\n/);
   assert.doesNotMatch(await readFile(link.file, "utf8"), /符号处理/);
   await rm(vault, { recursive: true, force: true });
@@ -160,7 +160,7 @@ test("add：同一目录里有两个牌组时，各自用自己的收件箱", as
 test("add：牌组名里的路径字符不会写出 flashcards 目录", async () => {
   const vault = await makeVault();
   const res = await jsonFc(["add", vault, "--deck", "../../evil", "--front", "F", "--back", "B"]);
-  assert.ok(res.file.startsWith(join(vault, "wiki", "flashcards") + "/"));
+  assert.ok(res.file.startsWith(join(vault, "wiki", "knowledge", "flashcards") + "/"));
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -169,7 +169,7 @@ test("add：追加到已有 inbox 之后，保留原内容", async () => {
   await writeCard(vault, "mme/a.md", `TARGET DECK\nMME\n\n${SYNCED_BLOCK}\n`);
   await fc(["add", vault, "--deck", "MME", "--front", "第一张", "--back", "A1"]);
   await fc(["add", vault, "--deck", "MME", "--front", "第二张", "--back", "A2"]);
-  const text = await readFile(join(vault, "wiki", "flashcards", "mme", "inbox.md"), "utf8");
+  const text = await readFile(join(vault, "wiki", "knowledge", "flashcards", "mme", "inbox.md"), "utf8");
   assert.match(text, /第一张/);
   assert.match(text, /第二张/);
   assert.equal((text.match(/^START$/gm) || []).length, 2);
@@ -190,7 +190,7 @@ test("add：拒绝空正反面与独立成行的 END", async () => {
     await fc(["add", vault, "--deck", "D", "--front", "F", "--back", "含\nEND\n内容"], { expectFail: true }),
     /不能包含独立成行的 END/,
   );
-  assert.ok(!existsSync(join(vault, "wiki", "flashcards", "inbox.md")), "失败时不应留下文件");
+  assert.ok(!existsSync(join(vault, "wiki", "knowledge", "flashcards", "inbox.md")), "失败时不应留下文件");
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -201,19 +201,18 @@ test("add：非库根目录拒绝", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test("知识目录：wiki/知识/ 存在时读写其中的 flashcards", async () => {
+test("知识目录：只有旧 wiki/知识/ 时不再读它（stats 为 0）", async () => {
   const vault = await makeVault();
   const kdir = join(vault, "wiki", "知识", "flashcards");
   await mkdir(join(kdir, "math"), { recursive: true });
   await writeFile(join(kdir, "math", "a.md"), `TARGET DECK\nMath\n\n${SYNCED_BLOCK}\n`, "utf8");
+  await mkdir(join(vault, "wiki", "知识", "extracts"), { recursive: true });
+  await writeFile(join(vault, "wiki", "知识", "extracts", "e.md"), "---\ncards: pending\n---\n# E\n", "utf8");
   const res = await jsonFc(["stats", vault]);
-  assert.equal(res.total, 1);
-  assert.equal(res.unsynced, 0);
-  assert.equal(res.decks[0].files[0], join("wiki", "知识", "flashcards", "math", "a.md"));
+  assert.equal(res.total, 0, "旧目录里的卡不再计入");
+  assert.equal(res.pendingExtracts, 0, "旧目录里的摘录不再计入");
   const add = await jsonFc(["add", vault, "--deck", "Geo", "--front", "F", "--back", "B"]);
-  assert.equal(add.file, join(kdir, "Geo", "inbox.md"));
-  assert.ok(existsSync(add.file));
-  assert.ok(!existsSync(join(vault, "wiki", "flashcards")), "不应创建 wiki/flashcards/");
+  assert.equal(add.file, join(vault, "wiki", "knowledge", "flashcards", "Geo", "inbox.md"));
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -221,7 +220,7 @@ test("原子写入：inbox 无残留临时文件", async () => {
   const vault = await makeVault();
   await fc(["add", vault, "--deck", "D", "--front", "F", "--back", "B"]);
   const { readdir } = await import("node:fs/promises");
-  const entries = await readdir(join(vault, "wiki", "flashcards"));
+  const entries = await readdir(join(vault, "wiki", "knowledge", "flashcards"));
   assert.ok(entries.every((name) => !name.includes(".tmp-")), `残留：${entries}`);
   await rm(vault, { recursive: true, force: true });
 });

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Xuegen 库命名检查（vault-lint）：按 docs/platform/VAULT-NAMING.md 第 1、3、4 节检查。
 //   node vault-lint.mjs <vault> [--json]
-// 检查范围：wiki/ 与 clippings/（旧库：Clippings/）下所有文件和目录名；
+// 检查范围：wiki/ 与 clippings/ 下所有文件和目录名；
 // raw/ 只查第一、二层分区目录名（不查原料文件名）；
 // 另查：生成物不在规定位置、空目录、概念页没有编号、卡片页找不到同名概念页、
 // [[…]] 链接用了 Obsidian 后缀解析（不以 wiki/ 一级目录或库一级目录开头的）。
@@ -25,11 +25,11 @@ const NUMBERED_PAGE_RE = /^\d{3}-/;
 // 卡片页收件箱不参与「卡片页与概念页同名」的对应检查。
 const CARD_INBOX_RE = /^inbox(-[a-z0-9-]+)?\.md$/;
 // 链接目标允许的库一级目录（wiki/ 一级目录按库内实际存在收集）。
-const VAULT_TOP_DIRS = new Set(["raw", "clippings", "Clippings", "wiki"]);
+const VAULT_TOP_DIRS = new Set(["raw", "clippings", "wiki"]);
 const LINK_RE = /!?\[\[([^\]\n]+)\]\]/g;
 
 // 库里的「规则文档」用 [[…]] 写模板占位符（`[[other-entity]]`、`[[concept-1]]`、
-// `[[courses/course-slug]]`、`[[知识/concepts/example]]`），这些名字本来就不指向任何文件，
+// `[[courses/course-slug]]`、`[[concepts/example]]`），这些名字本来就不指向任何文件，
 // 或者存心写成旧路径当说明：查链接只会产出误报，改名脚本也照原样保留。
 // 这些文件因此不参与链接检查（命名与结构检查照旧）：
 // - AGENTS.md：库自己的写法规范（文件命名、frontmatter、卡片格式的例子）；
@@ -61,10 +61,10 @@ function stripMdSuffix(name) {
   return name.endsWith(".md") ? name.slice(0, -3) : name;
 }
 
-// 检查 wiki/ 与 clippings/（旧库 Clippings/）下每个条目的末段名字。
+// 检查 wiki/ 与 clippings/ 下每个条目的末段名字。
 function checkEntryName(entry, isDir, problems) {
   const first = segments(entry)[0];
-  if (first !== "wiki" && first !== "clippings" && first !== "Clippings") return;
+  if (first !== "wiki" && first !== "clippings") return;
   const name = basename(entry);
   if (name.startsWith(".")) return;
   if (!checkName(name)) {
@@ -101,6 +101,8 @@ function checkGenerated(entry, isDir, problems) {
 
 function checkEmptyDirs(dirs, entries, problems) {
   for (const dir of dirs) {
+    const parts = segments(dir);
+    if (parts[0] === "raw" && parts.length > 3) continue;
     const prefix = `${dir}/`;
     const hasChild = entries.some((entry) => entry !== `${dir}/` && entry.startsWith(prefix));
     if (!hasChild) problems.push(problem("empty-dir", dir, "空目录"));
@@ -312,7 +314,7 @@ function usage() {
     "",
     "用法：node vault-lint.mjs <vault> [--json]",
     "",
-    "按 VAULT-NAMING.md 检查 wiki/、clippings/（旧库：Clippings/）下所有文件与目录名，",
+    "按 VAULT-NAMING.md 检查 wiki/、clippings/ 下所有文件与目录名，",
     "raw/ 第一、二层分区目录名；另查生成物位置、空目录、概念页编号、卡片页与概念页",
     "同名对应、[[…]] 链接是否走了 Obsidian 后缀解析。有问题退出码 1，没有 0。",
   ].join("\n");

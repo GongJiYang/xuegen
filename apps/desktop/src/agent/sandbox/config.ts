@@ -32,8 +32,7 @@ function lit(path: string): FilesystemPathEntry {
 /**
  * Vault locations every role may write — the "any session" group of
  * `writeAllowed` in `../guard/roles.ts` (书房, 阅读队列, 摘录, 卡片, 来源登记,
- * 分析, 实体页 — old and new vault names both come out of `rulePaths` — plus
- * the append-only registers `log.md` and `index.md`).
+ * 分析, 实体页, plus the append-only registers `log.md` and `index.md`).
  * 与 roles.ts writeAllowed 对应，改一处要改两处。
  */
 const ANY_SESSION_WRITE: readonly (keyof RulePaths)[] = [
@@ -65,8 +64,7 @@ const ROLE_WRITE: Record<SessionRole["kind"], readonly (keyof RulePaths)[]> = {
  * No wrapped command may write these, whatever the role allows: the vault's
  * version directories, 原料 `raw/`, the vault's own rules (`wiki/prompts`,
  * root `AGENTS.md`), and everything only the dedicated tools may produce —
- * course pages plus the generated board in both spellings
- * (`wiki/courses.md`, `wiki/_generated/courses.md`), 周期, 日历. denyWrite
+ * course pages plus the generated board (`wiki/_generated/courses.md`), 周期, 日历. denyWrite
  * carves out of allowWrite, and the seatbelt layer also pins every entry and
  * its ancestors against rename/move (issue #8).
  */

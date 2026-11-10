@@ -43,7 +43,7 @@ describe("shelf data requests", () => {
   let home: string;
   let vault: string;
   const originalHome = process.env.XUEGEN_HOME;
-  const shelfDir = (): string => join(vault, "wiki", "书房");
+  const shelfDir = (): string => join(vault, "wiki", "shelf");
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "xuegen-shelf-home-"));

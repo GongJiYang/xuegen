@@ -42,7 +42,7 @@ const emptyRules: RulePaths = {
 const rules: RulePaths = {
   ...emptyRules,
   courses: ["/v/wiki/courses"],
-  coursesBoard: ["/v/wiki/courses.md", "/v/wiki/_generated/courses.md"],
+  coursesBoard: ["/v/wiki/_generated/courses.md"],
   calendar: ["/v/wiki/calendar"],
   raw: ["/v/raw"],
 };
@@ -65,7 +65,7 @@ describe("toolHint：按违规路径给出该用哪个工具", () => {
   });
 
   it("路径落在课程看板（两种拼写）下 → 同一条课程页提示", () => {
-    for (const board of ["/v/wiki/courses.md", "/v/wiki/_generated/courses.md"]) {
+    for (const board of ["/v/wiki/_generated/courses.md"]) {
       const hint = toolHint(`deny(1) file-write-create ${board}`, rules);
       expect(hint, board).toContain(DEVICE_HINT);
     }

@@ -97,7 +97,7 @@ export const SAMPLE_SKILLS: SkillInfo[] = [
 /** The candidate reading sources the add form offers. */
 export const SAMPLE_SOURCE_FILES: ReadingSource[] = [
   { path: "raw/papers/jepa.pdf", name: "jepa", modifiedAt: 3 },
-  { path: "Clippings/MapReduce 论文导读.md", name: "MapReduce 论文导读", modifiedAt: 2 },
+  { path: "clippings/MapReduce 论文导读.md", name: "MapReduce 论文导读", modifiedAt: 2 },
   { path: "raw/articles/ctm-ch3.md", name: "ctm-ch3", modifiedAt: 1 },
 ];
 

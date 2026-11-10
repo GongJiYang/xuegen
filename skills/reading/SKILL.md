@@ -1,6 +1,6 @@
 ---
 name: reading
-description: 用户要求把文章/论文/书摘加入渐进阅读队列、查看今天该读什么、结束一次阅读（继续/搁置/读完）、从正在读的材料中做摘录、从摘录制卡、书房里整本书的排期与读到哪（「我想读《…》」、今天读哪段、读完这段）、记一笔讲后读，或询问阅读队列进度与本周计划时使用。文章与论文的阅读状态是 Wiki 的 wiki/reading/<slug>.md，整本书在 wiki/shelf/（旧库：wiki/书房/）（排期经 bookshelf.mjs），摘录是 wiki/knowledge/extracts/<slug>/（旧库：wiki/知识/extracts/），排程只经本技能目录的 reading-queue.mjs 修改；制卡沿用 wiki-save 与库内制卡规则。普通自由学习不触发。
+description: 用户要求把文章/论文/书摘加入渐进阅读队列、查看今天该读什么、结束一次阅读（继续/搁置/读完）、从正在读的材料中做摘录、从摘录制卡、书房里整本书的排期与读到哪（「我想读《…》」、今天读哪段、读完这段）、记一笔讲后读，或询问阅读队列进度与本周计划时使用。文章与论文的阅读状态是 Wiki 的 wiki/reading/<slug>.md，整本书在 wiki/shelf/（排期经 bookshelf.mjs），摘录是 wiki/knowledge/extracts/<slug>/，排程只经本技能目录的 reading-queue.mjs 修改；制卡沿用 wiki-save 与库内制卡规则。普通自由学习不触发。
 ---
 
 # 渐进阅读
@@ -10,7 +10,7 @@ description: 用户要求把文章/论文/书摘加入渐进阅读队列、查�
 ## 入口与配置
 
 1. 阅读 `../wiki-save/SKILL.md` 的「入口与配置」，复用 `wiki.json` 定位库路径，并读取库根目录 `AGENTS.md` 中 Reading Page、Extract Page 与 Incremental Reading Workflow 三段。规则以库内为准；本文件与库规则冲突时，说明冲突并询问。
-2. 原文在 `raw/` 或 `clippings/`（旧库：`Clippings/`），**只读**；教材另可用它在 `wiki/knowledge/sources/` 的登记页作原文（见「教材通读」）。阅读进度、位置和摘录只写在 `wiki/reading/` 与 `wiki/knowledge/extracts/`。
+2. 原文在 `raw/` 或 `clippings/`，**只读**；教材另可用它在 `wiki/knowledge/sources/` 的登记页作原文（见「教材通读」）。阅读进度、位置和摘录只写在 `wiki/reading/` 与 `wiki/knowledge/extracts/`。
 3. 导入由 Obsidian 插件完成（简悦/Web Clipper、微信读书、Zotero + ZotLit），或用户粘贴到 `raw/notes/YYYY-MM-DD-标题.md`。本技能不安装、不配置 Obsidian 插件，不修改 `.obsidian/`。
 
 ## 排程只走脚本
@@ -54,7 +54,7 @@ node "$Q" verify "$W"                                                         # 
   frontmatter：`kind: book`、`slot: planned|free`、`order`（计划内排第几本）、`status: queued|reading`（计划内只有第一本是 reading）、`title`、`short`（两三个字的短名，如 Epp）、`source`（登记页链接）、`file`（PDF 库内路径）、`page_offset`、`started`（reading 的写开始日期）、`position: 0`。
 - **读**：今天读哪段看 `node "$B" today "<库根>" --json`；读的时候按页读（`pdftotext -f -l`），不整章导出、不整段打印进对话。读完一段由用户在界面点「读完这段」，或在对话里说读完了——这时运行 `node "$B" done "<库根>" <slug>`，不手改 `position` 和读书记录。
 - **日期**：排期表里读过的段记实际读完的日子，没读的段从「下一段该读的那天」（今天已读完就是明天，不早于开始日）逐日往后排；预计读完日期也这样算。`plan --write` 时开始日为空会写回当天。
-- **讲后读**：勾选仍由 `course` 在课程页 `Today` 做；课程页链着 `[[shelf/<书>]]（旧库：`[[书房/<书>]]`）` 时，界面的「读完了」会同时记进书房书页——「## 读书记录」加一行，「核心页已定」的页码进「## 核心页已读」，不算读完一段。在对话里补记时运行 `node "$B" lecture "<库根>" <书> --label "<标签>" --course <课程slug> --pages "<页码列表>"`。核心页照读不跳，今日卡会在读到这几页时提一句。
+- **讲后读**：勾选仍由 `course` 在课程页 `Today` 做；课程页链着 `[[shelf/<书>]]` 时，界面的「读完了」会同时记进书房书页——「## 读书记录」加一行，「核心页已定」的页码进「## 核心页已读」，不算读完一段。在对话里补记时运行 `node "$B" lecture "<库根>" <书> --label "<标签>" --course <课程slug> --pages "<页码列表>"`。核心页照读不跳，今日卡会在读到这几页时提一句。
 - **摘几句**：读完一段，用户可以在今日卡点「摘几句」存一句原文和页码，写进书页「## 摘录」（`- p.<页>: <原句> #待做卡`）。在对话里摘时运行 `node "$B" extract "<库根>" <书> --page <页> --text "<原句>"`。只存原句，不改写、不调模型做总结。
 - **书房做卡**（用户在阅读面板点「把 N 句做成卡」，或说「把 Epp 的摘录做成卡」）：
   1. `node "$B" list "<库根>" --json`，取这本书 `extracts` 里 `carded` 为 null 的几句（记下各自的 `index`）。
