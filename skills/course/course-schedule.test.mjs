@@ -12,6 +12,7 @@ import {
   addStudyDays,
   completedIds,
   isValidDate,
+  lastNewLessonDate,
   nextStudyDay,
   parseDays,
   parseExtra,
@@ -496,6 +497,50 @@ test("repeated shift is idempotent: dropped lessons stay out and are not appende
     const twice = await readFile(file, "utf8");
     assert.equal((twice.match(/^- D14：/gm) ?? []).length, 1, "不重复追加");
     assert.equal(readSchedule(twice).end, CYCLE_END);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: plan --elastic 照 --end 铺课但不写 end=；之后 shift 不受结束日限制", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "course-schedule-elastic-"));
+  try {
+    const file = join(dir, "c.md");
+    const elasticFile = join(dir, "e.md");
+    const lessonsFile = join(dir, "lessons.json");
+    await writeFile(file, sampleCourse(""));
+    await writeFile(elasticFile, sampleCourse(""));
+    await writeFile(lessonsFile, JSON.stringify(cLanguage(14)));
+
+    // 锁住旧行为：不加 --elastic 时标记仍写 end=。
+    const plain = JSON.parse(
+      (await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", CYCLE_END, "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--lessons", lessonsFile, "--write", "--json"])).stdout,
+    );
+    assert.match(await readFile(file, "utf8"), /xuegen:schedule:start[^\n]* end=2026-12-24 /);
+
+    // --elastic 紧跟 --write 也要按开关解析（不吃掉后面的标志）。
+    const elastic = JSON.parse(
+      (await run("node", [SCRIPT, "plan", elasticFile, "--start", "2026-11-09", "--end", CYCLE_END, "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--lessons", lessonsFile, "--elastic", "--write", "--json"])).stdout,
+    );
+    assert.equal(elastic.ok, true);
+    assert.equal(elastic.elastic, true);
+    assert.equal(elastic.written, true);
+    assert.deepEqual(elastic.schedule, plain.schedule, "课次日期与不加 --elastic 完全相同");
+    const elasticText = await readFile(elasticFile, "utf8");
+    const mark = elasticText.match(/<!-- xuegen:schedule:start[^\n]*-->/)[0];
+    assert.doesNotMatch(mark, /end=/);
+    assert.equal(readSchedule(elasticText).end, null);
+
+    // 用 --elastic 排出的课页再 shift：最后一节落在 12-24 之后，也不进「留到下个周期」。
+    const shifted = JSON.parse(
+      (await run("node", [SCRIPT, "shift", elasticFile, "--today", "2026-11-10", "--write", "--json"])).stdout,
+    );
+    assert.equal(shifted.dropped.length, 0);
+    assert.equal(shifted.written, true);
+    const after = await readFile(elasticFile, "utf8");
+    const lastLesson = lastNewLessonDate(readSchedule(after).rows);
+    assert.ok(lastLesson > CYCLE_END, `最后一节 ${lastLesson} 越过 ${CYCLE_END}`);
+    assert.match(deferredSection(after), /- 无：/, "没有课次被挤进「留到下个周期」");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

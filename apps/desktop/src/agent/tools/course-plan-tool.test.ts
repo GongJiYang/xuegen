@@ -8,9 +8,10 @@
  * 只有 `board` 仍是 dashboard → render-board 两步。
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import { coursePlanCalls, createCoursePlanExtension, type CoursePlanParams } from "./course-plan-tool.js";
@@ -24,6 +25,9 @@ const STAGING = "/home/learning/.close/ctm-20261110-101010";
 const CLOSE = join("skills", "course", "course-close.mjs");
 const STATE = join("skills", "course", "course-state.mjs");
 const BOARD = join("skills", "course", "render-board.mjs");
+
+/** Repo root, so the shift test can spawn the real `skills/` scripts. */
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
 
 /** A temp directory shaped like a vault: `wiki/courses` always, `wiki/_generated` on request. */
 function vaultWith(dirs: readonly string[]): string {
@@ -133,6 +137,46 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
     ]);
   });
 
+  it("schedule elastic: true → --elastic 排在 --json 前；不传时不含", () => {
+    expect(
+      coursePlanCalls({ action: "schedule", staging: STAGING, lessons: "/tmp/l.json", elastic: true }, VAULT, CWD),
+    ).toEqual([
+      { script: CLOSE, args: ["schedule", STAGING, "--lessons", "/tmp/l.json", "--elastic", "--json"] },
+    ]);
+    const without = coursePlanCalls({ action: "schedule", staging: STAGING, lessons: "/tmp/l.json" }, VAULT, CWD);
+    expect(without[0]?.args).not.toContain("--elastic");
+  });
+
+  it("shift 带 slug + today：shift <库> <slug> --workspace <工作区> --today … --json", () => {
+    expect(coursePlanCalls({ action: "shift", slug: "ctm", today: "2026-11-11" }, VAULT, CWD)).toEqual([
+      {
+        script: CLOSE,
+        args: ["shift", VAULT, "ctm", "--workspace", CWD, "--today", "2026-11-11", "--json"],
+      },
+    ]);
+  });
+
+  it("shift 带 end（只给辅助课）：--end 排在 --json 前", () => {
+    expect(
+      coursePlanCalls({ action: "shift", slug: "ctm", today: "2026-11-11", end: "2026-12-24" }, VAULT, CWD),
+    ).toEqual([
+      {
+        script: CLOSE,
+        args: ["shift", VAULT, "ctm", "--workspace", CWD, "--today", "2026-11-11", "--end", "2026-12-24", "--json"],
+      },
+    ]);
+  });
+
+  it("shift 缺 slug、缺 today、today 不是 YYYY-MM-DD 都抛中文错", () => {
+    expect(() => coursePlanCalls({ action: "shift", today: "2026-11-11" }, VAULT, CWD)).toThrow(/shift 缺少 slug/);
+    expect(() => coursePlanCalls({ action: "shift", slug: "ctm" }, VAULT, CWD)).toThrow(/shift 缺少 today/);
+    for (const today of ["11-11", "2026/11/11", "明天", ""]) {
+      expect(() => coursePlanCalls({ action: "shift", slug: "ctm", today }, VAULT, CWD), today).toThrow(
+        /shift 缺少 today/,
+      );
+    }
+  });
+
   it("缺 slug、缺 staging、缺 lessons、new 缺 subject、subject 不带 new 都抛中文错", () => {
     const cases: [CoursePlanParams, RegExp][] = [
       [{ action: "stage" }, /stage 缺少 slug/],
@@ -198,9 +242,13 @@ interface CapturedTool {
 }
 
 /** Build the extension with a fake exec and capture the registered tool. */
-async function tool(exec: RunExecFile, home: string): Promise<CapturedTool> {
+async function tool(
+  exec: RunExecFile | undefined,
+  home: string,
+  { repo = REPO, cwd = CWD }: { repo?: string; cwd?: string } = {},
+): Promise<CapturedTool> {
   let captured: CapturedTool | null = null;
-  const factory = createCoursePlanExtension({ repo: REPO, home, cwd: CWD, execFile: exec });
+  const factory = createCoursePlanExtension({ repo, home, cwd, ...(exec === undefined ? {} : { execFile: exec }) });
   // The factory awaits `typebox` before registering, so it must be awaited.
   await factory({
     registerTool(definition: unknown) {
@@ -282,6 +330,61 @@ describe("course_plan — execute 按顺序跑完脚本，把输出交回模型"
       expect(exec.calls).toHaveLength(0);
     } finally {
       rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+/** 一门主项课的课程页：days=tue,thu、不写 end，11-10（周二）有一节没学的新课。 */
+const SHIFT_PAGE = [
+  "<!-- xuegen:course-state -->",
+  "",
+  "# CTM 学习计划",
+  "",
+  "## Today",
+  "",
+  "日期：2026-11-10",
+  "",
+  "## 计划表（参考）",
+  "",
+  "### 留到下个周期",
+  "",
+  "- 无：本周期还没挤出课次",
+  "",
+  "<!-- xuegen:schedule:start rest=sun days=tue,thu reviews=anki -->",
+  "| 天 | 日期 | 内容 | 材料 | 完成条件 |",
+  "|---|---|---|---|---|",
+  "| D1 | 2026-11-10（周二） | 第 1 课 | — | — |",
+  "| D2 | 2026-11-12（周四） | 第 2 课 | — | — |",
+  "<!-- xuegen:schedule:end -->",
+  "",
+  "## Learning Record",
+  "",
+  "## Relationships",
+  "",
+  "- [[subjects/ctm|CTM]]",
+  "",
+].join("\n");
+
+describe("course_plan shift — 真脚本跑一次（临时库 + 真 course-close.mjs）", () => {
+  it("11-10（周二）没上的新课挪到 11-12（周四），后面的课整批后移", async () => {
+    const vault = vaultWith([join("wiki", "courses")]);
+    writeFileSync(join(vault, "wiki", "index.md"), "# 索引\n");
+    writeFileSync(join(vault, "wiki", "log.md"), "# 学习日志\n");
+    writeFileSync(join(vault, "wiki", "courses", "ctm.md"), SHIFT_PAGE);
+    const home = homeWithVault(vault);
+    const cwd = mkdtempSync(join(tmpdir(), "xuegen-plan-ws-"));
+    try {
+      const result = await (
+        await tool(undefined, home, { repo: REPO_ROOT, cwd })
+      ).execute("shift-1", { action: "shift", slug: "ctm", today: "2026-11-11" });
+      expect(result.isError).toBeUndefined();
+      const page = readFileSync(join(vault, "wiki", "courses", "ctm.md"), "utf8");
+      expect(page).toContain("| D1 | 2026-11-12（周四） |");
+      expect(page).toContain("| D2 | 2026-11-17（周二） |");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(vault, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
     }
   });
 });

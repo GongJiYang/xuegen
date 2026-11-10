@@ -8,7 +8,7 @@
 //   node course-close.mjs check   <暂存目录> [--json]
 //   node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]
 //   node course-close.mjs abort   <暂存目录>
-//   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews] [--json]
+//   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
 //   node course-close.mjs recover <vault> --workspace <工作区> [--json]
@@ -339,6 +339,7 @@ function cmdSchedule(stagingArg, flags, json) {
   ]) {
     if (value !== undefined) args.push(flag, value);
   }
+  if (flags.elastic === true) args.push("--elastic");
   args.push("--write");
   try {
     execFileSync(process.execPath, args, {
@@ -492,7 +493,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = arg.slice(2);
-    if (["json", "help", "new"].includes(key)) flags[key] = true;
+    if (["json", "help", "new", "elastic"].includes(key)) flags[key] = true;
     else {
       flags[key] = argv[i + 1];
       i += 1;
@@ -512,7 +513,7 @@ function usage() {
     "  node course-close.mjs check   <暂存目录> [--json]",
     "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
-    "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews] [--json]",
+    "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
     "  node course-close.mjs recover <vault> --workspace <工作区> [--json]",

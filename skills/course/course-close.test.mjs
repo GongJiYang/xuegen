@@ -1945,6 +1945,29 @@ test("schedule：在收课暂存上跑被拒（只允许计划暂存）", async 
   }
 });
 
+test("schedule：--elastic 照 --end 铺课，但暂存课程页标记不写 end=；不带时照旧写", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    const pageInStaging = join(staging, "wiki", "courses", "epp.md");
+    await writeFile(join(staging, "lessons.json"), JSON.stringify([{ content: "第一课" }, { content: "第二课" }]));
+    const mark = (text) => text.match(/<!-- xuegen:schedule:start[^\n]*-->/)[0];
+
+    // 不带 --elastic：标记照旧写 end=（辅助课行为不变）。
+    await cli(["schedule", staging, "--lessons", "lessons.json", "--start", "2026-11-09", "--end", "2026-11-10", "--rest", "sun"]);
+    assert.match(mark(await readFile(pageInStaging, "utf8")), /end=2026-11-10/);
+
+    // 带 --elastic（夹在别的标志中间也要按开关解析）：重排后标记没有 end=。
+    await cli(["schedule", staging, "--lessons", "lessons.json", "--start", "2026-11-09", "--end", "2026-11-10", "--elastic", "--rest", "sun"]);
+    const after = await readFile(pageInStaging, "utf8");
+    assert.doesNotMatch(mark(after), /end=/);
+    assert.match(after, /\| D2 \| 2026-11-10（周二） \| 第二课/, "课次照样按 --end 铺");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), coursePage(), "库不动");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 jjTest("计划提交之后 undo 不撤它：只有计划没有收课 → 找不到收课提交，库与 jj 都不动", async () => {
   const fixture = await makeVault();
   try {

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Xuegen 课程逐日排期：把模型列出的课次按学习日排到截止日期，按间隔重复插入复习，没学的天整体顺延。
 // 无第三方依赖。日期只由本脚本计算，模型只给课次内容。
-//   node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] --lessons <lessons.json> [--write] [--json]
+//   node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] [--elastic] --lessons <lessons.json> [--write] [--json]
 //   node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--write] [--json]
 //   node course-schedule.mjs next <course.md> [--date YYYY-MM-DD] [--json]
 // lessons.json：[{ "id"?: "D1", "content": "…", "material"?: "…", "done_when"?: "…" }]，按学习顺序。
 // 排期表写在课程页 `## 计划表` 段内的标记之间（标记外的人工内容不动）：
-//   <!-- xuegen:schedule:start rest=sun days=mon,wed reviews=anki end=YYYY-MM-DD -->（days 只在不等于「所有非休息日」时写出；reviews 只在为 anki 时写出；end 是周期结束日，shift 顺延不越过它；extra 不记录）
+//   <!-- xuegen:schedule:start rest=sun days=mon,wed reviews=anki end=YYYY-MM-DD -->（days 只在不等于「所有非休息日」时写出；reviews 只在为 anki 时写出；end 是周期结束日，shift 顺延不越过它（plan 加 --elastic 时不写 end，主项课用）；extra 不记录）
 //   | 天 | 日期 | 内容 | 材料 | 完成条件 |
 //   <!-- xuegen:schedule:end -->
 // 顺延后越过结束日的新课次不留在表里，登记到标记外的「### 留到下个周期」一节。
@@ -443,7 +443,7 @@ function parseArgs(argv) {
       continue;
     }
     const key = arg.slice(2);
-    if (["write", "json", "help"].includes(key)) flags[key] = true;
+    if (["write", "json", "help", "elastic"].includes(key)) flags[key] = true;
     else {
       flags[key] = argv[i + 1];
       i += 1;
@@ -474,9 +474,10 @@ function requireDate(value, name) {
 function usage() {
   return [
     "用法：",
-    "  node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] --lessons <lessons.json> [--write] [--json]",
+    "  node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] [--elastic] --lessons <lessons.json> [--write] [--json]",
     "  node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--write] [--json]",
     "  node course-schedule.mjs next <course.md> [--date YYYY-MM-DD] [--json]",
+    "  --elastic：照 --end 铺课，但不把 end 记进排期标记（主项课：以后顺延不受周期结束日限制）",
   ].join("\n");
 }
 
@@ -518,9 +519,16 @@ async function main() {
       }
       fail(error.message);
     }
-    const table = renderTable(rows, rest, days, reviews, end);
+    const table = renderTable(rows, rest, days, reviews, flags.elastic === true ? null : end);
     if (flags.write) await save(file, writeSchedule(text, table));
-    const summary = { ok: true, rows: rows.length, lastLesson: lastNewLessonDate(rows), end, written: Boolean(flags.write) };
+    const summary = {
+      ok: true,
+      rows: rows.length,
+      lastLesson: lastNewLessonDate(rows),
+      end,
+      elastic: flags.elastic === true,
+      written: Boolean(flags.write),
+    };
     process.stdout.write(flags.json ? `${JSON.stringify({ ...summary, schedule: rows })}\n` : `${table}\n`);
     return;
   }

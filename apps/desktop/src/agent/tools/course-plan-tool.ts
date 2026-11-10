@@ -38,7 +38,7 @@ export interface CoursePlanToolOptions {
 }
 
 /** The actions the tool schema accepts, in the order the flow uses them. */
-export type PlanAction = "stage" | "schedule" | "check" | "commit" | "abort" | "board";
+export type PlanAction = "stage" | "schedule" | "check" | "commit" | "abort" | "shift" | "board";
 
 /** The parameters the tool schema accepts, as `coursePlanCalls` sees them. */
 export interface CoursePlanParams {
@@ -54,6 +54,8 @@ export interface CoursePlanParams {
   days?: string | undefined;
   extra?: string | undefined;
   reviews?: string | undefined;
+  elastic?: boolean | undefined;
+  today?: string | undefined;
 }
 
 /** One script invocation in a plan action's sequence. */
@@ -95,6 +97,8 @@ export function coursePlanCalls(params: CoursePlanParams, vault: string, cwd: st
     case "commit":
     case "abort":
       return [{ script: CLOSE_SCRIPT, args: [params.action, needStaging(params), "--json"] }];
+    case "shift":
+      return [shiftCall(params, vault, cwd)];
     case "board":
       return boardCalls(vault, join(vault, "wiki", "courses"));
   }
@@ -135,6 +139,18 @@ function scheduleCall(params: CoursePlanParams): CoursePlanCall {
   for (const [flag, value] of flags) {
     if (value !== undefined) args.push(flag, value);
   }
+  if (params.elastic === true) args.push("--elastic");
+  return { script: CLOSE_SCRIPT, args: [...args, "--json"] };
+}
+
+/** `shift`：总控替一门课顺延（同 course_close 的 shift）；slug、today 必填。 */
+function shiftCall(params: CoursePlanParams, vault: string, cwd: string): CoursePlanCall {
+  if (params.slug === undefined) throw new Error("course_plan shift 缺少 slug：要顺延哪门课。");
+  if (params.today === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(params.today)) {
+    throw new Error("course_plan shift 缺少 today（YYYY-MM-DD）：这一天之前没学的新课顺延到它或之后的第一个上课日。");
+  }
+  const args = ["shift", vault, params.slug, "--workspace", cwd, "--today", params.today];
+  if (params.end !== undefined) args.push("--end", params.end);
   return { script: CLOSE_SCRIPT, args: [...args, "--json"] };
 }
 
@@ -170,7 +186,8 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
       description:
         "总控专用：建课、改计划。stage 开一个计划暂存（新建课程加 new 和 subject）→ " +
         "用编辑工具改暂存目录里的课程页 / 科目页 / index / log → 需要排期时 schedule → check → " +
-        "commit（jj 记『计划』，看板自动重画）；abort 放弃；board 只重画看板。课程会话不能用。",
+        "commit（jj 记『计划』，看板自动重画）；abort 放弃；board 只重画看板。课程会话不能用。" +
+        "临时不上课、要把某天的课往后挪：shift（不开暂存、一步提交）。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -179,11 +196,12 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
             Type.Literal("check"),
             Type.Literal("commit"),
             Type.Literal("abort"),
+            Type.Literal("shift"),
             Type.Literal("board"),
           ],
           {
             description:
-              "stage 开一个计划暂存（new: true 加 subject 建新课程）；schedule 把排期写进暂存课程页；check 校验；commit 一次提交（jj 记「计划」）；abort 放弃暂存；board 重画看板（Markdown + 网页）。",
+              "stage 开一个计划暂存（new: true 加 subject 建新课程）；schedule 把排期写进暂存课程页；check 校验；commit 一次提交（jj 记「计划」）；abort 放弃暂存；board 重画看板（Markdown + 网页）；shift 替一门课顺延（slug + today，today 填明天就是把今天没上的课挪走）。",
           },
         ),
         slug: Type.Optional(Type.String({ description: "课程 slug，小写字母/数字/连字符（stage 必填）" })),
@@ -194,11 +212,22 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
         ),
         lessons: Type.Optional(Type.String({ description: "schedule 必填：课次清单 JSON 文件的路径" })),
         start: Type.Optional(Type.String({ description: "schedule 用：周期第一天 YYYY-MM-DD" })),
-        end: Type.Optional(Type.String({ description: "schedule 用：周期最后一天 YYYY-MM-DD" })),
+        end: Type.Optional(
+          Type.String({ description: "schedule 用：周期最后一天 YYYY-MM-DD；shift 时只给辅助课：周期计划最后一天" }),
+        ),
         rest: Type.Optional(Type.String({ description: "schedule 用：休息日，如 sun、sat,sun、none" })),
         days: Type.Optional(Type.String({ description: "schedule 用：上课日，如 mon,wed" })),
         extra: Type.Optional(Type.String({ description: "schedule 用：额外上课日 YYYY-MM-DD,…" })),
         reviews: Type.Optional(Type.String({ description: "schedule 用：复习方式 spaced 或 anki" })),
+        elastic: Type.Optional(
+          Type.Boolean({
+            description:
+              "schedule 用：主项课传 true——照 end 铺课，但不把 end 记进排期标记（以后没学就整体顺延，不砍课）；辅助课不传",
+          }),
+        ),
+        today: Type.Optional(
+          Type.String({ description: "shift 用：YYYY-MM-DD，这一天之前没学的新课顺延到它或之后的第一个上课日" }),
+        ),
       }),
       async execute(_toolCallId, params): Promise<AgentToolResult<undefined>> {
         const vault = readVaultRoot(options.home);
