@@ -51,6 +51,10 @@ export function useChat(
   const lastSentRef = useRef<string | null>(null);
   /** Whether the last status snapshot reported a running turn (see `lastSentRef`). */
   const streamingRef = useRef(false);
+  // Messages sent while an answer runs, still waiting in Pi's queue, oldest first:
+  // the user's own words, or null for a command / marked action (it holds a place
+  // in the queue but is never handed back). A stop withdraws them (fix18, 11-11).
+  const queuedSentRef = useRef<(string | null)[]>([]);
 
   // Pending `open-session` requests, resolved by the agent's `session-opened`.
   const openRequests = useRef(new Map<string, (sessionFile: string | null) => void>());
@@ -77,6 +81,10 @@ export function useChat(
       if (event.type === "state" || event.type === "ready") {
         const streaming = event.state.streaming;
         if (streamingRef.current && !streaming) lastSentRef.current = null;
+        // Pi takes queued messages in order, so the ones it has started are at the front.
+        const queued = queuedSentRef.current;
+        const left = streaming ? event.state.queuedFollowUps : 0;
+        if (queued.length > left) queuedSentRef.current = queued.slice(queued.length - left);
         streamingRef.current = streaming;
         // Synchronously, so a send in the same turn as this snapshot already
         // targets the session it names (the agent drops a stale id).
@@ -114,7 +122,9 @@ export function useChat(
     // The user's own words, not the wire text: `stop` hands this back to the
     // composer, which must not show the style prefix or a refresh note.
     // Text the UI sends for the user (开课 and other marked actions) is not theirs to edit.
-    lastSentRef.current = splitActionMarker(trimmed).action === null ? trimmed : null;
+    const own = splitActionMarker(trimmed).action === null ? trimmed : null;
+    if (streamingRef.current) queuedSentRef.current = [...queuedSentRef.current, own];
+    lastSentRef.current = own;
     const note = refreshNoteRef.current;
     const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
@@ -131,6 +141,7 @@ export function useChat(
   const sendCommand = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (streamingRef.current) queuedSentRef.current = [...queuedSentRef.current, null];
     const note = refreshNoteRef.current;
     client.send({
       type: "prompt",
@@ -141,6 +152,15 @@ export function useChat(
 
   const stop = useCallback((): string | null => {
     client.send({ type: "abort", sessionId: sessionIdRef.current });
+    // The agent withdraws queued messages from the conversation on abort; hand
+    // their words back instead of the one being answered.
+    const queued = queuedSentRef.current;
+    queuedSentRef.current = [];
+    if (queued.length > 0) {
+      lastSentRef.current = null;
+      const words = queued.filter((text): text is string => text !== null);
+      return words.length > 0 ? words.join("\n\n") : null;
+    }
     const lastSent = lastSentRef.current;
     lastSentRef.current = null;
     return lastSent;

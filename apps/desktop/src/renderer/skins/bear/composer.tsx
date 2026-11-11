@@ -137,15 +137,16 @@ export function Composer({
   /**
    * Stop the answer and put the prompt just sent back into the field.
    *
-   * The field is left alone when it already has text: whatever the user is
-   * writing now outranks the message being returned. The caret goes to the end
-   * once React has committed the restored value.
+   * A withdrawn queued message has already left the conversation, so dropping
+   * it would lose it: when the field has text it goes in front of the draft.
+   * The caret goes to the end of the returned text once React has committed it.
    */
   function stopAndRestore(): void {
     const back = onStop();
-    if (!back || hasText) return;
-    setValue(back);
-    onInput(back);
+    if (!back) return;
+    const next = hasText ? `${back}\n${value}` : back;
+    setValue(next);
+    onInput(next);
     requestAnimationFrame(() => {
       const field = fieldRef.current;
       if (!field) return;

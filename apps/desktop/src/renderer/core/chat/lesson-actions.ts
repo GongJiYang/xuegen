@@ -73,7 +73,7 @@ export function lessonActions(activeCourse: string | null, messages: readonly Ch
           label: strings.lesson.closeNoWiki,
           text: withActionMarker(strings.commands.endTodayPrompt + strings.lesson.closeNoWikiSuffix, "close"),
         },
-        { label: strings.lesson.closeNoRecord, text: withActionMarker(strings.lesson.noRecordPrompt, "close") },
+        { label: strings.lesson.closeNoRecord, text: withActionMarker(strings.lesson.noRecordPrompt, "close-skip") },
       ],
     },
   ];

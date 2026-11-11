@@ -162,6 +162,7 @@ export const strings = {
     summary: "总结",
     cards: "制卡",
     close: "收课",
+    "close-skip": "不记录，结束",
     checkpoint: "存档",
     continue: "从存档点接着上",
     brief: "今日简报",
@@ -188,7 +189,7 @@ export const strings = {
     /** After a 收课 answer: offer to roll the checkmarks back. */
     undoClose: "撤销这次收课",
     undoClosePrompt:
-      "撤销这次收课：按 course 技能收课第 3 步「抵消」，把本次收课打的勾退回 [ ]，在那条记录里注明按用户要求撤销（记录不删）；本次新建的概念页和卡片不删，列出来问我要不要删。",
+      "撤销这次收课：用 course_close 的 undo（这门课的 slug），把这次收课改过的已有文件恢复到收课前；不要另开暂存手工改勾。新建的概念页和卡片保留，列出来问我要不要删。undo 拒绝时照它给的原因告诉我。",
   },
   tools: {
     dockLabel: "工具",

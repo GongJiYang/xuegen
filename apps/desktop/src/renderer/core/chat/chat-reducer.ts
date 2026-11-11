@@ -168,6 +168,9 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
     }
     case "tool-call":
       return applyToolCall(state, event.messageId, event.call);
+    case "messages-removed":
+      // A stop cleared these queued user messages before Pi ever answered them.
+      return { ...state, messages: state.messages.filter((m) => !event.ids.includes(m.id)) };
     case "context-usage":
       return { ...state, contextUsage: event };
     case "compaction":

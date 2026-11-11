@@ -202,6 +202,8 @@ export type AgentToHostEvent =
       message: ChatMessage;
     }
   | { type: "tool-call"; messageId: string; call: ToolCallView }
+  /** 停止时清掉的排队用户消息：从对话里撤掉（fix18，用户 11-11 定）。 */
+  | { type: "messages-removed"; ids: string[] }
   | { type: "models"; models: ModelListPayload }
   | { type: "models-changed" }
   /** Full conversation snapshot, sent on start and after a session switch. */

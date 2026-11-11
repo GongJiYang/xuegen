@@ -50,6 +50,40 @@ describe("roleOfRow", () => {
   });
 });
 
+describe("sessionGroups: pins whose course short name contains a space", () => {
+  const C_FILE = `${DIR}/2026-11-08T12-00-00-000Z_c.jsonl`;
+  const pinned = (pin: string): SessionMeta =>
+    meta("2026-11-08T12-00-00-000Z_c.jsonl", Date.UTC(2026, 10, 8, 12, 0), "继续上次的课", pin, 3);
+  const cCtx = (overrides: Partial<SessionListContext> = {}): SessionListContext =>
+    ctx({
+      courseSessions: { "c-language": C_FILE },
+      courseNames: { "c-language": "C 语言" },
+      lessons: { "2026-11-08": [{ course: "c-language", id: "D1", content: "Ch1 起步" }] },
+      ...overrides,
+    });
+
+  it("splits 「C 语言 D1」 into the course name and the lesson id", () => {
+    const row = sessionGroups([pinned("C 语言 D1")], cCtx())[0]?.rows[0];
+    expect(row).toMatchObject({ kind: "course", slug: "c-language", tag: "C 语言", title: "D1 Ch1 起步" });
+  });
+
+  it("keeps 「C 语言」 as the tag when the slug is unknown", () => {
+    const row = sessionGroups([pinned("C 语言 D1")], cCtx({ courseSessions: {}, courseNames: {} }))[0]?.rows[0];
+    expect(row).toMatchObject({ kind: "course", slug: null, tag: "C 语言", title: "D1" });
+  });
+
+  it("keeps the old shapes: 「离散 D2」, a bare 「D3」 and a review 「离散 R1-D2」", () => {
+    const rows = (pin: string): ReturnType<typeof sessionGroups>[number] | undefined =>
+      sessionGroups(
+        [meta("2026-11-08T10-00-00-000Z_epp.jsonl", Date.UTC(2026, 10, 8, 10, 0), "继续上次的课", pin, 9)],
+        ctx(),
+      )[0];
+    expect(rows("离散 D2")?.rows[0]).toMatchObject({ tag: "离散", title: "D2 Ch2 §2.1–2.2：真值表" });
+    expect(rows("D3")?.rows[0]).toMatchObject({ tag: "离散", title: "D3" });
+    expect(rows("离散 R1-D2")?.rows[0]).toMatchObject({ tag: "离散", title: "R1-D2" });
+  });
+});
+
 describe("sessionGroups", () => {
   const metas: SessionMeta[] = [
     meta("2026-11-08T09-00-00-000Z_ctrl.jsonl", Date.UTC(2026, 10, 8, 9, 0), "/skill:cycle-plan 给出今天的简报", null, 4),

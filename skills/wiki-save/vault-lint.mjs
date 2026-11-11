@@ -4,7 +4,8 @@
 // 检查范围：wiki/ 与 clippings/ 下所有文件和目录名；
 // raw/ 只查第一、二层分区目录名（不查原料文件名）；
 // 另查：生成物不在规定位置、空目录、概念页没有编号、卡片页找不到同名概念页、
-// [[…]] 链接用了 Obsidian 后缀解析（不以 wiki/ 一级目录或库一级目录开头的）。
+// [[…]] 链接用了 Obsidian 后缀解析（不以 wiki/ 一级目录或库一级目录开头的）、
+// 断链（[[…]] 指向不存在的文件）、概念页 frontmatter（缺 frontmatter 或没有 sources:）。
 // 无第三方依赖。退出码：有问题 1，没有 0。
 // lintTree 的入参是库相对路径列表（POSIX 分隔；目录以 `/` 结尾），便于测试。
 import { readdir, readFile } from "node:fs/promises";
@@ -194,6 +195,51 @@ function countNewlines(text) {
   return count;
 }
 
+// 与收课 check 的 checkConceptPage 保持一致（skills/course/close/rules.mjs）：
+// 文字相同是有意的，两边报同一个毛病时人不用分辨两套说法。
+/** 概念页 frontmatter 的问题（null 表示没问题）。 */
+export function checkConceptFrontmatter(text) {
+  if (!text.startsWith("---\n")) return "概念页缺少 frontmatter（须以 --- 开头）";
+  const end = text.indexOf("\n---", 3);
+  const frontmatter = end === -1 ? text : text.slice(4, end);
+  if (!/^sources\s*:/m.test(frontmatter)) return "概念页 frontmatter 缺少 sources:";
+  return null;
+}
+
+/**
+ * 一段文本里的断链：返回 [{target, line}]（line 从 1 起；代码里的不算）。
+ * files 是库相对文件路径集合（含扩展名）。解析规则同 Obsidian：目标等于某个文件路径，
+ * 或等于「文件路径 - .md」，或以「/目标」、「/目标.md」结尾都算找得到。
+ */
+export function brokenLinksInText(text, files) {
+  const out = [];
+  const isInCode = makeCodeTest(text);
+  let line = 1;
+  let scanned = 0;
+  for (const match of text.matchAll(LINK_RE)) {
+    const offset = match.index ?? 0;
+    line += countNewlines(text.slice(scanned, offset));
+    scanned = offset;
+    if (isInCode(offset)) continue;
+    const target = linkTarget(match[1]);
+    if (target === "" || target.startsWith(".")) continue;
+    if (linkResolves(target, files)) continue;
+    out.push({ target, line });
+  }
+  return out;
+}
+
+/** 目标是否指向库里实际存在的文件（Obsidian 的后缀省略与绝对路径写法）。 */
+function linkResolves(target, files) {
+  if (files.has(target) || files.has(`${target}.md`)) return true;
+  const anchored = `/${target}`;
+  const anchoredMd = `/${target}.md`;
+  for (const file of files) {
+    if (file.endsWith(anchored) || file.endsWith(anchoredMd)) return true;
+  }
+  return false;
+}
+
 /** 这个库相对路径是否属于「规则文档」（链接检查豁免）。 */
 export function isLinkExemptPath(entry) {
   // README.md 按文件名豁免：库根与 wiki/ 下任何一层都是说明文档。
@@ -308,6 +354,35 @@ export async function lintLinks(vault, entries, allowed) {
   return problems;
 }
 
+// 断链检查：文件范围与 lintLinks 相同（链接豁免的规则文档不查）。
+export async function lintBrokenLinks(vault, entries) {
+  const problems = [];
+  const files = new Set(entries.filter((entry) => !entry.endsWith("/")));
+  for (const entry of linkCheckedFiles(entries)) {
+    const text = await readFile(join(vault, entry), "utf8").catch(() => null);
+    if (text === null) continue;
+    for (const hit of brokenLinksInText(text, files)) {
+      problems.push(problem("broken-link", entry, `断链：[[${hit.target}]]（第 ${hit.line} 行）`));
+    }
+  }
+  return problems;
+}
+
+// 概念页 frontmatter：只查 wiki/ 下路径里有 concepts 段的 .md，每页最多报一条。
+export async function lintConceptFrontmatter(vault, entries) {
+  const problems = [];
+  for (const entry of entries) {
+    if (entry.endsWith("/") || !entry.endsWith(".md")) continue;
+    const parts = segments(entry);
+    if (parts[0] !== "wiki" || !parts.includes("concepts")) continue;
+    const text = await readFile(join(vault, entry), "utf8").catch(() => null);
+    if (text === null) continue;
+    const detail = checkConceptFrontmatter(text);
+    if (detail !== null) problems.push(problem("frontmatter", entry, detail));
+  }
+  return problems;
+}
+
 function usage() {
   return [
     "库命名检查（vault-lint）",
@@ -316,7 +391,8 @@ function usage() {
     "",
     "按 VAULT-NAMING.md 检查 wiki/、clippings/ 下所有文件与目录名，",
     "raw/ 第一、二层分区目录名；另查生成物位置、空目录、概念页编号、卡片页与概念页",
-    "同名对应、[[…]] 链接是否走了 Obsidian 后缀解析。有问题退出码 1，没有 0。",
+    "同名对应、[[…]] 链接是否走了 Obsidian 后缀解析、断链、概念页 frontmatter（缺 frontmatter",
+    "或没有 sources:）。有问题退出码 1，没有 0。",
   ].join("\n");
 }
 
@@ -332,6 +408,8 @@ async function main() {
   const entries = await collectEntries(vault);
   const problems = lintTree(entries);
   problems.push(...(await lintLinks(vault, entries, allowedLinkRoots(entries))));
+  problems.push(...(await lintBrokenLinks(vault, entries)));
+  problems.push(...(await lintConceptFrontmatter(vault, entries)));
   if (json) {
     process.stdout.write(`${JSON.stringify({ problems }, null, 2)}\n`);
   } else if (problems.length === 0) {

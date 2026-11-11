@@ -116,12 +116,16 @@ function nextNonEmpty(lines, from) {
  * back 为 `Back:` 行去前缀后到块内 `<!--ID` 行或 END 之前（无 `Back:` 行时为 null）；
  * id 为块内或紧随 END 后（允许空行）的 `<!--ID: 数字-->`，没有为 null。
  * start/end 是 START、END 所在行号（0 起）。忽略 STARTI/ENDI、DELETE、FROZEN。
+ *
+ * 块内缺 END（到了下一个 START 或文件结尾）时，这块绝不并进下一块：记进 `broken`
+ * （`{ start, error: "缺少 END", front, id }`），从那个 START 继续解析。
  */
 export function parseCardPage(text) {
   const lines = text.split("\n");
   let deck = "Default";
   let tags = [];
   const blocks = [];
+  const broken = [];
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -137,30 +141,57 @@ export function parseCardPage(text) {
     }
     if (!START_RE.test(line.trim())) continue;
 
-    const end = lines.findIndex((later, j) => j > i && END_RE.test(later.trim()));
-    if (end === -1) break;
+    // 找本块的 END：先遇到下一个 START 就说明本块缺 END（不能吃下一块的 END）。
+    let end = -1;
+    let nextStart = -1;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const later = lines[j].trim();
+      if (END_RE.test(later)) {
+        end = j;
+        break;
+      }
+      if (START_RE.test(later)) {
+        nextStart = j;
+        break;
+      }
+    }
+    if (end === -1) {
+      const stop = nextStart === -1 ? lines.length : nextStart;
+      const inner = lines.slice(i + 1, stop);
+      const parts = blockParts(inner);
+      const idInBlock = inner.find((l) => ID_RE.test(l));
+      const id = idInBlock === undefined ? null : idInBlock.match(ID_RE)[1];
+      broken.push({ start: i, error: "缺少 END", front: parts.front, id });
+      if (nextStart === -1) break;
+      i = nextStart - 1; // 外层 +1 正好落在那个 START 上
+      continue;
+    }
     const inner = lines.slice(i + 1, end);
     const idInBlock = inner.find((l) => ID_RE.test(l));
     const after = nextNonEmpty(lines, end + 1);
     const idLine = idInBlock ?? (after !== null && ID_RE.test(after) ? after : undefined);
     const id = idLine === undefined ? null : idLine.match(ID_RE)[1];
-
-    const type = inner.length > 0 ? inner[0].trim() : "";
-    const backLineAt = inner.findIndex((l) => BACK_RE.test(l));
-    const idLineAt = inner.findIndex((l) => ID_RE.test(l));
-    const frontEnd = backLineAt === -1 ? (idLineAt === -1 ? inner.length : idLineAt) : backLineAt;
-    const front = inner.slice(1, frontEnd).join("\n").trim();
-    let back = null;
-    if (backLineAt !== -1) {
-      const rest = [inner[backLineAt].replace(BACK_RE, "")];
-      const backEnd = idLineAt === -1 || idLineAt < backLineAt ? inner.length : idLineAt;
-      rest.push(...inner.slice(backLineAt + 1, backEnd));
-      back = rest.join("\n").trim();
-    }
-    blocks.push({ start: i, end, type, front, back, id });
+    blocks.push({ start: i, end, ...blockParts(inner), id });
     i = end;
   }
-  return { deck, tags, blocks };
+  return { deck, tags, blocks, broken };
+}
+
+/** 块内行（START 与 END 之间）→ 类型、正面、背面。 */
+function blockParts(inner) {
+  const type = inner.length > 0 ? inner[0].trim() : "";
+  const backLineAt = inner.findIndex((l) => BACK_RE.test(l));
+  const idLineAt = inner.findIndex((l) => ID_RE.test(l));
+  const frontEnd = backLineAt === -1 ? (idLineAt === -1 ? inner.length : idLineAt) : backLineAt;
+  const front = inner.slice(1, frontEnd).join("\n").trim();
+  let back = null;
+  if (backLineAt !== -1) {
+    const rest = [inner[backLineAt].replace(BACK_RE, "")];
+    const backEnd = idLineAt === -1 || idLineAt < backLineAt ? inner.length : idLineAt;
+    rest.push(...inner.slice(backLineAt + 1, backEnd));
+    back = rest.join("\n").trim();
+  }
+  return { type, front, back };
 }
 
 /**
@@ -291,14 +322,34 @@ function relativeToVault(vault, file) {
   return full.startsWith(prefix) ? full.slice(prefix.length) : full;
 }
 
-/** 卡片页 → 待处理项分类：Basic 且没缺正/背面的进 pending，其余进 skipped/failed。 */
+/**
+ * 卡片页 → 待处理项分类：Basic 且没缺正/背面的进 pending，其余进 skipped/failed。
+ * 缺 END 的块（parsed.broken）直接进 failed；块序号按文档顺序数，缺 END 的块也占一个号，
+ * 所以「第 N 块」与文件里第 N 个 START 一致。
+ */
 function classifyPage(file, parsed) {
   const pending = [];
   const skipped = [];
   const failed = [];
-  parsed.blocks.forEach((block, index) => {
+  const ordered = [
+    ...parsed.blocks.map((block, index) => ({ start: block.start, index })),
+    ...parsed.broken.map((broken) => ({ start: broken.start, broken })),
+  ].sort((a, b) => a.start - b.start);
+  ordered.forEach((entry, ordinal) => {
+    if (entry.broken !== undefined) {
+      failed.push({
+        file,
+        block: ordinal + 1,
+        deck: parsed.deck,
+        front: short(entry.broken.front),
+        error: entry.broken.error,
+      });
+      return;
+    }
+    const { index } = entry;
+    const block = parsed.blocks[index];
     if (block.id !== null) return;
-    const ref = { file, block: index + 1, deck: parsed.deck, front: short(block.front) };
+    const ref = { file, block: ordinal + 1, deck: parsed.deck, front: short(block.front) };
     if (block.type !== "Basic") {
       skipped.push({ ...ref, type: block.type });
       return;
@@ -397,6 +448,8 @@ async function commandPush(vault, options) {
   const usedIds = new Set();
   for (const page of pages) {
     for (const block of page.parsed.blocks) if (block.id !== null) usedIds.add(String(block.id));
+    // 缺 END 的块里如果已经写了 ID，它占的笔记也不能再关联给别的块（否则同一 ID 写两处）。
+    for (const item of page.parsed.broken) if (item.id !== null) usedIds.add(String(item.id));
   }
   // 牌组 → 正面归一键 → [noteId]，每牌组至多查一次（重复卡才查，懒加载）。
   const deckIndex = new Map();
@@ -486,6 +539,8 @@ function renderDryRun(result) {
   for (const item of result.pending) {
     lines.push(`  ${item.deck} ← ${item.file} 第${item.block}块：${item.front}`);
   }
+  if (result.failed.length > 0) lines.push(`失败 ${result.failed.length}：`);
+  for (const item of result.failed) lines.push(`  失败：${item.file} 第${item.block}块「${item.front}」${item.error}`);
   return `${lines.join("\n")}${renderTail(result)}`;
 }
 
@@ -525,6 +580,7 @@ function usage() {
     "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge。",
     "push：把 <知识目录>/flashcards/ 下没有 <!--ID:--> 的 Basic 块写进 Anki，ID 回填到块内。",
     "      Anki 里已有同一张卡（addNote 报 duplicate）时，按正面唯一匹配回填那张卡的 ID（输出里记「关联」）。",
+    "      块缺 END（下一个 START 前或文件末尾没 END）不进 Anki，列进 failed（错误为「缺少 END」）。",
     "--dry-run 只列出要同步的卡，不连 Anki、不写文件。",
   ].join("\n");
 }

@@ -218,8 +218,11 @@ describe("useChat stop hands back the prompt just sent", () => {
     return { controller: () => capturedController, emit: (event) => listener?.(event), sent };
   }
 
-  /** A session snapshot with the given streaming flag; other fields don't matter here. */
-  function sessionState(streaming: boolean): AgentToHostMessage {
+  /**
+   * A session snapshot with the given streaming flag and queue depth; other
+   * fields don't matter here.
+   */
+  function sessionState(streaming: boolean, queuedFollowUps = 0): AgentToHostMessage {
     return {
       type: "state",
       state: {
@@ -228,7 +231,7 @@ describe("useChat stop hands back the prompt just sent", () => {
         sessionFile: null,
         sessionId: null,
         streaming,
-        queuedFollowUps: 0,
+        queuedFollowUps,
         thinkingLevel: null,
         thinkingLevels: [],
         role: { kind: "free" },
@@ -286,6 +289,75 @@ describe("useChat stop hands back the prompt just sent", () => {
     const bridge = setUp();
     act(() => {
       bridge.controller().send(withActionMarker("开始今天的 C 语言", "open", { slug: "c-language", title: "C 语言" }));
+    });
+    let back: string | null = "not asked";
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBeNull();
+  });
+
+  it("hands back every queued message a stop withdraws, oldest first", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.emit(sessionState(true));
+    });
+    act(() => {
+      bridge.controller().send("B");
+      bridge.controller().send("C");
+    });
+    let back: string | null = null;
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBe("B\n\nC");
+
+    let again: string | null = "not asked";
+    act(() => {
+      again = bridge.controller().stop();
+    });
+    expect(again).toBeNull();
+  });
+
+  it("gives up a queued message once the agent has taken it", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.emit(sessionState(true));
+    });
+    act(() => {
+      bridge.controller().send("B");
+    });
+    // B left the queue: the agent is answering it now, so a stop ends that turn
+    // and the old rule (hand back the last send) applies.
+    act(() => {
+      bridge.emit(sessionState(true, 0));
+    });
+    let back: string | null = null;
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBe("B");
+  });
+
+  it("hands back the last send when nothing was queued", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.controller().send("A");
+    });
+    let back: string | null = null;
+    act(() => {
+      back = bridge.controller().stop();
+    });
+    expect(back).toBe("A");
+  });
+
+  it("does not hand back a command queued while answering", () => {
+    const bridge = setUp();
+    act(() => {
+      bridge.emit(sessionState(true));
+    });
+    act(() => {
+      bridge.controller().sendCommand("/skill:x");
     });
     let back: string | null = "not asked";
     act(() => {

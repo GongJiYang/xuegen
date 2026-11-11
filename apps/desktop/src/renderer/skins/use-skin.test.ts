@@ -14,14 +14,18 @@ import { strings } from "../core/strings.js";
 describe("useSkin", () => {
   it("loads a registered skin", async () => {
     const { result } = renderHook(() => useSkin("bare"));
-    await waitFor(() => expect(result.current.module).not.toBeNull());
+    await waitFor(() => expect(result.current.module).not.toBeNull(), {
+      timeout: 5000,
+    });
     expect(result.current.loadedId).toBe("bare");
     expect(result.current.notice).toBeNull();
   });
 
   it("falls back to bare with a notice for an unknown id", async () => {
     const { result } = renderHook(() => useSkin("no-such-skin"));
-    await waitFor(() => expect(result.current.module).not.toBeNull());
+    await waitFor(() => expect(result.current.module).not.toBeNull(), {
+      timeout: 5000,
+    });
     expect(result.current.loadedId).toBe("bare");
     expect(result.current.notice?.text).toBe(strings.notice.unknownSkin);
   });

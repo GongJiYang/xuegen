@@ -5,6 +5,21 @@
 **总清单 = `docs/platform/ROUTE-1109.md`。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面相关一律暂停（记忆 xuegen-ui-hold）。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 11-09 晚反复 503：断了就接着上次进度重派一次，再断就停下问用户（备选 Haiku 5.5，需用户先在 `.deepseek-agent` 里 `/login` Anthropic）。用户要求「实时盯着、停了第一时间通知」：派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES）。
 
+### ★ 全量测试完成（11-11 14:50）——等用户定 3 件事与发版
+- **用户 11-11 15:00 定**（下一会话先写任务单派 DeepSeek，TDD）：
+  1. 停止 = 停 + 清排队（Pi `clearQueue()`），排队那条**放回输入框**（不留在对话里）。涉及界面，但用户已直接定，可做。
+  2. 书房同一天 `done` 两次**拦截**（第二次报「今天这段已记过」，不前进；把 B5 的 todo 测试转正）。
+  3. vault-lint **加**断链检查与知识页 frontmatter（`sources:`）检查（把 B7 两条 todo 转正）。
+- 用户问的另两件（已答，记在这里备查）：顺延逻辑见 FULL-TEST-1110「顺延说明」；中英术语：现在只有 teach 规定「新术语第一次出现加粗、括号给英文原名」，**英文术语卡（双向）还没做**（阶段 6）。
+- 「有逻辑没界面」清单（用户要汇总，界面讨论时用）：见 FULL-TEST-1110「有逻辑没界面」。
+- 然后：发版（fix15 最急，用户说「发版」才发）。
+- 结果逐条在 `docs/platform/FULL-TEST-1110.md`「发现」表（现象 / 复现 / 根因 / 修复 / 验证）。全部改动**未提交**。
+- 已做：A1/A2；B1–B8；C1–C8（C7 开发模式测不了）；D 场景大部分。
+- **最重要的发现（fix15）**：装好的学根（从访达启动）PATH 里没有 Homebrew，`jj` 找不到——真实使用里收课/计划/顺延从没进 jj、撤销收课不可能成功（真实会话 5 次 `spawnSync jj ENOENT`）。已修并用访达式 PATH 验证。数据没丢（文件都写了，只是没单独 jj 记录）。发版后才生效。
+- 已修并验证（13 单 fix1b–fix13）：原书一次 ≤ 10 页写进 bash 护栏；撤销按钮调 `course_close undo`；「不记录」不出撤销；OpenDesign「Billing Scope」503 自动重试（`agent/transient-error.ts`）；课程会话能记「以后讲<科目>都…」（收课暂存 add 本科目页、只许改讲解偏好、标签「偏好」）；讲后读去旧备注、书房不重复记；会话标题「C 语言」；verify 漏报无标记页、任务计数统一；卡片缺 END（末尾静默丢 / 中间粘成错卡）；测试只复制 wiki/；calendar month 校验；PATH 补 Homebrew（fix15）。用户 11-11 定：顺延时已完成的课不占日子。
+- **待用户定**：① 停止后排队消息乱序送出（停止时清队列；排队气泡撤掉还是放回输入框）；② 一天 `done` 两段要不要防重；③ 界面讨论新增：重试提示多行与重复错误、5xx 文案、日历辅助行短名、卡片面板显示缺 END 数、会话列表只读当前目录。
+- 没测：上下文 60% 自动提示；低强度日问「今天学什么」（界面日期改不了）。
+
 ### ★ 新会话从这里开始（11-10 23:40 交接）：全量测试
 - **v0.10.0 已发布**（tag v0.10.0，GitHub latest；排期弹性 + 总控「顺延今日内容」）。用户自己在学根里「检查更新」安装（替换前确认没在上课/收课）。
 - **用户 11-10 要求：全量测试并修 bug**。计划 = `docs/platform/FULL-TEST-1110.md`（A 机器检查 / B 脚本端到端分给 DeepSeek / C 桌面真机 / D 用户场景回归）。方法：找 bug 用 `systematic-debugging`（先四步查根因再改），修 bug 用 `test-driven-development`（先写失败测试），报完成前 `verification-before-completion`（贴验证输出）；界面点击用 `webapp-testing`（Python Playwright `connect_over_cdp` 接测试窗口 9460）。四个技能已装在 `pi-learning/.claude/skills/`（项目级，已扫过：无联网/删除脚本）。DeepSeek 单子切小、只写测试报告失败，返修另开单。

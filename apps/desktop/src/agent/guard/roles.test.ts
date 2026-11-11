@@ -21,7 +21,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nodePathFacts } from "./facts.js";
 import { canonical, within } from "./path.js";
-import { decide, type CanonFn, type Decision, type Roots } from "./roles.js";
+import { decide, roleLabel, type CanonFn, type Decision, type Roots } from "./roles.js";
 import { deniedReadPaths, isCredentialName, isDeniedReadPath } from "./vault-paths.js";
 import type { SessionRole } from "../../shared/protocol.js";
 
@@ -449,6 +449,48 @@ describe("decide — bash", () => {
   it("allows ordinary read-only commands", () => {
     const rolesFree: SessionRole = { kind: "free" };
     expect(decide(rolesFree, "bash", { command: "ls wiki/courses" }, roots, canon, nothing).allow).toBe(true);
+  });
+
+  // 用户 11-08 定的规矩：课上读原书一次不超过 10 页。规矩原来只在技能文字里，
+  // 11-10 全量测试里模型直接跑 `pdftotext -f 1 -l 20`，所以在这里写死。
+  it("denies pdftotext reading more than 10 pages at once, in every role", () => {
+    const tooWide = [
+      "pdftotext -f 40 -l 58 raw/books/x.pdf -",
+      "pdftotext -f 1 -l 11 x.pdf -",
+      "cd /v && pdftotext -layout -f 60 -l 76 raw/x.pdf - | grep foo",
+      "pdftotext raw/x.pdf -",
+      "pdftotext -f 5 raw/x.pdf -",
+    ];
+    for (const role of [roles.control, roles.course, roles.free] as SessionRole[]) {
+      for (const command of tooWide) {
+        const decision = decide(role, "bash", { command }, roots, canon, nothing);
+        expect(decision.allow, `${roleLabelOf(role)} ${command}`).toBe(false);
+        expect(decision.reason, command).toContain("10 页");
+        // 理由以角色名开头，和 chmod / 递归删除那些拒绝理由的写法一致。
+        expect(
+          decision.reason.startsWith(roleLabel(role)),
+          `${roleLabelOf(role)} ${command}: ${decision.reason}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("allows pdftotext ranges of at most 10 pages and non-pdftotext commands", () => {
+    const fine = [
+      "pdftotext -f 45 -l 48 x.pdf -",
+      "pdftotext -f 1 -l 10 -layout x.pdf -",
+      "pdftotext -f 74 -l 79 x.pdf - | sed -n '1,200p'",
+      "pdftotext -f $A -l $B x.pdf -",
+      "node bookshelf.mjs today raw/books/x.pdf",
+      "echo pdftotext",
+    ];
+    for (const role of [roles.control, roles.course, roles.free] as SessionRole[]) {
+      for (const command of fine) {
+        expect(decide(role, "bash", { command }, roots, canon, nothing).allow, `${roleLabelOf(role)} ${command}`).toBe(
+          true,
+        );
+      }
+    }
   });
 });
 

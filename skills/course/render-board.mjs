@@ -7,11 +7,10 @@ import { readdirSync, readFileSync, writeFileSync, chmodSync, statSync, existsSy
 import { join, dirname, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseCourse as parseCourseShared, findSection, STATE_MARKER } from "./course-parse.mjs";
+import { parseCourse as parseCourseShared, findSection, isTask, isTaskDone, hasMarker, STATE_MARKER } from "./course-parse.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MARKER = STATE_MARKER;
-const TASK_RE = /^\s*[-*]\s+\[([ xX])\]\s+(.*)$/;
 const LIST_RE = /^(\s*)([-*]|\d+\.)\s+(.*)$/;
 
 const [coursesDir, outFile] = process.argv.slice(2);
@@ -25,10 +24,10 @@ if (!coursesDir || !outFile) {
 function countTasks(section) {
   let done = 0, total = 0;
   for (const line of section ? section.lines : []) {
-    const m = line.match(TASK_RE);
-    if (!m) continue;
+    // 「是不是任务」只认 course-parse 的 isTask，与 dashboard/list 数同一批行。
+    if (!isTask(line)) continue;
     total++;
-    if (m[1] !== " ") done++;
+    if (isTaskDone(line)) done++;
   }
   return { done, total };
 }
@@ -301,7 +300,7 @@ function main() {
   const skipped = [];
   for (const file of files) {
     const text = readFileSync(join(coursesDir, file), "utf8");
-    if (!text.includes(MARKER)) { skipped.push(file); continue; }
+    if (!hasMarker(text)) { skipped.push(file); continue; }
     courses.push(parseCourse(text, file));
   }
   if (!courses.length) {

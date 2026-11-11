@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Composer } from "./composer.js";
 import type { ComposerProps } from "../contract.js";
@@ -139,13 +139,20 @@ describe("Bear composer", () => {
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("hello");
   });
 
-  it("keeps the draft when a stop returns a prompt and the field has text", async () => {
-    const onStop = vi.fn(() => "hello");
-    render(<Composer {...baseProps({ streaming: true, onStop })} />);
-    await userEvent.type(screen.getByRole("textbox"), "还在写");
+  it("puts a withdrawn message in front of a draft the field already has", async () => {
+    const onInput = vi.fn();
+    const onStop = vi.fn(() => "B");
+    render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);
+    const field = screen.getByRole("textbox") as HTMLTextAreaElement;
+    await userEvent.type(field, "新写的");
     await userEvent.keyboard("{Escape}");
     expect(onStop).toHaveBeenCalledTimes(1);
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
+    // The withdrawn message was already removed from the transcript, so dropping
+    // it would lose it: it goes in front of the draft instead.
+    expect(field.value).toBe("B\n新写的");
+    expect(onInput).toHaveBeenLastCalledWith("B\n新写的");
+    // The caret moves once React has committed the value (next animation frame).
+    await waitFor(() => expect(field.selectionStart).toBe("B".length));
   });
 
   it("let Escape close the / menu instead of stopping", async () => {

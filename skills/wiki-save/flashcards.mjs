@@ -78,22 +78,31 @@ async function walkMarkdown(dir) {
 }
 
 /**
- * 解析一个闪卡文件：当前牌组、卡片块数量、已同步块数量。
+ * 解析一个闪卡文件：当前牌组、卡片块数量、已同步块数量、缺 END 的块数量。
  *
- * 卡片 = START…END 块；已同步 = 块内或紧随其后（允许空行）有 `<!--ID: 数字-->`。
- * 牌组取文件中最近一次 `TARGET DECK` 的下一行（非空）。
+ * 卡片 = 完整的 START…END 块；已同步 = 块内或紧随其后（允许空行）有 `<!--ID: 数字-->`。
+ * 块内又出现 START（或文件到了结尾）仍没 END 的，记进 broken：不计入 total/unsynced，
+ * 也不会把后面那块并进来。牌组取文件中最近一次 `TARGET DECK` 的下一行（非空）。
  */
 function parseFlashcardFile(text) {
   const lines = text.split("\n");
   let deck = "";
   let total = 0;
   let synced = 0;
+  let broken = 0;
   let inBlock = false;
   let blockHasId = false;
+
+  const openBroken = () => {
+    if (!inBlock) return;
+    broken += 1;
+    inBlock = false;
+  };
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (START_RE.test(line.trim())) {
+      openBroken();
       inBlock = true;
       blockHasId = false;
       continue;
@@ -115,7 +124,8 @@ function parseFlashcardFile(text) {
       deck = value === null ? "" : value.trim();
     }
   }
-  return { deck, total, synced };
+  openBroken(); // 文件末尾仍没 END
+  return { deck, total, synced, broken };
 }
 
 function nextNonEmpty(lines, from) {
@@ -139,8 +149,10 @@ async function commandStats(vault, options) {
   const decks = new Map();
   let total = 0;
   let synced = 0;
+  let broken = 0;
   for (const file of files) {
     const parsed = parseFlashcardFile(await readFile(file, "utf8"));
+    broken += parsed.broken;
     if (parsed.total === 0) continue;
     total += parsed.total;
     synced += parsed.synced;
@@ -160,11 +172,14 @@ async function commandStats(vault, options) {
   const result = {
     total,
     unsynced: total - synced,
+    // 缺 END 的块：既不算「卡片」也不算「待同步」，单独报出来（push 会把它们列进 failed）。
+    broken,
     decks: [...decks.values()].sort((a, b) => (a.deck < b.deck ? -1 : 1)),
     pendingExtracts,
   };
   output(options, result, () => {
     const lines = [`卡片 ${total}｜待同步 ${total - synced}｜待制卡摘录 ${pendingExtracts}`];
+    if (broken > 0) lines.push(`注意：${broken} 块缺 END（不会被同步，请补上 END）`);
     for (const deck of result.decks) {
       lines.push(`${deck.deck}｜${deck.total}（待同步 ${deck.unsynced}）｜${deck.files.length} 个文件`);
     }
@@ -259,6 +274,7 @@ function usage() {
     "",
     "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）；知识目录 = wiki/knowledge。",
     "stats：卡片 = <知识目录>/flashcards/ 下的 START…END 块；已同步 = 块内或块后有 <!--ID: 数字-->。",
+    "       缺 END 的块单独计 broken（不计入卡片/待同步），不会被同步。",
     "add：按 flashcard-rules.md 的 Basic 格式追加到该牌组 inbox.md，只写 <知识目录>/flashcards/。",
   ].join("\n");
 }

@@ -40,7 +40,7 @@ describe("lessonActions", () => {
       strings.lesson.closeNoWiki,
       strings.lesson.closeNoRecord,
     ]);
-    expect(splitActionMarker(close?.options[2]?.text ?? "")).toMatchObject({ action: "close", body: strings.lesson.noRecordPrompt });
+    expect(splitActionMarker(close?.options[2]?.text ?? "")).toMatchObject({ action: "close-skip", body: strings.lesson.noRecordPrompt });
   });
 
   it("offers 撤销这次收课 · 制卡 right after a 收课 answer", () => {
@@ -49,6 +49,37 @@ describe("lessonActions", () => {
     expect(actions.map((action) => action.label)).toEqual([strings.lesson.undoClose, strings.lesson.cards]);
     expect(splitActionMarker(actions[0]!.text)).toMatchObject({ action: "undo-close", body: strings.lesson.undoClosePrompt });
     expect(actions[0]?.hint).toBe(strings.lesson.undoCloseHint);
+  });
+
+  it("sends 撤销这次收课 through course_close undo, not the old 「抵消」 step", () => {
+    const messages: ChatMessage[] = [user(withActionMarker("今天学到这里", "close")), ...answered];
+    const body = splitActionMarker(lessonActions("ctm", messages)[0]!.text).body;
+    expect(body).toContain("course_close");
+    expect(body).toContain("undo");
+    expect(body).not.toContain("抵消");
+    expect(body).not.toContain("退回 [ ]");
+  });
+
+  it("stays on the regular buttons after 「不记录，直接结束」 (nothing was recorded, so nothing to undo)", () => {
+    const noRecord = lessonActions("ctm", answered)[2]!.options[2]!;
+    expect(noRecord.label).toBe(strings.lesson.closeNoRecord);
+    expect(splitActionMarker(noRecord.text).action).toBe("close-skip");
+    const messages: ChatMessage[] = [user(noRecord.text), ...answered];
+    expect(lessonActions("ctm", messages).map((action) => action.label)).toEqual([
+      strings.lesson.summary,
+      strings.lesson.cards,
+      strings.lesson.close,
+    ]);
+  });
+
+  it("still offers 撤销这次收课 after 「收课，不写概念页」", () => {
+    const noWiki = lessonActions("ctm", answered)[2]!.options[1]!;
+    expect(splitActionMarker(noWiki.text).action).toBe("close");
+    const messages: ChatMessage[] = [user(noWiki.text), ...answered];
+    expect(lessonActions("ctm", messages).map((action) => action.label)).toEqual([
+      strings.lesson.undoClose,
+      strings.lesson.cards,
+    ]);
   });
 
   it("stays on the regular buttons when the last user message was not 收课", () => {

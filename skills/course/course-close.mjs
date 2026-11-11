@@ -3,10 +3,15 @@
 // 两个入口走同一台事务机：课程会话的 course_close（kind=close，收课）与总控的
 // course_plan（kind=plan，建课/改计划）。无第三方依赖。设计见 docs/platform/STAGE3-DESIGN.md
 // 与 docs/platform/TIDY-1110.md §1。
+//
+// 收课暂存也能装本科目页（用 add 复制进来），但只许改它的「## 讲解偏好」一节
+// （rules.checkSubjectPreference）：用户 2026-11-08 要求课上说的「以后讲离散都…」
+// 当场记进本科目页，不该等到总控。这类提交用 --label 偏好，`undo` 只认「收课」，
+// 所以撤不到它。
 //   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]
 //   node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
 //   node course-close.mjs check   <暂存目录> [--json]
-//   node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]
+//   node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好] [--json]
 //   node course-close.mjs abort   <暂存目录>
 //   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
@@ -66,6 +71,7 @@ export {
   checkConceptPage,
   checkCoursePage,
   checkNoDeletedLines,
+  checkSubjectPreference,
   isOwned,
   isSafeRelPath,
   ownedPrefixes,
@@ -144,12 +150,16 @@ function cmdCommit(stagingArg, rawLabel, json) {
   }
 }
 
-/** commit 的 --label（收课暂存）：只允许「收课」（默认）与「存档点」；别的值直接拒绝，什么都不写。 */
-const COMMIT_LABELS = ["收课", "存档点"];
+/**
+ * commit 的 --label（收课暂存）：只允许「收课」（默认）、「存档点」与「偏好」；
+ * 别的值直接拒绝，什么都不写。「偏好」用于课上记「以后讲<科目>都…」的那次事务
+ * （只改本科目页的「讲解偏好」一节），`undo` 只认「收课」，所以撤不到它。
+ */
+const COMMIT_LABELS = ["收课", "存档点", "偏好"];
 
 function commitLabel(raw) {
   if (raw === undefined) return "收课";
-  if (!COMMIT_LABELS.includes(raw)) fail("--label 只能是 收课 或 存档点");
+  if (!COMMIT_LABELS.includes(raw)) fail("--label 只能是 收课、存档点 或 偏好");
   return raw;
 }
 
@@ -511,7 +521,7 @@ function usage() {
     "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]",
     "  node course-close.mjs add     <暂存目录> <库内相对路径> [--json]",
     "  node course-close.mjs check   <暂存目录> [--json]",
-    "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]",
+    "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
     "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
@@ -522,6 +532,8 @@ function usage() {
     "  --kind plan：计划暂存。--new（只能配 --kind plan）开新建课程暂存：课程页必须不存在，",
     "  暂存里不放课程页，只复制 index/log/科目页。schedule 只在计划暂存上跑，把排期写进暂存课程页。",
     "  plan 暂存的 commit 一律记「计划 <slug> <日期>」，不接受 --label；undo 仍只认「收课」。",
+    "  收课暂存可以用 add 把本科目页复制进来，但只能改它的「## 讲解偏好」一节（≤ 15 行）；",
+    "  课上记「以后讲<科目>都…」用 --label 偏好；undo 不撤偏好提交。",
   ].join("\n");
 }
 

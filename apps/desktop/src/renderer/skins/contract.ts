@@ -354,9 +354,11 @@ export interface ComposerProps {
   /**
    * Stop the running answer.
    *
-   * Returns the prompt that was just sent (the user's own words), or null when
-   * there is none to give back. The skin puts it back into the field when the
-   * field is empty, so an accidental send or stop can be undone.
+   * Returns the queued messages the stop withdrew from the conversation (the
+   * user's own words, several joined by a blank line), or — when nothing was
+   * queued — the prompt that was just sent; null when there is none to give
+   * back. The skin puts it back into the field (in front of any draft), so an
+   * accidental send or stop can be undone and a withdrawn message is not lost.
    */
   onStop(): string | null;
   /** The session's teaching style, shown as the radio row above the field. */

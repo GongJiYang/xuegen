@@ -116,7 +116,27 @@ test("stats：pendingExtracts 统计 cards: pending 的摘录", async () => {
 test("stats：空库返回全零", async () => {
   const vault = await makeVault();
   const res = await jsonFc(["stats", vault]);
-  assert.deepEqual(res, { total: 0, unsynced: 0, decks: [], pendingExtracts: 0 });
+  assert.deepEqual(res, { total: 0, unsynced: 0, broken: 0, decks: [], pendingExtracts: 0 });
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("stats：缺 END 的块计入 broken，不计入 total/unsynced，后面的完整块照常算一块", async () => {
+  const vault = await makeVault();
+  const noEnd = ["START", "Basic", "只有一半", "Back: 答"].join("\n");
+  await writeCard(vault, "math/a.md", `TARGET DECK\nMath\n\n${UNSYNCED_BLOCK}\n\n${noEnd}\n\n${SYNCED_BLOCK}\n`);
+  const res = await jsonFc(["stats", vault]);
+  assert.deepEqual(
+    { total: res.total, unsynced: res.unsynced, broken: res.broken },
+    { total: 2, unsynced: 1, broken: 1 },
+    `缺 END 只计 broken：${JSON.stringify(res)}`,
+  );
+  // 文件末尾缺 END 同样算 broken。
+  await writeCard(vault, "tail/b.md", `TARGET DECK\nTail\n\nSTART\nBasic\n末尾缺\n`);
+  const tail = await jsonFc(["stats", vault]);
+  assert.deepEqual({ total: tail.total, broken: tail.broken }, { total: 2, broken: 2 });
+  // 人类可读摘要里提一句。
+  const human = await fc(["stats", vault]);
+  assert.match(human, /2 块缺 END/);
   await rm(vault, { recursive: true, force: true });
 });
 

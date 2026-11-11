@@ -736,6 +736,7 @@ test("lecture：追加读书记录与核心页行，不改 position/status", asy
     label: "§1.1 核心页",
     course: "discrete-math-epp",
     pages: "1–5、7–12",
+    already: false,
   });
   const page = await readFile(file, "utf8");
   assert.match(page, /^- 2026-11-10: 讲后读 §1\.1 核心页 已读（discrete-math-epp，用户自报）$/m);
@@ -776,6 +777,94 @@ test("lecture：非法 label / course / pages 报错，文件不变", async () =
     assert.match(fail.stderr, /非法/, extra.join(" "));
   }
   assert.equal(await readBook(vault, "epp"), before);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("lecture：标签带「讲后读」前缀时不再重复加前缀", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const withPrefix = await jsonB([
+    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--today", "2026-11-11",
+  ]);
+  assert.equal(withPrefix.already, false);
+  const plain = await jsonB([
+    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--pages", "3-5", "--today", "2026-11-12",
+  ]);
+  assert.equal(plain.already, false);
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^- 2026-11-11: 讲后读 D1 已读（discrete-math-epp，用户自报）$/m);
+  assert.doesNotMatch(page, /讲后读 讲后读/, page);
+  assert.match(page, /^- 2026-11-12: 讲后读 D1 已读（discrete-math-epp，用户自报）$/m);
+  assert.match(page, /^- pp\.3–5 · discrete-math-epp · D1 · 2026-11-12$/m, "核心页行也不带前缀");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("lecture：同课同页已记过时不再记（文件字节不变，already: true）", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const first = await jsonB([
+    "lecture", vault, "epp", "--label", "§1.1 核心页", "--course", "discrete-math-epp", "--pages", "1–5、7-12", "--today", "2026-11-10",
+  ]);
+  assert.equal(first.already, false);
+  const before = await readBook(vault, "epp");
+
+  // 页码串规范化后相同（空白不同、连接号换成 `-`），标签不同也算记过。
+  const again = await jsonB([
+    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--pages", " 1-5、7 – 12 ", "--today", "2026-11-11",
+  ]);
+  assert.equal(again.already, true);
+  assert.equal(await readBook(vault, "epp"), before, "重复 lecture 不应改动文件");
+
+  const text = await b([
+    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--pages", "1–5、7–12", "--today", "2026-11-11",
+  ]);
+  assert.match(text.stdout, /已记过/);
+  assert.match(text.stdout, /不再记/);
+  assert.equal(await readBook(vault, "epp"), before);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("lecture：不同 course 或不同 pages 仍照常追加", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await jsonB([
+    "lecture", vault, "epp", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
+  ]);
+  const otherCourse = await jsonB([
+    "lecture", vault, "epp", "--label", "§1.1", "--course", "linear-algebra", "--pages", "1–5", "--today", "2026-11-11",
+  ]);
+  assert.equal(otherCourse.already, false);
+  const otherPages = await jsonB([
+    "lecture", vault, "epp", "--label", "§1.2", "--course", "discrete-math-epp", "--pages", "6–9", "--today", "2026-11-12",
+  ]);
+  assert.equal(otherPages.already, false);
+  const page = await readBook(vault, "epp");
+  assert.equal(page.match(/^## 核心页已读$/gm).length, 1);
+  assert.match(page, /^- pp\.1–5 · linear-algebra · §1\.1 · 2026-11-11$/m);
+  assert.match(page, /^- pp\.6–9 · discrete-math-epp · §1\.2 · 2026-11-12$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("lecture：不给 --pages 时按读书记录里的同课同标签查重", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const first = await jsonB([
+    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--today", "2026-11-10",
+  ]);
+  assert.equal(first.already, false);
+  const before = await readBook(vault, "epp");
+  const again = await jsonB([
+    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--today", "2026-11-11",
+  ]);
+  assert.equal(again.already, true, "同课同标签的讲后读已读行 → 不再记");
+  assert.equal(await readBook(vault, "epp"), before);
+
+  const otherCourse = await jsonB([
+    "lecture", vault, "epp", "--label", "D1", "--course", "linear-algebra", "--today", "2026-11-11",
+  ]);
+  assert.equal(otherCourse.already, false);
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^- 2026-11-11: 讲后读 D1 已读（linear-algebra，用户自报）$/m);
   await rm(vault, { recursive: true, force: true });
 });
 

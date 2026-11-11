@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { findRepoRoot, stableRoot } from "./environment.js";
+import { findRepoRoot, stableRoot, withToolPath } from "./environment.js";
 
 type ProcessWithResources = NodeJS.Process & { resourcesPath?: string };
 
@@ -71,6 +71,50 @@ describe("findRepoRoot", () => {
 
     expect(existsSync(join(repoRoot, "instructions.md"))).toBe(true);
     expect(findRepoRoot()).toBe(repoRoot);
+  });
+});
+
+describe("withToolPath", () => {
+  const loginPath = "/usr/bin:/bin:/usr/sbin:/sbin";
+  const allDirs = (): boolean => true;
+  const noDirs = (): boolean => false;
+  /** Pretend only the listed directories exist. */
+  const only = (...present: string[]) => (candidate: string) => present.includes(candidate);
+
+  it("prepends the Homebrew directories on darwin", () => {
+    expect(withToolPath(loginPath, allDirs, "darwin")).toBe(
+      `/opt/homebrew/bin:/usr/local/bin:${loginPath}`,
+    );
+  });
+
+  it("does not add a directory that is already on PATH", () => {
+    const already = `/opt/homebrew/bin:${loginPath}`;
+
+    // /usr/local/bin is absent here so nothing is prepended: an existing
+    // Homebrew entry must not be duplicated and PATH order stays as it was.
+    expect(withToolPath(already, only("/opt/homebrew/bin"), "darwin")).toBe(already);
+  });
+
+  it("skips directories that do not exist", () => {
+    expect(withToolPath(loginPath, only("/usr/local/bin"), "darwin")).toBe(
+      `/usr/local/bin:${loginPath}`,
+    );
+    expect(withToolPath(loginPath, noDirs, "darwin")).toBe(loginPath);
+  });
+
+  it("keeps the system directories when PATH is unset", () => {
+    expect(withToolPath(undefined, allDirs, "darwin")).toBe(
+      "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    );
+    expect(withToolPath(undefined, only("/opt/homebrew/bin"), "darwin")).toBe(
+      "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    );
+    expect(withToolPath(undefined, noDirs, "darwin")).toBe(loginPath);
+  });
+
+  it("leaves PATH untouched on other platforms", () => {
+    expect(withToolPath(loginPath, allDirs, "linux")).toBe(loginPath);
+    expect(withToolPath(undefined, allDirs, "win32")).toBe("");
   });
 });
 

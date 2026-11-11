@@ -1,5 +1,7 @@
 /**
- * The three requests that act on the *active* session: prompt, compact, abort.
+ * The three requests that act on the *active* session: prompt, compact, abort. A
+ * stop also clears whatever is still queued behind the running turn, since those
+ * messages were drawn into the conversation before Pi ever accepted them.
  *
  * Split from `index.ts` so the host file stays within its size limit, and so the
  * request path can be tested against a small structural session instead of Pi.
@@ -21,6 +23,8 @@ export interface TurnSession {
   prompt(text: string, options?: { streamingBehavior?: "followUp" }): Promise<void>;
   compact(): Promise<unknown>;
   abort(): Promise<void>;
+  /** Drop steering and follow-up messages Pi has not started yet, and report them. */
+  clearQueue(): { steering: string[]; followUp: string[] };
 }
 
 /** What the host lends to a turn: its session, transport, and transcript cache. */
@@ -30,6 +34,8 @@ export interface TurnDeps {
   nextId(prefix: string): string;
   /** Keep the renderer's replayed transcript in step with what was sent. */
   appendUserMessage(message: ChatMessage): void;
+  /** 从转写缓存删掉最后 count 条用户消息，返回它们的 id。 */
+  removeLastUserMessages(count: number): string[];
   emitState(): void;
 }
 
@@ -86,9 +92,21 @@ export async function runSessionRequest(deps: TurnDeps, request: SessionRequest)
       case "compact":
         await deps.session?.compact();
         return;
-      case "abort":
-        await deps.session?.abort();
+      case "abort": {
+        // A queued message reaches the transcript before Pi accepts it, and it is
+        // always among the last queued count user messages (anything sent later
+        // queues behind it), so taking the last n of them removes exactly these.
+        const session = deps.session;
+        const cleared = session?.clearQueue();
+        const count = (cleared?.steering.length ?? 0) + (cleared?.followUp.length ?? 0);
+        if (count > 0) {
+          const ids = deps.removeLastUserMessages(count);
+          if (ids.length) deps.post({ type: "messages-removed", ids });
+        }
+        await session?.abort();
+        deps.emitState();
         return;
+      }
     }
   } catch (error) {
     const label =

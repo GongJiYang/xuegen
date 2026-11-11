@@ -156,6 +156,27 @@ describe("chatReducer agent events", () => {
   });
 });
 
+describe("chatReducer: stopped queued messages", () => {
+  const u1: ChatMessage = { ...userMessage, id: "u1", markdown: "甲" };
+  const a1: ChatMessage = { ...assistantMessage, id: "a1", markdown: "答甲", streaming: false };
+  const u2: ChatMessage = { ...userMessage, id: "u2", markdown: "乙" };
+
+  it("removes the messages a stop cleared out of the queue", () => {
+    const state: ChatState = { ...initialChatState, messages: [u1, a1, u2], ready: true };
+    const next = reduce(state, { type: "messages-removed", ids: ["u2"] });
+    expect(next.messages.map((message) => message.id)).toEqual(["u1", "a1"]);
+    expect(next.ready).toBe(true);
+    expect(next.session).toBe(state.session);
+    expect(next.errors).toBe(state.errors);
+  });
+
+  it("ignores ids that are not in the transcript", () => {
+    const state: ChatState = { ...initialChatState, messages: [u1, a1] };
+    const next = reduce(state, { type: "messages-removed", ids: ["nope"] });
+    expect(next.messages.map((message) => message.id)).toEqual(["u1", "a1"]);
+  });
+});
+
 describe("chatReducer local actions", () => {
   it("dismisses an error by index", () => {
     const withErrors = reduce(reduce(initialChatState, { type: "error", error: "a" }), {

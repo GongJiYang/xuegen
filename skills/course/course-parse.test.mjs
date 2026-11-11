@@ -9,7 +9,16 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { parseCourse, listCourses, toListEntry, progressOf } from "./course-parse.mjs";
+import {
+  parseCourse,
+  listCourses,
+  toListEntry,
+  progressOf,
+  findSection,
+  isTask,
+  isTaskDone,
+  hasMarker,
+} from "./course-parse.mjs";
 
 const run = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -218,4 +227,49 @@ test("计划表也认 course-schedule.mjs 写的完整日期（带星期）", ()
     { date: "2026-11-04", label: "函数是值" },
     { date: "2027-01-05", label: "复习：函数是值" },
   ]);
+});
+
+test("isTask / isTaskDone：`-` 与 `*` 任务同一判定（含缩进），看板与 dashboard 数同一批行", () => {
+  assert.equal(isTask("- [ ] a"), true);
+  assert.equal(isTask("* [x] a"), true);
+  assert.equal(isTask("  - [ ] 缩进子任务"), true);
+  assert.equal(isTask("- 普通列表项"), false);
+  assert.equal(isTaskDone("- [x] a"), true);
+  assert.equal(isTaskDone("* [X] a"), true);
+  assert.equal(isTaskDone("- [ ] a"), false);
+});
+
+test("hasMarker：`xuegen:course-state-OLD` 这类改名后的超串不算有效标记", () => {
+  assert.equal(hasMarker("<!-- xuegen:course-state — 本文件由 AI 维护 -->"), true);
+  assert.equal(hasMarker("<!-- xuegen:course-state-OLD — 旧写法 -->"), false);
+  assert.equal(hasMarker("没有任何标记"), false);
+});
+
+test("段落标题带括号说明时照样数得到任务（This Week（W1 · 测试周））", () => {
+  const text = [
+    "<!-- xuegen:course-state -->",
+    "# 排期课",
+    "## Key Facts",
+    "- 当前周：W1",
+    "## This Week（W1 · 测试周）",
+    "- [ ] 本周活动",
+    "- [x] 已完成项",
+    "## Today（2026-11-11）",
+    "- 日期：2026-11-11",
+    "- [ ] 今日事",
+  ].join("\n");
+  const course = parseCourse(text, "x");
+  assert.equal(course.week.length, 2);
+  assert.equal(course.week.filter((task) => task.done).length, 1);
+  assert.equal(course.today, "2026-11-11");
+  assert.deepEqual(course.missingSections, ["Overall Goals", "Next Session", "Learning Record"]);
+});
+
+test("findSection：前缀后必须紧跟括号或空白，`## This Weekend` 不误配 `This Week`", () => {
+  const text = ["# 课", "## This Weekend", "- [ ] 周末", "## This Week（W1）", "- [ ] 本周"].join("\n");
+  const parsed = parseCourse(text, "x");
+  assert.equal(findSection(parsed.sections, "This Weekend").name, "This Weekend");
+  assert.equal(findSection(parsed.sections, "This Week").name, "This Week（W1）");
+  assert.equal(parsed.week.length, 1);
+  assert.equal(parsed.week[0].label, "本周");
 });

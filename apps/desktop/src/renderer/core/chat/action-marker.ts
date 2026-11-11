@@ -6,7 +6,7 @@
 
 import { strings } from "../strings.js";
 
-export const ACTION_KINDS = ["open", "resume", "plan", "summary", "cards", "close", "checkpoint", "continue", "brief", "undo-close"] as const;
+export const ACTION_KINDS = ["open", "resume", "plan", "summary", "cards", "close", "close-skip", "checkpoint", "continue", "brief", "undo-close"] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
 export function withActionMarker(text: string, action: ActionKind, course?: { slug: string; title: string }): string {

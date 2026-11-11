@@ -20,7 +20,9 @@ function fail(message) {
 }
 
 function isMonth(text) {
-  return MONTH_RE.test(text);
+  if (!MONTH_RE.test(text)) return false;
+  const month = Number(text.slice(5, 7));
+  return month >= 1 && month <= 12;
 }
 
 function isDate(text) {

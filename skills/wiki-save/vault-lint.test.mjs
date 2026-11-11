@@ -11,11 +11,15 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
   allowedLinkRoots,
+  brokenLinksInText,
+  checkConceptFrontmatter,
   checkName,
   collectEntries,
   isLinkExemptPath,
   linkProblemsInText,
   linkUsesSuffixResolution,
+  lintBrokenLinks,
+  lintConceptFrontmatter,
   lintLinks,
   lintTree,
 } from "./vault-lint.mjs";
@@ -225,6 +229,75 @@ test("linkProblemsInText：报行号，且跳过代码块与行内代码", () =>
   assert.deepEqual(linkProblemsInText(text, allowed), [{ target: "concepts/a", line: 2 }]);
 });
 
+test("brokenLinksInText：能解析到文件的不报，解析不到的报断链（带行号，代码里的不算）", () => {
+  const files = new Set([
+    "wiki/index.md",
+    "wiki/knowledge/concepts/discrete-math/010-variables.md",
+    "wiki/knowledge/concepts/discrete-math/010-a.md",
+    "raw/articles/pic.png",
+  ]);
+  const text = [
+    "[[wiki/knowledge/concepts/discrete-math/010-variables]]", // 1 全路径存在
+    "[[concepts/discrete-math/010-a]]", // 2 后缀解析，但文件存在
+    "![[raw/articles/pic.png]]", // 3 嵌入式图片存在
+    "[[concepts/discrete-math/999-not-there|断链]]", // 4 断链
+    "```",
+    "[[concepts/discrete-math/888-in-code]]", // 代码块里的不报
+    "```",
+    "行内 `[[concepts/discrete-math/777-inline]]` 不报",
+    "[[010-variables#定义|显示文字]]", // 9 只取锚点前的 010-variables
+    "[[999-nope#定义|显示文字]]", // 10 断链（带锚点与显示文字）
+  ].join("\n");
+  assert.deepEqual(brokenLinksInText(text, files), [
+    { target: "concepts/discrete-math/999-not-there", line: 4 },
+    { target: "999-nope", line: 10 },
+  ]);
+  // 空目标与 . 开头（相对路径之类）跳过。
+  assert.deepEqual(brokenLinksInText("[[#锚点]]\n[[../x]]\n", files), []);
+});
+
+test("checkConceptFrontmatter：缺 frontmatter、缺 sources: 都报，sources: [] 算有", () => {
+  assert.equal(checkConceptFrontmatter("# 无 frontmatter\n"), "概念页缺少 frontmatter（须以 --- 开头）");
+  assert.equal(checkConceptFrontmatter(""), "概念页缺少 frontmatter（须以 --- 开头）");
+  assert.equal(checkConceptFrontmatter("---\ntitle: x\n---\n\n# 页\n"), "概念页 frontmatter 缺少 sources:");
+  assert.equal(checkConceptFrontmatter("---\nsources: []\n---\n\n# 页\n"), null);
+  assert.equal(checkConceptFrontmatter("---\nsources:\n  - raw/books/epp.pdf\n---\n# 页\n"), null);
+});
+
+test("lintBrokenLinks / lintConceptFrontmatter：断链按查链接的文件范围报，frontmatter 只查概念页", async () => {
+  const vault = await makeVault();
+  try {
+    await writeFileAt(vault, "wiki/index.md", "[[knowledge/concepts/x/010-a]]\n[[knowledge/concepts/x/010-z]]\n");
+    await writeFileAt(vault, "wiki/knowledge/concepts/x/010-a.md", "---\nsources: []\n---\n\n# A\n");
+    await writeFileAt(vault, "wiki/knowledge/concepts/x/010-b.md", "# B 缺 frontmatter\n");
+    await writeFileAt(vault, "wiki/knowledge/concepts/x/010-c.md", "---\ntitle: C\n---\n\n# C 缺 sources\n");
+    await writeFileAt(vault, "wiki/knowledge/shelf/epp.md", "# 不是概念页\n");
+    await writeFileAt(vault, "raw/notes.md", "[[nowhere]]\n");
+    const entries = await collectEntries(vault);
+    assert.deepEqual(await lintBrokenLinks(vault, entries), [
+      {
+        kind: "broken-link",
+        path: "wiki/index.md",
+        detail: "断链：[[knowledge/concepts/x/010-z]]（第 2 行）",
+      },
+    ]);
+    assert.deepEqual(await lintConceptFrontmatter(vault, entries), [
+      {
+        kind: "frontmatter",
+        path: "wiki/knowledge/concepts/x/010-b.md",
+        detail: "概念页缺少 frontmatter（须以 --- 开头）",
+      },
+      {
+        kind: "frontmatter",
+        path: "wiki/knowledge/concepts/x/010-c.md",
+        detail: "概念页 frontmatter 缺少 sources:",
+      },
+    ]);
+  } finally {
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
 test("lintLinks：规则文档（AGENTS.md、README.md、wiki/prompts/）的占位链接豁免", async () => {
   const vault = await makeVault();
   const entries = [
@@ -266,7 +339,7 @@ test("退出码：无问题的库 exit 0，有问题的库 exit 1 且 --json 给
   const clean = await makeVault();
   try {
     await writeFileAt(clean, "wiki/index.md", "# 索引\n\n[[knowledge/concepts/discrete-math/010-variables|变量]]\n");
-    await writeFileAt(clean, "wiki/knowledge/concepts/discrete-math/010-variables.md", "# 变量\n");
+    await writeFileAt(clean, "wiki/knowledge/concepts/discrete-math/010-variables.md", "---\nsources: []\n---\n\n# 变量\n");
     await writeFileAt(
       clean,
       "wiki/knowledge/flashcards/discrete-math/010-variables.md",

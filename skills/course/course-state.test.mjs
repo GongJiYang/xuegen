@@ -226,3 +226,96 @@ test("after-read：有书房链接但行里没有「核心页已定」时 pages 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+/** 课程页：Today 那行带「核心页已定」与行尾 AI 写的「——…仍待读」备注。 */
+const TAIL_NOTE_COURSE = `<!-- xuegen:course-state -->
+
+# 离散数学学习计划
+
+## Today
+
+日期：2026-11-10
+
+- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.1–5、…；完成条件：…）——今天开课时问过，用户没有说已读，仍待读
+- [ ] 继续 D2
+
+## Learning Record
+
+### 2026-11-09-01
+
+- 记录。
+`;
+
+test("after-read：打勾时去掉行尾旧的「——…」备注（不再留「仍待读」）", async () => {
+  const { dir, file } = await freshCourse(TAIL_NOTE_COURSE);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const out = JSON.parse(result.stdout.trim());
+    assert.equal(out.pages, "1–5");
+    const text = await readFile(file, "utf8");
+    assert.match(
+      text,
+      /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-10 读（核心页已定：pp\.1–5、…；完成条件：…）（用户自报，未检查，2026-11-10）\n/,
+    );
+    assert.doesNotMatch(text, /——/);
+    assert.doesNotMatch(text, /仍待读/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：没有「——」的行打勾结果与以前一样（回归）", async () => {
+  const { dir, file } = await freshCourse(BOOK_COURSE);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const text = await readFile(file, "utf8");
+    assert.match(
+      text,
+      /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-10 读（核心页已定：pp\.1–5、7–12、17–21、24–27、31，跳过…）（用户自报，未检查，2026-11-10）\n/,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：括号里本身有「——」时只删最后一个后括号之后的备注", async () => {
+  const text = BOOK_COURSE.replace(
+    "（核心页已定：pp.1–5、7–12、17–21、24–27、31，跳过…）",
+    "（完成条件：读完——能说出一个要点）——仍待读，明天再问",
+  );
+  const { dir, file } = await freshCourse(text);
+  try {
+    const result = await afterRead(file, "§1.1–1.4 核心页", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const saved = await readFile(file, "utf8");
+    assert.match(
+      saved,
+      /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-10 读（完成条件：读完——能说出一个要点）（用户自报，未检查，2026-11-10）\n/,
+    );
+    assert.doesNotMatch(saved, /仍待读/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：备注里自己带括号时，删的是深度 0 的「——」之后的备注", async () => {
+  const text = BOOK_COURSE.replace(
+    "- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.1–5、7–12、17–21、24–27、31，跳过…）",
+    "- [ ] 讲后读 X · 2026-11-10 读（完成条件：读完）——开课时问过（11-11），未读",
+  );
+  const { dir, file } = await freshCourse(text);
+  try {
+    const result = await afterRead(file, "X", ["--date", "2026-11-10"]);
+    assert.equal(result.ok, true, result.stderr);
+    const saved = await readFile(file, "utf8");
+    assert.match(
+      saved,
+      /- \[x\] 讲后读 X · 2026-11-10 读（完成条件：读完）（用户自报，未检查，2026-11-10）\n/,
+    );
+    assert.doesNotMatch(saved, /开课时问过/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

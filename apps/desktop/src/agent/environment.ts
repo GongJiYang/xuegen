@@ -102,6 +102,34 @@ export function resolveHome(): string {
   return resolve(process.env.XUEGEN_HOME || join(homedir(), ".xuegen"));
 }
 
+/** Directories that hold the tools Xuegen shells out to (`jj`, `node`, `pdftotext`). */
+const darwinToolDirs = ["/opt/homebrew/bin", "/usr/local/bin"];
+/** What macOS gives a process launched from Finder or the Dock. */
+const darwinSystemPath = "/usr/bin:/bin:/usr/sbin:/sbin";
+
+/**
+ * Make sure the tools Xuegen spawns can be found.
+ *
+ * An app opened from Finder or the Dock inherits no shell PATH — only
+ * `/usr/bin:/bin:/usr/sbin:/sbin` — so `jj`, `node` and `pdftotext` in
+ * `/opt/homebrew/bin` are invisible and `spawnSync jj` fails with ENOENT.
+ * Prepending the Homebrew directories fixes it for every call site at once.
+ * Missing directories and directories already on PATH are skipped, so the
+ * result is stable when PATH is a login shell's (the CLI and test runs).
+ */
+export function withToolPath(
+  path: string | undefined,
+  exists: (dir: string) => boolean,
+  platform: string,
+): string {
+  const current = path ?? "";
+  if (platform !== "darwin") return current;
+
+  const entries = (path ?? darwinSystemPath).split(":");
+  const missing = darwinToolDirs.filter((dir) => !entries.includes(dir) && exists(dir));
+  return [...missing, ...entries].join(":");
+}
+
 /**
  * Apply the same environment isolation the CLI applies, before Pi is imported.
  * Idempotent, so the agent process and the smoke script can both call it.
@@ -126,6 +154,10 @@ export function applyXuegenEnvironment(): { home: string; cwd: string } {
   delete process.env.PI_PACKAGE_DIR;
   process.env.PI_CODING_AGENT = "true";
   process.env.AI_AGENT = "xuegen";
+  // An app opened from Finder/Dock has no shell PATH, so `jj`, `pdftotext` and
+  // `node` (all in Homebrew directories) were not found and `jj` commits failed
+  // with `spawnSync jj ENOENT` — course planning and undo silently lost history.
+  process.env.PATH = withToolPath(process.env.PATH, existsSync, process.platform);
 
   const cwd = resolve(process.env.XUEGEN_DESKTOP_CWD || join(homedir(), "learning"));
   mkdirSync(cwd, { recursive: true });

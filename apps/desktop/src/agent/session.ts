@@ -26,6 +26,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { isOwnSessionFile } from "./session-file.js";
+import { withTransientRetry } from "./transient-error.js";
 import { createGuardExtension } from "./guard/extension.js";
 import { guardRoots, nodePathFacts } from "./guard/facts.js";
 import { canonicalParts, expandTilde } from "./guard/path.js";
@@ -196,6 +197,10 @@ export async function createXuegenSession(
     settingsManager,
     sessionManager,
   });
+
+  // Pi never retries an error whose text mentions `billing`; OpenDesign answers a
+  // temporary outage with `503 ... resolve Billing Scope`, so widen the rule here.
+  withTransientRetry(session);
 
   // Emits session_start, which connects the MCP servers in the background and
   // lets the MCP extension activate tool_search for deferred-exposure servers.

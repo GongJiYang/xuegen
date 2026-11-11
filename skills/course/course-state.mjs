@@ -7,7 +7,7 @@
 //   node course-state.mjs verify <coursesDir> [看板文件]   校验锁、标记与必要段落；看板是否过期
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
-//   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报）
+//   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报；行尾旧的 —— 备注去掉）
 import { readFile, writeFile, stat, chmod, mkdir } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
@@ -88,16 +88,37 @@ function stripDate(text) {
     .join("\n");
 }
 
-/** 读取课程目录；没有状态文件时报错退出。 */
-async function loadCourses(dir) {
-  const courses = await listCourses(dir);
+/**
+ * 读取课程目录；没有状态文件时报错退出。
+ * `requireMarker` 为 false 时连缺标记的页也读进来（verify 用：缺标记要报出来，而不是静默跳过）。
+ */
+async function loadCourses(dir, options = {}) {
+  const courses = await listCourses(dir, options);
   if (courses.length === 0) fail(`no course state files in ${dir}`);
   return courses;
 }
 
 /**
+ * 行尾旧的 AI 状态备注（「——…仍待读」之类）：从左往右扫，记全角/半角括号深度
+ * （（( +1、）) −1），碰到第一个出现在深度 0 的「——」就切到行尾；没有就不删。
+ * 括号内的「——」不动（旧备注自己带括号也不会失效）。
+ * 打勾后这行已由「（用户自报，未检查，<date>）」说明状态，旧备注留着会让简报误报。
+ */
+function stripTailNote(line) {
+  let depth = 0;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === "（" || char === "(") depth += 1;
+    else if (char === "）" || char === ")") depth = Math.max(0, depth - 1);
+    else if (char === "—" && depth === 0 && line[i + 1] === "—") return line.slice(0, i).trimEnd();
+  }
+  return line.trimEnd();
+}
+
+/**
  * 「读完了」的确定性写入：把 `## Today` 里第一条未打勾、标签完全相等的
- * 「- [ ] 讲后读 <标签>」打勾，并在行尾记「（用户自报，未检查，<date>）」。
+ * 「- [ ] 讲后读 <标签>」打勾，行尾旧的 —— 备注去掉，再在行尾记
+ * 「（用户自报，未检查，<date>）」。
  * 解锁 → 写 → 上锁；写失败时恢复原权限。成功输出一行 JSON：
  * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>,
  *  "book": <书房书页 slug 或 null>, "course": <课程 slug>,
@@ -131,7 +152,7 @@ async function afterRead(file, label, date) {
   const originalMode = (await stat(target)).mode & 0o777;
   await chmod(target, WRITABLE_MODE);
   const next = lines.slice();
-  next[hit] = `${lines[hit].replace(/^- \[ \]/, "- [x]")}（用户自报，未检查，${date}）`;
+  next[hit] = `${stripTailNote(lines[hit].replace(/^- \[ \]/, "- [x]"))}（用户自报，未检查，${date}）`;
   try {
     await writeFile(target, next.join("\n"), "utf8");
   } catch (error) {
@@ -162,7 +183,8 @@ async function setMode(files, wanted) {
 
 async function verify(coursesDir, dashboardFile) {
   const problems = [];
-  const courses = await loadCourses(coursesDir);
+  // 缺标记的页也要读进来：否则删掉标记的课会被 listCourses 静默过滤，verify 报不出「缺少标记」。
+  const courses = await loadCourses(coursesDir, { requireMarker: false });
   const dirMode = await mode(coursesDir);
   if (dirMode & 0o222) {
     problems.push(`${coursesDir} 目录可写（${dirMode.toString(8)}），状态文件可被删除；应为 555`);

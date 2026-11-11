@@ -8,6 +8,7 @@ import {
   checkConceptPage,
   checkCoursePage,
   checkNoDeletedLines,
+  checkSubjectPreference,
   isOwned,
   isSafeRelPath,
   ownedPrefixes,
@@ -121,6 +122,10 @@ test("ownedPrefixes：无科目时不放概念/卡片目录，有科目时放本
   const full = ownedPrefixes("epp", "discrete-math");
   assert.ok(full.includes("wiki/knowledge/concepts/discrete-math/"));
   assert.ok(full.includes("wiki/knowledge/flashcards/discrete-math/"));
+  // 收课暂存也带本科目页：课上说的「以后讲离散都…」要记进它的「讲解偏好」一节
+  // （用户 2026-11-08 要求；只改这一节的限制在 planCheck 里）。
+  assert.ok(full.includes("wiki/subjects/discrete-math.md"));
+  assert.ok(!full.includes("wiki/subjects/algorithms.md"), "只有本科目页，不含别的科目");
 });
 
 test("isSafeRelPath：拒绝绝对路径、反斜杠、NUL、非规范形式、空串", () => {
@@ -196,6 +201,79 @@ test("checkCoursePage：合法通过；缺标记、超 200 行、完成 id 不�
   assert.match(checkCoursePage(withCloseRecord(coursePage(), "D9"), "epp").join("\n"), /不在排期表：D9/);
   const brokenSchedule = coursePage().replace("<!-- xuegen:schedule:end -->", "");
   assert.match(checkCoursePage(brokenSchedule, "epp").join("\n"), /排期表无法解析/);
+});
+
+// ---- 收课暂存里的科目页：只能改「## 讲解偏好」一节 ----
+
+/** 一份带「## 讲解偏好」的科目页（这一节后面还有别的节，用来测越界改动）。 */
+const SUBJECT_WITH_PREF = [
+  "# 离散数学",
+  "",
+  "## 资料登记",
+  "",
+  "- 教材：Epp",
+  "",
+  "## 讲解偏好",
+  "",
+  "- 例子要短（2026-11-08）",
+  "",
+  "## Materials",
+  "",
+  "- [[reading/epp|Epp]]",
+  "",
+].join("\n");
+
+test("checkSubjectPreference：只有「讲解偏好」节里的行能改，别处一行都不许动", () => {
+  assert.deepEqual(checkSubjectPreference(SUBJECT_WITH_PREF, SUBJECT_WITH_PREF), []);
+  const inside = SUBJECT_WITH_PREF.replace(
+    "- 例子要短（2026-11-08）\n",
+    "- 例子要短（2026-11-08）\n- 先给证明策略（2026-11-11）\n",
+  );
+  assert.deepEqual(checkSubjectPreference(SUBJECT_WITH_PREF, inside), []);
+  // 换掉偏好行、整节换掉都算节内改动
+  assert.deepEqual(
+    checkSubjectPreference(SUBJECT_WITH_PREF, SUBJECT_WITH_PREF.replace("例子要短", "例子要长")),
+    [],
+  );
+  // 节外任何一行改了（这里改 Materials）都不行
+  const outside = SUBJECT_WITH_PREF.replace("- [[reading/epp|Epp]]", "- [[reading/epp|Epp（第 3 版）]]");
+  const problems = checkSubjectPreference(SUBJECT_WITH_PREF, outside);
+  assert.deepEqual(
+    problems.map((p) => [p.kind, p.detail]),
+    [["subject-scope", "收课只能改本科目页的「讲解偏好」一节"]],
+  );
+  // 节前、节后的内容也不能动（节在中间时两边都要比）
+  assert.equal(checkSubjectPreference(SUBJECT_WITH_PREF, SUBJECT_WITH_PREF.replace("- 教材：Epp", "- 教材：Rosen")).length, 1);
+  assert.equal(checkSubjectPreference(SUBJECT_WITH_PREF, `${SUBJECT_WITH_PREF}- 新的节后行\n`).length, 1);
+  // 整节删掉也不行
+  const removed = SUBJECT_WITH_PREF.replace("## 讲解偏好\n\n- 例子要短（2026-11-08）\n\n", "");
+  assert.equal(checkSubjectPreference(SUBJECT_WITH_PREF, removed).length, 1);
+});
+
+test("checkSubjectPreference：基线没有这一节时只许在文末新建；有这一节时不许搬到别处", () => {
+  const bare = "# 离散数学\n\n## 资料登记\n\n- 教材：Epp\n";
+  assert.deepEqual(checkSubjectPreference(bare, bare), [], "没改就通过");
+  const appended = `${bare}\n## 讲解偏好\n\n- 先给证明策略（2026-11-11）\n`;
+  assert.deepEqual(checkSubjectPreference(bare, appended), [], "文末新建这一节可以");
+  // 在中间插一节（后面还有行）＝改动了别的行
+  const inserted = "# 离散数学\n\n## 讲解偏好\n\n- 先给证明策略\n\n## 资料登记\n\n- 教材：Epp\n";
+  assert.deepEqual(checkSubjectPreference(bare, inserted).map((p) => p.kind), ["subject-scope"]);
+  // 不在末尾追加、而是改掉原本的行
+  assert.deepEqual(checkSubjectPreference(bare, bare.replace("Epp", "Rosen")).map((p) => p.kind), ["subject-scope"]);
+});
+
+test("checkSubjectPreference：「讲解偏好」不超过 15 行（不含标题与空行）", () => {
+  const lines = (n) => Array.from({ length: n }, (_, i) => `- 偏好 ${i + 1}`).join("\n");
+  const base = "# 离散数学\n\n## 讲解偏好\n\n- 例子要短\n";
+  const ok15 = `# 离散数学\n\n## 讲解偏好\n\n${lines(15)}\n`;
+  assert.deepEqual(checkSubjectPreference(base, ok15), [], "15 行正好可以");
+  const bad16 = `# 离散数学\n\n## 讲解偏好\n\n${lines(16)}\n`;
+  const problems = checkSubjectPreference(base, bad16);
+  assert.deepEqual(problems.map((p) => p.kind), ["subject-lines"]);
+  assert.match(problems[0].detail, /讲解偏好不超过 15 行/);
+  // 空行不算；标题行本身也不算
+  const spaced = `# 离散数学\n\n## 讲解偏好\n\n${lines(15).split("\n").join("\n\n")}\n`;
+  assert.deepEqual(checkSubjectPreference(base, spaced), [], "空行不计数");
 });
 
 test("checkConceptPage：要有 frontmatter 与 sources:", () => {
@@ -290,10 +368,10 @@ test("ownedPrefixes：plan 只含课程页/课程目录/index/log 与科目页�
   assert.deepEqual(ownedPrefixes("epp", "discrete-math"), ownedPrefixes("epp", "discrete-math", "close"));
 });
 
-test("planCheck：plan 暂存写概念页或卡片页 → owner；收课暂存写科目页 → owner（kind 不混用）", () => {
+test("planCheck：plan 暂存写概念页或卡片页 → owner；收课暂存写别科目的页 → owner（kind 不混用）", () => {
   const concept = "wiki/knowledge/concepts/discrete-math/truth-table.md";
   const card = "wiki/knowledge/flashcards/discrete-math/cards.md";
-  const subjectPage = "wiki/subjects/discrete-math.md";
+  const otherSubject = "wiki/subjects/algorithms.md";
   const planManifest = { kind: "plan", slug: "epp", subject: "discrete-math", base: {} };
   const planResult = planCheck(
     planManifest,
@@ -308,10 +386,48 @@ test("planCheck：plan 暂存写概念页或卡片页 → owner；收课暂存�
   const closeManifest = { kind: "close", slug: "epp", subject: "discrete-math", base: {} };
   const closeResult = planCheck(
     closeManifest,
-    [{ path: subjectPage, sha: "c", text: "# 科目", symlink: false }],
+    [{ path: otherSubject, sha: "c", text: "# 科目", symlink: false }],
     new Map(),
   );
-  assert.deepEqual(closeResult.problems.map((p) => [p.path, p.kind]), [[subjectPage, "owner"]]);
+  assert.deepEqual(closeResult.problems.map((p) => [p.path, p.kind]), [[otherSubject, "owner"]]);
+});
+
+test("planCheck：收课暂存的科目页只许改「讲解偏好」一节，plan 暂存仍能改整页", () => {
+  const subjectPage = "wiki/subjects/discrete-math.md";
+  const closeManifest = { kind: "close", slug: "epp", subject: "discrete-math", base: { [subjectPage]: "s" } };
+  const current = new Map([[subjectPage, { sha: "s", text: SUBJECT_WITH_PREF }]]);
+  const inside = SUBJECT_WITH_PREF.replace("- 例子要短（2026-11-08）\n", "- 例子要短\n- 先给证明策略\n");
+  const ok = planCheck(closeManifest, [{ path: subjectPage, sha: "s2", text: inside, symlink: false }], current);
+  assert.equal(ok.ok, true, JSON.stringify(ok.problems));
+  assert.deepEqual(ok.changes, [{ path: subjectPage, action: "update" }]);
+
+  const outside = SUBJECT_WITH_PREF.replace("- [[reading/epp|Epp]]", "- [[reading/rosen|Rosen]]");
+  const bad = planCheck(closeManifest, [{ path: subjectPage, sha: "s3", text: outside, symlink: false }], current);
+  assert.deepEqual(
+    bad.problems.map((p) => [p.path, p.kind, p.detail]),
+    [[subjectPage, "subject-scope", "收课只能改本科目页的「讲解偏好」一节"]],
+  );
+
+  // 计划暂存（总控）对科目页没有这条限制：资料登记照样能改。
+  const planManifest = { ...closeManifest, kind: "plan" };
+  const planned = planCheck(planManifest, [{ path: subjectPage, sha: "s4", text: outside, symlink: false }], current);
+  assert.equal(planned.ok, true, JSON.stringify(planned.problems));
+});
+
+test("planCheck：收课暂存里新加的本科目页（基线没有）→ 只许在文末新建讲解偏好节", () => {
+  const subjectPage = "wiki/subjects/discrete-math.md";
+  const bare = "# 离散数学\n\n## 资料登记\n\n- 教材：Epp\n";
+  const manifest = { kind: "close", slug: "epp", subject: "discrete-math", base: { [subjectPage]: "s" } };
+  const current = new Map([[subjectPage, { sha: "s", text: bare }]]);
+  const appended = `${bare}\n## 讲解偏好\n\n- 先给证明策略（2026-11-11）\n`;
+  const ok = planCheck(manifest, [{ path: subjectPage, sha: "s2", text: appended, symlink: false }], current);
+  assert.equal(ok.ok, true, JSON.stringify(ok.problems));
+  const bad = planCheck(
+    manifest,
+    [{ path: subjectPage, sha: "s3", text: bare.replace("Epp", "Rosen"), symlink: false }],
+    current,
+  );
+  assert.deepEqual(bad.problems.map((p) => p.kind), ["subject-scope"]);
 });
 
 test("planCheck：plan --new 暂存没有课程页 → 报「新建课程必须写课程页」（kind course-page）", () => {

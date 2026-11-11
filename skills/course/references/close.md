@@ -8,7 +8,7 @@
 node course-close.mjs stage   <库> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]
 node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
 node course-close.mjs check   <暂存目录> [--json]
-node course-close.mjs commit  <暂存目录> [--label 收课|存档点] [--json]
+node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好] [--json]
 node course-close.mjs abort   <暂存目录>
 node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews] [--json]
 node course-close.mjs shift   <库> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
@@ -20,7 +20,7 @@ node course-close.mjs snapshot <暂存目录> <报告相对路径> <PNG相对路
 - `stage`：建暂存目录，按库内相对路径写时复制课程页、`wiki/index.md`、`wiki/log.md`、当月 records（存在才复制）；写 `manifest.json` 记基线 sha256。同一门课有未提交暂存时拒绝（slug 前缀相同的别门课不算）。`--kind plan` 开计划暂存：复制范围同上，外加科目页 `wiki/subjects/<科目>.md`（存在才复制）。`--new`（只能和 `--kind plan` 一起用）开新建课程暂存：课程页必须不存在（存在报「这门课已存在」），暂存里不放课程页，只复制 `index.md`、`log.md` 与科目页；`--subject` 必填（小写字母/数字/连字符）。
 - `add`：把库里已存在的页（如要补的概念页）复制进暂存并记基线。改已有页之前必须先 add。
 - `check`：只校验不写库；`--json` 输出 `{ ok, problems, changes }`，未通过 exit 1。
-- `commit`：再校验 → 写提交日志 → 逐文件「临时文件 → fsync → rename」→ 上锁 → `jj commit`（库在 jj 下时，只提交本次写入的文件）。提交前自动重画课程看板（Markdown + 网页）并一起提交；看板失败只报告，不影响收课。存档点用 `--label 存档点`，jj 记「存档点 <slug> <日期>」，`undo` 不会撤它；不填 `--label` 就是「收课」。计划暂存的 commit 一律记「计划 <slug> <日期>」，不接受 `--label`。
+- `commit`：再校验 → 写提交日志 → 逐文件「临时文件 → fsync → rename」→ 上锁 → `jj commit`（库在 jj 下时，只提交本次写入的文件）。提交前自动重画课程看板（Markdown + 网页）并一起提交；看板失败只报告，不影响收课。存档点用 `--label 存档点`，jj 记「存档点 <slug> <日期>」，`undo` 不会撤它；只记讲解偏好用 `--label 偏好`（收课暂存可 `add` 本科目页，但只许改 `## 讲解偏好` 一节、不超过 15 行），jj 记「偏好 <slug> <日期>」，`undo` 也不撤它；不填 `--label` 就是「收课」。计划暂存的 commit 一律记「计划 <slug> <日期>」，不接受 `--label`。
 - `abort`：删整个暂存目录，库不动；已提交的暂存不能 abort。
 - `schedule`：只允许 `kind: plan` 的暂存。在暂存里的课程页副本上跑 `course-schedule.mjs plan … --write`（沙盒外 Node 子进程），`--lessons` 给相对路径时按暂存目录解析。脚本报错（如课次多于上课日，给出建议截止日期）原样返回，暂存不动。排期完照常 `check` / `commit`。
 - `undo`：jj 把最近一次「收课 <slug>」提交改过的文件恢复到提交前，再提交「撤销收课」；那次新建的页面（卡片页、概念页）保留不删，在输出里列出，问用户后再删。

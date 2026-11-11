@@ -146,6 +146,22 @@ class AgentHost {
       appendUserMessage: (message) => {
         this.history = { ...this.history, messages: [...this.history.messages, message] };
       },
+      removeLastUserMessages: (count) => {
+        // A stop drops what Pi never started: those messages are the tail of the
+        // sent-but-unanswered run, so walk back over the user ones only.
+        const messages = this.history.messages;
+        const doomed = new Set<number>();
+        for (let index = messages.length - 1; index >= 0 && doomed.size < count; index -= 1) {
+          if (messages[index]?.role === "user") doomed.add(index);
+        }
+        const ids = [...doomed].sort((a, b) => a - b).map((index) => messages[index]?.id ?? "");
+        if (ids.length === 0) return [];
+        this.history = {
+          ...this.history,
+          messages: messages.filter((_, index) => !doomed.has(index)),
+        };
+        return ids;
+      },
       emitState: () => this.emitState(),
     };
   }

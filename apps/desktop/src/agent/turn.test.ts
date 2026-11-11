@@ -18,8 +18,15 @@ interface Harness {
     prompt: ReturnType<typeof vi.fn>;
     compact: ReturnType<typeof vi.fn>;
     abort: ReturnType<typeof vi.fn>;
+    clearQueue: ReturnType<typeof vi.fn>;
   };
+  removed: ReturnType<typeof vi.fn>;
   emitted: () => number;
+}
+
+/** The ids the fake transcript cache hands back for the last `count` user messages. */
+function queuedIds(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => `queued-${index + 1}`);
 }
 
 function harness(options: { sessionId?: string | null; isStreaming?: boolean } = {}): Harness {
@@ -30,9 +37,11 @@ function harness(options: { sessionId?: string | null; isStreaming?: boolean } =
     prompt: vi.fn(async () => undefined),
     compact: vi.fn(async () => undefined),
     abort: vi.fn(async () => undefined),
+    clearQueue: vi.fn(() => ({ steering: [] as string[], followUp: [] as string[] })),
   };
   const posted: AgentToHostMessage[] = [];
   const appended: ChatMessage[] = [];
+  const removed = vi.fn((count: number) => queuedIds(count));
   let emissions = 0;
   const deps: TurnDeps = {
     session: sessionId === null ? null : session,
@@ -41,11 +50,23 @@ function harness(options: { sessionId?: string | null; isStreaming?: boolean } =
     post: (event) => posted.push(withSessionId(event, sessionId)),
     nextId: (prefix) => `${prefix}-1`,
     appendUserMessage: (message) => appended.push(message),
+    removeLastUserMessages: removed,
     emitState: () => {
       emissions += 1;
     },
   };
-  return { deps, posted, appended, session, emitted: () => emissions };
+  return { deps, posted, appended, removed, session, emitted: () => emissions };
+}
+
+/** Posted events of one type, for assertions that do not care about other chatter. */
+function eventsOfType<T extends AgentToHostMessage["type"]>(
+  posted: AgentToHostMessage[],
+  type: T,
+): Extract<AgentToHostMessage, { type: T }>[] {
+  return posted.filter((message) => message.type === type) as Extract<
+    AgentToHostMessage,
+    { type: T }
+  >[];
 }
 
 describe("runSessionRequest: stale session ids", () => {
@@ -114,6 +135,41 @@ describe("runSessionRequest: current or unaddressed requests", () => {
     await runSessionRequest(h.deps, { type: "prompt", text: "   " });
     expect(h.session.prompt).not.toHaveBeenCalled();
     expect(h.posted).toEqual([]);
+  });
+});
+
+describe("runSessionRequest: stopping clears the queue", () => {
+  it("drops a queued follow-up from the conversation before aborting", async () => {
+    const h = harness({ isStreaming: true });
+    h.session.clearQueue.mockReturnValueOnce({ steering: [], followUp: ["B"] });
+    await runSessionRequest(h.deps, { type: "abort", sessionId: "S1" });
+    expect(h.session.clearQueue).toHaveBeenCalledTimes(1);
+    expect(h.session.clearQueue.mock.invocationCallOrder[0]).toBeLessThan(
+      h.session.abort.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(h.removed).toHaveBeenCalledWith(1);
+    expect(eventsOfType(h.posted, "messages-removed")).toEqual([
+      expect.objectContaining({ ids: ["queued-1"] }),
+    ]);
+    expect(h.session.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the transcript alone when nothing was queued", async () => {
+    const h = harness();
+    await runSessionRequest(h.deps, { type: "abort" });
+    expect(h.removed).not.toHaveBeenCalled();
+    expect(eventsOfType(h.posted, "messages-removed")).toEqual([]);
+    expect(h.session.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts steering and follow-ups together", async () => {
+    const h = harness({ isStreaming: true });
+    h.session.clearQueue.mockReturnValueOnce({ steering: ["改主意"], followUp: ["B"] });
+    await runSessionRequest(h.deps, { type: "abort" });
+    expect(h.removed).toHaveBeenCalledWith(2);
+    expect(eventsOfType(h.posted, "messages-removed")).toEqual([
+      expect.objectContaining({ ids: ["queued-1", "queued-2"] }),
+    ]);
   });
 });
 

@@ -148,6 +148,33 @@ test("parseCardPage：ID 在 END 前、紧随 END 后都是已同步，非 Basic
   assert.equal(page.blocks[2].type, "Cloze");
 });
 
+test("parseCardPage：缺 END 的块记 broken，后面的完整块仍是独立一块", () => {
+  const broken = ["START", "Basic", "缺结尾", "Back: 缺结尾的答"].join("\n");
+  const page = parseCardPage([BLOCK("问一", "答一"), "", broken, "", BLOCK("问二", "答二")].join("\n"));
+  assert.equal(page.blocks.length, 2, "只收完整块");
+  assert.deepEqual(
+    page.blocks.map((block) => block.front),
+    ["问一", "问二"],
+    "B 不该把缺 END 的 A 粘进来",
+  );
+  assert.equal(page.broken.length, 1);
+  assert.equal(page.broken[0].error, "缺少 END");
+  assert.equal(page.broken[0].front, "缺结尾");
+  assert.equal(page.broken[0].start, 6, "start 是那个 START 的行号");
+
+  // 文件末尾缺 END 同样记 broken。
+  const tail = parseCardPage(
+    [`TARGET DECK\nX\n\n${BLOCK("问", "答")}\n`, "", ["START", "Basic", "末尾缺"].join("\n")].join("\n"),
+  );
+  assert.equal(tail.blocks.length, 1);
+  assert.equal(tail.broken.length, 1);
+  assert.equal(tail.broken[0].error, "缺少 END");
+  assert.equal(tail.broken[0].front, "末尾缺");
+
+  // 全部完整时 broken 为空。
+  assert.deepEqual(parseCardPage(BLOCK("问", "答")).broken, []);
+});
+
 test("toAnkiHtml：$…$、$$…$$、**、换行，其余原样", () => {
   assert.equal(
     toAnkiHtml("$p \\to q$ 与 $$\\neg q$$ 与 **粗体**\n第二行"),
@@ -363,6 +390,26 @@ test("push：同正面有两张已有笔记时不回填，仍记 duplicates", as
     assert.equal(result.duplicates.length, 1);
     assert.equal(result.duplicates[0].front, LINK_FRONT);
     assert.equal(await readFile(file, "utf8"), text, "不回填就不写文件");
+  } finally {
+    await anki.close();
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+test("push：缺 END 的块里写着的 ID 也算被占用，不能回填给别的块", async () => {
+  const vault = await makeVault();
+  const anki = await duplicateAnki();
+  try {
+    // 一块缺 END 但已经写了 <!--ID: 111-->：那张笔记已属于它，不能让完整块抢去。
+    const brokenText = ["START", "Basic", "缺结尾的卡", "Back: 答", "<!--ID: 111-->"].join("\n");
+    const text = `TARGET DECK\nMME\n\n${brokenText}\n\n${BLOCK(LINK_FRONT, "答")}\n`;
+    const file = await writeCard(vault, "brokenid/a.md", text);
+    const result = await syncJson(["push", vault, "--url", anki.url]);
+    assert.deepEqual(result.linked, [], "缺 END 的块占着的 ID 不得重复回填");
+    assert.equal(result.duplicates.length, 1);
+    assert.equal(result.failed.length, 1, "缺 END 的块进 failed");
+    assert.match(result.failed[0].error, /缺少 END/);
+    assert.equal(await readFile(file, "utf8"), text, "不写文件");
   } finally {
     await anki.close();
     await rm(vault, { recursive: true, force: true });

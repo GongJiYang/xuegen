@@ -4,9 +4,11 @@
 //   node bookshelf.mjs list <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs today <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs done <vault> <slug> [--today YYYY-MM-DD] [--json]
+//     （同一天只能记一段）
 //   node bookshelf.mjs plan <vault> <slug> [--today YYYY-MM-DD] [--write] [--json]
 //   node bookshelf.mjs index <vault> [--today YYYY-MM-DD] [--write] [--json]
 //   node bookshelf.mjs lecture <vault> <slug> --label <标签> --course <课程slug> [--pages <页码列表>] [--today YYYY-MM-DD] [--json]
+//     （标签开头的「讲后读」会被去掉；同课同页已记过时不再记）
 //   node bookshelf.mjs extract <vault> <slug> --page <n> --text <原句> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs card <vault> <slug> --index <逗号分隔的序号> [--today YYYY-MM-DD] [--json]
 // 所有命令支持 --json；日期由 --today 注入，默认本地日期。
@@ -722,6 +724,10 @@ async function commandDone(vault, positional, options, today) {
   const position = bookPosition(page);
   const chunk = chunks[position];
   if (!chunk) fail(`${slug} 没有下一段（position=${position}，共 ${chunks.length} 段）`);
+  // 用户 11-11 定：同一天只记一段，防止连点两次前进两段。
+  if (bookView(page, today).doneToday) {
+    fail(`${slug} 今天这段已记过（第 ${position} 段），明天再记下一段`);
+  }
 
   const nextPosition = position + 1;
   setField(page, "position", String(nextPosition));
@@ -771,20 +777,63 @@ async function commandPlan(vault, positional, options, today) {
   );
 }
 
+// 标签规范化：去掉开头的「讲后读」及其后空白（技能示例传 `--label "讲后读 D1"`，
+// 写页面时固定加前缀，不规范化就会写成「讲后读 讲后读 D1」）。规范化后为空则保留原值。
+function lectureLabel(label) {
+  const stripped = String(label).replace(/^讲后读\s*/, "").trim();
+  return stripped === "" ? String(label).trim() : stripped;
+}
+
+// 页码串规范化成同一写法，用于查重：去空白、`-` 与 `–` 等同。
+function canonicalPages(pages) {
+  return formatPageList(parsePageList(String(pages)));
+}
+
+// `## 读书记录` 里的「讲后读 <标签> 已读（<课程>，用户自报）」行 → [{label, course}]。
+const LECTURE_RECORD_RE = /^-\s+\d{4}-\d{2}-\d{2}:\s+讲后读\s+(.+?)\s+已读（([a-z0-9-]+)，用户自报）\s*$/;
+
+function parseLectureRecords(body) {
+  const range = sectionRange(body, "## 读书记录");
+  if (!range) return [];
+  const rows = [];
+  for (const line of body.slice(range.start, range.end)) {
+    const match = line.match(LECTURE_RECORD_RE);
+    if (!match) continue;
+    rows.push({ label: lectureLabel(match[1]), course: match[2] });
+  }
+  return rows;
+}
+
+// 这次 lecture 是否已经记过：给了 --pages 看 `## 核心页已读`（同课程 + 同规范化页码，
+// 标签不比）；没给 --pages 看 `## 读书记录`（同课程 + 同规范化标签）。
+function lectureAlreadyRecorded(page, course, label, pages) {
+  if (pages !== null) {
+    const wanted = canonicalPages(pages);
+    return parseCoreRead(page.body).some(
+      (row) => row.course === course && canonicalPages(row.pages) === wanted,
+    );
+  }
+  return parseLectureRecords(page.body).some(
+    (row) => row.course === course && row.label === label,
+  );
+}
+
 // 讲后读读完：记一条读书记录，给了 --pages 时再记一行核心页已读；不改 position/status。
+// 同课同页（或同课同标签）已记过时不再记，返回 already: true。
 async function commandLecture(vault, positional, options, today) {
   const slug = positional[0];
   if (!slug) fail("lecture 需要 slug");
   const { page, file } = await loadBook(vault, slug);
-  const label = options.label;
+  const rawLabel = options.label;
   if (
-    typeof label !== "string" ||
-    label === "" ||
-    label.includes("\n") ||
-    label.length > 200
+    typeof rawLabel !== "string" ||
+    rawLabel === "" ||
+    rawLabel.includes("\n") ||
+    rawLabel.length > 200
   ) {
-    fail(`--label 非法：${label}`);
+    fail(`--label 非法：${rawLabel}`);
   }
+  const label = lectureLabel(rawLabel);
   const course = options.course;
   if (typeof course !== "string" || !/^[a-z0-9-]+$/.test(course)) {
     fail(`--course 非法：${course}`);
@@ -794,6 +843,15 @@ async function commandLecture(vault, positional, options, today) {
     const parsed = parsePageList(String(options.pages));
     if (parsed.length === 0) fail(`页码列表非法：${options.pages}`);
     pages = formatPageList(parsed);
+  }
+  const already = lectureAlreadyRecorded(page, course, label, pages);
+  if (already) {
+    output(
+      options,
+      { slug, label, course, pages, already: true },
+      () => `lecture: ${slug} 讲后读 ${label} 已读（${course}）已记过，不再记`,
+    );
+    return;
   }
   page.body = appendRecord(page.body, today, `讲后读 ${label} 已读（${course}，用户自报）`);
   if (pages !== null) {
@@ -806,7 +864,7 @@ async function commandLecture(vault, positional, options, today) {
   await writeAtomic(file, renderPage(page.fields, page.body));
   output(
     options,
-    { slug, label, course, pages },
+    { slug, label, course, pages, already: false },
     () => `lecture: ${slug} 讲后读 ${label} 已读（${course}，用户自报）`,
   );
 }
@@ -954,6 +1012,7 @@ function usage() {
     "plan：生成/重写 `## 排期` 的排期表（不带 --write 只打印）。",
     "index：生成/重写 wiki/shelf/index.md（不带 --write 只打印）。",
     "lecture：讲后读读完——追加读书记录，给了 --pages 再记一行 `## 核心页已读`；不改 position/status。",
+    "  同课同页已记过时不再记（--json 里 already: true）。",
     "extract：在 `## 摘录` 末尾存一句摘录（行尾标 `#待做卡`）。",
     "card：把 `## 摘录` 里指定序号的 `#待做卡` 改成 `#卡/<today>`。",
     "",

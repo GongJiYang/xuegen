@@ -12,6 +12,12 @@ import { fileURLToPath } from "node:url";
 /** 状态文件首行标记；脚本据此识别课程状态文件。 */
 export const STATE_MARKER = "xuegen:course-state";
 
+/**
+ * 标记的正经写法：标记后不得紧跟续写的字符（`xuegen:course-state-OLD` 之类不算）。
+ * 用 `includes` 会把改名后的超串也算成有效标记，因此统一走这个正则。
+ */
+const MARKER_RE = /xuegen:course-state(?![\w-])/;
+
 /** 计划表段落的标题前缀（标题后可能带括号说明）。 */
 const PLAN_HEADING_PREFIX = "计划表";
 
@@ -31,13 +37,34 @@ const REQUIRED_SECTIONS = ["Overall Goals", "This Week", "Today", "Next Session"
 /** 单个任务标签的最大长度，超出截断（看板与 JSON 一致）。 */
 const MAX_LABEL = 80;
 
-function isTask(line) {
-  return /^- \[[ xX]\]/.test(line.trim());
+/** 任务行前缀：`- [ ]` / `* [x]`，捕获组是复选框里的字符。 */
+const TASK_PREFIX = /^[-*] \[([ xX])\]/;
+
+/** 任务行：`- [ ]`、`- [x]`、`* [ ]`（缩进子任务同样算）。看板与 dashboard 共用这一个判定。 */
+export function isTask(line) {
+  return TASK_PREFIX.test(line.trim());
+}
+
+/** 任务行的状态：勾选与否（`- [ ]` / `* [x]`，调用前应先 isTask）。 */
+export function isTaskDone(line) {
+  const match = line.trim().match(TASK_PREFIX);
+  return match ? match[1] !== " " : false;
+}
+
+/**
+ * 段落标题匹配：带 `## ` 前缀的精确名，或「以 `## <名>` 开头、后面紧跟括号或空白」
+ * 的变体（`## This Week（W1 · 测试周）`）。
+ * `## This Weekend` 不以括号/空白紧跟，不会误配 `This Week`。
+ */
+function headingMatches(title, heading) {
+  if (title === heading) return true;
+  if (!title.startsWith(heading)) return false;
+  return /^[（(\s]/.test(title.slice(heading.length));
 }
 
 /** 取某个 `## ` 段落下的行；段落不存在返回 null。 */
 function sectionLines(lines, heading) {
-  const start = lines.findIndex((line) => line.trim() === heading);
+  const start = lines.findIndex((line) => headingMatches(line.trim(), heading));
   if (start === -1) return null;
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => /^##\s/.test(line));
@@ -46,7 +73,7 @@ function sectionLines(lines, heading) {
 
 /** 把一行任务文本净化成展示用标签。 */
 function taskLabel(line) {
-  let label = line.trim().replace(/^- \[[ xX]\]\s*/, "");
+  let label = line.trim().replace(/^[-*] \[[ xX]\]\s*/, "");
   label = label.replace(/\*\*/g, "");
   const cut = label.search(/[（(](完成条件|已完成|条件)/);
   if (cut > 0) label = label.slice(0, cut);
@@ -70,7 +97,7 @@ function tasksOf(lines, heading) {
   const body = sectionLines(lines, heading);
   if (!body) return null;
   return body.filter(isTask).map((line) => ({
-    done: /^- \[[xX]\]/.test(line.trim()),
+    done: isTaskDone(line),
     label: taskLabel(line),
   }));
 }
@@ -198,7 +225,7 @@ export function parseCourse(text, slug, options = {}) {
     plan: parsePlanRows(sections, year),
     records,
     sections,
-    marked: text.includes(STATE_MARKER),
+    marked: hasMarker(text),
     missingSections: REQUIRED_SECTIONS.filter((name) => sectionLines(lines, `## ${name}`) === null),
     styleHint: null,
   };
@@ -235,9 +262,14 @@ export function toListEntry(course) {
   };
 }
 
+/** 判断一段文本里有没有有效标记。 */
+export function hasMarker(text) {
+  return MARKER_RE.test(text);
+}
+
 /** 判断一个文件是否为课程状态文件（含标记）。 */
 export function isCourseFile(text) {
-  return text.includes(STATE_MARKER);
+  return hasMarker(text);
 }
 
 /**
@@ -262,11 +294,14 @@ export async function listCourses(dir, options = {}) {
   return courses;
 }
 
-/** 段落查找：先精确名后前缀名，供渲染器复用。 */
+/**
+ * 段落查找：先精确名，再按 sectionLines 的同一前缀规则找带说明的标题。
+ * 供渲染器复用，保证看板与 dashboard/list 数同一段任务。
+ */
 export function findSection(sections, name) {
   return (
     sections.find((section) => section.name === name) ||
-    sections.find((section) => section.name.startsWith(name))
+    sections.find((section) => headingMatches(section.name, name))
   );
 }
 

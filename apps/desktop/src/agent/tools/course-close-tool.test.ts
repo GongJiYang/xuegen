@@ -113,6 +113,16 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
     ).toEqual(["commit", "/home/learning/.close/discrete-math-epp-1", "--label", "收课", "--json"]);
   });
 
+  it("commit passes --label 偏好 before --json (teaching preference written in the lesson)", () => {
+    expect(
+      courseCloseArgs(
+        { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1", label: "偏好" },
+        VAULT,
+        CWD,
+      ),
+    ).toEqual(["commit", "/home/learning/.close/discrete-math-epp-1", "--label", "偏好", "--json"]);
+  });
+
   it("label is ignored by actions other than commit", () => {
     expect(
       courseCloseArgs(
@@ -231,6 +241,8 @@ function homeWithVault(vault: string | null): string {
 }
 
 interface CapturedTool {
+  description?: string;
+  parameters?: { properties?: Record<string, { anyOf?: { const?: unknown }[]; description?: string }> };
   execute(
     toolCallId: string,
     params: Params,
@@ -256,6 +268,22 @@ async function tool(exec: RunExecFile, home: string, repo = "/repo"): Promise<Ca
   if (captured === null) throw new Error("course_close was not registered");
   return captured;
 }
+
+describe("course_close — 工具 schema", () => {
+  it("accepts label 偏好 (teaching preference) next to 收课 and 存档点", async () => {
+    const home = homeWithVault(VAULT);
+    try {
+      const registered = await tool(fakeExec({ stdout: "{}" }), home);
+      const label = registered.parameters?.properties?.label;
+      expect(label?.anyOf?.map((entry) => entry.const)).toEqual(["收课", "存档点", "偏好"]);
+      // 说明文字要说清用途：课程会话自己就能记，不必去总控。
+      expect(label?.description).toContain("偏好");
+      expect(label?.description).toContain("讲解偏好");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("course_close — execute 把脚本输出交回模型", () => {
   it("returns stdout as an ordinary result when the script exits 0", async () => {

@@ -87,9 +87,27 @@ function slugOf(meta: SessionMeta, markerSlug: string | null, ctx: SessionListCo
   return /\/wiki\/courses\/([a-z0-9-]+)\.md/.exec(body)?.[1] ?? null;
 }
 
-/** The pin's first word — the course short name (「离散 D2」→「离散」). */
+/**
+ * The pin split into its course short name and its lesson id.
+ *
+ * 「离散 D2」→ head「离散」, id「D2」; 「C 语言 D1」→ head「C 语言」, id「D1」 (a short
+ * name may itself contain a space, so the id — not the first word — splits it).
+ * A pin with no id at the end falls back to the first word as the short name.
+ */
+function pinParts(pin: string): { head: string; id: string } {
+  // The id is the pin's tail: a lesson 「D1」 or a review 「R1-D2」.
+  const tail = /(?:^|\s)((?:R\d+-)?D\d+)\s*$/.exec(pin);
+  if (tail) {
+    const id = tail[1] ?? pin;
+    return { head: pin.slice(0, tail.index).trim() || id, id };
+  }
+  const [first = ""] = pin.split(/\s/, 1);
+  return { head: first, id: pin.slice(first.length).trim() || pin };
+}
+
+/** The pin's course short name (「离散 D2」→「离散」). */
 function pinHead(pin: string): string {
-  return pin.split(/\s/, 1)[0] ?? pin;
+  return pinParts(pin).head;
 }
 
 /** The guard role a row's session opens with (see `SessionRole` in shared/protocol). */
@@ -114,7 +132,7 @@ function rowTitle(
   if (kind === "control") return strings.sessions.controlTitle;
   if (kind === "course" && meta.pin !== null) {
     // 「离散 D2」→ the lesson id after the course's short name; a bare id keeps itself.
-    const id = meta.pin.slice(pinHead(meta.pin).length).trim() || meta.pin;
+    const { id } = pinParts(meta.pin);
     const lesson =
       slug === null ? undefined : ctx.lessons[date]?.find((item) => item.course === slug && item.id === id);
     return lesson ? `${id} ${lesson.content}` : id;

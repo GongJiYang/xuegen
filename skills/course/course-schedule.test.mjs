@@ -254,6 +254,59 @@ test("shift with days moves missed lessons to the next lesson day and recomputes
   assert.equal(byId["R4-D4"], "2026-12-07");
 });
 
+test("shift without finished lessons keeps the pre-fix result exactly (regression guard)", () => {
+  const rows = planSchedule(lessons(4), { start: "2026-11-05", end: "2026-11-30", rest: SUN, days: MW });
+  const { rows: moved, shiftedDays, movedReviews, dropped } = shiftSchedule(rows, new Set(), "2026-11-10", SUN, MW);
+  assert.equal(shiftedDays, 1);
+  assert.equal(movedReviews, 0);
+  assert.deepEqual(dropped, []);
+  assert.deepEqual(moved.map((row) => [row.id, row.date]), [
+    ["D1", "2026-11-11"],
+    ["R1-D1", "2026-11-12"],
+    ["R2-D1", "2026-11-14"],
+    ["D2", "2026-11-16"],
+    ["R1-D2", "2026-11-17"],
+    ["D3", "2026-11-18"],
+    ["R3-D1", "2026-11-18"],
+    ["R2-D2", "2026-11-19"],
+    ["R1-D3", "2026-11-19"],
+    ["R2-D3", "2026-11-21"],
+    ["D4", "2026-11-23"],
+    ["R3-D2", "2026-11-23"],
+    ["R1-D4", "2026-11-24"],
+    ["R4-D1", "2026-11-25"],
+    ["R3-D3", "2026-11-25"],
+    ["R2-D4", "2026-11-26"],
+    ["R4-D2", "2026-11-30"],
+    ["R3-D4", "2026-11-30"],
+    ["R4-D3", "2026-12-02"],
+    ["R4-D4", "2026-12-07"],
+  ]);
+});
+
+test("shift puts an unfinished lesson on today even if a finished lesson already sits there", () => {
+  // D1（11-09 周一）没学，D2（11-11 周三）提前学完了；today 就是 11-11。
+  // 已完成的课不占日子：D1 就落在今天，与已完成的 D2 同一天（D2 显示为已完成）。
+  const rows = planSchedule(lessons(4), { start: "2026-11-09", end: "2026-11-30", rest: SUN, days: MW });
+  const { rows: moved, shiftedDays } = shiftSchedule(rows, new Set(["D2"]), "2026-11-11", SUN, MW);
+  assert.equal(shiftedDays, 1);
+  const byId = Object.fromEntries(moved.map((row) => [row.id, row.date]));
+  assert.equal(byId.D2, "2026-11-11", "已完成的 D2 不动");
+  assert.equal(byId.D1, "2026-11-11", "D1 落在今天，不被已完成的 D2 挡住");
+  assert.equal(byId.D3, "2026-11-18");
+  assert.equal(byId.D4, "2026-11-23");
+  assert.equal(byId["R1-D1"], "2026-11-12", "复习跟着 D1 的新日期算");
+  assert.equal(byId["R2-D1"], "2026-11-14");
+  assert.equal(byId["R3-D1"], "2026-11-18");
+  assert.equal(byId["R4-D1"], "2026-11-25");
+  assert.equal(byId["R1-D4"], "2026-11-24");
+  const news = moved
+    .filter((row) => row.kind === "new" && !new Set(["D2"]).has(row.id))
+    .map((row) => row.date);
+  assert.equal(new Set(news).size, news.length, "没有两节未完成的新课落在同一天");
+  assert.deepEqual(news, [...news].sort(), "未完成的新课日期严格递增");
+});
+
 test("shift moves an overdue review of a finished lesson to today without moving lessons", () => {
   const rows = planSchedule(lessons(4), { start: "2026-11-05", end: "2026-11-18", rest: SUN, days: MW });
   // D1, D2 done; R1-D1 (Tue 11-10) missed; today is Thu 11-12.

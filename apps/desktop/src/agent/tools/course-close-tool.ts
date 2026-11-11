@@ -40,10 +40,12 @@ export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shif
 
 /**
  * What `commit` calls the jj commit: 「收课」 by default, 「存档点」 for a
- * mid-session save (long sessions stage → edit Next Session → commit). `undo`
- * only looks for 「收课 <slug> <date>」, so a checkpoint is never undone by it.
+ * mid-session save (long sessions stage → edit Next Session → commit), and
+ * 「偏好」 for a lesson-time teaching preference (「以后讲离散都…」) written
+ * into the subject page's `## 讲解偏好` section. `undo` only looks for
+ * 「收课 <slug> <date>」, so neither a checkpoint nor a preference is undone by it.
  */
-export type CommitLabel = "收课" | "存档点";
+export type CommitLabel = "收课" | "存档点" | "偏好";
 
 const SCRIPT = join("skills", "course", "course-close.mjs");
 
@@ -83,7 +85,8 @@ export function courseCloseArgs(
       return [params.action, params.staging, "--json"];
     case "commit":
       if (params.staging === undefined) throw new Error(`course_close ${params.action} 缺少 staging。`);
-      // 存档点（长会话中途保存）不能记成「收课」，否则 undo 会撤错那次提交。
+      // 存档点（长会话中途保存）不能记成「收课」，否则 undo 会撤错那次提交；
+      // 课上记的讲解偏好同理（--label 偏好）。
       return ["commit", params.staging, ...(params.label ? ["--label", params.label] : []), "--json"];
     case "abort":
       if (params.staging === undefined) throw new Error("course_close abort 缺少 staging。");
@@ -125,7 +128,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       label: "收课",
       description:
         "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
-        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。课程页和概念页只能经这个工具写。",
+        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -159,8 +162,9 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
           }),
         ),
         label: Type.Optional(
-          Type.Union([Type.Literal("收课"), Type.Literal("存档点")], {
-            description: "commit 用：存档点（长会话中途保存）填「存档点」；收课不填",
+          Type.Union([Type.Literal("收课"), Type.Literal("存档点"), Type.Literal("偏好")], {
+            description:
+              "commit 用：存档点（长会话中途保存）填「存档点」；课上记讲解偏好（「以后讲<科目>都…」，只改本科目页「讲解偏好」一节）填「偏好」；收课不填",
           }),
         ),
       }),

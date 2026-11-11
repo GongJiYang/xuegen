@@ -1110,11 +1110,157 @@ jjTest("jj：commit --label 别的 → 非 0、中文报错，库、jj、暂存�
 
     const failed = await cli(["commit", staging, "--label", "收工"], { expectFail: true, env });
     assert.notEqual(failed.code, 0);
-    assert.match(failed.stderr, /--label 只能是 收课 或 存档点/);
+    assert.match(failed.stderr, /--label 只能是 收课、存档点 或 偏好/);
     assert.equal(await readFile(fixture.page, "utf8"), before, "库不动");
     assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 不多提交");
     assert.equal(existsSync(join(staging, "committed")), false, "暂存仍未提交");
     assert.equal(existsSync(join(staging, "manifest.json")), true, "暂存目录还在");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+// ══ commit --label 偏好：课上记「以后讲<科目>都…」（只改本科目页的「讲解偏好」节）══
+
+/** 带「## 讲解偏好」与「## Materials」的科目页：收课暂存只许改前一节。 */
+const PREF_SUBJECT_PAGE = [
+  "# 离散数学",
+  "",
+  "## 资料登记",
+  "",
+  "- 教材：Epp",
+  "",
+  "## 讲解偏好",
+  "",
+  "- 例子要短（2026-11-08）",
+  "",
+  "## Materials",
+  "",
+  "- [[reading/epp|Epp]]",
+  "",
+].join("\n");
+
+async function addPrefSubjectPage(vault) {
+  await mkdir(join(vault, "wiki", "subjects"), { recursive: true });
+  await writeFile(join(vault, "wiki", "subjects", "discrete-math.md"), PREF_SUBJECT_PAGE);
+}
+
+const SUBJECT_REL = "wiki/subjects/discrete-math.md";
+
+jjTest("jj：收课暂存 add 本科目页 → 只改「讲解偏好」→ check ok → commit --label 偏好，jj 记「偏好 <slug> <今天>」", async () => {
+  const fixture = await makeVault();
+  try {
+    await addPrefSubjectPage(fixture.vault);
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    // 科目页不随 stage 复制：要改先 add（顺带记进基线）。
+    assert.equal(existsSync(join(staging, SUBJECT_REL)), false, "stage 不复制科目页");
+    const added = await cliJson(["add", staging, SUBJECT_REL], { env });
+    assert.equal(added.added, SUBJECT_REL);
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.ok(manifest.base[SUBJECT_REL], "add 把本科目页记进基线");
+
+    const text = PREF_SUBJECT_PAGE.replace(
+      "- 例子要短（2026-11-08）\n",
+      `- 例子要短（2026-11-08）\n- 先给证明策略（${localDate()}）\n`,
+    );
+    await writeFile(join(staging, SUBJECT_REL), text);
+    const checked = await cliJson(["check", staging], { env });
+    assert.equal(checked.ok, true, JSON.stringify(checked.problems));
+    assert.deepEqual(checked.changes, [{ path: SUBJECT_REL, action: "update" }]);
+
+    const result = await cliJson(["commit", staging, "--label", "偏好"], { env });
+    assert.equal(result.committed, true);
+    assert.equal(result.jj, "ok");
+    assert.equal(descriptionOf(jj), `偏好 epp ${localDate()}`);
+    assert.equal(await readFile(join(fixture.vault, SUBJECT_REL), "utf8"), text, "科目页改进了库");
+    // 科目页不在课程目录里，不上只读锁（同 index/log/概念页）。
+    assert.equal(await mode(join(fixture.vault, SUBJECT_REL)), 0o644);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("收课暂存改科目页「讲解偏好」以外的行（## Materials）→ check 报 subject-scope，commit 被拒", async () => {
+  const fixture = await makeVault();
+  try {
+    await addPrefSubjectPage(fixture.vault);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await cliJson(["add", staging, SUBJECT_REL]);
+    await writeFile(
+      join(staging, SUBJECT_REL),
+      PREF_SUBJECT_PAGE.replace("- [[reading/epp|Epp]]", "- [[reading/rosen|Rosen]]"),
+    );
+    const failed = await cli(["check", staging, "--json"], { expectFail: true });
+    assert.equal(failed.code, 1);
+    const problems = JSON.parse(failed.stdout).problems;
+    assert.deepEqual(
+      problems.map((p) => [p.path, p.kind, p.detail]),
+      [[SUBJECT_REL, "subject-scope", "收课只能改本科目页的「讲解偏好」一节"]],
+    );
+    const rejected = await cli(["commit", staging], { expectFail: true });
+    assert.match(rejected.stderr, /subject-scope/);
+    assert.equal(await readFile(join(fixture.vault, SUBJECT_REL), "utf8"), PREF_SUBJECT_PAGE, "库不动");
+    assert.equal(existsSync(join(staging, "committed")), false, "暂存仍未提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("收课暂存把「讲解偏好」改到 16 行 → check 报「讲解偏好不超过 15 行」", async () => {
+  const fixture = await makeVault();
+  try {
+    await addPrefSubjectPage(fixture.vault);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await cliJson(["add", staging, SUBJECT_REL]);
+    const lines = Array.from({ length: 16 }, (_, i) => `- 偏好 ${i + 1}`).join("\n");
+    const text = PREF_SUBJECT_PAGE.replace("- 例子要短（2026-11-08）\n", `${lines}\n`);
+    await writeFile(join(staging, SUBJECT_REL), text);
+    const failed = await cli(["check", staging, "--json"], { expectFail: true });
+    const problems = JSON.parse(failed.stdout).problems;
+    assert.deepEqual(problems.map((p) => [p.path, p.kind]), [[SUBJECT_REL, "subject-lines"]]);
+    assert.match(problems[0].detail, /讲解偏好不超过 15 行/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("不收 add 就改本科目页 → 照旧报冲突（先 add 复制进来再改）", async () => {
+  const fixture = await makeVault();
+  try {
+    await addPrefSubjectPage(fixture.vault);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await mkdir(dirname(join(staging, SUBJECT_REL)), { recursive: true });
+    await writeFile(join(staging, SUBJECT_REL), `${PREF_SUBJECT_PAGE}- 偏好：先例题\n`);
+    const failed = await cli(["check", staging, "--json"], { expectFail: true });
+    const problems = JSON.parse(failed.stdout).problems;
+    assert.deepEqual(problems.map((p) => [p.path, p.kind]), [[SUBJECT_REL, "conflict"]]);
+    assert.match(problems[0].detail, /先用 add 复制进来再改/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：commit --label 偏好 之后 undo 不撤它（只有偏好提交 → 找不到收课提交）", async () => {
+  const fixture = await makeVault();
+  try {
+    await addPrefSubjectPage(fixture.vault);
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    await cliJson(["add", staging, SUBJECT_REL], { env });
+    const text = PREF_SUBJECT_PAGE.replace(
+      "- 例子要短（2026-11-08）\n",
+      `- 例子要短（2026-11-08）\n- 先给证明策略（${localDate()}）\n`,
+    );
+    await writeFile(join(staging, SUBJECT_REL), text);
+    const result = await cliJson(["commit", staging, "--label", "偏好"], { env });
+    assert.equal(result.jj, "ok");
+    assert.equal(descriptionOf(jj), `偏好 epp ${localDate()}`);
+
+    const failed = await cli(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { expectFail: true, env });
+    assert.match(failed.stderr, /没有找到这门课的收课提交/);
+    assert.equal(await readFile(join(fixture.vault, SUBJECT_REL), "utf8"), text, "undo 没动科目页");
+    assert.doesNotMatch(jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销收课/);
   } finally {
     await cleanup(fixture);
   }
@@ -1803,7 +1949,7 @@ jjTest("计划暂存：改课程页 + 科目页 → commit → jj「计划 <slug
   }
 });
 
-jjTest("计划暂存写概念页或卡片页 → check 报 owner；收课暂存写科目页 → owner", async () => {
+jjTest("计划暂存写概念页或卡片页 → check 报 owner；收课暂存写别科目的页 → owner", async () => {
   const fixture = await makeVault();
   try {
     await addSubjectPage(fixture.vault);
@@ -1821,16 +1967,15 @@ jjTest("计划暂存写概念页或卡片页 → check 报 owner；收课暂存�
       ["wiki/knowledge/flashcards/discrete-math/cards.md", "owner"],
     ]);
 
-    // 收课暂存：科目页不在收课归属里（kind 不混用）
+    // 收课暂存带本科目页，但只限本科目：写别的科目的页仍然报 owner。
     await cli(["abort", staging]);
     const closeStage = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
-    const subjectRel = "wiki/subjects/discrete-math.md";
-    // 收课暂存没有复制科目页，手工放一份进暂存、登记进 manifest 之外，check 也必须报 owner。
+    const otherSubjectRel = "wiki/subjects/algorithms.md";
     await mkdir(join(closeStage.staging, "wiki", "subjects"), { recursive: true });
-    await writeFile(join(closeStage.staging, subjectRel), `${SUBJECT_PAGE}- 改\n`);
+    await writeFile(join(closeStage.staging, otherSubjectRel), "# 算法\n");
     const closeCheck = await cli(["check", closeStage.staging, "--json"], { expectFail: true });
     const closeProblems = JSON.parse(closeCheck.stdout).problems.map((p) => [p.path, p.kind]);
-    assert.deepEqual(closeProblems, [[subjectRel, "owner"]]);
+    assert.deepEqual(closeProblems, [[otherSubjectRel, "owner"]]);
   } finally {
     await cleanup(fixture);
   }

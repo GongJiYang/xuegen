@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v0.11.0 — 2026-11-11
+
+- Desktop: the installed app finds `jj`, `pdftotext` and `node` — an app opened from Finder has no shell `PATH`, so Homebrew's directories are added at start (`withToolPath`). Before this, 收课 / 计划 / 顺延 from the installed app wrote their files but never recorded a jj commit, and 「撤销这次收课」 could not work.
+- Desktop: stopping an answer also clears messages queued behind it (Pi `clearQueue()`): they leave the conversation and go back into the input field (above anything already typed), instead of being sent out of order later.
+- Desktop: OpenDesign's temporary `resolve Billing Scope: status 503` is retried like other connection errors instead of being treated as a billing failure.
+- Desktop: a course session can record 「以后讲<科目>都…」 — the close staging may `add` its own subject page and change only its 讲解偏好 section (≤ 15 lines, jj label 「偏好」). 「撤销这次收课」 now calls `course_close undo`; 「不记录，直接结束」 no longer offers an undo. Session titles keep course names with spaces (「C 语言 D1」).
+- Guard: a course session's `pdftotext` must name `-f`/`-l` and read at most 10 pages.
+- Scripts: 书房 records one block per book per day — a second `done` the same day is refused with 「今天这段已记过」; `lecture` does not record the same course and pages twice and strips a leading 「讲后读」 from the label.
+- Scripts: `vault-lint.mjs` also reports broken `[[…]]` links (`broken-link`) and concept pages without frontmatter or `sources:` (`frontmatter`, same wording as the close check).
+- Scripts: postponing leaves completed lessons where they are and does not let them hold a day; `course-state verify` reports course pages without a schedule marker, and task counts agree between the board and `list`; after-read ticks drop the old 「——…」 note; flashcards missing `END` are reported as broken instead of being glued to the next card; `calendar month` rejects months outside 01–12.
+
 ## v0.10.0 — 2026-11-10
 
 - Cycles: a cycle is 7 weeks of study, not fixed dates. `cycle.mjs` derives each cycle's actual end from its main courses' last scheduled lesson (`loadElasticCycles`, `elasticCycles`), shifts later cycles, recovery weeks and the route's end by the same delay (`shiftRoute`); `day` / `week` / `month` / `overview` report actual dates, `overview` adds `plannedEnd` and `delayDays`. Weeks keep counting by calendar (a late cycle gets a W8). Cycle pages and `route.md` keep the planned dates. Auxiliary courses do not move the end.
