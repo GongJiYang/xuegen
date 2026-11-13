@@ -102,6 +102,7 @@ export function Thread({
   intro,
   systemNotes,
   header,
+  older,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -128,6 +129,11 @@ export function Thread({
     <div className="chicago-pane chicago-body" ref={paneRef} role="log">
       <div className="chicago-thread">
         {header}
+        {older && (
+          <button type="button" className="chicago-btn" onClick={older.onToggle}>
+            {older.label}
+          </button>
+        )}
         {messages.length === 0 ? (
           card ?? (
             <p className="chicago-empty">

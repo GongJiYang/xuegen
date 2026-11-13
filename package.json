@@ -11,9 +11,10 @@
   "files": ["bin/", "defaults/", "instructions.md", "skills/"],
   "scripts": {
     "start": "node bin/xuegen.mjs",
-    "test": "node --test \"scripts/**/*.test.mjs\" \"skills/**/*.test.mjs\"",
+    "test": "node --test \"scripts/**/*.test.mjs\" \"skills/**/*.test.mjs\" && node scripts/lint-wording.mjs",
     "lint:skills": "node scripts/lint-skills.mjs",
-    "feature-steps": "node scripts/feature-steps.mjs --write"
+    "feature-steps": "node scripts/feature-steps.mjs --write",
+    "lint:wording": "node scripts/lint-wording.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

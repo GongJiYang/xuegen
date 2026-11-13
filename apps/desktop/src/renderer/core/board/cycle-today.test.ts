@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CourseSummary, CycleDay } from "@shared/data-protocol.js";
-import { ankiDueCount, cycleHeadline, cycleTodayView, tomorrowLine, weekChecks } from "./cycle-today.js";
+import { ankiDueCount, cycleHeadline, cycleTodayView, mergeOverdue, tomorrowLine, weekChecks } from "./cycle-today.js";
 
 const NAMES = { epp: "离散", ctm: "CTM" };
 const D2 = { course: "epp", id: "D2", content: "真值表" };
@@ -40,7 +40,7 @@ function course(slug: string, done: number, total: number): CourseSummary {
 
 describe("cycleHeadline", () => {
   it("names the week, weekday and day type", () => {
-    expect(cycleHeadline(day({}))).toBe("第 1 周 · 周一 · 深度日");
+    expect(cycleHeadline(day({}))).toBe("第 1 周 · 周一 · 主攻日");
   });
   it("marks an extra lesson on a non-深度 day", () => {
     const friday = day({ weekday: "周五", type: "整合", subject: null, course: null, lessons: [{ course: "epp", id: "D1", content: "Ch1" }] });
@@ -59,6 +59,31 @@ describe("cycleTodayView", () => {
     expect(view?.showAnki).toBe(true);
     expect(view?.tomorrow).toBeNull();
   });
+  it("carries the done flag of the lesson it leads with", () => {
+    expect(cycleTodayView(day({ lessons: [{ ...D2, done: true }] }), null)?.focus).toEqual({
+      kind: "lesson",
+      lesson: { ...D2, done: true },
+      name: "离散",
+      carriedFrom: null,
+    });
+    expect(cycleTodayView(day({ lessons: [D2] }), null)?.focus).toEqual({ kind: "lesson", lesson: D2, name: "离散", carriedFrom: null });
+  });
+  it("carries the aux lesson's done flag too, so the 带读 row can show ✓", () => {
+    const monday = day({
+      roles: { epp: "main", effc: "aux" },
+      aux: "c",
+      auxCourse: "effc",
+      lessons: [
+        { course: "effc", id: "D1", content: "指针", done: true },
+        { course: "epp", id: "D2", content: "真值表" },
+      ],
+    });
+    expect(cycleTodayView(monday, null)?.aux).toEqual({
+      lesson: { course: "effc", id: "D1", content: "指针", done: true },
+      name: "effc",
+    });
+    expect(cycleTodayView(monday, null)?.aux?.lesson.done).toBe(true);
+  });
   it("carries a missed lesson of today's course and lists other courses' missed lessons", () => {
     const view = cycleTodayView(
       day({
@@ -73,7 +98,49 @@ describe("cycleTodayView", () => {
       null,
     );
     expect(view?.focus).toEqual({ kind: "lesson", lesson: D2, name: "离散", carriedFrom: "2026-11-09" });
-    expect(view?.missed).toEqual([{ name: "CTM", id: "D1" }]);
+    expect(view?.missed).toEqual([{ course: "ctm", name: "CTM", id: "D1", count: 1, first: "2026-11-10" }]);
+  });
+  it("merges a course's missed lessons into one row, earliest date first", () => {
+    const view = cycleTodayView(
+      day({
+        date: "2026-11-11",
+        weekday: "周三",
+        lessons: [{ course: "epp", id: "D3", content: "论证" }],
+        overdue: [
+          { course: "ctm", id: "D3", content: "Ch3", date: "2026-11-11" },
+          { course: "epp", id: "D2", content: "真值表", date: "2026-11-09" },
+          { course: "ctm", id: "D1", content: "Ch1", date: "2026-11-09" },
+          { course: "ctm", id: "D2", content: "Ch2", date: "2026-11-10" },
+        ],
+      }),
+      null,
+    );
+    // epp 的那节由 focus 顺延展示，不进 missed；ctm 三节合成一行。
+    expect(view?.missed).toEqual([
+      { course: "ctm", name: "CTM", id: "3 节（最早 11-09）", count: 3, first: "2026-11-09" },
+    ]);
+  });
+  it("two courses each get one merged row, ordered by earliest missed date", () => {
+    const view = cycleTodayView(
+      day({
+        lessons: [],
+        roles: { epp: "main", ctm: "main", math: "main" },
+        names: { epp: "离散", ctm: "CTM", math: "高数" },
+        overdue: [
+          { course: "math", id: "D1", content: "极限", date: "2026-11-08" },
+          { course: "ctm", id: "D1", content: "Ch1", date: "2026-11-06" },
+          { course: "math", id: "D2", content: "导数", date: "2026-11-10" },
+        ],
+      }),
+      null,
+    );
+    // 两门主项课（都不是 focus，因为当天没有主项课次、day.course 仍指 epp）……
+    // 这里 epp 不在 overdue 里，没有顺延，missed 只余 ctm 与 math。
+    expect(view?.missed.map((row) => row.course)).toEqual(["ctm", "math"]);
+    expect(view?.missed.map((row) => [row.count, row.first])).toEqual([
+      [1, "2026-11-06"],
+      [2, "2026-11-08"],
+    ]);
   });
   it("uses verify / light / rest when a day has no lesson", () => {
     expect(cycleTodayView(day({ type: "整合", subject: null, course: null }), null)?.focus).toEqual({ kind: "verify" });
@@ -84,11 +151,31 @@ describe("cycleTodayView", () => {
   });
   it("adds tomorrow's line", () => {
     const tomorrow = day({ date: "2026-11-10", weekday: "周二", subject: "programming-paradigms", course: "ctm", lessons: [{ course: "ctm", id: "D1", content: "阶梯" }] });
-    expect(cycleTodayView(day({}), tomorrow)?.tomorrow).toBe("明天：周二 · 深度日 · CTM D1");
+    expect(cycleTodayView(day({}), tomorrow)?.tomorrow).toBe("明天：周二 · 主攻日 · CTM D1");
     expect(tomorrowLine(day({ weekday: "周六", type: "低强度", subject: null, course: null }))).toBe("明天：周六 · 低强度日");
   });
   it("is null outside every cycle", () => {
     expect(cycleTodayView(day({ cycle: null, week: null, type: null, subject: null, course: null }), null)).toBeNull();
+  });
+});
+
+describe("mergeOverdue", () => {
+  it("groups by course, counts, earliest date, sorts by earliest", () => {
+    expect(
+      mergeOverdue(
+        [
+          { course: "b", id: "D2", date: "2026-11-10" },
+          { course: "a", id: "D1", date: "2026-11-08" },
+          { course: "b", id: "D1", date: "2026-11-09" },
+          { course: "b", id: "D3", date: "2026-11-11" },
+        ],
+        { b: "CTM" },
+      ),
+    ).toEqual([
+      { course: "a", name: "a", count: 1, first: "2026-11-08" },
+      { course: "b", name: "CTM", count: 3, first: "2026-11-09" },
+    ]);
+    expect(mergeOverdue([], {})).toEqual([]);
   });
 });
 
@@ -137,6 +224,6 @@ describe("aux lessons", () => {
       lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
       roles: { epp: "main", ctm: "main" },
     });
-    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 深度日 · CTM D1 + 辅助 数据结构");
+    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 带读 数据结构");
   });
 });

@@ -10,11 +10,38 @@
 
 import type { AnkiStatus } from "../../shared/data-protocol.js";
 
-/** AnkiConnect's default local endpoint. */
+/** AnkiConnect's default local endpoint, used when `XUEGEN_ANKI_URL` is unset. */
 export const ANKI_ENDPOINT = "http://127.0.0.1:8765";
 
 /** AnkiConnect must answer within this window or the app reports "not running". */
 export const ANKI_TIMEOUT_MS = 1500;
+
+/**
+ * `XUEGEN_ANKI_URL` may only point at a loopback AnkiConnect. The override
+ * exists so a test window can talk to a fake Anki; a non-local URL would mean
+ * sending the user's review data somewhere unexpected, so it is refused.
+ */
+const LOCAL_ANKI_URL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/;
+
+/**
+ * The validated `XUEGEN_ANKI_URL` override, or null when unset, empty, or not
+ * a loopback `http://host:port`. An invalid value warns rather than silently
+ * redirecting Anki traffic.
+ */
+export function ankiUrlOverride(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = env.XUEGEN_ANKI_URL;
+  if (raw === undefined || raw === "") return null;
+  if (LOCAL_ANKI_URL.test(raw)) return raw;
+  console.warn(
+    `[main] XUEGEN_ANKI_URL 非法（须为 http://127.0.0.1:<端口> 或 http://localhost:<端口>），已忽略：${raw}`,
+  );
+  return null;
+}
+
+/** The AnkiConnect endpoint to call: the override when valid, else the default. */
+export function ankiEndpoint(env: NodeJS.ProcessEnv = process.env): string {
+  return ankiUrlOverride(env) ?? ANKI_ENDPOINT;
+}
 
 /**
  * The only AnkiConnect actions Xuegen may call. Any action outside this set is a
@@ -57,7 +84,7 @@ async function invoke(action: string, params: Record<string, unknown> = {}): Pro
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ANKI_TIMEOUT_MS);
   try {
-    const response = await fetch(ANKI_ENDPOINT, {
+    const response = await fetch(ankiEndpoint(), {
       method: "POST",
       body: buildAnkiRequest(action, params),
       signal: controller.signal,

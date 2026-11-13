@@ -7,11 +7,17 @@
  * the block as read through `bookshelf.mjs done`; 「摘几句」 calls `extract`,
  * which appends one `#待做卡` line to the book page. Each write reloads the
  * resources that change.
+ *
+ * A write holds a synchronous lock on its key until the request settles, so a
+ * second click while the first is still in flight sends nothing: the hook's
+ * return value only updates after the await, which is exactly the window a
+ * double click lands in.
  */
 
+import { useRef } from "react";
 import type { ShelfListItem, ShelfToday } from "@shared/data-protocol.js";
 import * as client from "../client.js";
-import { dateKey } from "./use-calendar.js";
+import { todayKey } from "../today.js";
 import { useBoardResource, type BoardResource } from "./use-resource.js";
 
 export interface ShelfResource {
@@ -25,8 +31,10 @@ export interface ShelfResource {
 }
 
 export function useShelf(): ShelfResource {
+  // Keys of the writes in flight (`done:<slug>`, `extract:<slug>:<page>:<text>`).
+  const inFlight = useRef<Set<string>>(new Set());
   const today = useBoardResource(
-    () => client.data({ kind: "shelf.today", today: dateKey(new Date()) }),
+    () => client.data({ kind: "shelf.today", today: todayKey() }),
     [],
   );
   const list = useBoardResource(() => client.data({ kind: "shelf.list" }), []);
@@ -41,17 +49,33 @@ export function useShelf(): ShelfResource {
     list,
     reload,
     done: async (slug) => {
-      const result = await client.data({ kind: "shelf.done", slug, today: dateKey(new Date()) });
-      if (result.ok) reload();
-      return result.ok;
+      const key = `done:${slug}`;
+      // A click while this book's write is still in flight records nothing.
+      if (inFlight.current.has(key)) return false;
+      inFlight.current.add(key);
+      try {
+        const result = await client.data({ kind: "shelf.done", slug, today: todayKey() });
+        if (result.ok) reload();
+        return result.ok;
+      } finally {
+        inFlight.current.delete(key);
+      }
     },
     extract: async (slug, page, text) => {
-      const result = await client.data({ kind: "shelf.extract", slug, page, text, today: dateKey(new Date()) });
-      if (result.ok) {
-        list.reload();
-        return null;
+      const key = `extract:${slug}:${page}:${text}`;
+      // The same line saved twice is one line: drop the second save silently.
+      if (inFlight.current.has(key)) return null;
+      inFlight.current.add(key);
+      try {
+        const result = await client.data({ kind: "shelf.extract", slug, page, text, today: todayKey() });
+        if (result.ok) {
+          list.reload();
+          return null;
+        }
+        return result.error;
+      } finally {
+        inFlight.current.delete(key);
       }
-      return result.error;
     },
   };
 }

@@ -9,7 +9,8 @@
  * Shift+Enter wraps, Escape stops a running answer (with the field's text left
  * untouched), the `/` menu takes over arrows/Enter/Escape while open, a `/skill:`
  * command inserts into the field, and an unknown `/xxx` is never sent to the
- * model. A stop puts the prompt just sent back into an empty field.
+ * model. A stop puts the prompt just sent back into an empty field, and so does a
+ * confirmed session switch with the words it withdrew from the old queue.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -61,6 +62,8 @@ export function Composer({
   disabled,
   onSend,
   onStop,
+  carriedDraft,
+  onCarriedDraftTaken,
   style,
   onStyle,
   commandsOpen,
@@ -135,25 +138,48 @@ export function Composer({
   }
 
   /**
-   * Stop the answer and put the prompt just sent back into the field.
+   * Put words that came back to the learner in front of the field's draft.
    *
    * A withdrawn queued message has already left the conversation, so dropping
    * it would lose it: when the field has text it goes in front of the draft.
-   * The caret goes to the end of the returned text once React has committed it.
+   * The caret goes to the end of `back` once React has committed it.
    */
+  const restore = useCallback(
+    (back: string): void => {
+      const next = hasText ? `${back}\n${value}` : back;
+      setValue(next);
+      onInput(next);
+      requestAnimationFrame(() => {
+        const field = fieldRef.current;
+        if (!field) return;
+        field.focus();
+        field.setSelectionRange(back.length, back.length);
+      });
+    },
+    [hasText, value, onInput],
+  );
+
+  /** Stop the answer and put the prompt just sent back into the field. */
   function stopAndRestore(): void {
     const back = onStop();
     if (!back) return;
-    const next = hasText ? `${back}\n${value}` : back;
-    setValue(next);
-    onInput(next);
-    requestAnimationFrame(() => {
-      const field = fieldRef.current;
-      if (!field) return;
-      field.focus();
-      field.setSelectionRange(back.length, back.length);
-    });
+    restore(back);
   }
+
+  // A confirmed session switch withdrew the old session's queued words (its
+  // answer in half stays behind): the new session's field takes them once, in
+  // front of whatever draft it has, and core is told it may forget them.
+  const carriedTakenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (carriedDraft === null) {
+      carriedTakenRef.current = null;
+      return;
+    }
+    if (carriedTakenRef.current === carriedDraft) return;
+    carriedTakenRef.current = carriedDraft;
+    restore(carriedDraft);
+    onCarriedDraftTaken();
+  }, [carriedDraft, restore, onCarriedDraftTaken]);
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     // An IME is still composing (Chinese/Japanese input): the Enter picks a

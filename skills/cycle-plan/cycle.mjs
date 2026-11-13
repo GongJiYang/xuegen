@@ -95,6 +95,19 @@ export function cycleAuxSubjects(cycle) {
   return [...new Set(Object.values(cycle.template).map((slot) => slot.aux).filter(Boolean))];
 }
 
+/** 课程页 ## Relationships 一节里第一个 [[subjects/<s>]] 的 <s>；没有这一节或没有链接返回 null。（与 skills/course/close/rules.mjs 的 subjectOf 相同，就近复制，不跨目录 import。） */
+function subjectOf(courseText) {
+  const lines = courseText.split("\n");
+  const start = lines.findIndex((line) => /^##\s+Relationships\s*$/.test(line.trim()));
+  if (start === -1) return null;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) break;
+    const match = /\[\[subjects\/([^\]|#\s]+)/.exec(lines[i]);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 /** 科目页里 ## Materials 与 ## Courses 两节链接的课程：[{ slug, name }]；name 取链接别名，没有别名就是 slug。 */
 export function subjectCourses(text) {
   const found = new Map();
@@ -117,7 +130,7 @@ export function subjectCourses(text) {
 
 /**
  * 某天的情况。courses：loadCourses 的结果 Map<slug, { subject, role, name, rows, done, days }>。
- * lessons：这天的计划行（新课与机动，不含复习）；overdue：这天之前、没写进「完成：」的新课次。
+ * lessons：这天的计划行（新课与机动，不含复习；每项带 done：已写进该课「完成：」的新课次）；overdue：这天之前、没写进「完成：」的新课次。
  */
 export function dayInfo(cycle, courses, date) {
   const base = { date, weekday: WEEKDAY_ZH[weekday(date)] };
@@ -130,7 +143,7 @@ export function dayInfo(cycle, courses, date) {
   for (const [slug, info] of courses) {
     for (const row of info.rows) {
       if (row.kind === "review") continue;
-      if (row.date === date) lessons.push({ course: slug, id: row.id, content: row.content });
+      if (row.date === date) lessons.push({ course: slug, id: row.id, content: row.content, done: info.done.has(row.id) });
       else if (row.kind === "new" && row.date < date && !info.done.has(row.id)) {
         overdue.push({ course: slug, id: row.id, date: row.date, content: row.content });
       }
@@ -179,9 +192,9 @@ export function weekInfo(cycle, courses, date) {
 
 /**
  * 一个月的周期信息：
- * { month, days: { 'YYYY-MM-DD': { cycle, week, type, subject, course, aux, auxCourse } }, lessons: { 'YYYY-MM-DD': [{ course, id, content }] },
+ * { month, days: { 'YYYY-MM-DD': { cycle, week, type, subject, course, aux, auxCourse } }, lessons: { 'YYYY-MM-DD': [{ course, id, content, done }] },
  *   names: { slug: 短名 }, subjects: { 科目 slug: 短名 }, roles: { 课程 slug: "main" | "aux" }, cycles: [{ cycle, start, end }], recovery: ['YYYY-MM-DD'] }。
- * days 只含落在周期内的日子；lessons 是这些日子的计划行（新课与机动，不含复习）；recovery 是路线页里恢复周落在本月的日子。
+ * days 只含落在周期内的日子；lessons 是这些日子的计划行（新课与机动，不含复习；每项带 done：已写进该课「完成：」）；recovery 是路线页里恢复周落在本月的日子。
  * extra.courses：Map<周期名, loadCourses 的结果>；extra.route：parseRoute 的结果或 null。
  */
 export function monthInfo(cycles, month, { courses = new Map(), route = null } = {}) {
@@ -205,7 +218,9 @@ export function monthInfo(cycles, month, { courses = new Map(), route = null } =
     const rows = [];
     for (const [slug, info] of cycleCourseMap) {
       for (const row of info.rows) {
-        if (row.kind !== "review" && row.date === date) rows.push({ course: slug, id: row.id, content: row.content });
+        if (row.kind !== "review" && row.date === date) {
+          rows.push({ course: slug, id: row.id, content: row.content, done: info.done.has(row.id) });
+        }
       }
     }
     const ofSubject = (subject) =>
@@ -331,6 +346,9 @@ export function planInfo(route, cycle, courses, date) {
 /**
  * 检查一个周期：长度、休息日、模板里每个科目本周期有课、每门课的上课日都是它科目的深度日、
  * 同一科目同一天不排两门课、新课次都在周期内。辅助科目可以暂时没有课。
+ * 带读（辅助课）不设完结（用户 2026-11-11 定）：模板辅助课晚于 end 的课次不报「在周期之外」（早于 start 照报）；
+ * carried 课（不在本周期模板里、顺延带过来的带读）跳过「上课日不是深度日」与「在周期之外」两条，
+ * 「同一科目同一天两门课」照查（subject 为 null 时跳过）。
  * courses：loadCourses 的结果。返回问题清单（空数组 = 通过）。
  */
 export function checkCycle(cycle, courses) {
@@ -351,16 +369,20 @@ export function checkCycle(cycle, courses) {
   }
   const taken = new Map();
   for (const [slug, info] of courses) {
-    const deep = deepDays(info.subject);
-    const outside = [...info.days].filter((day) => !deep.includes(day)).sort((a, b) => a - b);
-    if (outside.length > 0) {
-      problems.push(`${cycle.cycle}：courses/${slug} 的上课日（${names(outside)}）不是 subjects/${info.subject} 的深度日（${names(deep)}）`);
+    // carried 的课不属于本周期模板：它科目在这模板里没有深度日，课次也可以越过周期边界。
+    if (!info.carried) {
+      const deep = deepDays(info.subject);
+      const outside = [...info.days].filter((day) => !deep.includes(day)).sort((a, b) => a - b);
+      if (outside.length > 0) {
+        problems.push(`${cycle.cycle}：courses/${slug} 的上课日（${names(outside)}）不是 subjects/${info.subject} 的深度日（${names(deep)}）`);
+      }
     }
     for (const row of info.rows) {
       if (row.kind !== "new") continue;
-      if (row.date < cycle.start || row.date > cycle.end) {
+      if (!info.carried && (row.date < cycle.start || (row.date > cycle.end && info.role !== "aux"))) {
         problems.push(`${cycle.cycle}：courses/${slug} 的 ${row.id}（${row.date}）在周期之外`);
       }
+      if (info.subject == null) continue;
       const key = `${info.subject} ${row.date}`;
       const other = taken.get(key);
       if (other && other !== slug) {
@@ -482,10 +504,15 @@ export async function loadRoute(vault) {
 }
 
 /**
- * 本周期的课：周模板主项列与辅助列各科目的科目页链接的课程中，至少有一节新课落在周期内的那些。
- * 返回 Map<slug, { subject, role, name, rows, done, days }>（role 为 "main" 或 "aux"），先主项后辅助，
- * 按科目在模板里的顺序、科目页里的链接顺序。
+ * 本周期的课：周模板主项列与辅助列各科目的科目页链接的课程中，至少有一节新课落在周期内的那些；
+ * 再补「带过来的带读」（carried: true）。返回 Map<slug, { subject, role, name, rows, done, days, carried? }>
+ * （role 为 "main" 或 "aux"），先主项后辅助，按科目在模板里的顺序、科目页里的链接顺序，carried 在最后按文件名排序。
  * 科目页不存在就抛错；科目页链接的课程页不存在或没有排期就跳过。
+ *
+ * 为什么有 carried 这一步：用户 2026-11-11 定带读（辅助课）不设完结，没上的课次一直往后顺延，
+ * 可以越过周期结束日、进入下一个周期。下一周期模板里没有这个科目时，上面两组装不到它，
+ * day / month / overview 就都看不见。所以装完模板再扫一遍 wiki/courses/，
+ * 只装「本周期窗口内至少有一节没完成的新课」的课——新课全都上完的就不再跟着走。
  */
 export async function loadCourses(vault, cycle) {
   const courses = new Map();
@@ -516,7 +543,56 @@ export async function loadCourses(vault, cycle) {
       }
     }
   }
+  let files;
+  try {
+    files = await readdir(join(vault, "wiki", "courses"));
+  } catch {
+    return courses;
+  }
+  for (const file of files.filter((item) => item.endsWith(".md")).sort()) {
+    const slug = file.slice(0, -3);
+    if (courses.has(slug)) continue;
+    let text;
+    let schedule;
+    try {
+      text = await readFile(join(vault, "wiki", "courses", file), "utf8");
+      schedule = readSchedule(text);
+    } catch {
+      continue;
+    }
+    if (!schedule) continue;
+    const done = completedIds(text);
+    const pending = schedule.rows.some(
+      (row) => row.kind === "new" && cycle.start <= row.date && row.date <= cycle.end && !done.has(row.id),
+    );
+    if (!pending) continue;
+    const subject = subjectOf(text);
+    courses.set(slug, {
+      subject,
+      role: "aux",
+      carried: true,
+      name: await carriedName(vault, slug, subject, text),
+      rows: schedule.rows,
+      done,
+      days: schedule.days,
+    });
+  }
   return courses;
+}
+
+/** 带过来的课的名字：科目页里链到这门课的别名；科目页不存在或没别名时用课程页第一个 # 标题，再没有就用 slug。 */
+async function carriedName(vault, slug, subject, text) {
+  if (subject) {
+    try {
+      const subjectText = await readFile(join(vault, "wiki", "subjects", `${subject}.md`), "utf8");
+      const entry = subjectCourses(subjectText).find((item) => item.slug === slug && item.name !== slug);
+      if (entry) return entry.name;
+    } catch {
+      // 科目页不存在就退回课程页标题
+    }
+  }
+  const heading = /^#\s+(.+?)\s*$/m.exec(text);
+  return heading ? heading[1] : slug;
 }
 
 // ---- CLI ----

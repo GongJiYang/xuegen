@@ -237,16 +237,12 @@ export function PlanProgress(props: PlanProgressProps) {
             <div key={row.subject} className="bear-p4-auxrow">
               <span className={row.course ? "bear-p4-dot is-now" : "bear-p4-ring"} aria-hidden="true" />
               <span className="bear-p4-aname">
-                {row.subjectName}
-                {row.course && (
-                  <>
-                    {" · "}
-                    <b>{row.course.name}</b>
-                  </>
-                )}
+                <b>{row.label}</b>
               </span>
               <span className="bear-p4-sdays">
-                {row.course ? strings.plan.auxProgress(row.course.done, row.course.total) : subjectDaysLine(overview, row.subject)}
+                {row.course
+                  ? `${strings.plan.auxProgress(row.course.done, row.course.total)}${row.end ? ` · ${row.end}` : ""}`
+                  : subjectDaysLine(overview, row.subject)}
               </span>
               {!row.course && (
                 <button

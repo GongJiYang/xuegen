@@ -12,6 +12,7 @@
 import { useMemo, useState } from "react";
 import type { CalendarDay, CalendarMonth } from "@shared/data-protocol.js";
 import * as client from "../client.js";
+import { todayKey } from "../today.js";
 import { useBoardResource, type BoardResource, type LoadResult } from "./use-resource.js";
 
 /** The empty day, used when a month has no entry for a date. */
@@ -115,7 +116,7 @@ export interface CalendarResource {
  */
 export function useCalendar(initialMonth: string): CalendarResource {
   const [month, setMonth] = useState(initialMonth);
-  const [storedSelected, setStoredSelected] = useState(() => dateKey(new Date()));
+  const [storedSelected, setStoredSelected] = useState(todayKey);
   const resource = useBoardResource(() => client.data({ kind: "calendar.month", month }), [month]);
 
   // Keep the selection inside the displayed month: when the month changes and the

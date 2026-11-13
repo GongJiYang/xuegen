@@ -79,7 +79,7 @@ describe("Bear 今天 panel", () => {
   it("leads a cycle day with the carried lesson, the missed lesson and the Anki row", async () => {
     const onStudyCourse = vi.fn();
     render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: SAMPLE_CYCLE_DAY }, onStudyCourse })} />);
-    expect(screen.getByText("第 1 周 · 周三 · 深度日")).toBeTruthy();
+    expect(screen.getByText("第 1 周 · 周三 · 主攻日")).toBeTruthy();
     expect(screen.getByText("离散 D2")).toBeTruthy();
     expect(screen.getByText(strings.cycle.carried("2026-11-09"))).toBeTruthy();
     expect(screen.getByText(strings.cycle.missed("CTM", "D1"))).toBeTruthy();
@@ -123,6 +123,41 @@ describe("Bear 今天 panel", () => {
     render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: sunday } })} />);
     expect(screen.getByText(strings.cycle.rest)).toBeTruthy();
     expect(screen.queryByText(strings.cycle.anki)).toBeNull();
+  });
+
+  it("turns today's focus lesson into ✓ + 回到这节课 → once its 完成： line exists", async () => {
+    const onStudyCourse = vi.fn();
+    const done = {
+      ...SAMPLE_CYCLE_DAY,
+      lessons: [{ course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误", done: true }],
+      overdue: [],
+    };
+    render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: done }, onStudyCourse })} />);
+    expect(screen.getByText("✓")).toBeTruthy();
+    expect(screen.queryByText(strings.cycle.start)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: strings.progress.backToCourse }));
+    expect(onStudyCourse).toHaveBeenCalledWith("discrete-math-epp");
+  });
+
+  it("turns today's 带读 lesson into ✓ + 回到这节课 → once its 完成： line exists", async () => {
+    const onStudyCourse = vi.fn();
+    const done = {
+      ...SAMPLE_CYCLE_DAY,
+      names: { ...SAMPLE_CYCLE_DAY.names, "effective-c": "Effective C" },
+      roles: { ...SAMPLE_CYCLE_DAY.roles, "effective-c": "aux" as const },
+      lessons: [
+        { course: "effective-c", id: "D1", content: "Ch1 起步", done: true },
+        { course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误", done: true },
+      ],
+      overdue: [],
+    };
+    render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: done }, onStudyCourse })} />);
+    // Both the focus row and the 带读 row read as done.
+    expect(screen.getAllByText("✓").length).toBe(2);
+    expect(screen.queryByText(strings.cycle.start)).toBeNull();
+    const buttons = screen.getAllByRole("button", { name: strings.today.backToCourse });
+    await userEvent.click(buttons[1]!);
+    expect(onStudyCourse).toHaveBeenCalledWith("effective-c");
   });
 
   it("opens 总控 from the cycle view", async () => {

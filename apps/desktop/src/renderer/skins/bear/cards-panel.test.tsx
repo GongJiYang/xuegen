@@ -74,6 +74,7 @@ describe("Bear 卡片 panel", () => {
             value: {
               total: 15,
               unsynced: 3,
+              broken: 0,
               decks: [
                 { deck: "DP", total: 10, unsynced: 3, files: [] },
                 { deck: "SRE", total: 5, unsynced: 0, files: [] },

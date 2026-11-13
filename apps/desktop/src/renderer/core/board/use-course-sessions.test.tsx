@@ -54,10 +54,13 @@ function fakeController(
     openSession: vi.fn().mockResolvedValue(sessionFile),
     newSession: vi.fn(),
     continueSession: vi.fn(),
+    // The guard passes the switch straight through unless a test replaces it.
+    guardSwitch: vi.fn((run: () => void) => run()),
   } as unknown as ChatController & {
     send: ReturnType<typeof vi.fn>;
     sendCommand: ReturnType<typeof vi.fn>;
     openSession: ReturnType<typeof vi.fn>;
+    guardSwitch: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -582,5 +585,224 @@ describe("useCourseSessions — stale remembered sessions", () => {
     });
 
     expect(controller.openSession).toHaveBeenCalledWith(file, { kind: "course", slug: "ctm" });
+  });
+});
+
+describe("useCourseSessions — opening click lock", () => {
+  const course = {
+    slug: "ctm",
+    title: "CTM 7 周",
+    weekLabel: "W3",
+    week: { done: 0, total: 0, tasks: [] },
+    overall: { done: 0, total: 0 },
+    lastRecord: null,
+    nextSession: "2.1",
+    styleHint: null,
+  } as CourseSummary;
+  const other = { ...course, slug: "algebra", title: "代数" } as CourseSummary;
+
+  it("opens only one session when 开课 is clicked twice in a row", () => {
+    const controller = fakeController();
+    // Keep the open in flight so the second click lands inside the gap
+    // between `openSession` returning and `courseStartedOn` being written.
+    controller.openSession.mockReturnValue(new Promise(() => undefined));
+    const requestFocus = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        requestFocus={requestFocus}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStudy(course);
+      actions?.handleStudy(course);
+    });
+
+    expect(controller.openSession).toHaveBeenCalledTimes(1);
+    // The blocked click behaves like clicking the already-open course.
+    expect(requestFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the lock when the open fails so the course can be clicked again", async () => {
+    const controller = fakeController();
+    controller.openSession.mockRejectedValueOnce(new Error("open failed"));
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStudy(course);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      actions?.handleStudy(course);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not block a different course while one is opening", () => {
+    const controller = fakeController();
+    controller.openSession.mockReturnValue(new Promise(() => undefined));
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course, other])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStudy(course);
+      actions?.handleStudy(other);
+    });
+
+    expect(controller.openSession).toHaveBeenCalledTimes(2);
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "ctm" });
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "algebra" });
+  });
+
+  it("falls back to the normal rule once the open resolves", async () => {
+    const controller = fakeController("/home/sessions/new.jsonl");
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStudy(course);
+      await Promise.resolve();
+    });
+    // The settings prop is a test double that never applies the update, so
+    // `openingAction` still answers send-opening; the lock must not block it.
+    await act(async () => {
+      actions?.handleStudy(course);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useCourseSessions — session-switch guard", () => {
+  const today = "2026-11-04";
+  const course = {
+    slug: "ctm",
+    title: "CTM 7 周",
+    weekLabel: "W3",
+    week: { done: 0, total: 0, tasks: [] },
+    overall: { done: 0, total: 0 },
+    lastRecord: null,
+    nextSession: "2.1",
+    styleHint: null,
+  } as CourseSummary;
+
+  /** A controller whose guard holds the switch instead of running it. */
+  function guardedController(sessionFile: string | null = "/home/sessions/new.jsonl") {
+    const controller = fakeController(sessionFile);
+    const held: (() => void)[] = [];
+    controller.guardSwitch = vi.fn((run: () => void) => {
+      held.push(run);
+    });
+    return { controller, held };
+  }
+
+  it("开课 goes through guardSwitch, not straight to openSession", () => {
+    const { controller, held } = guardedController();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStudy(course);
+    });
+
+    expect(controller.guardSwitch).toHaveBeenCalledTimes(1);
+    expect(controller.openSession).not.toHaveBeenCalled();
+    expect(controller.send).not.toHaveBeenCalled();
+
+    // The guard releasing the run performs the whole switch-and-send.
+    act(() => {
+      held[0]?.();
+    });
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "course", slug: "ctm" });
+  });
+
+  it("回到这节课 goes through guardSwitch too", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const { controller, held } = guardedController("/home/sessions/ctm.jsonl");
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={{
+          ...DEFAULT_DESKTOP_SETTINGS,
+          courseStartedOn: { ctm: today },
+          courseSessions: { ctm: "/home/sessions/ctm.jsonl" },
+        }}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStudy(course);
+    });
+
+    expect(controller.guardSwitch).toHaveBeenCalledTimes(1);
+    expect(controller.openSession).not.toHaveBeenCalled();
+
+    act(() => {
+      held[0]?.();
+    });
+    expect(controller.openSession).toHaveBeenCalledWith("/home/sessions/ctm.jsonl", {
+      kind: "course",
+      slug: "ctm",
+    });
+  });
+
+  it("新会话 goes through guardSwitch", () => {
+    const { controller, held } = guardedController();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+      />,
+    );
+
+    act(() => {
+      actions?.handleNewSession();
+    });
+
+    expect(controller.guardSwitch).toHaveBeenCalledTimes(1);
+    expect(controller.newSession).not.toHaveBeenCalled();
+
+    act(() => {
+      held[0]?.();
+    });
+    expect(controller.newSession).toHaveBeenCalledTimes(1);
   });
 });

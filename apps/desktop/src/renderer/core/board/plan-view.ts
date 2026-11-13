@@ -165,7 +165,7 @@ export function courseCards(overview: CycleOverview, today: string): CourseCard[
       total: course.total,
       percent: course.total > 0 ? Math.round((course.done / course.total) * 100) : 0,
       mark,
-      end: course.end ? strings.plan.courseEnd(course.end.slice(5)) : null,
+      end: course.end ? strings.plan.courseEnd(course.end.slice(5), course.role) : null,
       next: next ? { when, text: `${next.id} ${next.content}` } : null,
       lessons: course.lessons.map((lesson) => ({ ...lesson, date: lesson.date.slice(5) })),
     };
@@ -219,14 +219,18 @@ export function daySlotLine(month: CycleMonth | null, date: string): string | nu
   return month.recovery.includes(date) ? strings.plan.recoveryLine : null;
 }
 
-/** The selected day's lessons with short course names. */
-export function dayLessons(month: CycleMonth | null, date: string): { name: string; id: string; content: string; aux: boolean }[] {
+/** The selected day's lessons with short course names (and whether each is already done). */
+export function dayLessons(
+  month: CycleMonth | null,
+  date: string,
+): { name: string; id: string; content: string; aux: boolean; done: boolean }[] {
   if (!month) return [];
   return (month.lessons[date] ?? []).map((lesson) => ({
     name: month.names[lesson.course] ?? lesson.course,
     id: lesson.id,
     content: lesson.content,
     aux: month.roles[lesson.course] === "aux",
+    done: lesson.done === true,
   }));
 }
 
@@ -239,8 +243,20 @@ export interface AuxRow {
   subject: string;
   /** The subject's short name from the weekly template. */
   subjectName: string;
+  /** 「科目 · 课程」, or just the course name when the two would repeat each other. */
+  label: string;
+  /** 「预计 MM-DD 学完」 from the course's last lesson, or null without a schedule. */
+  end: string | null;
   /** Its course this cycle, or null when none is scheduled yet. */
   course: { slug: string; name: string; done: number; total: number } | null;
+}
+
+/**
+ * 「科目 · 课程」 for an aux row — or only the course name when the subject's short
+ * name repeats it (「C · C 语言」 → 「C 语言」, 「数据结构 · 数据结构」 → 「数据结构」).
+ */
+function auxLabel(subjectName: string, name: string): string {
+  return name === subjectName || name.includes(subjectName) ? name : `${subjectName} · ${name}`;
 }
 
 /** One row per auxiliary subject of the current cycle, with its course if any. */
@@ -249,9 +265,12 @@ export function auxRows(overview: CycleOverview): AuxRow[] {
   if (!cycle) return [];
   return cycle.auxSubjects.map((subject) => {
     const course = overview.courses.find((item) => item.role === "aux" && item.subject === subject) ?? null;
+    const subjectName = cycle.subjects[subject] ?? subject;
     return {
       subject,
-      subjectName: cycle.subjects[subject] ?? subject,
+      subjectName,
+      label: course ? auxLabel(subjectName, course.name) : subjectName,
+      end: course?.end ? strings.plan.courseEnd(course.end.slice(5), "aux") : null,
       course: course ? { slug: course.slug, name: course.name, done: course.done, total: course.total } : null,
     };
   });

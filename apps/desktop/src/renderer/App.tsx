@@ -24,14 +24,15 @@ import { useBoardReload } from "./core/board/use-board-reload.js";
 import { useSessionFreshness } from "./core/board/use-session-freshness.js";
 import { useReading, clipPrompt } from "./core/board/use-reading.js";
 import { useCards, useAnki } from "./core/board/use-cards.js";
-import { useCalendar, dateKey } from "./core/board/use-calendar.js";
+import { useCalendar } from "./core/board/use-calendar.js";
 import { useCycle } from "./core/board/use-cycle.js";
 import { useSubjects } from "./core/board/use-subjects.js";
 import { isControlSession, useControlSession } from "./core/board/use-control-session.js";
-import { useControlCard } from "./core/board/use-control-card.js";
+import { useControlPlanbook } from "./core/board/use-control-planbook.js";
+import { useChatColumn } from "./core/board/use-chat-column.js";
 import { useSessionList } from "./core/board/use-session-list.js";
 import { controlView } from "./core/board/bot-state.js";
-import { shellPanels } from "./core/board/shell-panels.js";
+import { useShellPanels } from "./core/board/use-shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
 import { useTurnActivity } from "./core/chat/use-turn-activity.js";
 import { useLessonActions } from "./core/chat/use-lesson-actions.js";
@@ -41,12 +42,13 @@ import { routeDismiss } from "./core/chat/view-models.js";
 import { useSkills } from "./core/board/use-skills.js";
 import { useSkillsPanel } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
-import type { SlashCommand } from "./core/commands/commands.js";
-import { commandEffect, type ToolFocus } from "./core/commands/run-command.js";
+import { type ToolFocus } from "./core/commands/run-command.js";
+import { useRunCommand } from "./core/commands/use-run-command.js";
 import { useSessionStyle } from "./core/chat/use-session-style.js";
 import { defaultStyleLabel } from "./core/board/default-style.js";
 import { dayTitle } from "./core/format.js";
-import { resumePoint, todayPlanItems } from "./core/today.js";
+import { resumePoint, todayKey, todayPlanItems, now } from "./core/today.js";
+import { addDays } from "./core/board/planbook.js";
 import { useUpdate } from "./core/update/use-update.js";
 import { useSkinAppearance, useSkinCycleShortcut } from "./skins/use-appearance.js";
 import { useSkin } from "./skins/use-skin.js";
@@ -57,8 +59,8 @@ import { strings } from "./core/strings.js";
 
 /** The current month as `YYYY-MM`, for the calendar's initial view. */
 function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const current = now();
+  return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`;
 }
 
 /** Read `?gallery` and `?skin=` from the current URL. */
@@ -77,8 +79,8 @@ export function App() {
   const cards = useCards();
   const anki = useAnki();
   const calendar = useCalendar(currentMonth());
-  const cycle = useCycle(dateKey(new Date()), dateKey(new Date(new Date().setHours(24, 0, 0, 0))), calendar.month);
-  const subjects = useSubjects(dateKey(new Date()));
+  const cycle = useCycle(todayKey(), addDays(todayKey(), 1), calendar.month);
+  const subjects = useSubjects(todayKey());
   const skills = useSkills();
   const skillsPanel = useSkillsPanel(skills, apply);
 
@@ -100,9 +102,8 @@ export function App() {
   // next day is outside it, so 明天 reads empty until the calendar moves on.
   const [todayPlan, tomorrowPlan] = useMemo(() => {
     const days = calendar.resource.state.status === "ready" ? calendar.resource.state.value.days : {};
-    const today = new Date();
-    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    return [todayPlanItems(days[dateKey(today)], courseTitles), todayPlanItems(days[dateKey(tomorrow)], courseTitles)];
+    const today = todayKey();
+    return [todayPlanItems(days[today], courseTitles), todayPlanItems(days[addDays(today, 1)], courseTitles)];
   }, [calendar.resource.state, courseTitles]);
   // The course whose session is *running*, if any. The style is remembered per
   // course only once a session has actually started (继续学习 / 开始学习); before
@@ -153,21 +154,25 @@ export function App() {
     setFocusMode(false);
     setActiveTool(tool);
   };
-  const controlCard = useControlCard({
-    today: cycle.today,
-    tomorrow: cycle.tomorrow,
-    queue: reading.queue,
-    shelf: reading.shelf,
-    streaming: controller.streaming,
-    onStudy: studyCourse,
-    onVerify: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
-    onOpenTool: openTool,
-    onAskBrief: control.askBrief,
-    refresh: () => { courses.reload(); calendar.resource.reload(); },
-  });
   const sessionList = useSessionList(controller, settings, setActiveCourse, cycle, courses, handleNewSession);
   const requestOpenSessions = sessionList.requestOpen;
   const fold = useControlFold(control.isControl, controller.messages, controller.systemNotes);
+  const planbook = useControlPlanbook({
+    cycle,
+    reading,
+    anki,
+    controller,
+    control,
+    fold,
+    courses,
+    calendar,
+    cards,
+    subjects,
+    studyCourse,
+    startSession: handleStartSession,
+    openTool,
+  });
+  const chat = useChatColumn();
   const activity = useTurnActivity(controller.messages, controller.streaming, controller.thinking);
   const lessonButtons = useLessonActions(activeCourse, controller);
 
@@ -231,42 +236,50 @@ export function App() {
   );
 
   // Execute a `/` command by routing its pure effect to the right action.
-  const runCommand = useCallback(
-    (command: SlashCommand) => {
-      slash.update("");
-      slash.close();
-      const effect = commandEffect(command.command);
-      switch (effect.kind) {
-        case "style":
-          return selectStyle(effect.style);
-        case "tool": {
-          setActiveTool(effect.tool);
-          // A command that names a field (e.g. /加入阅读) focuses it once the
-          // window is open, so the user can type immediately.
-          if (effect.focus) setPendingFocus(effect.focus);
-          return;
-        }
-        case "resume":
-          return handleResume();
-        case "new-session":
-          return handleNewSession();
-        case "sessions":
-          return requestOpenSessions();
-        case "control":
-          return control.openControl();
-        case "prompt":
-          // A `/` command's own text is the whole instruction: send it without the
-          // session style prefix (B9).
-          return controller.sendCommand(effect.text);
-        case "insert":
-          // The composer inserts a `/skill:` command into its own field.
-          return;
-        default:
-          return;
-      }
-    },
-    [slash, selectStyle, handleResume, handleNewSession, requestOpenSessions, controller, control],
-  );
+  const runCommand = useRunCommand({
+    slash,
+    selectStyle,
+    setActiveTool,
+    setPendingFocus,
+    resume: handleResume,
+    newSession: handleNewSession,
+    openSessions: requestOpenSessions,
+    controller,
+    control,
+  });
+
+  const panels = useShellPanels({
+    courses,
+    reading,
+    cards,
+    anki,
+    calendar,
+    cycle,
+    subjects,
+    skillsPanel,
+    todayPlan,
+    tomorrowPlan,
+    courseTitles,
+    sessionStyle,
+    startedToday,
+    resume,
+    agentReady,
+    pendingFocus,
+    onFocusHandled: () => setPendingFocus(null),
+    controller,
+    control,
+    cycleId,
+    sessionList,
+    handleResume,
+    handleStudy,
+    handleNewCourse,
+    handleEditPlan,
+    handleStartSession,
+    studyCourse,
+    setEditingDay,
+    handleReadingAdd,
+    handleReadingClip,
+  });
 
   if (!skin) {
     return null;
@@ -291,55 +304,16 @@ export function App() {
     );
   }
 
-  const { Shell, Thread, Composer, DayEditor, UpdateBar, ControlCard } = skin.slots;
+  const { Shell, Thread, Composer, DayEditor, UpdateBar, ControlCard, ControlPanel } = skin.slots;
 
   const notices = [...(notice ? [notice] : []), ...controller.notices, ...(freshness.notice ? [freshness.notice] : [])];
-  const older = fold.older
-    ? { label: strings.control.card.older(fold.older.count, fold.older.since, fold.open), onToggle: fold.toggle }
-    : null;
-
-  const panels = shellPanels({
-    courses,
-    reading,
-    cards,
-    anki,
-    calendar,
-    cycle,
-    subjects,
-    today: dateKey(new Date()),
-    skillsPanel,
-    todayPlan,
-    tomorrowPlan,
-    courseTitles,
-    courseStyles: sessionStyle.courseStyles,
-    startedToday,
-    resume,
-    agentReady,
-    focus: pendingFocus,
-    onFocusHandled: () => setPendingFocus(null),
-    onResume: handleResume,
-    onCourseStyle: sessionStyle.setCourse,
-    onStudy: handleStudy,
-    onNewCourse: handleNewCourse,
-    onEditPlan: handleEditPlan,
-    onReadingAdd: handleReadingAdd,
-    onReadingClip: handleReadingClip,
-    onDraftCards: (prompt) => controller.sendCommand(prompt ?? strings.cards.draftPrompt),
-    onEditDay: (date) => {
-      const day =
-        calendar.resource.state.status === "ready" ? calendar.resource.state.value.days[date] : undefined;
-      setEditingDay({ date, text: day?.note ?? "" });
-    },
-    onStudyCourse: studyCourse,
-    onVerifyCourse: (slug) => handleStartSession(slug, strings.cycle.verifyPrompt(slug)),
-    onOpenControl: cycleId ? control.openControl : null,
-    sessions: sessionList.view,
-  });
 
   const shellProps: ShellProps = {
     sessionTitle:
       control.isControl && cycleId
-        ? strings.control.title(cycleId)
+        ? // The planbook owns this session's left side, so the title says so:
+          // 「总控 · C1 · 计划本」 (design `plan2.jsx`).
+          strings.control.title(cycleId) + strings.planbook.titleSuffix
         : activeCourse
           ? (courseTitles[activeCourse] ?? activeCourse)
           : null,
@@ -349,7 +323,8 @@ export function App() {
       <>
         <UpdateBar {...updateBar} />
         <Thread
-          header={control.isControl && controlCard ? <ControlCard {...controlCard} older={older} /> : null}
+          header={null}
+          older={planbook.older}
           messages={fold.messages}
           thinking={controller.thinking}
           noModels={controller.disabled}
@@ -368,6 +343,8 @@ export function App() {
           disabled={controller.disabled}
           onSend={(text) => controller.send(answering === null ? text : strings.content.exerciseAnswerPrefix(answering, text))}
           onStop={controller.stop}
+          carriedDraft={controller.carriedDraft}
+          onCarriedDraftTaken={controller.takeCarriedDraft}
           style={sessionStyle.style}
           onStyle={sessionStyle.select}
           commandsOpen={slash.open}
@@ -405,6 +382,9 @@ export function App() {
     onNewSession: handleNewSession,
     onOpenSessions: requestOpenSessions,
     sessions: sessionList.view,
+    pendingSwitch: controller.pendingSwitch,
+    confirmSwitch: controller.confirmSwitch,
+    cancelSwitch: controller.cancelSwitch,
     agentStatus: controller.agentStatus,
     notices,
     onDismissNotice: (index) => {
@@ -422,6 +402,16 @@ export function App() {
     styleCourse: activeCourse,
     onPrompt: controller.send,
     panels,
+    planbook: control.isControl ? (
+      <ControlPanel
+        {...planbook.panelProps}
+        todayCard={
+          planbook.showCard && planbook.card ? <ControlCard {...planbook.card} older={null} /> : null
+ }
+      />
+    ) : null,
+    chatOpen: chat.open,
+    onToggleChat: chat.toggle,
   };
 
   return (

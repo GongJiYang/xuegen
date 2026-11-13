@@ -284,7 +284,7 @@ test("情况 4：没有 route.md 时 day / week / overview / check 都不崩溃"
   }
 });
 
-test("情况 5：只有辅助课晚（d 到 12-31）不影响周期结束日，check 报 d 在周期之外", async () => {
+test("情况 5：只有辅助课晚（d 到 12-31）不影响周期结束日，check 不报 d 在周期之外", async () => {
   const vault = await makeVault({
     "cycles/c1.md": CYCLE_AUX,
     "cycles/route.md": ROUTE,
@@ -301,11 +301,10 @@ test("情况 5：只有辅助课晚（d 到 12-31）不影响周期结束日，c
     assert.equal(info.route.end, "2027-04-08");
     assert.deepEqual(info.cycle.next, { cycle: "C2", start: "2026-12-25" });
 
+    // 带读不设完结（用户 2026-11-11 定）：辅助课晚于实际结束日的课次不再算「在周期之外」。
     const check = await cli(vault, "check");
-    assert.notEqual(check.code, 0);
-    assert.equal(check.json.ok, false);
-    assert.ok(check.json.problems.some((problem) => /courses\/d 的 D17（2026-12-31）在周期之外/.test(problem)), check.json.problems.join("\n"));
-    assert.ok(!check.json.problems.some((problem) => /应为 49 天/.test(problem)));
+    assert.equal(check.code, 0, JSON.stringify(check.json));
+    assert.deepEqual(check.json, { ok: true, problems: [] });
   } finally {
     await rm(vault, { recursive: true, force: true });
   }

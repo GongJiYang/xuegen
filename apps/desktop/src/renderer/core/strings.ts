@@ -10,11 +10,14 @@
 import type { CycleDayType } from "@shared/data-protocol.js";
 
 const CYCLE_DAY_TYPE: Record<CycleDayType, string> = {
-  深度: "深度日",
+  深度: "主攻日",
   整合: "整合日",
   低强度: "低强度日",
   休息: "休息日",
 };
+
+/** The read-only day list's row lead: the lane name, main lessons need none. */
+const PLAN_LANE_PREFIX = { main: "", after: "讲后读 · ", guide: "带读 · ", self: "自读 · " } as const;
 
 export const strings = {
   app: {
@@ -158,9 +161,13 @@ export const strings = {
   actions: {
     open: "开今天的课",
     resume: "接着上次",
+    "new-course": "建课",
     plan: "改计划",
+    verify: "周核实",
     summary: "总结",
     cards: "制卡",
+    clip: "剪藏",
+    ask: "交给总控",
     close: "收课",
     "close-skip": "不记录，结束",
     checkpoint: "存档",
@@ -232,7 +239,7 @@ export const strings = {
   },
   cycle: {
     dayType: CYCLE_DAY_TYPE,
-    typeShort: { 深度: "深", 整合: "整", 低强度: "低", 休息: "休" } as Record<CycleDayType, string>,
+    typeShort: { 深度: "主", 整合: "整", 低强度: "低", 休息: "休" } as Record<CycleDayType, string>,
     headline: (week: number, weekday: string, type: CycleDayType, extra: boolean): string =>
       `第 ${week} 周 · ${weekday} · ${CYCLE_DAY_TYPE[type]}${extra ? "（加课）" : ""}`,
     minutes: "今天主攻",
@@ -240,6 +247,8 @@ export const strings = {
     carried: (date: string): string => `! 原定 ${date.slice(5)}，顺延到今天`,
     missed: (name: string, id: string): string => `${name} ${id} 没学`,
     missedNote: "下次顺延",
+    /** A merged missed row's `id` slot: 「3 节（最早 11-09）」 where a lesson id would be. */
+    missedCount: (count: number, first: string): string => `${count} 节（最早 ${first.slice(5)}）`,
     verifyTitle: "周核实",
     verifyRow: (name: string, done: number, total: number): string => `${name}：本周 ${done}/${total}`,
     verify: "核实 →",
@@ -248,9 +257,14 @@ export const strings = {
     anki: "Anki",
     ankiDue: (count: number): string => `${count} 张待复习`,
     ankiOff: "未打开",
-    tomorrow: (weekday: string, type: CycleDayType, lesson: string | null, aux: string | null = null): string =>
-      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}${aux ? ` + 辅助 ${aux}` : ""}`,
-    auxTag: "辅助",
+    tomorrow: (
+      weekday: string,
+      type: CycleDayType,
+      lesson: string | null,
+      aux: string | null = null,
+    ): string =>
+      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}${aux ? ` + 带读 ${aux}` : ""}`,
+    auxTag: "带读",
     verifyPrompt: (slug: string): string =>
       `做本周周核实：按收课流程逐项提问，核对后再打勾（课程文件：wiki/courses/${slug}.md）`,
     legend: "深 · 整 · 低 · 休 ＝ 日子类型",
@@ -266,9 +280,14 @@ export const strings = {
       askBrief: "让总控说说",
       foot: "来自周期页、课程页与书房 · 改计划在下面直接跟总控说",
       study: "开课 →",
+      /** The button on a lesson already recorded in the course's 「完成：」 line. */
+      backToLesson: "回到这节课 →",
       verify: "核实 →",
       read: "开始读 →",
       anki: "打开 →",
+      /** The 今日卡's Anki row: plain, or with today's due count when Anki is open. */
+      ankiRow: "Anki",
+      ankiRowDue: (count: number): string => `Anki · 今日 ${count} 张`,
       afterRead: "读完了",
       /** The 「读完了」 button while its undo window runs: 「撤销 · 7」. */
       undo: (left: number): string => `撤销 · ${left}`,
@@ -276,8 +295,8 @@ export const strings = {
       studyHint: "打开这门课今天的会话，开始讲",
       verifyHint: "打开这门课，逐项核实本周任务",
       afterReadHint: "在课程页把这行打勾（记「用户自报」），并记进书房的书页；10 秒内可撤销",
-      shelfPlanned: "读书 · ",
-      shelfFree: "自由读 · ",
+      shelfPlanned: "自读 · ",
+      shelfFree: "自读（计划外）· ",
       shelfChunk: (short: string, chunk: { title: string; from: number; to: number }): string =>
         `${short} ${chunk.title} · pp.${chunk.from}–${chunk.to}`,
       shelfDay: (n: number, total: number): string => `第 ${n} / ${total} 天`,
@@ -287,9 +306,8 @@ export const strings = {
       shelfDoneHint: "记下这段读完了，明天换下一段；10 秒内可撤销",
       shelfPendingSub: "已记下",
       shelfDoneSub: (next: { from: number; to: number }): string => `已记下，明天 pp.${next.from}–${next.to}`,
+      shelfResumed: "今天恢复，明天接着读",
       shelfFinished: "已记下，这本读完了",
-      shelfFreeEmpty: "自由读 · 还没有书",
-      shelfFreeEmptySub: "想读什么，跟总控说一声",
       shelfDoneFailed: "没能记进书房，请再点一次「读完这段」。",
       extract: "摘几句",
       extractHint: "存一句原文和页码进书页，不调模型",
@@ -305,11 +323,16 @@ export const strings = {
       /** The fold row under the card: 「▸ 更早的对话 · 11-05 起 · 38 条」. */
       older: (count: number, since: string, open: boolean): string =>
         `${open ? "▾" : "▸"} 更早的对话 · ${since.slice(5)} 起 · ${count} 条`,
-      afterReadDue: (date: string): string => ` · ${date.slice(5)} 该读`,
+      afterReadDue: (date: string): string => ` · 原定 ${date.slice(5)}`,
       verifyRow: (name: string): string => `${name} 周核实`,
-      auxPrefix: "辅助 · ",
-      readRow: (title: string, position: string): string => `读书：${title}${position ? ` · 从 ${position}` : ""}`,
-      missedRow: (name: string, id: string, date: string): string => `${name} ${id} 没学（原定 ${date.slice(5)}）`,
+      auxPrefix: "带读 · ",
+      readRow: (title: string, position: string): string =>
+        `读书：${title}${position ? ` · 从 ${position}` : ""}`,
+      missedRow: (name: string, id: string, date: string): string =>
+        `${name} ${id} 没学（原定 ${date.slice(5)}）`,
+      /** Several missed lessons of one course, merged into a single 没学 row. */
+      missedMany: (name: string, count: number, first: string): string =>
+        `${name} ${count} 节没学（最早 ${first.slice(5)}）· 开课时会顺延`,
       afterReadFailed: "没能写进课程页，请在课程会话里说「讲后读读完了」。",
     },
   },
@@ -355,10 +378,11 @@ export const strings = {
     cycleEnd: (day: string): string => `${day} 结束`,
     cycleSub: (daysLeft: number, next: { cycle: string; start: string } | null): string =>
       `还剩 ${daysLeft} 天${next ? ` · 下个周期 ${next.cycle} 从 ${next.start.slice(5)} 开始` : ""}`,
-    auxEmpty: "辅助位空着",
+    auxEmpty: "没排带读",
     auxPlanned: (list: string): string => `原定 ${list}`,
     lessonTotal: (total: number): string => ` / ${total} 节`,
-    courseEnd: (day: string): string => `结课 ${day}`,
+    courseEnd: (day: string, role: "main" | "aux" = "main"): string =>
+      role === "aux" ? `预计 ${day} 学完` : `结课 ${day}`,
     nextLabel: "下一节",
     today: "今天",
     overdue: (day: string): string => `${day} 没学`,
@@ -377,9 +401,10 @@ export const strings = {
     ankiItem: "Anki",
     restItem: "休息，不排任务",
     legend: (names: string[]): string =>
-      `${names.length > 0 ? `${names.join(" / ")} = 深度课\u3000` : ""}整合 = 周核实\u3000Anki = 低强度\u3000读书 = 读原书\u3000顶部蓝线 = 周期起止\u3000空白 = 休息`,
-    legendAux: "上行主项 · 下行辅助　整合 = 周核实　Anki = 低强度　读书 = 读原书　顶部蓝线 = 周期起止　空白 = 休息",
-    auxTitle: "辅助",
+      `${names.length > 0 ? `${names.join(" / ")} = 主攻课\u3000` : ""}整合 = 周核实\u3000Anki = 低强度\u3000读书 = 书房自读\u3000顶部蓝线 = 周期起止\u3000空白 = 休息`,
+    legendAux:
+      "上行主项 · 下行带读　整合 = 周核实　Anki = 低强度　读书 = 书房自读　顶部蓝线 = 周期起止　空白 = 休息",
+    auxTitle: "带读",
     auxNote: "只做了解 · 不考核 · 每次 ≤ 45 分钟",
     auxProgress: (done: number, total: number): string => `${done} / ${total} 节`,
     cycleRange: (start: string, end: string, weekday: string, daysLeft: number): string =>
@@ -391,6 +416,67 @@ export const strings = {
     finishedNote: (total: number): string => `${total} 节`,
     materialsShort: (count: number, unplanned: number): string =>
       `资料 ${count}${unplanned > 0 ? ` · ${unplanned} 未排课` : ""}`,
+  },
+  /** The planbook (PLANBOOK-1111): fixed copy of the approved day / week / month views. */
+  planbook: {
+    views: { day: "日", week: "周", month: "月" },
+    lanes: {
+      main: { label: "主项课", sub: "周期排期" },
+      after: { label: "讲后读", sub: "书房" },
+      guide: { label: "带读", sub: "书房" },
+      self: { label: "自读", sub: "书房" },
+      anki: { label: "Anki", sub: "提醒" },
+    },
+    legend: "✓ 做完　● 今天要做　○ 还没到　! 过了该做的日子还没做（Anki 不标）。点任意一格看那一天。",
+    monthFoot: "上行主项课，下行带读。自读每天都有，不在月视图里逐格列。",
+    goalsCaption: "本周目标 · 来自两门主项课的周核实",
+    reviewCaption: "本周复盘 · 周五整合日填写",
+    overdueRow: (name: string, count: number): string => `${name} ${count} 节没学 · 开课时会顺延`,
+    /** A past self-reading day whose block was not read (the block also shows on its carried day). */
+    selfMissed: " · 没读，顺到明天",
+    /** The day view's range title: 「11-11 周三」. */
+    dayLabel: (date: string, weekday: string): string => `${date.slice(5)} ${weekday}`,
+    /** The week view's range title inside a cycle: 「C1 W1 · 11-06 – 11-12」. */
+    weekLabel: (cycle: string, week: number, start: string, end: string): string =>
+      `${cycle} W${week} · ${start.slice(5)} – ${end.slice(5)}`,
+    /** The week view's range title outside every cycle: 「11-09 – 11-15」. */
+    plainWeekLabel: (start: string, end: string): string => `${start.slice(5)} – ${end.slice(5)}`,
+    /** The month view's range title: 「2026 年 11 月」. */
+    monthLabel: (year: number, month: number): string => `${year} 年 ${month} 月`,
+    prev: "‹",
+    next: "›",
+    today: "今天",
+    print: "打印",
+    chatShow: "和总控聊",
+    chatHide: "收起聊天",
+    /** The 本周复盘 slot before the week's 整合日 (the next one after the week): who writes it and when. */
+    reviewEmpty: (date: string): string => `${date.slice(5)} 周五整合日时由总控和你一起写`,
+    /** The 本周复盘 slot when the week has no 整合日 after it: no date to promise. */
+    reviewEmptyNoDate: "整合日时由总控和你一起写",
+    /** One 本周目标 row: course short name, then the week task's label. */
+    goalRow: (name: string, label: string): string => `${name} · ${label}`,
+    /** The month grid's one-liner type tag for a day without lessons (休息 空着). */
+    monthTypeShort: { 整合: "整合", 低强度: "低强度", 深度: "", 休息: "" } as Record<CycleDayType, string>,
+    /** The week grid's Anki cell on today: 「今天 42 张」 (count-only, never a mark). */
+    ankiToday: (count: number): string => `今天 ${count} 张`,
+    /** Appended to the 总控 session title while the planbook shows: 「总控 · C1 · 计划本」. */
+    titleSuffix: " · 计划本",
+    /**
+     * The read-only day list's row lead: 「讲后读 · 」/「带读 · 」/「自读 · 」, and
+     * nothing for a main lesson (its lane is the lesson itself).
+     */
+    lanePrefix: (lane: "main" | "after" | "guide" | "self"): string => PLAN_LANE_PREFIX[lane],
+    /** A day that is not today is read-only: actions live on today's list. */
+    otherDayNote: "这一天只能看，开课、读完等操作在今天的清单里",
+    /** The one line every view shows while the data channel reads. */
+    loading: "正在读取…",
+    /** The 本周目标 slot when neither main course has a 周核实 task this week. */
+    goalsEmpty: "本周没有周核实",
+    /** The day view's caption: 「11-11 周三 · 主攻日」, or just 「11-11 周三」 outside a cycle. */
+    dayCaption: (date: string, weekday: string, type: CycleDayType | null): string =>
+      `${date.slice(5)} ${weekday}${type !== null ? ` · ${CYCLE_DAY_TYPE[type]}` : ""}`,
+    /** The month grid's weekday headers, Monday first. */
+    weekdays: ["一", "二", "三", "四", "五", "六", "日"],
   },
   progress: {
     caption: "点课程名展开；勾选由学根在「今天学到这里」时按证据写入。",
@@ -415,20 +501,26 @@ export const strings = {
     restDays: "休息日",
     restOptions: { none: "不休息", sun: "周日", "sat,sun": "周六日" } as Record<string, string>,
     reading: "原书",
-    readingOptions: { guided: "带读", "read-first": "先读后讲", "read-along": "边读边讲" } as Record<string, string>,
+    readingOptions: { guided: "带读", "read-first": "先读后讲", "read-along": "边读边讲" } as Record<
+      string,
+      string
+    >,
     readingHints: {
       guided: "学根讲，不安排读原文",
       "read-first": "每节先读原书 §x–y，再讲和练；阅读单独打勾",
       "read-along": "课上一起读原文段落，逐段讲",
     } as Record<string, string>,
     placementTitle: (subject: string): string => `排课 · ${subject}`,
-    placementTag: (cycle: string, role: "main" | "aux"): string => `${cycle} ${role === "aux" ? "辅助" : "主项"}`,
+    placementTag: (cycle: string, role: "main" | "aux"): string =>
+      `${cycle} ${role === "aux" ? "带读" : "主项"}`,
     placementLine: (days: string[], role: "main" | "aux", end: string, cycle: string): string =>
-      `${days.join(" · ")}\u3000${role === "aux" ? "每节 ≤ 45 分钟\u3000" : ""}排到 ${end.slice(5)}（${cycle} 结束）`,
+      role === "aux"
+        ? `${days.join(" · ")}\u3000每节 ≤ 45 分钟\u3000不设完结`
+        : `${days.join(" · ")}\u3000排到 ${end.slice(5)}（${cycle} 结束）`,
     placementHint: (role: "main" | "aux"): string =>
       role === "aux"
-        ? "辅助只做了解，不出检查题；周期内排不下的留到下个周期。"
-        : "按教材章节切课次；周期内排不下的留到下个周期。",
+        ? "带读只做了解，不出检查题；不设完结，没上的课往后顺延。"
+        : "按教材章节切课次；按 7 周学时排，日期跟实际走。",
     placementSubmit: "交给学根排课",
     style: "讲解风格",
     create: "建课",
@@ -438,7 +530,7 @@ export const strings = {
     submit: "提交",
     cycleTop: (cycle: string, week: number, weeks: number): string => `${cycle} · 第 ${week} / ${weeks} 周`,
     sectionMain: "主项",
-    sectionAux: "辅助",
+    sectionAux: "带读",
     sectionOther: "路线外",
     sectionLearned: "已学专题",
     countCourses: (count: number): string => `${count} 门`,
@@ -501,10 +593,10 @@ export const strings = {
     shelfToday: (chunk: string): string => `今天：${chunk}`,
     shelfNextOn: (date: string, chunk: string): string => `下一段 ${date}：${chunk}`,
     shelfLater: "接下来几天",
-    shelfCore: "核心页已读（讲后读）",
+    shelfCore: "讲后读已读",
     shelfCoreLine: (pages: string, label: string, date: string): string =>
       `pp.${pages} · ${label} · ${date.slice(5)}`,
-    shelfCoreNote: "只作参考：通读照读不跳，读到这几页时今日卡会提一句。",
+    shelfCoreNote: "只作参考：自读照读不跳，读到这几页时今日卡会提一句。",
     shelfExtracts: (count: number, pending: number): string =>
       `摘录 ${count} 句 · ${pending > 0 ? `${pending} 句待做卡` : "都做成卡了"}`,
     shelfCarded: (date: string): string => `已做卡 · ${date.slice(5)}`,
@@ -519,7 +611,7 @@ export const strings = {
   },
   cards: {
     newCaption: "新卡片",
-    newHint: "写入库，由 Obsidian 同步到 Anki",
+    newHint: "写进卡片页，直接同步到 Anki",
     frontPlaceholder: "正面：问题",
     backPlaceholder: "背面：答案",
     deckLabel: "牌组",
@@ -540,7 +632,7 @@ export const strings = {
     frontLabel: "正面",
     backLabel: "背面",
     cancel: "取消",
-    syncNote: "写入库后由 Obsidian 同步到 Anki。",
+    syncNote: "写进卡片页后直接同步到 Anki（Anki 要开着）。",
     allSynced: "已全部同步",
     unsyncedCount: (n: number): string => `待同步 ${n}`,
     dueTodayCount: (n: number): string => `今日到期 ${n}`,
@@ -621,7 +713,7 @@ export const strings = {
       teach: ["讲课", "按诊断、推导、检验讲一个主题，管今日要点和检查理解题"],
       course: ["课程", "建课、排期、开课、收课，按证据打勾"],
       "cycle-plan": ["学习周期", "今天学什么、周五整合、周期轮换"],
-      reading: ["阅读", "阅读队列、教材通读、摘录"],
+      reading: ["阅读", "阅读队列、书房、摘录"],
       calendar: ["日历", "某天做了什么、写日历笔记"],
       diagram: ["画图", "把讲解画成字符图"],
       "course-board": ["课程看板", "只看课程进度，不改任何东西"],
@@ -679,11 +771,133 @@ export const strings = {
     checkpointSavedAction: "开新会话接着上 →",
     actionTitle: "提示",
   },
+  /** The confirm a shell shows when a session switch is held mid-answer. */
+  switchGuard: {
+    text: "学根还在回答，切走会中断这次回答。",
+    confirm: "切换",
+    cancel: "等它说完",
+  },
   panels: {
     boardTitle: "课程看板",
     boardEmpty: "课程看板将在第 2 批接入：显示当前周、本周活动与下次起点。",
     notesTitle: "笔记",
     notesEmpty: "笔记面板将在第 3 批接入：在此编辑纯 Markdown 并实时预览。",
+  },
+  /** The 总控面板 tiles and 书房 rows (PANEL-PLAN `docs/desktop/PANEL-PLAN.md`). */
+  panel: {
+    /**
+     * The last line of every 书房 button's prompt: 总控 shows the change in the
+     * chat first and writes only after the user agrees (PANEL-PLAN 规则 9).
+     */
+    askConfirm: "先在聊天里告诉我你要改哪几行、改成什么，等我说可以再写文件；我只想先看看。",
+    tileCycle: (cycle: string, week: number, weeks: number): string =>
+      `${cycle} · 第 ${week} / ${weeks} 周`,
+    tileCycleSub: (end: string, delayDays: number): string =>
+      `预计 ${end.slice(5)} 结束${delayDays > 0 ? ` · 比计划晚 ${delayDays} 天` : ""}`,
+    tileNoCycle: "不在周期内",
+    tileItems: (done: number, total: number): string => `${done} / ${total} 项`,
+    /** 「主攻日 · 离散 D5 待上」；日子类型空着（周期外）时只写待上那节。 */
+    tileTodaySub: (typeName: string, next: string): string =>
+      `${typeName === "" ? "" : `${typeName} · `}${next} 待上`,
+    tileAllDone: "今天的都做完了",
+    tileWeekWarn: (count: number): string => `${count} 项过了日子还没做`,
+    tileShelf: (count: number): string => `${count} 本在读`,
+    tileShelfLate: (short: string, days: number): string => `${short} 照现在会比目标晚 ${days} 天`,
+    tileAnkiOff: "没开",
+    tileAnkiOffSub: "打开 Anki 后显示今天的张数",
+    tileAnki: (count: number): string => `${count} 张`,
+    tileAnkiSub: "今天要复习 · 已连接",
+    tileCards: (count: number): string => `${count} 张待同步`,
+    tileCardsSub: (total: number, decks: number): string => `共 ${total} 张 · ${decks} 个牌组`,
+    tileCardsBroken: (total: number, broken: number): string => `共 ${total} 张 · ${broken} 张格式不全`,
+    /** The mode tag a 书房 row shows next to its progress. */
+    shelfModes: { "after-self": "讲后读 + 自读", self: "自读", guide: "带读" } as Record<
+      "after-self" | "self" | "guide",
+      string
+    >,
+    /** A reading book's meta: 「预计 01-30 读完 · 目标 01-15，会晚 15 天」. */
+    bookMeta: (end: string, target: string | null, targetLate: number | null): string =>
+      `预计 ${end.slice(5)} 读完` +
+      (target === null
+        ? ""
+        : ` · 目标 ${target.slice(5)}${(targetLate ?? 0) > 0 ? `，会晚 ${targetLate ?? 0} 天` : ""}`),
+    bookPaused: (position: number): string => `已暂停 · 读到第 ${position} 段`,
+    /** A queued book's meta: 「排在 Epp 后面 · 预计 02-10 读完」. */
+    bookQueued: (after: string | null, end: string): string =>
+      [
+        after === null ? "" : `排在 ${after} 后面`,
+        end === "" ? "" : `预计 ${end.slice(5)} 读完`,
+      ]
+        .filter((part) => part !== "")
+        .join(" · "),
+    /** A 带读 row's meta: 「周一、周三 · 预计 12-23 读完」. */
+    guideMeta: (days: string[], end: string): string =>
+      [days.join("、"), end === "" ? "" : `预计 ${end.slice(5)} 读完`]
+        .filter((part) => part !== "")
+        .join(" · "),
+    /** Block headings (design `?d=dash`). */
+    tileLabels: { cycle: "周期", today: "今天", week: "本周", shelf: "书房", anki: "Anki", cards: "卡片" } as Record<
+      "cycle" | "today" | "week" | "shelf" | "anki" | "cards",
+      string
+    >,
+    blockToday: "今天",
+    blockWeek: "本周",
+    blockMonth: "本月",
+    blockProgress: "总进度",
+    blockProgressCaption: "周期排期 · 有完结",
+    blockShelf: "书房",
+    blockShelfCaption: "书房排期 · 不设完结",
+    blockCards: "卡片",
+    blockUnplanned: "已登记、没排",
+    blockLoading: "正在读…",
+    /** Empty and failure copy per block. */
+    shelfEmpty: "还没有在读的书。",
+    shelfAdd: "加一本书",
+    shelfQueuedNote: "排队",
+    unplannedNone: "没有登记过、还没排的资料",
+    cardsDeckHead: "牌组",
+    cardsNew: "新卡片",
+    cardsCount: "张数",
+    cardsSync: "待同步",
+    cardsDue: "今天到期",
+    deckOther: (count: number): string => `其余 ${count} 个牌组`,
+    /** Today-block lines and actions. */
+    todayNone: "今天没有安排",
+    actionOpen: "开课 →",
+    actionResume: "接着上次 →",
+    actionRead: "读完这段",
+    actionOpenAnki: "打开 →",
+    lastRecordCaption: "今天学过",
+    todayLearnedNone: "今天学过：还没有",
+    todayPrint: "打印",
+    todaySettings: "技能与设置",
+    bookRead: "读完这段",
+    bookPause: "暂停",
+    bookResume: "恢复",
+    bookTarget: "设目标日期",
+    bookMode: "改读法",
+    bookTargetChange: "改目标",
+    targetSave: "确定",
+    targetClear: "清除目标",
+    targetInvalid: "日期要写成 2027-01-15 这样（年-月-日）。",
+    targetLabel: (short: string): string => `《${short}》的目标日期`,
+    /** 总进度 sub lines under each main course. */
+    progressNext: (id: string, date: string, isToday: boolean): string =>
+      isToday ? `今天 ${id}` : `下一节 ${id} · ${date.slice(5)}`,
+    progressLate: (id: string, date: string): string => `${id} 原定 ${date.slice(5)} 还没上`,
+    progressEnd: (date: string): string => `最后一节预计 ${date.slice(5)}`,
+    progressFinished: "这个周期的课都上完了",
+    progressNext2: (cycle: string, start: string): string => `下个周期 ${cycle} 预计 ${start.slice(5)} 开始`,
+    progressRoute: (end: string): string => `整条路线预计 ${end} 结束`,
+    cardsBroken: (count: number): string => `${count} 张格式不全（缺 END），不会同步`,
+    /** 加一本书: the small form under the 书房 head. */
+    addTitle: "书名",
+    addModes: { self: "自读", guide: "带读" } as Record<"self" | "guide", string>,
+    addTargetOptional: "目标日期（可不填）",
+    addSend: "交给总控",
+    addCancel: "取消",
+    addTitleMissing: "先写书名。",
+    dialogClose: "关闭",
   },
   data: {
     errorTitle: "数据操作失败",

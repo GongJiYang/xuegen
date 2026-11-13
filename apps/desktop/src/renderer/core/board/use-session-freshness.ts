@@ -20,7 +20,7 @@ import * as client from "../client.js";
 import { strings } from "../strings.js";
 import { withActionMarker } from "../chat/action-marker.js";
 import { checkpointPhase, needsRefresh, staleCourseSession } from "./session-freshness.js";
-import { dateKey } from "./use-calendar.js";
+import { todayKey } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 
 export interface SessionFreshness {
@@ -41,7 +41,7 @@ export function useSessionFreshness(
   /** The open session is the cycle's 总控 session (no course page). */
   isControl: boolean,
 ): SessionFreshness {
-  const today = dateKey(new Date());
+  const today = todayKey();
   const tz = new Date().getTimezoneOffset();
   const list = courses.state.status === "ready" ? courses.state.value : [];
   const course = activeCourse ? (list.find((item) => item.slug === activeCourse) ?? null) : null;

@@ -24,6 +24,8 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     disabled: false,
     onSend: vi.fn(),
     onStop: vi.fn(),
+    carriedDraft: null,
+    onCarriedDraftTaken: vi.fn(),
     style: "plain",
     onStyle: vi.fn(),
     commandsOpen: false,
@@ -128,6 +130,7 @@ describe("Bare Thread thinking indicator", () => {
       activity: null,
       pin: null,
       header: null,
+      older: null,
       renderMessage: (message, isThinking) => (
         <MessageRenderer
           slots={slots}

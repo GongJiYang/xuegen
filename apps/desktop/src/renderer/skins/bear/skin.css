@@ -825,6 +825,34 @@
   color: var(--soft);
 }
 
+/* Switch guard: asked before leaving a session mid-answer. Same card as .bear-pop, fixed under the title bar. */
+[data-skin="bear"] .bear-guard {
+  position: fixed;
+  top: 3.2em;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(28em, calc(100vw - 2em));
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--card);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  font-family: var(--font-ui);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--ink);
+  z-index: 40;
+}
+[data-skin="bear"] .bear-guard p {
+  margin: 0 0 var(--sp-3);
+}
+[data-skin="bear"] .bear-guard-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
 /* Dropdown menu items (Radix renders them as divs with role="menuitem"). */
 [data-skin="bear"] .bear-menu,
 [data-skin="bear"] .bear-submenu {
@@ -1891,6 +1919,13 @@
   font-weight: 600;
   color: var(--ink);
 }
+/* A lesson already written into its 「完成：」 line reads as done: green ✓ before it. */
+[data-skin="bear"] .bear-cy-title.is-done {
+  color: var(--done-11);
+}
+[data-skin="bear"] .bear-cy-title.is-done .bear-cy-mark {
+  margin-right: 0.35em;
+}
 [data-skin="bear"] .bear-cy-carried {
   margin: 0.2em 0 0.3em;
   font-size: var(--fs-1);
@@ -2481,6 +2516,14 @@
 }
 [data-skin="bear"] .bear-cy-list li.is-aux b {
   font-weight: 500;
+}
+/* A 带读 lesson already in its course's 「完成：」 line: green ✓ and green title. */
+[data-skin="bear"] .bear-cy-list li.is-aux.is-done b {
+  color: var(--done-11);
+}
+[data-skin="bear"] .bear-cy-list li.is-aux.is-done .bear-cy-mark {
+  margin-right: 0.35em;
+  color: var(--done-11);
 }
 [data-skin="bear"] .bear-plan-auxsec {
   margin-top: var(--sp-4);
@@ -3383,4 +3426,658 @@
 /* With the lesson buttons on the row, the Enter hint gives way so the send button stays on the same line. */
 [data-skin="bear"] .bear-cfoot:has(.bear-clessons) .bear-chint {
   display: none;
+}
+
+/* ── 总控周计划本 (design ?d=plan2, PLANBOOK-1111 3b) ──────────────────────
+   .p2-* → .bear-pb-*；计划本在左、聊天栏在右；抽屉打开时盖住聊天栏的位置，
+   聊天栏让位（隐藏），不再为主栏让出 380px。 */
+
+[data-skin="bear"] .bear-col--plan {
+  display: flex;
+  min-height: 0;
+}
+[data-skin="bear"] .bear-pb-area {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--sp-4) var(--sp-5);
+}
+[data-skin="bear"] .bear-pb-chat {
+  width: 340px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--gray-2);
+  border-left: 1px solid var(--gray-6);
+}
+[data-skin="bear"] .bear-pb-chat[hidden] {
+  display: none;
+}
+[data-skin="bear"] .bear-pb-chat .bear-column {
+  flex: 1;
+  /* The chat column is a fixed 340px (280px at ≤900): override the 42em measure
+     and stop long code blocks / tables from widening the flex item past it. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 var(--sp-3);
+}
+/* Everything inside the narrow chat column wraps instead of pushing the column
+   wider; a long code block scrolls sideways on its own. */
+[data-skin="bear"] .bear-pb-chat .bear-thread-wrap,
+[data-skin="bear"] .bear-pb-chat .bear-pane,
+[data-skin="bear"] .bear-pb-chat .bear-composer,
+[data-skin="bear"] .bear-pb-chat .bear-code,
+[data-skin="bear"] .bear-pb-chat .bear-table,
+[data-skin="bear"] .bear-pb-chat .bear-diagram,
+[data-skin="bear"] .bear-pb-chat .bear-mermaid {
+  min-width: 0;
+  max-width: 100%;
+}
+/* The drawer slides over the chat column's spot: hide the column rather than
+   padding the whole row 380px like the plain layout does. */
+@media (min-width: 1000px) {
+  [data-skin="bear"] .bear-root[data-drawer="open"] .bear-col--plan {
+    padding-right: 0;
+  }
+  [data-skin="bear"] .bear-root[data-drawer="open"] .bear-pb-chat {
+    display: none;
+  }
+}
+
+[data-skin="bear"] .bear-pb {
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+[data-skin="bear"] :where(.bear-pb p) {
+  margin: 0;
+}
+[data-skin="bear"] .bear-pb :where(button) {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* 顶栏：日 / 周 / 月、范围、‹ 今天 ›、打印 */
+[data-skin="bear"] .bear-pb-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+[data-skin="bear"] .bear-pb-range {
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-nav {
+  display: flex;
+  gap: var(--sp-1);
+}
+[data-skin="bear"] .bear-pb-print {
+  margin-left: auto;
+}
+[data-skin="bear"] .bear-pb-seg {
+  display: inline-flex;
+  border: 1px solid var(--gray-7);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+[data-skin="bear"] .bear-pb-seg button {
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-seg button:hover {
+  background: var(--gray-4);
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-pb-seg button.is-on {
+  background: var(--gray-12);
+  color: var(--card);
+}
+[data-skin="bear"] .bear-pb-btn {
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-1);
+  color: var(--gray-11);
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-pb-btn:hover {
+  background: var(--gray-4);
+  color: var(--gray-12);
+}
+/* 「今天」 with today already in view: no hover, no pointer — plainly inert. */
+[data-skin="bear"] .bear-pb-btn:disabled,
+[data-skin="bear"] .bear-pb-btn:disabled:hover {
+  color: var(--gray-11);
+  background: none;
+  cursor: default;
+}
+
+[data-skin="bear"] .bear-pb-cap {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  margin-bottom: var(--sp-2);
+}
+[data-skin="bear"] .bear-pb-mt {
+  margin-top: var(--sp-5);
+}
+[data-skin="bear"] .bear-pb-goal {
+  margin-bottom: var(--sp-1);
+}
+[data-skin="bear"] .bear-pb-goal.is-empty,
+[data-skin="bear"] .bear-pb-goal.is-done {
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-meta {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-foot {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-loading {
+  color: var(--gray-11);
+  padding: var(--sp-6) 0;
+}
+[data-skin="bear"] .bear-pb-overdue {
+  display: flex;
+  gap: var(--sp-1);
+  color: var(--warn-11);
+  margin-bottom: var(--sp-2);
+}
+
+/* 周视图 */
+[data-skin="bear"] .bear-pb-goals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+[data-skin="bear"] .bear-pb-grid {
+  display: grid;
+  grid-template-columns: 88px repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--gray-6);
+}
+[data-skin="bear"] .bear-pb-lane-row {
+  display: contents;
+}
+[data-skin="bear"] .bear-pb-dh {
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--gray-6);
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="bear"] .bear-pb-dh b {
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-dh span {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-dh.is-today b {
+  color: var(--accent-11);
+}
+[data-skin="bear"] .bear-pb-lh {
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
+  border-bottom: 1px solid var(--gray-6);
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="bear"] .bear-pb-lh b {
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-lh span {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-cell {
+  display: block;
+  text-align: left;
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--gray-6);
+  border-left: 1px solid var(--gray-6);
+  min-height: 56px;
+}
+[data-skin="bear"] .bear-pb-cell:hover {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-pb-cell.is-today,
+[data-skin="bear"] .bear-pb-dh.is-today {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-pb-cell.is-rest {
+  background: var(--gray-2);
+}
+[data-skin="bear"] .bear-pb-it {
+  display: flex;
+  gap: var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  margin-bottom: var(--sp-1);
+}
+[data-skin="bear"] .bear-pb-it.is-now {
+  color: var(--gray-12);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-it.is-faint,
+[data-skin="bear"] .bear-pb-it.is-rest {
+  color: var(--gray-11);
+}
+/* 今天 Anki 格的「打开 →」：与今日卡 Anki 行同一个动作（设计稿 `.p2-link`）。 */
+[data-skin="bear"] .bear-pb-link {
+  margin-left: auto;
+  color: var(--accent-11);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-link:hover {
+  text-decoration: underline;
+}
+[data-skin="bear"] .bear-pb-mark {
+  flex: none;
+  width: 1em;
+  text-align: center;
+}
+[data-skin="bear"] .bear-pb-mark.is-done {
+  color: var(--done-11);
+}
+[data-skin="bear"] .bear-pb-mark.is-now {
+  color: var(--accent-11);
+}
+[data-skin="bear"] .bear-pb-mark.is-warn {
+  color: var(--warn-11);
+}
+[data-skin="bear"] .bear-pb-mark.is-plain {
+  color: var(--gray-11);
+}
+
+/* 日视图：清单（今天的今日卡 / 非今天的只读清单） */
+[data-skin="bear"] .bear-pb-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-pb-rows li {
+  display: grid;
+  grid-template-columns: 1.2em 1fr;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-rows li.is-now {
+  color: var(--gray-12);
+  font-weight: 500;
+  font-size: var(--fs-3);
+  line-height: var(--lh-3);
+}
+
+/* 月视图 */
+[data-skin="bear"] .bear-pb-mgrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-1);
+}
+[data-skin="bear"] .bear-pb-wd {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  text-align: center;
+}
+[data-skin="bear"] .bear-pb-mc {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: var(--sp-2);
+  /* Fixed height like the design's `.p2-mc`: one line per lesson row, nothing grows it. */
+  min-height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-pb-mc:hover {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-pb-mc b {
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-pb-mc em {
+  font-style: normal;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-12);
+  /* One line, clipped: the cell never widens or grows past 72px. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-skin="bear"] .bear-pb-mc em.is-guide,
+[data-skin="bear"] .bear-pb-mc em.is-type {
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-pb-mc.is-today {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-pb-mc.is-today b {
+  color: var(--accent-11);
+}
+
+/* 窄窗（≤900px，同设计稿）：聊天栏 280px，目标两栏并一栏。 */
+@media (max-width: 900px) {
+  [data-skin="bear"] .bear-pb-chat {
+    width: 280px;
+  }
+  [data-skin="bear"] .bear-pb-area {
+    padding: var(--sp-3);
+  }
+  [data-skin="bear"] .bear-pb-goals {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 打印：只留下计划本。 */
+@media print {
+  [data-skin="bear"] .bear-bar,
+  [data-skin="bear"] .bear-pb-chat,
+  [data-skin="bear"] .bear-drawer,
+  [data-skin="bear"] .bear-pb-bar-row button {
+    display: none;
+  }
+  [data-skin="bear"] .bear-root {
+    background: var(--card);
+    color: var(--gray-12);
+  }
+  [data-skin="bear"] .bear-col--plan {
+    display: block;
+  }
+  [data-skin="bear"] .bear-pb-area {
+    overflow: visible;
+    padding: 0;
+  }
+  [data-skin="bear"] .bear-pb-grid {
+    break-inside: avoid;
+  }
+}
+
+/* ── 总控面板 (design ?d=dash, PANEL-PLAN) ───────────────────────────────
+   .d3-* → .bear-cp-*；一页：六格状态 → 今天 + 本周 → 总进度 / 书房 / 卡片。
+   宽屏内容最宽 1480px 居中；只用 Bear 变量。 */
+[data-skin="bear"] .bear-cp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  max-width: 1480px;
+  margin: 0 auto;
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-cp-tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+[data-skin="bear"] .bear-cp-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  background: var(--card);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+  min-width: 0;
+}
+[data-skin="bear"] .bear-cp-tile b {
+  font-size: var(--fs-4);
+  line-height: var(--lh-4);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-cp-tile b.is-loading {
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-cp-cap {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-meta {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-meta.is-warn {
+  color: var(--warn-11);
+}
+[data-skin="bear"] .bear-cp-row2 {
+  display: grid;
+  grid-template-columns: minmax(300px, 2fr) minmax(0, 5fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+[data-skin="bear"] .bear-cp-row3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+[data-skin="bear"] .bear-cp-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sp-4);
+  background: var(--card);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+}
+[data-skin="bear"] .bear-cp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+[data-skin="bear"] .bear-cp-head h2 {
+  margin: 0;
+  font-size: var(--fs-3);
+  line-height: var(--lh-3);
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-cp-row {
+  padding: var(--sp-2) 0;
+}
+[data-skin="bear"] .bear-cp-row p {
+  margin: 0;
+}
+[data-skin="bear"] .bear-cp-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-cp-num {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--gray-11);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-tag {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  font-weight: 400;
+  color: var(--gray-11);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--gray-7);
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-cp-bar {
+  height: 3px;
+  margin: var(--sp-2) 0;
+  background: var(--gray-5);
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-cp-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent-9);
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-cp-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-link {
+  color: var(--accent-11);
+  font-weight: 500;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-cp-link:hover {
+  text-decoration: underline;
+}
+[data-skin="bear"] .bear-cp-input {
+  width: 9em;
+  font: inherit;
+  font-size: var(--fs-1);
+  color: var(--gray-12);
+  background: var(--gray-1);
+  border: 1px solid var(--gray-8);
+  border-radius: var(--r-1);
+  padding: var(--sp-1) var(--sp-2);
+}
+[data-skin="bear"] .bear-cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-list li {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border-top: 1px solid var(--gray-5);
+}
+[data-skin="bear"] .bear-cp-list li > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-cp-prog .bear-cp-row:first-child {
+  padding-top: 0;
+}
+/* Breakpoints follow the panel's own width, not the window's: with the chat
+   column open a 1440 window leaves the panel about 1050px (audit 11-13). */
+[data-skin="bear"] .bear-pb-area {
+  container-type: inline-size;
+}
+@container (max-width: 1200px) {
+  [data-skin="bear"] .bear-cp-tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  [data-skin="bear"] .bear-cp-row2 {
+    grid-template-columns: 1fr;
+  }
+}
+@container (max-width: 900px) {
+  [data-skin="bear"] .bear-cp-row3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (max-width: 600px) {
+  [data-skin="bear"] .bear-cp-row3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Panel block head actions (技能与设置 · 打印, 加一本书, 新卡片) and the add-book form. */
+[data-skin="bear"] .bear-cp-head {
+  flex-wrap: wrap;
+}
+[data-skin="bear"] .bear-cp-head-acts {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+[data-skin="bear"] .bear-cp-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-cp-list-head {
+  color: var(--gray-11);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-cp-route {
+  margin-top: var(--sp-3);
+}
+
+/* Control-session dialog for 技能 / 卡片 (the drawer's panels, centred). */
+[data-skin="bear"] .bear-dlg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.24);
+  z-index: 45;
+}
+[data-skin="bear"] .bear-dlg {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, calc(100vw - 2 * var(--sp-5)));
+  max-height: calc(100vh - 2 * var(--sp-6));
+  overflow: auto;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  font-family: var(--font-ui);
+  z-index: 46;
+}
+[data-skin="bear"] .bear-dlg-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+[data-skin="bear"] .bear-dlg-title {
+  margin: 0;
+  font-size: var(--fs-4);
+  line-height: var(--lh-4);
+  font-weight: 600;
+}
+
+[data-skin="bear"] .bear-cp-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+[data-skin="bear"] .bear-cp-nav {
+  display: flex;
+  gap: var(--sp-2);
+  margin-left: auto;
 }

@@ -46,11 +46,13 @@ describe("cards.sync", () => {
   let home: string;
   let vault: string;
   const originalHome = process.env.XUEGEN_HOME;
+  const originalAnkiUrl = process.env.XUEGEN_ANKI_URL;
 
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "xuegen-cards-sync-home-"));
     vault = mkdtempSync(join(tmpdir(), "xuegen-cards-sync-vault-"));
     process.env.XUEGEN_HOME = home;
+    delete process.env.XUEGEN_ANKI_URL;
     mkdirSync(join(vault, "wiki"), { recursive: true });
     writeFileSync(join(home, "wiki.json"), JSON.stringify({ root: vault }), "utf8");
     execFileMock.mockReset();
@@ -58,6 +60,8 @@ describe("cards.sync", () => {
 
   afterEach(() => {
     process.env.XUEGEN_HOME = originalHome;
+    if (originalAnkiUrl === undefined) delete process.env.XUEGEN_ANKI_URL;
+    else process.env.XUEGEN_ANKI_URL = originalAnkiUrl;
     rmSync(home, { recursive: true, force: true });
     rmSync(vault, { recursive: true, force: true });
   });
@@ -70,6 +74,14 @@ describe("cards.sync", () => {
     expect(spawn.script).toContain(join("skills", "wiki-save", "anki-sync.mjs"));
     expect(spawn.args).toEqual(["push", vault, "--json"]);
     expect(spawn.timeout).toBe(120_000);
+  });
+
+  it("passes --url to anki-sync.mjs when XUEGEN_ANKI_URL is a valid loopback URL", async () => {
+    process.env.XUEGEN_ANKI_URL = "http://127.0.0.1:19876";
+    stubScript(JSON.stringify(SYNC_RESULT));
+    const result = await handleDataRequest({ kind: "cards.sync", dryRun: false });
+    expect(result.ok).toBe(true);
+    expect(lastSpawn().args).toEqual(["push", vault, "--json", "--url", "http://127.0.0.1:19876"]);
   });
 
   it("adds --dry-run for a dry run", async () => {

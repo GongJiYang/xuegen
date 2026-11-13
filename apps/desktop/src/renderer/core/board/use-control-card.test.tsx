@@ -56,6 +56,7 @@ function input(overrides: Partial<ControlCardInput> = {}): ControlCardInput {
     today: resource(day()),
     tomorrow: resource(day()),
     queue: resource([]),
+    anki: resource({ running: true, due: [{ deck: "离散", count: 74 }] }),
     shelf: {
       today: resource({ planned: null, free: null }),
       list: resource([]),
@@ -164,6 +165,7 @@ function shelfBook(overrides: Partial<ShelfBook> = {}): ShelfBook {
     coreOverlap: null,
     doneToday: false,
     doneChunk: null,
+    resumedToday: false,
     plannedEnd: "2027-01-28",
     end: "2027-01-28",
     late: 0,
@@ -188,6 +190,11 @@ function shelfInput(
   });
 }
 
+/** The 今日卡's row prefixes, so the test never spells the wording twice. */
+function card() {
+  return strings.control.card;
+}
+
 /** The row of `kind`, optionally the one whose text starts with `prefix` (the book's slot). */
 function rowWith(kind: "shelfDone" | "undoShelf" | "extract", prefix?: string) {
   return captured?.view.rows.find(
@@ -207,12 +214,12 @@ describe("useControlCard 书房行", () => {
     const inputProps = shelfInput({ planned: shelfBook(), free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    const row = rowWith("shelfDone", "读书 · ");
+    const row = rowWith("shelfDone", card().shelfPlanned);
     if (!row) throw new Error("expected a 书房 row");
     act(() => captured?.onAction(row));
 
     // ✓ 「已记下」 and 「撤销 · N」; nothing written yet.
-    const pending = rowWith("undoShelf", "读书 · ");
+    const pending = rowWith("undoShelf", card().shelfPlanned);
     expect(pending?.mark).toBe("done");
     expect(pending?.sub).toBe(strings.control.card.shelfPendingSub);
     expect(pending?.button).toBe(strings.control.card.undo(10));
@@ -223,7 +230,7 @@ describe("useControlCard 书房行", () => {
     });
     expect(inputProps.shelf.done).toHaveBeenCalledTimes(0);
     // The countdown is visible while the window runs.
-    expect(rowWith("undoShelf", "读书 · ")?.button).toBe(strings.control.card.undo(1));
+    expect(rowWith("undoShelf", card().shelfPlanned)?.button).toBe(strings.control.card.undo(1));
 
     await act(async () => {
       vi.advanceTimersByTime(2_000);
@@ -236,10 +243,10 @@ describe("useControlCard 书房行", () => {
     const inputProps = shelfInput({ planned: shelfBook(), free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    const row = rowWith("shelfDone", "读书 · ");
+    const row = rowWith("shelfDone", card().shelfPlanned);
     if (!row) throw new Error("expected a 书房 row");
     act(() => captured?.onAction(row));
-    const undo = rowWith("undoShelf", "读书 · ");
+    const undo = rowWith("undoShelf", card().shelfPlanned);
     if (!undo) throw new Error("expected an undoShelf row");
     act(() => captured?.onAction(undo));
 
@@ -248,7 +255,7 @@ describe("useControlCard 书房行", () => {
     });
     expect(inputProps.shelf.done).toHaveBeenCalledTimes(0);
     // The row went back to 「读完这段」.
-    expect(rowWith("shelfDone", "读书 · ")?.button).toBe(strings.control.card.shelfDone);
+    expect(rowWith("shelfDone", card().shelfPlanned)?.button).toBe(strings.control.card.shelfDone);
   });
 
   it("commits a parked 书房 row when another row's undo window starts", async () => {
@@ -258,8 +265,8 @@ describe("useControlCard 书房行", () => {
     });
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    const planned = rowWith("shelfDone", "读书 · ");
-    const free = rowWith("shelfDone", "自由读 · ");
+    const planned = rowWith("shelfDone", card().shelfPlanned);
+    const free = rowWith("shelfDone", card().shelfFree);
     if (!planned || !free) throw new Error("expected two 书房 rows");
     act(() => captured?.onAction(planned));
     expect(inputProps.shelf.done).toHaveBeenCalledTimes(0);
@@ -267,25 +274,25 @@ describe("useControlCard 书房行", () => {
     // The parked one was written straight away; the new one is parked instead.
     expect(inputProps.shelf.done).toHaveBeenCalledTimes(1);
     expect(inputProps.shelf.done).toHaveBeenCalledWith("epp");
-    expect(rowWith("shelfDone", "读书 · ")?.button).toBe(strings.control.card.shelfDone);
-    expect(rowWith("undoShelf", "自由读 · ")).toBeTruthy();
+    expect(rowWith("shelfDone", card().shelfPlanned)?.button).toBe(strings.control.card.shelfDone);
+    expect(rowWith("undoShelf", card().shelfFree)).toBeTruthy();
   });
 
   it("shares one undo window with the 讲后读 rows", async () => {
     const inputProps = shelfInput({ planned: shelfBook(), free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    const shelf = rowWith("shelfDone", "读书 · ");
+    const shelf = rowWith("shelfDone", card().shelfPlanned);
     const afterRead = captured?.view.rows.find((entry) => entry.action?.kind === "afterRead");
     if (!shelf || !afterRead) throw new Error("expected a 书房 row and a 讲后读 row");
     act(() => captured?.onAction(shelf));
-    expect(rowWith("undoShelf", "读书 · ")).toBeTruthy();
+    expect(rowWith("undoShelf", card().shelfPlanned)).toBeTruthy();
     // A second click inside the window commits the parked 书房 row now and
     // parks the 讲后读 one in its place.
     act(() => captured?.onAction(afterRead));
     expect(inputProps.shelf.done).toHaveBeenCalledTimes(1);
     expect(inputProps.shelf.done).toHaveBeenCalledWith("epp");
-    expect(rowWith("undoShelf", "读书 · ")).toBeUndefined();
+    expect(rowWith("undoShelf", card().shelfPlanned)).toBeUndefined();
     expect(captured?.view.rows.some((entry) => entry.action?.kind === "undoRead")).toBe(true);
     // Only the 讲后读 row's deadline writes; the 书房 row is not written twice.
     await act(async () => {
@@ -299,7 +306,7 @@ describe("useControlCard 书房行", () => {
     const inputProps = shelfInput({ planned: shelfBook(), free: null }, () => Promise.resolve(false));
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    const row = rowWith("shelfDone", "读书 · ");
+    const row = rowWith("shelfDone", card().shelfPlanned);
     if (!row) throw new Error("expected a 书房 row");
     act(() => captured?.onAction(row));
     await act(async () => {
@@ -335,7 +342,7 @@ describe("useControlCard 摘几句", () => {
     render(<Harness props={inputProps} />);
     await act(async () => {});
     expect(captured?.extract).toBeNull();
-    const row = rowWith("extract", "读书 · ");
+    const row = rowWith("extract", card().shelfPlanned);
     if (!row) throw new Error("expected a 摘几句 row");
     act(() => captured?.onAction(row));
     expect(captured?.extract).toMatchObject({ slug: "epp", pages: "pp.10–18", saving: false, error: null });
@@ -348,7 +355,7 @@ describe("useControlCard 摘几句", () => {
     const inputProps = doneTodayInput();
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    act(() => captured?.onAction(rowWith("extract", "读书 · ") as ControlCardRow));
+    act(() => captured?.onAction(rowWith("extract", card().shelfPlanned) as ControlCardRow));
 
     act(() => captured?.extract?.onSave("0", "逆否命题与原命题等价。"));
     expect(captured?.extract?.error).toBe(strings.control.card.extractPageInvalid);
@@ -365,7 +372,7 @@ describe("useControlCard 摘几句", () => {
     const inputProps = doneTodayInput();
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    act(() => captured?.onAction(rowWith("extract", "读书 · ") as ControlCardRow));
+    act(() => captured?.onAction(rowWith("extract", card().shelfPlanned) as ControlCardRow));
     act(() => captured?.extract?.onSave("p 11", "逆否命题与原命题等价。"));
     // Disabled while the write is in flight.
     expect(captured?.extract?.saving).toBe(true);
@@ -381,7 +388,7 @@ describe("useControlCard 摘几句", () => {
     const inputProps = doneTodayInput(() => Promise.resolve("磁盘写入失败"));
     render(<Harness props={inputProps} />);
     await act(async () => {});
-    act(() => captured?.onAction(rowWith("extract", "读书 · ") as ControlCardRow));
+    act(() => captured?.onAction(rowWith("extract", card().shelfPlanned) as ControlCardRow));
     act(() => captured?.extract?.onSave("11", "逆否命题与原命题等价。"));
     await act(async () => {});
     expect(captured?.extract?.error).toBe(strings.control.card.extractFailed);

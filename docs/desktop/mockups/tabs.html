@@ -1,0 +1,52 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>标签页设计稿</title>
+<style>
+:root{--paper:#fbfbfa;--card:#fff;--ink:#1f2124;--soft:#63635f;--g3:#efefee;--g5:#e1e1e0;--g6:#e6e6e4;--g8:#bcbcb8;--a3:#e9f4fe;--a9:#1aa3ff;--a11:#0a65a0;--warn:#8a5a00}
+body{margin:0;background:var(--paper);font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--ink)}
+.root{max-width:1100px;margin:0 auto;padding:28px 40px 56px}
+h2{font-size:18px;margin:0 0 6px}.desc{color:var(--soft);margin:0 0 28px;max-width:80ch}
+.lab{font-size:12px;color:var(--soft);margin:0 0 6px}.sc{margin-bottom:32px}
+.win{border:1px solid var(--g6);border-radius:8px;overflow:hidden;background:var(--card)}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 12px;border-bottom:1px solid var(--g5);background:var(--paper)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:13px;color:var(--soft);border-bottom:2px solid transparent;white-space:nowrap}
+.tab.on{color:var(--ink);font-weight:500;border-bottom-color:var(--a11)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--a9)}
+.warn{color:var(--warn);font-size:12px}
+.more{color:var(--g8);font-size:16px;padding:0 10px}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--soft)}
+.body{padding:18px 28px;color:var(--soft);font-size:13px;min-height:44px}
+.pop{position:relative}.menu{position:absolute;left:300px;top:44px;width:300px;background:var(--card);border:1px solid var(--g6);border-radius:8px;box-shadow:0 8px 24px rgb(0 0 0/.12);padding:10px 12px;font-size:13px}
+.menu b{display:block;font-size:12px;color:var(--soft);font-weight:400;margin:4px 0}
+.menu div{padding:4px 0}
+table{border-collapse:collapse;font-size:13px;margin-top:8px}td,th{border:1px solid var(--g6);padding:6px 10px;text-align:left;vertical-align:top}
+</style>
+<div class="root">
+<h2>顶栏标签页 · 设计稿（第一步：只改界面）</h2>
+<p class="desc">替代现在标题旁的「总控 ▾」下拉。「总控」固定最左；后面是<b>今天开过课</b>的会话（按开课先后）；当前会话下划线高亮；正在回答的标签带蓝点 ●。「＋」打开原来的会话列表（旧会话、其他课、新会话）。切换照样经过「学根还在回答」确认。</p>
+
+<div class="sc"><p class="lab">A · 在总控，今天开了两门课</p><div class="win">
+<div class="bar"><span class="tab on">总控 · C1</span><span class="tab">离散 D4</span><span class="tab">CTM D1</span><span class="tab more">＋</span><span class="gap"></span><span class="meta">上下文 14%<span>收起聊天</span><span>⋯</span></span></div>
+<div class="body">（总控面板）</div></div></div>
+
+<div class="sc"><p class="lab">B · 在离散 D4，学根正在回答（课程会话里保留「课程与计划」）</p><div class="win">
+<div class="bar"><span class="tab">总控 · C1</span><span class="tab on">离散 D4 <span class="dot"></span></span><span class="tab">CTM D1</span><span class="tab more">＋</span><span class="gap"></span><span class="meta">上下文 4%<span>课程与计划</span><span>⋯</span></span></div>
+<div class="body">（课程对话）</div></div></div>
+
+<div class="sc"><p class="lab">C · 今天还没开课：只有总控和「＋」</p><div class="win">
+<div class="bar"><span class="tab on">总控 · C1</span><span class="tab more">＋</span><span class="gap"></span><span class="meta">上下文 2%<span>收起聊天</span><span>⋯</span></span></div>
+<div class="body">（总控面板）</div></div></div>
+
+<div class="sc pop"><p class="lab">D · 点「＋」：原来的会话列表（不变）</p><div class="win" style="min-height:260px">
+<div class="bar"><span class="tab on">总控 · C1</span><span class="tab">离散 D4</span><span class="tab">CTM D1</span><span class="tab more" style="color:var(--ink)">＋</span><span class="gap"></span><span class="meta">上下文 14%<span>⋯</span></span></div>
+<div class="menu"><b>会话　　　　　　　　　　　　　＋ 新会话</b><b>今天</b><div>19:52 · 离散 · D4 · 2 条</div><div>19:51 · CTM · D1</div><b>昨天</b><div>11:03 · 离散 · D3 · 24 条</div><div>10:59 · C 语言 · D1</div></div></div></div>
+
+<p class="lab">规则（做之前请你确认）</p>
+<table>
+<tr><th>问题</th><th>建议</th></tr>
+<tr><td>哪些会话进标签</td><td>总控 + 今天开过课的课程会话（数据现成：<code>courseSessions</code> + <code>courseStartedOn</code> = 今天）。从「＋」打开的旧会话临时加一个标签，切走后消失</td></tr>
+<tr><td>最多几个</td><td>不设上限；窗口太窄放不下时，多出来的收进「＋」</td></tr>
+<tr><td>标签名</td><td>课程简称 + 第几天（离散 D4），和会话列表用同一套简称</td></tr>
+<tr><td>关闭标签</td><td>第一步不做（第二天自动换成新的一天）</td></tr>
+<tr><td>快捷键</td><td>⌃Tab / ⌃⇧Tab 前后切；⌘0 回总控</td></tr>
+<tr><td>专注模式</td><td>和现在一样只留「⋯」，标签条也藏起来</td></tr>
+</table>
+</div></html>

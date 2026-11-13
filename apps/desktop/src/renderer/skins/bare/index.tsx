@@ -10,7 +10,9 @@
  * `Shell` and the module export.
  */
 
-import type { ShellProps, SkinModule, SkinSlots } from "../contract.js";
+import type { ControlPanelProps, PlanbookProps, ShellProps, SkinModule, SkinSlots } from "../contract.js";
+import type { PlanMark } from "../../core/board/planbook.js";
+import type { PlanView } from "../../core/board/planbook-nav.js";
 import { strings } from "../../core/strings.js";
 import { BODY_FONTS, isBodyFont } from "@shared/protocol.js";
 import {
@@ -37,8 +39,130 @@ import {
   UserMessage,
 } from "./messages.js";
 
+const PLANBOOK_MARK: Record<PlanMark, string> = { done: "✓", now: "●", plan: "○", warn: "!" };
+const PLANBOOK_VIEWS: PlanView[] = ["day", "week", "month"];
+
+/** The 总控 面板 as plain sections: each block is a list, no layout (bare only compiles). */
+function ControlPanel(props: ControlPanelProps) {
+  return (
+    <section data-slot="control-panel">
+      <ul>
+        {props.tiles.map((tile) => (
+   <li key={tile.key}>
+            {tile.value} {tile.sub}
+          </li>
+        ))}
+      </ul>
+      {props.todayCard}
+      {props.shelf !== null && (
+        <ul>
+          {props.shelf.map((row) => (
+     <li key={row.slug}>
+       {row.short} {row.meta}
+     </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** The 总控 planbook as plain lists: view buttons, then the current view's days. */
+function Planbook(props: PlanbookProps) {
+  return (
+    <section data-slot="planbook">
+      <p>
+        {PLANBOOK_VIEWS.map((view) => (
+          <button
+            key={view}
+            type="button"
+            aria-pressed={props.view === view}
+            onClick={() => props.onView(view)}
+          >
+            {strings.planbook.views[view]}
+          </button>
+        ))}
+        <span>{props.label}</span>
+        <button type="button" onClick={props.onPrev}>
+          {strings.planbook.prev}
+        </button>
+        <button type="button" disabled={props.todayDisabled} onClick={props.onToday}>
+          {strings.planbook.today}
+        </button>
+        <button type="button" onClick={props.onNext}>
+          {strings.planbook.next}
+        </button>
+        <button type="button" onClick={props.onPrint}>
+          {strings.planbook.print}
+        </button>
+      </p>
+      {props.state === "loading" && <p>{strings.planbook.loading}</p>}
+      {props.state === "error" && <p role="alert">{props.error}</p>}
+      {props.state === "ready" && props.week !== null && (
+        <ul>
+          {props.week.days.map((day) => (
+            <li key={day.date}>
+              <button type="button" onClick={() => props.onOpenDay(day.date)}>
+                {day.date} {day.weekday}
+                {day.isToday ? ` · ${strings.planbook.today}` : ""}
+              </button>
+              <ul>
+                {day.items.map((item, index) => (
+                  <li key={index}>
+                    {PLANBOOK_MARK[item.mark]} {strings.planbook.lanePrefix(item.lane)}
+                    {item.text}
+                  </li>
+                ))}
+                {day.ankiDue !== null && (
+                  <li>
+                    {strings.planbook.ankiToday(day.ankiDue)}{" "}
+                    <button type="button" onClick={props.onOpenAnki}>
+                      {strings.control.card.anki}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+      {props.state === "ready" && props.day !== null && (
+        <>
+          {props.todayCard ?? (
+            <>
+              <ul>
+                {props.day.items.map((item, index) => (
+                  <li key={index}>
+                    {PLANBOOK_MARK[item.mark]} {item.text}
+                  </li>
+                ))}
+              </ul>
+              <p>{strings.planbook.otherDayNote}</p>
+            </>
+          )}
+          {props.tomorrow !== null && <p>{props.tomorrow}</p>}
+        </>
+      )}
+      {props.state === "ready" && props.month !== null && (
+        <ul>
+          {props.month.map((day) => (
+            <li key={day.date}>
+              <button type="button" onClick={() => props.onOpenDay(day.date)}>
+                {day.date}
+                {day.isToday ? ` · ${strings.planbook.today}` : ""}
+              </button>{" "}
+              {day.items.map((item) => item.text).join(" · ")}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function Shell({
   children,
+  planbook,
   skins,
   activeSkin,
   onSelectSkin,
@@ -51,6 +175,9 @@ function Shell({
   onDismissNotice,
   contextUsage,
   sessions,
+  pendingSwitch,
+  confirmSwitch,
+  cancelSwitch,
 }: ShellProps) {
   return (
     <div data-slot="shell">
@@ -145,6 +272,18 @@ function Shell({
         </span>
       </header>
 
+      {pendingSwitch && (
+        <div data-slot="switch-guard" role="alertdialog" aria-label={strings.switchGuard.text}>
+          <p>{strings.switchGuard.text}</p>
+          <button type="button" onClick={confirmSwitch}>
+            {strings.switchGuard.confirm}
+          </button>
+          <button type="button" onClick={cancelSwitch}>
+            {strings.switchGuard.cancel}
+          </button>
+        </div>
+      )}
+
       {notices.length > 0 && (
         <ul data-slot="notices">
           {notices.map((notice, index) => (
@@ -155,6 +294,7 @@ function Shell({
         </ul>
       )}
 
+      {planbook}
       {children}
     </div>
   );
@@ -185,6 +325,8 @@ const bareSlots: SkinSlots = {
   SlashMenu,
   CourseIntroCard,
   ControlCard,
+  Planbook,
+  ControlPanel,
 };
 
 /** The bare skin module, consumed by the registry's named-export loader. */

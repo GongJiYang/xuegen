@@ -122,7 +122,7 @@ function stripTailNote(line) {
  * 解锁 → 写 → 上锁；写失败时恢复原权限。成功输出一行 JSON：
  * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>,
  *  "book": <书房书页 slug 或 null>, "course": <课程 slug>,
- *  "pages": <「核心页已定：pp.…」的页码列表原文或 null>}。
+ *  "pages": <行里第一个 pp. 后的页码列表原文或 null>}。
  */
 async function afterRead(file, label, date) {
   const target = resolve(file);
@@ -132,6 +132,11 @@ async function afterRead(file, label, date) {
   const end = start === -1 ? -1 : lines.findIndex((line, index) => index > start && /^##\s/.test(line));
   const sectionEnd = start === -1 ? -1 : end === -1 ? lines.length : end;
   const prefix = "- [ ] 讲后读 ";
+  // 「核心页」是技能内部词，界面对用户只说「讲后读 · §1.1–1.4 · <课名>」，
+  // 所以课程页那行带着它时，一个不带它的标签也算命中（其余逐字比较）。
+  const sameLabel = (lineLabel) =>
+    lineLabel === label ||
+    lineLabel.replace(/核心页/g, "").trim() === label.replace(/核心页/g, "").trim();
   let hit = -1;
   for (let index = start === -1 ? lines.length : start + 1; index < sectionEnd; index += 1) {
     const line = lines[index];
@@ -139,16 +144,20 @@ async function afterRead(file, label, date) {
     const rest = line.slice(prefix.length);
     const cut = rest.indexOf(" · ");
     const lineLabel = (cut === -1 ? rest : rest.slice(0, cut)).trim();
-    if (lineLabel === label) {
+    if (sameLabel(lineLabel)) {
       hit = index;
       break;
     }
   }
   if (hit === -1) fail(`没有找到未打勾的讲后读：${label}`);
-  // 打勾前的那一行里的「核心页已定：pp.…」页码列表；没有为 null。
-  const pagesMatch = /核心页已定：\s*pp\.\s*([0-9–\-、,，\s]+)/.exec(lines[hit]);
+  // 打勾前的那一行里第一个「pp.」后面的页码列表；没有为 null。
+  // 技能规定的写法是「讲后读 §x–y pp.a–b」，真实课程页里还常写成
+  // 「（pp.1–5、7–12；完成条件：…）」或「核心页已定：pp.66–75——…」，
+  // 所以不绑前缀：从第一个 pp. 起吃页码字符（数字、–、-、顿号、逗号、空格），
+  // 碰到第一个非页码字符（如「——」「；」）就截断，再去掉尾部分隔符。
+  const pagesMatch = /pp\.\s*([0-9–\-、,，\s]+)/.exec(lines[hit]);
   const pages =
-    pagesMatch === null ? null : pagesMatch[1].trim().replace(/[、,，]+$/, "") || null;
+    pagesMatch === null ? null : pagesMatch[1].trim().replace(/[、,，\s]+$/, "") || null;
   const originalMode = (await stat(target)).mode & 0o777;
   await chmod(target, WRITABLE_MODE);
   const next = lines.slice();

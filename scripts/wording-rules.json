@@ -1,0 +1,117 @@
+{
+  "banned": [
+    {
+      "word": "辅助",
+      "say": "带读"
+    },
+    {
+      "word": "核心页",
+      "say": "讲后读 · pp.… · 日期"
+    },
+    {
+      "word": "教材通读",
+      "say": "书房"
+    },
+    {
+      "word": "通读",
+      "say": "自读"
+    },
+    {
+      "word": "深度日",
+      "say": "主攻日"
+    },
+    {
+      "word": "由 Obsidian 同步",
+      "say": "直接同步到 Anki"
+    },
+    {
+      "word": "留到下个周期",
+      "say": "（不设完结，往后顺延）"
+    },
+    {
+      "word": "没刷",
+      "say": "（Anki 只提醒张数）"
+    },
+    {
+      "word": "积压",
+      "say": "（Anki 只提醒张数）"
+    },
+    {
+      "word": "补刷",
+      "say": "（Anki 只提醒张数）"
+    },
+    {
+      "word": "书架",
+      "say": "书房"
+    },
+    {
+      "word": "回到这门课",
+      "say": "回到这节课"
+    },
+    {
+      "word": "继续学习",
+      "say": "开课 / 回到这节课"
+    },
+    {
+      "word": "摘录卡",
+      "say": "摘几句"
+    }
+  ],
+  "allow": [
+    {
+      "file": "skills/cycle-plan/cycle.mjs",
+      "word": "深度日",
+      "why": "周期页数据格式：类型值仍记「深度」，报错给模型改周期页用"
+    },
+    {
+      "file": "skills/cycle-plan/cycle.mjs",
+      "word": "辅助",
+      "why": "周期页数据格式：周模板第 4 列名叫「辅助」，报错给模型改周期页用"
+    },
+    {
+      "file": "skills/course/course-schedule.mjs",
+      "word": "留到下个周期",
+      "why": "老课程（标记里有 end=）的数据小标题与提示；新课程不再产生"
+    },
+    {
+      "file": "skills/course/close/staging.mjs",
+      "word": "留到下个周期",
+      "why": "同上：老课程顺延的提示，技能要求不原样转述"
+    },
+    {
+      "file": "skills/reading/bookshelf.mjs",
+      "word": "核心页",
+      "why": "旧书页标题「## 核心页已读」的兼容读取常量"
+    },
+    {
+      "file": "skills/course/SKILL.md",
+      "word": "核心页",
+      "why": "说明「核心页是内部词、不对用户说」的规则本身"
+    },
+    {
+      "file": "skills/course/SKILL.md",
+      "word": "留到下个周期",
+      "why": "反向说明：不再写这一节"
+    },
+    {
+      "file": "skills/course/SKILL.md",
+      "word": "辅助",
+      "why": "「辅助课」是技能内部词，同行已要求对用户说「带读」"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
+      "word": "辅助",
+      "why": "发给模型的建课提示词；气泡改隐藏指令随界面批（WORDING-AUDIT strings.ts 520/535/254 同类）"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
+      "word": "核心页",
+      "why": "同上"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
+      "word": "留到下个周期",
+      "why": "同上，且是反向说明"
+    }
+  ]
+}

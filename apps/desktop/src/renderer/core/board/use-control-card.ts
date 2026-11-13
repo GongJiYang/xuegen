@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CycleDay, ReadingQueueItem } from "@shared/data-protocol.js";
+import type { AnkiStatus, CycleDay, ReadingQueueItem } from "@shared/data-protocol.js";
 import { assertNever } from "@shared/protocol.js";
 import type { ControlCardExtract, ControlCardProps, ToolId } from "../../skins/contract.js";
 import * as client from "../client.js";
@@ -26,7 +26,7 @@ import {
   type ControlCardRow,
 } from "./control-card.js";
 import { useBoardResource, type BoardResource } from "./use-resource.js";
-import { dateKey } from "./use-calendar.js";
+import { todayKey } from "../today.js";
 import type { ShelfResource } from "./use-shelf.js";
 
 /** How long 「读完了」/「读完这段」 can be undone before the write runs. */
@@ -43,6 +43,8 @@ export interface ControlCardInput {
   tomorrow: BoardResource<CycleDay>;
   /** `reading.queue`. */
   queue: BoardResource<ReadingQueueItem[]>;
+  /** `anki.status`, the same resource the 今天 window reads: the Anki row's today count. */
+  anki: BoardResource<AnkiStatus>;
   /** `shelf.today` / `shelf.list` plus the 书房 writes. */
   shelf: ShelfResource;
   /** `controller.streaming`: an answer disables every button. */
@@ -58,7 +60,7 @@ export interface ControlCardInput {
 }
 
 export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, "older"> | null {
-  const today = dateKey(new Date());
+  const today = todayKey();
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A 「读完了」/「读完这段」 click parks here until its deadline; null means nothing pending.
@@ -87,8 +89,9 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         calendar: month.state.status === "ready" ? month.state.value : null,
         queue: input.queue.state.status === "ready" ? input.queue.state.value : [],
         shelf: input.shelf.today.state.status === "ready" ? input.shelf.today.state.value : null,
+        anki: input.anki.state.status === "ready" ? input.anki.state.value : null,
       }),
-    [today, input.today.state, input.tomorrow.state, month.state, input.queue.state, input.shelf.today.state],
+    [today, input.today.state, input.tomorrow.state, month.state, input.queue.state, input.shelf.today.state, input.anki.state],
   );
 
   const write = (entry: Pending): void => {

@@ -5,7 +5,7 @@
 
 import { useCallback, useState } from "react";
 import type { TeachingStyle } from "@shared/protocol.js";
-import { dateKey } from "../board/use-calendar.js";
+import { todayKey } from "../today.js";
 import { courseStylesOf, emptySessionStyles, resolveStyle, withStyleChoice, type SessionStyles } from "./style.js";
 
 export interface SessionStyle {
@@ -20,14 +20,14 @@ export interface SessionStyle {
 }
 
 export function useSessionStyle(activeCourse: string | null): SessionStyle {
-  const [styles, setStyles] = useState<SessionStyles>(() => emptySessionStyles(dateKey(new Date())));
-  const today = dateKey(new Date());
+  const [styles, setStyles] = useState<SessionStyles>(() => emptySessionStyles(todayKey()));
+  const today = todayKey();
   const select = useCallback(
-    (next: TeachingStyle) => setStyles((current) => withStyleChoice(current, dateKey(new Date()), activeCourse, next)),
+    (next: TeachingStyle) => setStyles((current) => withStyleChoice(current, todayKey(), activeCourse, next)),
     [activeCourse],
   );
   const setCourse = useCallback(
-    (slug: string, next: TeachingStyle) => setStyles((current) => withStyleChoice(current, dateKey(new Date()), slug, next)),
+    (slug: string, next: TeachingStyle) => setStyles((current) => withStyleChoice(current, todayKey(), slug, next)),
     [],
   );
   return { style: resolveStyle(styles, today, activeCourse), courseStyles: courseStylesOf(styles, today), select, setCourse };

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ShelfListItem } from "../../shared/data-protocol.js";
 import { handleDataRequest } from "./handler.js";
 
 /** Write `text` to `file`, creating parent directories. */
@@ -97,9 +98,12 @@ describe("shelf data requests", () => {
           coreOverlap: null,
           doneToday: false,
           doneChunk: null,
+          resumedToday: false,
           plannedEnd: "2026-11-12",
           end: "2026-11-13",
           late: 1,
+          target: null,
+          targetLate: null,
         },
         free: null,
       },
@@ -135,6 +139,52 @@ describe("shelf data requests", () => {
           started: "2026-11-09",
         },
       ]);
+    }
+  });
+
+  it("shelf.list with from/to adds per-day schedule rows; without them there is no schedule key", async () => {
+    touch(
+      join(shelfDir(), "epp.md"),
+      bookPage(
+        { order: "1", status: "reading", title: "Epp", short: "Epp", started: "2026-11-09", position: 1 },
+        [
+          "# Epp",
+          "",
+          "## 分段",
+          "1. Ch1 pp.1–36",
+          "",
+          "## 读书记录",
+          "- 2026-11-09: 第 1 段 pp.1–9 读完（用户自报）",
+          "",
+        ].join("\n"),
+      ),
+    );
+    const originalToday = process.env.XUEGEN_TODAY;
+    process.env.XUEGEN_TODAY = "2026-11-12";
+    try {
+      // 11-12 是今天：11-10、11-11 是过去没读的原定日子（`missed`），
+      // 第 2 段顺延到今天 11-12 再出现一行，所以同一段有两天。
+      const ranged = await handleDataRequest({ kind: "shelf.list", from: "2026-11-09", to: "2026-11-12" });
+      expect(ranged.ok).toBe(true);
+      if (ranged.ok) {
+        const items = ranged.data as ShelfListItem[];
+        expect(items[0]?.schedule).toEqual([
+          { index: 1, date: "2026-11-09", title: "Ch1", from: 1, to: 9, done: true },
+          { index: 2, date: "2026-11-10", title: "Ch1", from: 10, to: 18, done: false, missed: true },
+          { index: 3, date: "2026-11-11", title: "Ch1", from: 19, to: 27, done: false, missed: true },
+          { index: 2, date: "2026-11-12", title: "Ch1", from: 10, to: 18, done: false },
+        ]);
+      }
+      const plain = await handleDataRequest({ kind: "shelf.list" });
+      expect(plain.ok).toBe(true);
+      if (plain.ok) {
+        const items = plain.data as ShelfListItem[];
+        expect(items[0] !== undefined && "schedule" in items[0]).toBe(false);
+      }
+    } finally {
+      // `process.env.X = undefined` stores the literal string "undefined"; delete instead.
+      if (originalToday === undefined) delete process.env.XUEGEN_TODAY;
+      else process.env.XUEGEN_TODAY = originalToday;
     }
   });
 

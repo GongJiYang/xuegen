@@ -71,8 +71,27 @@ function styleClause(style: TeachingStyle): string {
   return style === "default" ? "" : `，默认讲解风格「${STYLE_NAMES[style]}」（按 course 的讲解偏好写进科目页，先问我确认）`;
 }
 
+/**
+ * A course title as a marker slug: lowercase ASCII words joined by `-`, e.g.
+ * 「CSAPP 第 7 章」→ `csapp-7`. 建课 runs before the course file exists, so this
+ * guess is only what the marker carries; it is never written anywhere.
+ */
+export function titleSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /** The request that binds material, creates the course file and a day-by-day plan to the deadline. */
 export function newCoursePrompt(request: NewCourseRequest): string {
+  return withActionMarker(newCourseBody(request), "new-course", {
+    slug: titleSlug(request.title.trim()),
+    title: request.title.trim(),
+  });
+}
+
+function newCourseBody(request: NewCourseRequest): string {
   const material = request.material.trim()
     ? `资料：${request.material.trim()}。`
     : "资料还没定，先问我要用什么资料。";
@@ -83,10 +102,14 @@ export function newCoursePrompt(request: NewCourseRequest): string {
       placement.role === "aux"
         ? "每节不超过 45 分钟、只做了解、不出检查题"
         : "每节 90 分钟、按教材章节切课次、不估时长；讲后读原书核心页";
+    const tail =
+      placement.role === "aux"
+        ? `从今天之后第一个上课日开始排，--end 用 ${placement.end}（${placement.cycle} 结束）只铺课、加 elastic，不设完结（不写「留到下个周期」）`
+        : `从今天之后第一个上课日排到 ${placement.end}（${placement.cycle} 结束），主项加 elastic`;
     return [
       `/skill:course 新建课程「${request.title.trim()}」。`,
       material,
-      `这是 ${placement.cycle} ${role}课（科目：${placement.subjectName}），只排在${placement.days.join("、")}，${length}，从今天之后第一个上课日排到 ${placement.end}（${placement.cycle} 结束），排不下的留到下个周期；原书「${READING_NAMES[request.reading]}」${styleClause(request.style)}。`,
+      `这是 ${placement.cycle} ${role}课（科目：${placement.subjectName}），只排在${placement.days.join("、")}，${length}，${tail}；原书「${READING_NAMES[request.reading]}」${styleClause(request.style)}。`,
       "按 course 技能「学习周期里的课」排期（--days 用这几天，--reviews anki），建好后在科目页资料行补短名链接，并跑 cycle.mjs check。",
       "建好后先用三五行告诉我本周期能学到哪里，再开始第一课。",
     ].join("");

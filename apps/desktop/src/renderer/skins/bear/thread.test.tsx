@@ -20,6 +20,7 @@ function renderThread(header: ReactNode | null, noModels = false): void {
   render(
     <Thread
       header={headerNode}
+      older={null}
       messages={[]}
       thinking={false}
       noModels={noModels}

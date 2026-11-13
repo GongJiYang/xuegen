@@ -12,6 +12,7 @@ import { forwardRef, useEffect, useRef, useState } from "react";
 import type { BodyFont, ModelInfo, TeachingStyle } from "@shared/protocol.js";
 import { BODY_FONTS, TEACHING_STYLE_LABELS, THINKING_LEVEL_LABELS } from "@shared/protocol.js";
 import { strings } from "../../core/strings.js";
+import { now } from "../../core/today.js";
 import { shortModelName } from "../../core/chat/model-short-name.js";
 import type { ToolDescriptor, ToolId } from "../contract.js";
 import { PALETTES, PALETTE_IDS, PALETTE_OPTION_KEY, resolvePaletteId } from "./palette.js";
@@ -322,7 +323,7 @@ function buildMenus(
 
 /** The date in the bar's right corner, e.g. "11月3日 周一". */
 function todayLabel(): string {
-  const now = new Date();
-  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()] ?? "";
-  return `${now.getMonth() + 1}月${now.getDate()}日 ${weekday}`;
+  const day = now();
+  const weekday = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][day.getDay()] ?? "";
+  return `${day.getMonth() + 1}月${day.getDate()}日 ${weekday}`;
 }

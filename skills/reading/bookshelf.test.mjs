@@ -33,15 +33,20 @@ async function makeVault() {
   return dir;
 }
 
+// expectFail: true 时命令必须非零退出。成功 / 失败的判断放在 try 外面——`assert.fail`
+// 写在 try 里会被同一个 catch 吞掉，命令成功时也当成「失败了」返回，测试就空转。
 async function b(args, { expectFail = false } = {}) {
+  let result;
   try {
     const { stdout } = await run("node", [SCRIPT, ...args], { encoding: "utf8" });
-    if (expectFail) assert.fail(`期望失败但成功：${args.join(" ")}\n${stdout}`);
-    return { code: 0, stdout };
+    result = { ok: true, code: 0, stdout };
   } catch (error) {
-    if (!expectFail) throw error;
-    return { code: error.code ?? 1, stderr: error.stderr ?? "", stdout: error.stdout ?? "" };
+    result = { ok: false, code: error.code ?? 1, stderr: error.stderr ?? "", stdout: error.stdout ?? "" };
   }
+  const margin = result.ok ? result.stdout : result.stderr;
+  if (expectFail && result.ok) assert.fail(`期望失败但成功：${args.join(" ")}\n${margin}`);
+  if (!expectFail && !result.ok) assert.fail(`期望成功却失败：${args.join(" ")}\n${margin}`);
+  return result;
 }
 
 async function jsonB(args) {
@@ -528,7 +533,7 @@ test("原子写入：不留临时文件", async () => {
   await rm(vault, { recursive: true, force: true });
 });
 
-// ---- 纯函数：页码列表、核心页已读、摘录 ----
+// ---- 纯函数：页码列表、讲后读已读、摘录 ----
 
 test("parsePageList：展开区间、接受三种分隔符与两种连接号，去重升序", () => {
   assert.deepEqual(parsePageList("1–5、7–12、31"), [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 31]);
@@ -553,7 +558,7 @@ test("formatPageList：连续段合并、单页不写区间、空数组为空串
   assert.equal(formatPageList([100, 101, 103, 104]), "100–101、103–104");
 });
 
-test("parseCoreRead：解析核心页行、保留页码原文、坏行忽略、无节为 []", () => {
+test("parseCoreRead：解析讲后读行、保留页码原文、坏行忽略、无节为 []", () => {
   const body = [
     "# 书",
     "",
@@ -573,6 +578,31 @@ test("parseCoreRead：解析核心页行、保留页码原文、坏行忽略、�
   ]);
   assert.deepEqual(parseCoreRead(["# 书", "", "## 摘录", ""]), []);
   assert.deepEqual(parseCoreRead([]), []);
+});
+
+test("parseCoreRead：新标题 `## 讲后读已读` 也读，新旧两节都在时都读", () => {
+  const fresh = [
+    "# 书",
+    "",
+    "## 讲后读已读",
+    "",
+    "- pp.1–5 · discrete-math-epp · §1.1 · 2026-11-10",
+    "",
+    "## 读书记录",
+  ];
+  assert.deepEqual(parseCoreRead(fresh), [
+    { pages: "1–5", course: "discrete-math-epp", label: "§1.1", date: "2026-11-10" },
+  ]);
+  const both = [
+    "## 讲后读已读",
+    "- pp.1–5 · discrete-math-epp · §1.1 · 2026-11-10",
+    "",
+    "## 核心页已读",
+    "- pp.6–9 · discrete-math-epp · §1.2 · 2026-11-11",
+    "",
+    "## 读书记录",
+  ];
+  assert.deepEqual(parseCoreRead(both).map((row) => row.pages), ["1–5", "6–9"]);
 });
 
 test("parseExtracts：解析摘录行、index 是匹配行序号、坏行忽略、无节为 []", () => {
@@ -613,7 +643,7 @@ test("bookView.coreOverlap：与今天这块有交集时列出交集页", () => 
       "## 分段",
       "1. Ch1 pp.1–36",
       "",
-      "## 核心页已读",
+      "## 讲后读已读",
       "",
       "- pp.1–5、7–12、20–21 · discrete-math-epp · §1.1 核心页 · 2026-11-10",
       "",
@@ -634,7 +664,7 @@ test("bookView.coreOverlap：无交集与读完全部分段时为 null", () => {
       "## 分段",
       "1. Ch1 pp.1–36",
       "",
-      "## 核心页已读",
+      "## 讲后读已读",
       "",
       "- pp.1–5 · discrete-math-epp · §1.1 核心页 · 2026-11-10",
       "",
@@ -652,7 +682,7 @@ test("bookView.coreOverlap：无交集与读完全部分段时为 null", () => {
       "## 分段",
       "1. Ch1 pp.1–36",
       "",
-      "## 核心页已读",
+      "## 讲后读已读",
       "",
       "- pp.1–5 · discrete-math-epp · §1.1 核心页 · 2026-11-10",
       "",
@@ -743,8 +773,8 @@ test("lecture：追加读书记录与核心页行，不改 position/status", asy
   assert.match(page, /^- pp\.1–5、7–12 · discrete-math-epp · §1\.1 核心页 · 2026-11-10$/m);
   assert.match(page, /^position: 0$/m, "lecture 不改 position");
   assert.match(page, /^status: reading$/m, "lecture 不改 status");
-  // 节顺序：核心页已读 → 摘录 → 读书记录
-  assert.ok(page.indexOf("## 核心页已读") < page.indexOf("## 读书记录"));
+  // 节顺序：讲后读已读 → 摘录 → 读书记录
+  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"));
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -757,7 +787,7 @@ test("lecture：不给 --pages 时只记读书记录，pages 为 null", async ()
   assert.equal(result.pages, null);
   const page = await readBook(vault, "epp");
   assert.match(page, /^- 2026-11-10: 讲后读 §1\.2 已读（discrete-math-epp，用户自报）$/m);
-  assert.ok(!page.includes("## 核心页已读"), "不给 --pages 不应新建核心页一节");
+  assert.ok(!page.includes("## 讲后读已读"), "不给 --pages 不应新建讲后读已读一节");
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -839,7 +869,7 @@ test("lecture：不同 course 或不同 pages 仍照常追加", async () => {
   ]);
   assert.equal(otherPages.already, false);
   const page = await readBook(vault, "epp");
-  assert.equal(page.match(/^## 核心页已读$/gm).length, 1);
+  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
   assert.match(page, /^- pp\.1–5 · linear-algebra · §1\.1 · 2026-11-11$/m);
   assert.match(page, /^- pp\.6–9 · discrete-math-epp · §1\.2 · 2026-11-12$/m);
   await rm(vault, { recursive: true, force: true });
@@ -865,6 +895,97 @@ test("lecture：不给 --pages 时按读书记录里的同课同标签查重", a
   assert.equal(otherCourse.already, false);
   const page = await readBook(vault, "epp");
   assert.match(page, /^- 2026-11-11: 讲后读 D1 已读（linear-algebra，用户自报）$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- 讲后读已读：新标题 + 旧标题兼容 ----
+
+/** 手写的旧式书页：只有 `## 核心页已读` 一节（旧标题）+ 读书记录。 */
+async function writeLegacyBook(vault, slug = "epp") {
+  return writeBook(
+    vault,
+    slug,
+    EPP_FIELDS,
+    [
+      `# ${slug}`,
+      "",
+      "## 分段",
+      "1. Ch1 pp.1–36",
+      "",
+      "## 核心页已读",
+      "",
+      "- pp.11–20 · discrete-math-epp · §1.1 核心页 · 2026-11-08",
+      "",
+      "## 读书记录",
+      "",
+    ].join("\n"),
+  );
+}
+
+test("lecture：新书页写 `## 讲后读已读`，不再出现 `## 核心页已读`", async () => {
+  const vault = await makeVault();
+  const file = await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await jsonB([
+    "lecture", vault, "epp", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
+  ]);
+  const page = await readFile(file, "utf8");
+  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
+  assert.ok(!page.includes("## 核心页已读"), "新写入不应再用旧标题");
+  assert.match(page, /^- pp\.1–5 · discrete-math-epp · §1\.1 · 2026-11-10$/m);
+  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"), "讲后读已读在读书记录之前");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("旧书页 `## 核心页已读`：list.coreRead 与 today.coreOverlap 照常读", async () => {
+  const vault = await makeVault();
+  await writeLegacyBook(vault);
+  const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  assert.deepEqual(list[0].coreRead, [
+    { pages: "11–20", course: "discrete-math-epp", label: "§1.1 核心页", date: "2026-11-08" },
+  ]);
+  // 第一块是 pp.1–9，与旧节的 11–20 无交集；第二块 10–18 有交集。
+  const today = await jsonB(["today", vault, "--today", "2026-11-10"]);
+  assert.equal(today.planned.coreOverlap, null);
+  await jsonB(["done", vault, "epp", "--today", "2026-11-10"]);
+  const next = await jsonB(["today", vault, "--today", "2026-11-11"]);
+  assert.deepEqual([next.planned.chunk.from, next.planned.chunk.to], [10, 18]);
+  assert.equal(next.planned.coreOverlap, "pp.11–18");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("旧书页再 lecture（不同页码）：旧标题改名，只有一节，旧行新行都在", async () => {
+  const vault = await makeVault();
+  await writeLegacyBook(vault);
+  const result = await jsonB([
+    "lecture", vault, "epp", "--label", "§1.2", "--course", "discrete-math-epp", "--pages", "21–30", "--today", "2026-11-11",
+  ]);
+  assert.equal(result.already, false);
+  const page = await readBook(vault, "epp");
+  assert.ok(!page.includes("## 核心页已读"), `旧标题应已改名：\n${page}`);
+  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1, "只应有一节");
+  // 旧行在前、新行在后，中间不被别的内容穿插。
+  const oldLine = page.indexOf("- pp.11–20 · discrete-math-epp · §1.1 核心页 · 2026-11-08");
+  const newLine = page.indexOf("- pp.21–30 · discrete-math-epp · §1.2 · 2026-11-11");
+  assert.ok(oldLine !== -1 && newLine !== -1);
+  assert.ok(oldLine < newLine, "旧行应保留在新行之前");
+  assert.ok(page.indexOf("## 讲后读已读") < oldLine);
+  assert.ok(newLine < page.indexOf("## 读书记录"), "两行都在讲后读已读一节里");
+  assert.doesNotMatch(page, /\n\n\n/, page);
+  // 改名后的旧行仍能被读出来。
+  const list = await jsonB(["list", vault, "--today", "2026-11-11"]);
+  assert.equal(list[0].coreRead.length, 2);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("旧书页同课同页再 lecture：旧标题下也算已记过，文件不变", async () => {
+  const vault = await makeVault();
+  await writeLegacyBook(vault);
+  const before = await readBook(vault, "epp");
+  const again = await jsonB([
+    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--pages", "11-20", "--today", "2026-11-11",
+  ]);
+  assert.equal(again.already, true);
+  assert.equal(await readBook(vault, "epp"), before, "重复 lecture 不应改动文件");
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -1053,9 +1174,9 @@ test("反复 lecture / extract 不累积空行，节顺序始终一致", async (
   }
   const page = await readBook(vault, "epp");
   assert.doesNotMatch(page, /\n\n\n/, `不应出现连续空行：\n${page}`);
-  assert.ok(page.indexOf("## 核心页已读") < page.indexOf("## 摘录"), "核心页已读在摘录之前");
+  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 摘录"), "讲后读已读在摘录之前");
   assert.ok(page.indexOf("## 摘录") < page.indexOf("## 读书记录"), "摘录在读书记录之前");
-  assert.equal(page.match(/^## 核心页已读$/gm).length, 1);
+  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
   assert.equal(page.match(/^## 摘录$/gm).length, 1);
   await rm(vault, { recursive: true, force: true });
 });
@@ -1142,7 +1263,7 @@ test("日期：started 为空的书 plan --write 后 frontmatter started 等于 
   await rm(vault, { recursive: true, force: true });
 });
 
-test("lecture：书页没有 `## 读书记录` 时补一节，核心页已读排在它前面", async () => {
+test("lecture：书页没有 `## 读书记录` 时补一节，讲后读已读排在它前面", async () => {
   const vault = await makeVault();
   await writeBook(
     vault,
@@ -1156,7 +1277,7 @@ test("lecture：书页没有 `## 读书记录` 时补一节，核心页已读排
   const page = await readBook(vault, "bare");
   assert.match(page, /^## 读书记录$/m);
   assert.match(page, /^- 2026-11-10: 讲后读 §1\.1 已读（discrete-math-epp，用户自报）$/m);
-  assert.ok(page.indexOf("## 核心页已读") < page.indexOf("## 读书记录"));
+  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"));
   assert.match(page, /^position: 3$/m, "lecture 不动 position");
   assert.doesNotMatch(page, /\n\n\n/, page);
   await rm(vault, { recursive: true, force: true });
@@ -1336,7 +1457,7 @@ test("经符号链接调用 --help 有输出（主模块判定比真实路径）
     const link = join(dir, "app");
     await symlink(HERE, link, "dir");
     const { stdout } = await run("node", [join(link, "bookshelf.mjs"), "--help"], { encoding: "utf8" });
-    assert.match(stdout, /书房：整本书通读的排期与进度/);
+    assert.match(stdout, /书房：整本书自读的排期与进度/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1374,5 +1495,483 @@ test("布局：只有旧 wiki/书房/ 时 today 不读它（当作书房为空�
     free: null,
   });
   assert.deepEqual(await jsonB(["list", vault]), []);
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- target：可选的目标日期（只和预计读完对比，不改排期）----
+
+test("target：没有 target 时 bookView 两项为 null，文本不写「目标」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const result = await jsonB(["today", vault, "--today", "2026-11-09"]);
+  assert.equal(result.planned.target, null);
+  assert.equal(result.planned.targetLate, null);
+  const list = await jsonB(["list", vault, "--today", "2026-11-09"]);
+  assert.equal(list[0].target, null);
+  assert.equal(list[0].targetLate, null);
+  const text = await b(["today", vault, "--today", "2026-11-09"]);
+  assert.doesNotMatch(text.stdout, /目标/);
+  const { stdout: index } = await b(["index", vault, "--today", "2026-11-09"]);
+  assert.doesNotMatch(index, /目标/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target：早于预计读完 → targetLate 是差的天数，list/today/index 都写「晚 N 天」", async () => {
+  const vault = await makeVault();
+  // started 11-09、7 块、today 11-09 → 预计 11-15 读完；目标 11-12 → 晚 3 天。
+  await writeBook(vault, "epp", { ...EPP_FIELDS, target: "2026-11-12" }, EPP_BODY);
+  const today = await jsonB(["today", vault, "--today", "2026-11-09"]);
+  assert.equal(today.planned.target, "2026-11-12");
+  assert.equal(today.planned.targetLate, 3);
+
+  const list = await jsonB(["list", vault, "--today", "2026-11-09"]);
+  assert.equal(list[0].target, "2026-11-12");
+  assert.equal(list[0].targetLate, 3);
+  const listText = await b(["list", vault, "--today", "2026-11-09"]);
+  assert.match(listText.stdout, /预计 2026-11-15 读完｜目标 2026-11-12，晚 3 天/);
+
+  const todayText = await b(["today", vault, "--today", "2026-11-09"]);
+  assert.match(todayText.stdout, /预计 2026-11-15 读完，目标 2026-11-12，晚 3 天/);
+
+  const { stdout: index } = await b(["index", vault, "--today", "2026-11-09"]);
+  assert.match(index, /预计 2026-11-15 读完 · 目标 2026-11-12（晚 3 天）/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target：晚于预计读完 → targetLate 为 0，文字只写「目标 …」不写「晚」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", { ...EPP_FIELDS, target: "2027-01-15" }, EPP_BODY);
+  const today = await jsonB(["today", vault, "--today", "2026-11-09"]);
+  assert.equal(today.planned.target, "2027-01-15");
+  assert.equal(today.planned.targetLate, 0);
+  const listText = await b(["list", vault, "--today", "2026-11-09"]);
+  assert.match(listText.stdout, /｜目标 2027-01-15/);
+  assert.doesNotMatch(listText.stdout, /晚/, listText.stdout);
+  const todayText = await b(["today", vault, "--today", "2026-11-09"]);
+  assert.match(todayText.stdout, /预计 2026-11-15 读完，目标 2027-01-15/);
+  assert.doesNotMatch(todayText.stdout, /晚/, todayText.stdout);
+  const { stdout: index } = await b(["index", vault, "--today", "2026-11-09"]);
+  assert.match(index, / · 目标 2027-01-15/);
+  assert.doesNotMatch(index, /晚/, index);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target：排队书的 targetLate 按串接的预计读完算，不按今天算", async () => {
+  const vault = await makeVault();
+  // 在读书 11-09 起 7 块、today 11-10 → 11-16；排队书 3 块从 11-17 起 → 11-19。
+  // 目标 11-18 → 晚 1 天（按串接的 11-19，不是从今天起算的 11-12，那样是 0）。
+  await writeBook(vault, "reading-book", EPP_FIELDS, EPP_BODY);
+  await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Queued"', short: '"Q"', started: '""', position: 0, target: "2026-11-18" },
+    "# Queued\n\n## 分段\n1. S pp.1–29\n",
+  );
+  const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  const queued = list.find((item) => item.slug === "queued-book");
+  assert.equal(queued.end, "2026-11-19");
+  assert.equal(queued.target, "2026-11-18");
+  assert.equal(queued.targetLate, 1, "按 queueEnds 的 end 算");
+  const listText = await b(["list", vault, "--today", "2026-11-10"]);
+  assert.match(listText.stdout, /queued-book.*目标 2026-11-18，晚 1 天/);
+  const { stdout: index } = await b(["index", vault, "--today", "2026-11-10"]);
+  assert.match(index, /\[\[shelf\/queued-book\|Q\]\] · Queued · 0\/3 段 · 预计 2026-11-19 读完 · 目标 2026-11-18（晚 1 天）/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target：frontmatter 里乱写的值当作没有，不报错", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", { ...EPP_FIELDS, target: "乱写" }, EPP_BODY);
+  const today = await jsonB(["today", vault, "--today", "2026-11-09"]);
+  assert.equal(today.planned.target, null);
+  assert.equal(today.planned.targetLate, null);
+  const text = await b(["today", vault, "--today", "2026-11-09"]);
+  assert.doesNotMatch(text.stdout, /目标/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target 命令：--date 写入裸日期，--clear 清空，其余字段不动", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const text = await b(["target", vault, "epp", "--date", "2026-11-12", "--today", "2026-11-09"]);
+  assert.match(text.stdout, /^target: epp 目标 2026-11-12$/m);
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^target: 2026-11-12$/m, "target 写成裸日期，不加引号");
+  assert.match(page, /^position: 0$/m);
+  assert.match(page, /^started: 2026-11-09$/m);
+  assert.match(page, /^title: "Discrete Mathematics with Applications"$/m);
+  assert.ok(existsSync(join(vault, "wiki", "shelf", "index.md")), "target 后应重写 index.md");
+
+  const set = await jsonB(["target", vault, "epp", "--date", "2026-11-12", "--today", "2026-11-09"]);
+  assert.deepEqual(set, { slug: "epp", target: "2026-11-12", end: "2026-11-15", targetLate: 3 });
+
+  const cleared = await jsonB(["target", vault, "epp", "--clear", "--today", "2026-11-09"]);
+  assert.equal(cleared.target, null);
+  assert.equal(cleared.targetLate, null);
+  const after = await readBook(vault, "epp");
+  assert.match(after, /^target: ""$/m, "--clear 后 target 留空值");
+  const clearedText = await b(["target", vault, "epp", "--clear", "--today", "2026-11-09"]);
+  assert.match(clearedText.stdout, /^target: epp 不设目标$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("target 命令：坏日期、两个都没给或都给了 → 报错且不动文件", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const before = await readBook(vault, "epp");
+  const badDate = await b(["target", vault, "epp", "--date", "2026-13-40"], { expectFail: true });
+  assert.equal(badDate.code !== 0, true);
+  assert.match(badDate.stderr, /目标日期要写成 YYYY-MM-DD/);
+  const noDate = await b(["target", vault, "epp", "--date"], { expectFail: true });
+  assert.match(noDate.stderr, /目标日期要写成 YYYY-MM-DD/);
+  const both = await b(["target", vault, "epp", "--date", "2026-11-12", "--clear"], { expectFail: true });
+  assert.match(both.stderr, /--date <日期> 或 --clear 二选一/);
+  const neither = await b(["target", vault, "epp"], { expectFail: true });
+  assert.match(neither.stderr, /--date <日期> 或 --clear 二选一/);
+  assert.equal(await readBook(vault, "epp"), before, "报错时不应改动书页");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("done：有 target 的书记一段后 target 不丢，index 仍显示目标", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", { ...EPP_FIELDS, target: "2026-11-12" }, EPP_BODY);
+  await jsonB(["done", vault, "epp", "--today", "2026-11-10"]);
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^target: 2026-11-12$/m);
+  assert.match(page, /^position: 1$/m);
+  const index = await readFile(join(vault, "wiki", "shelf", "index.md"), "utf8");
+  assert.match(index, /目标 2026-11-12/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("index：读完的书不显示目标", async () => {
+  const vault = await makeVault();
+  await writeBook(
+    vault,
+    "done-book",
+    { ...EPP_FIELDS, status: "done", position: 7, target: "2026-11-12" },
+    "# Done\n\n## 分段\n1. Ch1 pp.1–36\n2. Ch2 pp.37–65\n\n## 读书记录\n- 2026-11-12: 第 7 段 pp.57–65 读完（用户自报）\n",
+  );
+  const { stdout: index } = await b(["index", vault, "--today", "2026-11-15"]);
+  assert.match(index, /2026-11-12 读完/);
+  assert.doesNotMatch(index, /目标/, index);
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- list --from/--to：每段的日子（schedule）----
+
+test("list --from/--to：在读书给每段的日子（已读按记录日、过去没读按原定日、今天起顺延）", async () => {
+  const vault = await makeVault();
+  await writeBook(
+    vault,
+    "epp",
+    { ...EPP_FIELDS, position: 2 },
+    "# Epp\n\n## 分段\n1. Ch1 pp.1–36\n2. Ch2 pp.37–65\n\n## 读书记录\n- 2026-11-09: 第 1 段 pp.1–9 读完（用户自报）\n- 2026-11-11: 第 2 段 pp.10–18 读完（用户自报）\n",
+  );
+  const list = await jsonB(["list", vault, "--today", "2026-11-12", "--from", "2026-11-09", "--to", "2026-11-13"]);
+  const epp = list.find((item) => item.slug === "epp");
+  // 块 2 晚了一天读（11-11）。块 3 的原定日子 11-11 已经过去还没读 → 那天标 missed
+  //；同一块顺延到今天的 11-12 再出现一行（设计如此）。块 4 顺延到 11-13。
+  assert.deepEqual(
+    epp.schedule.map((row) => [row.index, row.date, row.done, row.missed === true]),
+    [
+      [1, "2026-11-09", true, false],
+      [2, "2026-11-11", true, false],
+      [3, "2026-11-11", false, true],
+      [3, "2026-11-12", false, false],
+      [4, "2026-11-13", false, false],
+    ],
+  );
+  assert.equal(epp.schedule[0].title, "Ch1");
+  assert.deepEqual([epp.schedule[0].from, epp.schedule[0].to], [1, 9]);
+  // 顺延后的日期是连续的原定日之后的：明天的段就是今天那段的下一个段。
+  assert.deepEqual(
+    epp.schedule.filter((row) => row.date >= "2026-11-12").map((row) => [row.date, row.index]),
+    [
+      ["2026-11-12", 3],
+      ["2026-11-13", 4],
+    ],
+  );
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list --from/--to：一段没读时，今天按顺延后的排期（今天是第 1 段，不是第 4 段）", async () => {
+  const vault = await makeVault();
+  // 设计稿的例子：Epp 11-09 起、一段都没读，今天 11-12 该读第 1 段。
+  await writeBook(vault, "epp", { ...EPP_FIELDS, position: 0 }, EPP_BODY);
+  const list = await jsonB(["list", vault, "--today", "2026-11-12", "--from", "2026-11-09", "--to", "2026-11-13"]);
+  const epp = list.find((item) => item.slug === "epp");
+  assert.deepEqual(
+    epp.schedule.map((row) => [row.date, row.index, row.missed === true]),
+    [
+      ["2026-11-09", 1, true],
+      ["2026-11-10", 2, true],
+      ["2026-11-11", 3, true],
+      ["2026-11-12", 1, false],
+      ["2026-11-13", 2, false],
+    ],
+  );
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list --from/--to：排队书按 queueEnds 串接的起点每天一段", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "reading-book", EPP_FIELDS, EPP_BODY);
+  await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Queued"', short: '"Q"', started: '""', position: 0 },
+    "# Queued\n\n## 分段\n1. S pp.1–29\n",
+  );
+  const list = await jsonB(["list", vault, "--today", "2026-11-10", "--from", "2026-11-15", "--to", "2026-11-20"]);
+  const queued = list.find((item) => item.slug === "queued-book");
+  // 在读书 11-16 预计读完，排队书 11-17 起、3 段。
+  assert.deepEqual(
+    queued.schedule.map((row) => [row.index, row.date, row.done]),
+    [
+      [1, "2026-11-17", false],
+      [2, "2026-11-18", false],
+      [3, "2026-11-19", false],
+    ],
+  );
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list --from/--to：读完的书只给已读的行", async () => {
+  const vault = await makeVault();
+  await writeBook(
+    vault,
+    "done-book",
+    { ...EPP_FIELDS, status: "done", position: 3 },
+    "# Done\n\n## 分段\n1. S pp.1–29\n\n## 读书记录\n- 2026-11-08: 第 1 段 pp.1–10 读完（用户自报）\n- 2026-11-09: 第 2 段 pp.11–20 读完（用户自报）\n- 2026-11-10: 第 3 段 pp.21–29 读完（用户自报）\n",
+  );
+  const list = await jsonB(["list", vault, "--today", "2026-11-11", "--from", "2026-11-01", "--to", "2026-11-30"]);
+  const done = list.find((item) => item.slug === "done-book");
+  assert.deepEqual(
+    done.schedule.map((row) => [row.index, row.date, row.done]),
+    [
+      [1, "2026-11-08", true],
+      [2, "2026-11-09", true],
+      [3, "2026-11-10", true],
+    ],
+  );
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list --from/--to：范围外 schedule 是空数组；不给参数时没有 schedule 键", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const ranged = await jsonB(["list", vault, "--today", "2026-11-10", "--from", "2026-12-01", "--to", "2026-12-07"]);
+  assert.deepEqual(ranged.find((item) => item.slug === "epp").schedule, []);
+  const plain = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  assert.ok(!("schedule" in plain.find((item) => item.slug === "epp")), "不给 --from/--to 时不得出现 schedule 键");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("list --from/--to：坏日期、只给一个、from 晚于 to 都报错", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  for (const [args, pattern] of [
+    [["--from", "2026-13-01", "--to", "2026-11-10"], /日期非法/],
+    [["--from", "not-a-date", "--to", "2026-11-10"], /日期非法/],
+    [["--from", "2026-11-10"], /一起给/],
+    [["--to", "2026-11-10"], /一起给/],
+    [["--from", "2026-11-12", "--to", "2026-11-10"], /晚于/],
+  ]) {
+    const fail = await b(["list", vault, "--today", "2026-11-10", ...args], { expectFail: true });
+    // expectFail 会把「命令其实成功了」吞成空 stderr；断 stderr 才能确定是真失败。
+    assert.match(fail.stderr, pattern, `${args.join(" ")} 应报对应错误`);
+  }
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- pause / resume：暂停＝停在当前进度不再往后排；恢复后从明天接着排 ----
+
+// 读到一半的书：position 2（第 1、2 段有记录），共 7 块 → 原下一段是第 3 块（Ch1 pp.19–27）。
+const MID_BODY =
+  "# Epp\n\n## 分段\n1. Ch1 pp.1–36\n2. Ch2 pp.37–65\n\n## 读书记录\n" +
+  "- 2026-11-08: 第 1 段 pp.1–9 读完（用户自报）\n" +
+  "- 2026-11-09: 第 2 段 pp.10–18 读完（用户自报）\n";
+const MID_FIELDS = { ...EPP_FIELDS, position: 2 };
+
+const QUEUED_FIELDS = {
+  kind: "book",
+  slot: "planned",
+  order: 2,
+  status: "queued",
+  title: '"Q"',
+  short: '"Q"',
+  started: '""',
+  position: 0,
+};
+
+test("pause：在读书暂停 → status paused、记「暂停」、index 有「暂停」、today 不再出段", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  const result = await jsonB(["pause", vault, "epp", "--today", "2026-11-10"]);
+  assert.equal(result.slug, "epp");
+  assert.equal(result.status, "paused");
+  assert.equal(result.position, 2);
+
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^status: paused$/m);
+  assert.match(page, /^position: 2$/m, "暂停不动 position");
+  assert.match(page, /^- 2026-11-10: 暂停$/m);
+
+  // index.md 由 pause 重写：epp 进「暂停」一组。
+  const index = await readFile(join(vault, "wiki", "shelf", "index.md"), "utf8");
+  assert.match(index, /^## 暂停$/m);
+  assert.match(index, /^- \[\[shelf\/epp\|Epp\]\] · .*? · 2\/7 段 · 已暂停$/m, index);
+
+  // today 不给暂停的书出今天的段。
+  const today = await jsonB(["today", vault, "--today", "2026-11-10"]);
+  assert.equal(today.planned, null);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("pause：queued / paused / done 的书报错，文件不动", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await writeBook(vault, "queued-book", QUEUED_FIELDS, "# Q\n\n## 分段\n1. S pp.1–29\n");
+  await writeBook(
+    vault,
+    "done-book",
+    { ...EPP_FIELDS, order: 3, status: "done", position: 1 },
+    "# Done\n\n## 分段\n1. S pp.1–1\n\n## 读书记录\n- 2026-11-08: 第 1 段 pp.1–1 读完（用户自报）\n",
+  );
+  await b(["pause", vault, "epp", "--today", "2026-11-10"]);
+  for (const slug of ["epp", "queued-book", "done-book"]) {
+    const before = await readBook(vault, slug);
+    const fail = await b(["pause", vault, slug, "--today", "2026-11-10"], { expectFail: true });
+    assert.match(fail.stderr, /只有在读的书可以暂停/, slug);
+    assert.equal(await readBook(vault, slug), before, `${slug} 不应被改动`);
+  }
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("pause：计划内书暂停仍占位——paused 书 end 空串、upcoming []，排队书不提前也不开", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await writeBook(vault, "queued-book", QUEUED_FIELDS, "# Q\n\n## 分段\n1. S pp.1–29\n");
+  await b(["pause", vault, "epp", "--today", "2026-11-10"]);
+
+  const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  const paused = list.find((item) => item.slug === "epp");
+  const queued = list.find((item) => item.slug === "queued-book");
+  assert.equal(paused.status, "paused");
+  assert.deepEqual(paused.upcoming, []);
+  // 「没日期」与 done 书一样始终是字符串：空串（同排队书 started "" 的写法），不是 null。
+  assert.equal(paused.end, "");
+  assert.equal(paused.target, null);
+  assert.equal(paused.targetLate, null);
+  // 暂停仍占位：排队书不从今天起算（预计读完没法给 → 空串），也不会被自动开。
+  assert.equal(queued.status, "queued");
+  assert.equal(queued.end, "");
+  const queuedPage = await readBook(vault, "queued-book");
+  assert.match(queuedPage, /^status: queued$/m);
+  assert.doesNotMatch(queuedPage, /^started: 2026/m, "排队书不应被排上");
+  assert.doesNotMatch(queuedPage, /xuegen:shelf:start/, "排队书不应被写入排期");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("queueEnds：计划内书暂停仍占位，排队书没有预计读完（空串）", () => {
+  const paused = shelfEntry(
+    "paused-book",
+    [
+      ["kind", "book"],
+      ["slot", "planned"],
+      ["order", "1"],
+      ["status", "paused"],
+      ["title", '"P"'],
+      ["short", '"P"'],
+      ["started", "2026-11-09"],
+      ["position", "2"],
+    ],
+    MID_BODY,
+  );
+  const ends = queueEnds([paused, queuedEntry("q1", 2, 29), queuedEntry("q2", 3, 11)], "2026-11-12");
+  assert.equal(ends.get("q1"), "", "暂停的书没法预计恢复日，排队书也就没法预计读完");
+  assert.equal(ends.get("q2"), "");
+});
+
+test("resume：恢复 → status reading、started = 明天 − 已读段数、排期从明天接着排", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await b(["pause", vault, "epp", "--today", "2026-11-10"]);
+  const result = await jsonB(["resume", vault, "epp", "--today", "2026-11-12"]);
+  assert.equal(result.slug, "epp");
+  assert.equal(result.status, "reading");
+  assert.equal(result.position, 2);
+  // 明天 11-13 − 已读 2 段 = 11-11；这样第 3 段（原来的下一段）正好落在 11-13。
+  assert.equal(result.started, "2026-11-11");
+
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^status: reading$/m);
+  assert.match(page, /^started: 2026-11-11$/m);
+  assert.match(page, /^- 2026-11-12: 恢复，明天接着读$/m);
+  // 重写后的排期：已读段仍按记录日，未读段从明天（11-13）起每天一块。
+  assert.match(page, /^\| 1 \| 2026-11-08 \| Ch1 pp\.1–9 \|$/m);
+  assert.match(page, /^\| 3 \| 2026-11-13 \| Ch1 pp\.19–27 \|$/m, "明天那段是原来的下一段");
+  assert.match(page, /^\| 4 \| 2026-11-14 \|/m);
+
+  // index 重写：epp 回到「在读」，没有「暂停」组。
+  const index = await readFile(join(vault, "wiki", "shelf", "index.md"), "utf8");
+  const readingSection = index.slice(index.indexOf("## 在读"), index.indexOf("## 暂停"));
+  assert.ok(readingSection.includes("[[shelf/epp|Epp]]"), readingSection);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("resume：恢复后 today/upcoming 的下一段是原来的下一段（明天起）", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await b(["pause", vault, "epp", "--today", "2026-11-10"]);
+  await b(["resume", vault, "epp", "--today", "2026-11-12"]);
+  const today = await jsonB(["today", vault, "--today", "2026-11-12"]);
+  assert.equal(today.planned.slug, "epp");
+  assert.equal(today.planned.chunk.index, 3, "下一段仍是暂停前的下一段");
+  assert.equal(today.planned.end, "2026-11-17", "明天 11-13 起剩 5 块 → 11-17");
+  const list = await jsonB(["list", vault, "--today", "2026-11-12"]);
+  const item = list.find((entry) => entry.slug === "epp");
+  assert.equal(item.upcoming[0].index, 3);
+  assert.equal(item.upcoming[0].date, "2026-11-13");
+  assert.equal(item.end, "2026-11-17");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("resume：reading / queued / done 的书报错", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await writeBook(vault, "queued-book", QUEUED_FIELDS, "# Q\n\n## 分段\n1. S pp.1–29\n");
+  await writeBook(
+    vault,
+    "done-book",
+    { ...EPP_FIELDS, order: 3, status: "done", position: 1 },
+    "# Done\n\n## 分段\n1. S pp.1–1\n\n## 读书记录\n- 2026-11-08: 第 1 段 pp.1–1 读完（用户自报）\n",
+  );
+  for (const slug of ["epp", "queued-book", "done-book"]) {
+    const fail = await b(["resume", vault, slug, "--today", "2026-11-12"], { expectFail: true });
+    assert.match(fail.stderr, /只有暂停的书可以恢复/, slug);
+  }
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("resume：恢复当天 today 标 resumedToday，文字说「今天恢复，明天从…接着读」；次日恢复普通「下一段」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", MID_FIELDS, MID_BODY);
+  await b(["pause", vault, "epp", "--today", "2026-11-12"]);
+  await b(["resume", vault, "epp", "--today", "2026-11-13"]);
+
+  const resumed = await jsonB(["today", vault, "--today", "2026-11-13"]);
+  assert.equal(resumed.planned.resumedToday, true, "恢复当天要标出来");
+  assert.equal(resumed.planned.chunk.index, 3, "下一段仍是原来的下一段");
+  const text = (await b(["today", vault, "--today", "2026-11-13"])).stdout;
+  assert.match(text, /今天恢复，明天从 Ch1 pp\.19–27 接着读/, text);
+  assert.doesNotMatch(text, /下一段/, "恢复当天不再说「下一段」读于今天");
+
+  // 次日：恢复记录是昨天的，today 恢复普通说法。
+  const next = await jsonB(["today", vault, "--today", "2026-11-14"]);
+  assert.equal(next.planned.resumedToday, false);
+  const nextText = (await b(["today", vault, "--today", "2026-11-14"])).stdout;
+  assert.match(nextText, /下一段 Ch1 pp\.19–27/, nextText);
   await rm(vault, { recursive: true, force: true });
 });

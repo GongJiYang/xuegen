@@ -13,11 +13,12 @@ import { assertNever, normalizeDesktopSettings } from "../../shared/protocol.js"
 import { readSettings, writeSettings } from "../settings.js";
 import { runScript, runScriptPlain } from "./scripts.js";
 import { generatedDir, readVaultRoot } from "./vault.js";
-import { fetchAnkiStatus } from "./anki.js";
+import { ankiUrlOverride, fetchAnkiStatus } from "./anki.js";
 import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
 import { listReadingSources } from "./sources.js";
 import { listSessions } from "./sessions.js";
 import { resolveHome } from "../../agent/environment.js";
+import { todayOverride } from "../today.js";
 
 /**
  * A first full Anki sync writes hundreds of notes one round-trip at a time, so it
@@ -91,6 +92,13 @@ async function handleScriptRequest(
   const vault = requireVault();
   if ("failure" in vault) return vault.failure;
 
+  // The XUEGEN_TODAY override is injected as `--today` only into script calls
+  // that carry no date of their own *and* whose script accepts the flag
+  // (reading-queue.mjs / bookshelf.mjs: every command). A request that already
+  // carries a date — the renderer computed it with the same override — and a
+  // script without the flag (course-state.mjs, flashcards.mjs, anki-sync.mjs)
+  // are both left exactly as before.
+  const today = todayOverride();
   switch (request.kind) {
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
@@ -156,21 +164,21 @@ async function handleScriptRequest(
       return { ok: true, data: { label: request.label, reading, book } };
     }
     case "reading.today":
-      return runScript("reading/reading-queue.mjs", [
+      return runScript("reading/reading-queue.mjs", withToday([
         "today",
         vault.vault,
         "--limit",
         String(request.limit),
         "--json",
-      ]);
+      ], today));
     case "reading.stats":
-      return runScript("reading/reading-queue.mjs", ["stats", vault.vault, "--json"]);
+      return runScript("reading/reading-queue.mjs", withToday(["stats", vault.vault, "--json"], today));
     case "reading.sources":
       return { ok: true, data: listReadingSources(vault.vault) };
     case "reading.queue":
-      return runScript("reading/reading-queue.mjs", ["list", vault.vault, "--json"]);
+      return runScript("reading/reading-queue.mjs", withToday(["list", vault.vault, "--json"], today));
     case "reading.add":
-      return runScript("reading/reading-queue.mjs", [
+      return runScript("reading/reading-queue.mjs", withToday([
         "add",
         vault.vault,
         request.source,
@@ -179,7 +187,7 @@ async function handleScriptRequest(
         "--due",
         request.due,
         "--json",
-      ]);
+      ], today));
     case "reading.review": {
       // `--position` is optional: omit it entirely (rather than passing an empty
       // value) so the script leaves the stored position untouched.
@@ -192,7 +200,7 @@ async function handleScriptRequest(
         "--json",
       ];
       if (request.position !== undefined) args.splice(args.length - 1, 0, "--position", request.position);
-      return runScript("reading/reading-queue.mjs", args);
+      return runScript("reading/reading-queue.mjs", withToday(args, today));
     }
     case "shelf.today":
       return runScript("reading/bookshelf.mjs", [
@@ -202,8 +210,15 @@ async function handleScriptRequest(
         request.today,
         "--json",
       ]);
-    case "shelf.list":
-      return runScript("reading/bookshelf.mjs", ["list", vault.vault, "--json"]);
+    case "shelf.list": {
+      // The optional range asks the script for each book's `schedule` rows;
+      // the protocol validator already guarantees from/to come as a pair.
+      const args = ["list", vault.vault, "--json"];
+      if (request.from !== undefined && request.to !== undefined) {
+        args.push("--from", request.from, "--to", request.to);
+      }
+      return runScript("reading/bookshelf.mjs", withToday(args, today));
+    }
     case "shelf.done":
       return runScript("reading/bookshelf.mjs", [
         "done",
@@ -253,7 +268,10 @@ async function handleScriptRequest(
       ]);
     case "cards.sync": {
       // 直连 AnkiConnect 把未同步卡片写进 Anki 并回填 <!--ID:-->；dryRun 只扫描。
+      // 测试窗口设 XUEGEN_ANKI_URL 时把脚本指向假 AnkiConnect；不设时参数不变。
       const args = ["push", vault.vault, "--json"];
+      const ankiUrl = ankiUrlOverride();
+      if (ankiUrl !== null) args.push("--url", ankiUrl);
       if (request.dryRun) args.push("--dry-run");
       return runScript("wiki-save/anki-sync.mjs", args, { timeoutMs: CARDS_SYNC_TIMEOUT_MS });
     }
@@ -279,6 +297,15 @@ async function handleScriptRequest(
     default:
       return assertNever(request);
   }
+}
+
+/**
+ * Append `--today <day>` for a script call that accepts the flag, or leave the
+ * args untouched when `day` is null — the script's own local-date default then
+ * applies exactly as before.
+ */
+export function withToday(args: string[], day: string | null): string[] {
+  return day === null ? args : [...args, "--today", day];
 }
 
 /** Toggle a skill; enabling a pending skill first moves it into `skills/`. */

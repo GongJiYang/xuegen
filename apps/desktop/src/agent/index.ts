@@ -27,6 +27,7 @@ import { createEventMapperState, mapPiEvent, type EventMapperState } from "./eve
 import { historyFromEntries, type HistoryReplay } from "./history.js";
 import { sessionState } from "./snapshot.js";
 import { withSessionId } from "./session-request.js";
+import { stopSessionForRestart } from "./restart.js";
 import { runSessionRequest, type TurnDeps } from "./turn.js";
 
 /**
@@ -265,7 +266,16 @@ class AgentHost {
     role?: SessionRole | undefined;
   }): Promise<void> {
     this.unsubscribe?.();
-    this.session?.dispose();
+    try {
+      // A turn still running must be aborted and awaited before dispose, or
+      // the partial answer never lands in the session file (restart.ts).
+      await stopSessionForRestart(this.session);
+    } catch (error) {
+      this.post({
+        type: "error",
+        error: `切换前停止回答失败：${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     this.session = null;
     this.mapperState = createEventMapperState();
 

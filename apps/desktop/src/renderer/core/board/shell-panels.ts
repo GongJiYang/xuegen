@@ -17,8 +17,8 @@ import { shelfPanel } from "./shelf-view.js";
 import { withActionMarker } from "../chat/action-marker.js";
 import { strings } from "../strings.js";
 import type { BoardResource } from "./use-resource.js";
-import type { ResumePoint, TodayPlanItem } from "../today.js";
-import { dateKey, monthGrid, shiftMonth, type useCalendar } from "./use-calendar.js";
+import { todayKey, type ResumePoint, type TodayPlanItem } from "../today.js";
+import { monthGrid, shiftMonth, type useCalendar } from "./use-calendar.js";
 import type { CycleResource } from "./use-cycle.js";
 import type { useCards, useAnki } from "./use-cards.js";
 import type { CoursesResource } from "./use-courses.js";
@@ -149,7 +149,7 @@ export function shellPanels(input: ShellPanelsInput): ShellPanels {
       daySessions: (date) => input.sessions.groups.find((group) => group.date === date)?.rows ?? [],
       onOpenSession: input.sessions.onPick,
       onToday: () => {
-        const today = dateKey(new Date());
+        const today = todayKey();
         calendar.setMonth(today.slice(0, 7));
         calendar.select(today);
       },

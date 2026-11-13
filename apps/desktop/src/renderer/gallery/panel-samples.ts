@@ -25,6 +25,7 @@ export const SAMPLE_READING: ReadingStats = {
 export const SAMPLE_CARDS: CardsStats = {
   total: 469,
   unsynced: 277,
+  broken: 0,
   decks: [
     { deck: "MME", total: 100, unsynced: 26, files: [] },
     { deck: "Link", total: 144, unsynced: 46, files: [] },
@@ -187,6 +188,8 @@ export const SAMPLE_OVERVIEW: CycleOverview = {
     title: "离散数学 + 编程语言与编程范式",
     start: "2026-11-06",
     end: "2026-12-24",
+    plannedEnd: "2026-12-24",
+    delayDays: 0,
     week: 1,
     weeks: 7,
     daysLeft: 48,
@@ -280,14 +283,14 @@ const CONTROL_CALENDAR: CalendarMonth = {
     "2026-11-10": {
       records: [],
       plans: [],
-      readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 Ch2 §2.2（CTM）" }],
+      readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 · Ch2 §2.2 · CTM" }],
       log: [],
       note: null,
     },
     "2026-11-11": {
       records: [],
       plans: [],
-      readingDue: [{ slug: "discrete-math-epp#讲后读-2", title: "讲后读 §1.1–1.4 核心页（离散数学（Epp, 5th ed））" }],
+      readingDue: [{ slug: "discrete-math-epp#讲后读-2", title: "讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）" }],
       log: [],
       note: null,
     },
@@ -327,11 +330,11 @@ export const SAMPLE_CONTROL_CARD_LIGHT = must(controlCard({
 /** 今日卡 · 「读完了」等撤销：该行变 ✓ + 「撤销 · N」。 */
 export const SAMPLE_CONTROL_CARD_PENDING = withPendingRead(SAMPLE_CONTROL_CARD, {
   slug: "discrete-math-epp",
-  label: "§1.1–1.4 核心页",
+  label: "§1.1–1.4",
   left: 7,
 });
 
-/** 书房在读：Epp 第 2 段（晚了 1 天、含讲后读重叠页）；自由读空着。 */
+/** 书房在读：Epp 第 2 段（晚了 1 天、含讲后读重叠页）；计划外空着。 */
 export const SAMPLE_SHELF_TODAY: ShelfToday = {
   planned: {
     slug: "epp",
@@ -344,6 +347,7 @@ export const SAMPLE_SHELF_TODAY: ShelfToday = {
     coreOverlap: "pp.12–15",
     doneToday: false,
     doneChunk: null,
+    resumedToday: false,
     plannedEnd: "2027-01-28",
     end: "2027-01-29",
     late: 1,
@@ -351,7 +355,7 @@ export const SAMPLE_SHELF_TODAY: ShelfToday = {
   free: null,
 };
 
-/** 今日卡 · 深度日 + 书房行：Epp 待读 + 「自由读 · 还没有书」。 */
+/** 今日卡 · 深度日 + 书房行：Epp 待读（计划外空着，今日卡不提示）。 */
 export const SAMPLE_CONTROL_CARD_SHELF = must(controlCard({
   today: "2026-11-11",
   day: {
@@ -408,6 +412,8 @@ export const SAMPLE_SHELF_LIST: ShelfListItem[] = [
     position: 1,
     started: "2026-11-10",
     end: "2027-01-28",
+    target: null,
+    targetLate: null,
     extracts: [
       { index: 1, page: 14, text: "A universal statement says that a certain property is true for all elements of a set.", carded: "2026-11-09" },
       { index: 2, page: 16, text: "An existential statement says that there is at least one thing for which the property is true.", carded: null },
@@ -436,6 +442,8 @@ export const SAMPLE_SHELF_LIST: ShelfListItem[] = [
     position: 0,
     started: "",
     end: "2027-01-28",
+    target: null,
+    targetLate: null,
     extracts: [],
     coreRead: [],
     upcoming: [

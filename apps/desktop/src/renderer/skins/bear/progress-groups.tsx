@@ -167,16 +167,13 @@ export function GroupedProgress({
                     {row.course ? MARKS.now : MARKS.none}
                   </span>
                   <span className="bear-pg-title">
-                    {row.subjectName}
-                    {row.course && (
-                      <>
-                        {" · "}
-                        <b>{row.course.name}</b>
-                      </>
-                    )}
+                    <b>{row.label}</b>
                   </span>
                   {row.course ? (
-                    <span className="bear-pg-meta">{strings.plan.auxProgress(row.course.done, row.course.total)}</span>
+                    <span className="bear-pg-meta">
+                      {strings.plan.auxProgress(row.course.done, row.course.total)}
+                      {row.end && ` · ${row.end}`}
+                    </span>
                   ) : (
                     onPlanMaterial && (
                       <button type="button" className="bear-link bear-link-accent" onClick={() => onPlanMaterial(row.subjectName)}>

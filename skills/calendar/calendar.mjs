@@ -95,6 +95,7 @@ function collectCoursePlans(course) {
 }
 
 // 课程页 `## Today` 里没打勾的「讲后读 … · YYYY-MM-DD 读」→ 当天的 readingDue。
+// 标题对用户读作「讲后读 · <范围> · <课名>」：「范围」去掉内部词「核心页」，也不再套一层括号。
 function collectAfterReads(course) {
   const lines = course.text.split("\n");
   const start = lines.findIndex((line) => /^##\s+Today\s*$/.test(line));
@@ -104,7 +105,8 @@ function collectAfterReads(course) {
     if (/^##\s/.test(line)) break;
     const match = line.match(/^- \[ \] 讲后读 (.+?) · (\d{4}-\d{2}-\d{2}) 读/);
     if (!match || !isDate(match[2])) continue;
-    found.push({ date: match[2], slug: `${course.slug}#讲后读-${found.length + 1}`, title: `讲后读 ${match[1].trim()}（${course.title}）` });
+    const range = match[1].trim().replace(/核心页/g, "").trim();
+    found.push({ date: match[2], slug: `${course.slug}#讲后读-${found.length + 1}`, title: `讲后读 · ${range} · ${course.title}` });
   }
   return found;
 }

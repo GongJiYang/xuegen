@@ -65,6 +65,9 @@ function baseProps(overrides: Partial<ShellProps> = {}): ShellProps {
     onNewSession: vi.fn(),
     onOpenSessions: vi.fn(),
     sessions: { open: false, onOpenChange: vi.fn(), status: "ready", groups: [], onPick: vi.fn(), onNew: vi.fn() },
+    pendingSwitch: false,
+    confirmSwitch: vi.fn(),
+    cancelSwitch: vi.fn(),
     agentStatus: "ready",
     notices: [],
     onDismissNotice: vi.fn(),
@@ -78,6 +81,9 @@ function baseProps(overrides: Partial<ShellProps> = {}): ShellProps {
     styleCourse: null,
     onPrompt: vi.fn(),
     panels: SAMPLE_PANELS,
+    planbook: null,
+    chatOpen: false,
+    onToggleChat: vi.fn(),
     ...overrides,
   };
 }

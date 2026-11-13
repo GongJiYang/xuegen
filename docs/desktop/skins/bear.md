@@ -1,6 +1,6 @@
 # 皮肤 Bear（iA Writer / Bear 方向）
 
-- id：`bear`　版本：1.1（开发中；1.1 = 书房：今日卡读书行与摘几句、阅读面板书房一节，2026-11-09）
+- id：`bear`　版本：1.1（开发中；1.1 = 书房：今日卡读书行与摘几句、阅读面板书房一节，2026-11-09；加总控周计划本与右侧聊天栏，2026-11-11）
 - 用户确认的演示：`/Users/gjy/pi-learning/design/animate/`（仓库外，`npm run dev` 后打开 `http://localhost:5181/?d=ia`）。实现以本文为准，演示是视觉参照。
 - 依赖：`@animate-ui/react` 2.4.2（MIT + Commons Clause，只用在本私有应用，不随公开仓库分发）、`motion` 14.9.1、`radix-ui` 1.8.1。只允许在 `src/renderer/skins/bear/` 里 import（eslint 已强制）。
 
@@ -58,7 +58,7 @@
 
 | 插槽 | Bear 的做法 |
 |---|---|
-| `Shell` | 三行网格：标题栏 / 对话 / 输入区。标题栏左边 `sessionTitle ?? 自由提问`，右边依次：上下文（Popover：`contextUsage.detail`、进度条、「立即压缩」），「课程与计划」（打开抽屉），「⋯」菜单。`focusMode` 时标题栏只留「⋯」。`notices` 显示在对话列顶部，一行一条，错误用 `--danger`，可关闭。 |
+| `Shell` | 三行网格：标题栏 / 对话 / 输入区。标题栏左边 `sessionTitle ?? 自由提问`，右边依次：上下文（Popover：`contextUsage.detail`、进度条、「立即压缩」），「课程与计划」（打开抽屉），「⋯」菜单。`focusMode` 时标题栏只留「⋯」。`notices` 显示在对话列顶部，一行一条，错误用 `--danger`，可关闭。**总控会话**（`planbook` 非 null）：正文区变两栏——左 `bear-pb-area` 放计划本（自己滚动），右 `bear-pb-chat` 340px 聊天栏（`--gray-2` 底、左线 `--gray-6`，notices + Thread + Composer 在里面）；标题栏在「课程与计划」左边加「收起聊天 / 和总控聊」切换钮，抽屉打开时聊天栏隐藏让位。≤900px 聊天栏 280px 且默认收起。 |
 | 「⋯」菜单 | Animate UI `radix-ui/dropdown-menu`：新会话、继续会话、模型 ▸（`ModelPicker`）、思考强度 ▸、正文字体 ▸、正文字号 ▸、皮肤 ▸、专注模式。文案全部来自 `core/strings.ts`。 |
 | 抽屉 + `ToolDock` | Animate UI `radix-ui/dialog`（`from="right"`）做右侧抽屉，遮罩 `rgb(250 250 249 / .6)`。抽屉顶部是 `ToolDock`：一排文字标签（今天、总进度、阅读、卡片、日历、技能），用 Animate UI `radix-ui/tabs`，选中项下面一条 1px `--ink` 线滑动。**启动时抽屉关着**（应用默认的 `activeTool` 不算请求）；之后 `activeTool` 变化（⌘1–5、`/` 命令、学习菜单）就打开抽屉并定位到该标签；`onOpenTool` 由标签切换调用；关闭抽屉不清空 `activeTool` 以外的状态。 |
 | `Thread` | 42em 居中一栏；开课卡片 `intro` 与 `systemNotes` 按 `beforeIndex` 插入（同 Chicago）；「回到最新」是右下角一个文字按钮。必须用 core 的 `useFollowBottom` / `useScrollMemory` / `thinkingFor`。 |
@@ -75,6 +75,7 @@
 | 面板（Today/Progress/Reading/Cards/Calendar/Skills） | 在抽屉里，14px；列表行之间 1px `#eceef0` 分隔；进度条 2px 高、`--ink` 填充；勾选框 14px 方框 3px 圆角，对勾 `--accent`（Animate UI checkbox，对勾为自绘 SVG 路径）；数字用 Animate UI `texts/sliding-number`；「今天 / 明天」用 tabs。新课程表单、改计划输入、阅读加入框沿用各面板的 props，样式为无边框输入加底部细线。 |
 | `DayEditor` | 居中对话框（Animate UI dialog），1px `--rule` 边框，无阴影。 |
 | `BoardPanel` / `NotesPanel` | 空状态一行 `--soft` 文字。 |
+| `Planbook` | 总控的周计划本（设计 `?d=plan2`，类名 `.bear-pb-*`）：顶栏日 / 周 / 月分段钮、范围文字、‹ 今天 ›、「打印」；周视图 = 本周目标 / 本周复盘两栏 + 没学警告行 + 五行（主项课 / 讲后读 / 带读 / 自读 / Anki）× 七天表格，今天列 `--gray-3` 底、日期 `--accent-11`，休息日 `--gray-2` 底；记号 ✓ done `--done-11` / ● now `--accent-11` / ○ plan / ! warn `--warn-11`；日视图今天显示完整今日卡 + 「明天」一行，非今天是只读清单 + 说明小字；月视图七列日历格（日期 + 主项 + 带读一行）。每格是 button，点击进那一天。打印时只留计划本区。 |
 
 - 小机器人（grokbot-web，打包在 skins/bear/vendor/，见 SOURCE.txt）：回答进行中那一行前面 24px，表情与文字随学根在做的事变（思考 / 查资料 / 动手 / 写）；总控会话标题前 22px，显示待命 / 提醒 / 休息 / 思考 / 动手。
 

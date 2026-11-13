@@ -6,6 +6,7 @@
  * stays focused on one tool window.
  */
 
+import { todayKey } from "../../core/today.js";
 import { strings } from "../../core/strings.js";
 
 /** A small line shown while a panel is loading. */
@@ -48,7 +49,5 @@ export function priorityLabel(priority: string): string {
 
 /** Today's date as `YYYY-MM-DD`, for the "today" cell and due tags. */
 export function todayIso(): string {
-  const now = new Date();
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return todayKey();
 }

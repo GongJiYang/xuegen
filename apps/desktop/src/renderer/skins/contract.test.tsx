@@ -24,6 +24,7 @@ import {
   SAMPLE_PANELS,
   SAMPLE_SESSIONS,
 } from "../gallery/panel-samples.js";
+import { SAMPLE_PLANBOOK_WEEK } from "../gallery/planbook-samples.js";
 import {
   SAMPLE_ASSISTANT_MESSAGE,
   SAMPLE_COURSE_INTRO,
@@ -85,6 +86,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
       DayEditor,
       SlashMenu,
       CourseIntroCard,
+      Planbook,
     } = skin.slots;
 
     render(
@@ -111,6 +113,9 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
         onNewSession={noop}
         onOpenSessions={noop}
         sessions={SAMPLE_SESSIONS}
+        pendingSwitch={false}
+        confirmSwitch={noop}
+        cancelSwitch={noop}
         agentStatus="ready"
         notices={[{ tone: "info", text: strings.chat.empty }]}
         onDismissNotice={noop}
@@ -124,6 +129,9 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
         styleCourse={null}
         onPrompt={noop}
         panels={SAMPLE_PANELS}
+        planbook={<Planbook {...SAMPLE_PLANBOOK_WEEK} />}
+        chatOpen
+        onToggleChat={noop}
       >
         <Thread
           header={
@@ -137,6 +145,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
               older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: noop }}
             />
           }
+          older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: noop }}
           messages={[SAMPLE_USER_MESSAGE, SAMPLE_ASSISTANT_MESSAGE]}
           thinking={false}
           noModels={false}
@@ -149,6 +158,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
         />
         <Thread
           header={null}
+          older={null}
           messages={[]}
           thinking={false}
           noModels
@@ -175,6 +185,8 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
           disabled={false}
           onSend={noop}
           onStop={() => null}
+          carriedDraft={null}
+          onCarriedDraftTaken={noop}
           style="plain"
           onStyle={noop}
           commandsOpen={false}

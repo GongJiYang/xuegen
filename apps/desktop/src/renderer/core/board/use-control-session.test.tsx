@@ -29,10 +29,13 @@ function fakeController(overrides: Partial<ChatController> = {}) {
     messages: [],
     sendCommand: vi.fn(),
     openSession: vi.fn((file: string | null) => Promise.resolve(file ?? "/sessions/new.jsonl")),
+    // The guard passes the switch straight through unless a test replaces it.
+    guardSwitch: vi.fn((run: () => void) => run()),
     ...overrides,
   } as unknown as ChatController & {
     sendCommand: ReturnType<typeof vi.fn>;
     openSession: ReturnType<typeof vi.fn>;
+    guardSwitch: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -103,5 +106,41 @@ describe("useControlSession", () => {
     const sent = splitActionMarker(controller.sendCommand.mock.calls[0]?.[0] ?? "");
     expect(sent.action).toBe("brief");
     expect(sent.body).toBe(strings.control.briefPrompt);
+  });
+});
+
+describe("useControlSession — session-switch guard", () => {
+  it("openControl goes through guardSwitch, not straight to openSession", () => {
+    const held: (() => void)[] = [];
+    const controller = fakeController({
+      guardSwitch: vi.fn((run: () => void) => {
+        held.push(run);
+      }),
+    });
+    render(<Harness controller={controller} cycleId="C1" ready={false} />);
+
+    act(() => captured?.openControl());
+
+    expect(controller.openSession).not.toHaveBeenCalled();
+    expect(held).toHaveLength(1);
+
+    act(() => held[0]?.());
+    expect(controller.openSession).toHaveBeenCalledWith(null, { kind: "control" });
+  });
+
+  it("askBrief on another session goes through guardSwitch too", () => {
+    const held: (() => void)[] = [];
+    const controller = fakeController({
+      guardSwitch: vi.fn((run: () => void) => {
+        held.push(run);
+      }),
+    });
+    render(<Harness controller={controller} cycleId="C1" ready={false} />);
+
+    act(() => captured?.askBrief());
+
+    expect(controller.openSession).not.toHaveBeenCalled();
+    expect(controller.sendCommand).not.toHaveBeenCalled();
+    expect(held).toHaveLength(1);
   });
 });

@@ -88,6 +88,32 @@ test("after-read 打勾 Today 里那条讲后读并追加自报说明，权限�
   }
 });
 
+test("after-read：「核心页」是内部词，标签不带它也能打上带它的那行", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    await exec(process.execPath, [SCRIPT, "lock", file]);
+    const result = await afterRead(file, "§1.1–1.4", ["--date", "2026-11-08"]);
+    assert.equal(result.ok, true, result.stderr);
+    const text = await readFile(file, "utf8");
+    // 打勾的那行原样保留「核心页」——课程页的写法不动，只改了界面上的显示。
+    assert.match(text, /- \[x\] 讲后读 §1\.1–1\.4 核心页 · 2026-11-08 读（用户自报，未检查，2026-11-08）/);
+    assert.match(text, /- \[x\] 讲后读 §0\.1 引言 · 2026-11-07 读\n/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("after-read：标签只差「核心页」以外的字仍然不匹配", async () => {
+  const { dir, file } = await freshCourse();
+  try {
+    const result = await afterRead(file, "§1.1–1.5");
+    assert.equal(result.ok, false);
+    assert.match(result.stderr, /没有找到未打勾的讲后读：§1\.1–1\.5/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("after-read 标签不匹配时失败且文件不变", async () => {
   const { dir, file } = await freshCourse();
   try {
@@ -213,7 +239,7 @@ test("after-read：「核心页已定」全角逗号与末尾顿号也去掉", a
   }
 });
 
-test("after-read：有书房链接但行里没有「核心页已定」时 pages 为 null", async () => {
+test("after-read：有书房链接但行里没有 pp. 时 pages 为 null", async () => {
   const text = BOOK_COURSE.replace("（核心页已定：pp.1–5、7–12、17–21、24–27、31，跳过…）", "");
   const { dir, file } = await freshCourse(text);
   try {
@@ -226,6 +252,63 @@ test("after-read：有书房链接但行里没有「核心页已定」时 pages 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+/** 把一条讲后读行放进一份课程页的 ## Today，标签取行里「讲后读 」之后、「 · 」之前。 */
+const lineCourse = (line) => `<!-- xuegen:course-state -->
+
+# 离散数学学习计划
+
+## Today
+
+日期：2026-11-12
+
+${line}
+- [ ] 继续 D2
+
+## Next Session
+
+读 [[shelf/epp|Epp]] §2.1。
+
+## Learning Record
+
+### 2026-11-11-01
+
+- 记录。
+`;
+
+const lineLabel = (line) => line.replace(/^- \[ \] 讲后读 /, "").split(" · ")[0].trim();
+
+// 真实课程页里的三种写法（11-12 场景走查 S4 抄的原文）＋技能规定格式＋旧的「核心页已定」格式。
+for (const [line, expected] of [
+  [
+    "- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（pp.1–5、7–12、17–21、24–27、31；完成条件：读完，并能说出一个要点或疑问）——今天开课时问到，用户答「没读」，仍待读",
+    "1–5、7–12、17–21、24–27、31",
+  ],
+  [
+    "- [ ] 讲后读 §2.3 核心页 · 2026-11-12 读（核心页今天已定：pp.66–75——有效性与真值表检验法…）",
+    "66–75",
+  ],
+  [
+    "- [ ] 讲后读 §2.1–2.2 核心页 · 2026-11-12 读（pp.40、43–46、54、56–59；11-10 排着 D1 的讲后读，故顺到 11-12；…）",
+    "40、43–46、54、56–59",
+  ],
+  ["- [ ] 讲后读 §2.4 pp.56–63 · 2026-11-13 读", "56–63"],
+  ["- [ ] 讲后读 §3.1 核心页 · 2026-11-14 读（核心页已定：pp.12–15）", "12–15"],
+  ["- [ ] 讲后读 §3.2 核心页 · 2026-11-14 读（读完，能说出一个要点）", null],
+]) {
+  test(`after-read：pages 取行里第一个 pp. 后的页码列表 → ${expected}`, async () => {
+    const { dir, file } = await freshCourse(lineCourse(line));
+    try {
+      const result = await afterRead(file, lineLabel(line), ["--date", "2026-11-12"]);
+      assert.equal(result.ok, true, result.stderr);
+      assert.equal(JSON.parse(result.stdout.trim()).pages, expected);
+      // 打勾本身不受影响：行尾旧备注去掉，换成自报说明。
+      assert.match(await readFile(file, "utf8"), /（用户自报，未检查，2026-11-12）/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+}
 
 /** 课程页：Today 那行带「核心页已定」与行尾 AI 写的「——…仍待读」备注。 */
 const TAIL_NOTE_COURSE = `<!-- xuegen:course-state -->

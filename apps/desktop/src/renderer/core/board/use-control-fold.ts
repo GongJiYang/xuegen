@@ -8,6 +8,7 @@ import type { ChatMessage } from "@shared/protocol.js";
 import type { ThreadNote } from "../../skins/contract.js";
 import { foldEarlier, type ControlFold } from "./control-fold.js";
 import { dateKey } from "./use-calendar.js";
+import { todayKey } from "../today.js";
 
 export function useControlFold(
   isControl: boolean,
@@ -22,7 +23,7 @@ export function useControlFold(
         ? foldEarlier({
             messages,
             systemNotes,
-            today: dateKey(new Date()),
+            today: todayKey(),
             localDay: (iso) => dateKey(new Date(iso)),
             open,
           })

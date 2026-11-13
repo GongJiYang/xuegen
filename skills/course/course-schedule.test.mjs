@@ -629,3 +629,103 @@ test("CLI: shift --end reports the deferred lessons and does not write without -
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// ---- 带读（辅助课）不设完结：排期一律 elastic，shift 不加 --end ----
+
+// 辅助课页：没有「### 留到下个周期」一节（用户 2026-11-11 定，辅助课不再进这一节）。
+const auxCourse = (table) =>
+  [
+    "<!-- xuegen:course-state -->",
+    "# C 语言",
+    "",
+    "## 计划表（参考；勾选只出现在上方 Overall Goals / This Week / Today）",
+    "",
+    "> 逐日课次、材料与完成条件见下方由脚本生成的表格。",
+    "",
+    table,
+    "",
+    "## Learning Record",
+    "### 2026-11-06-01",
+    "完成：无",
+    "",
+  ].join("\n");
+
+const monWed = (date) => [1, 3].includes(weekday(date));
+
+test("CLI: 辅助课（带读）排 --elastic，shift 不加 --end 时 6 节全留在表里、不建「留到下个周期」", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "course-schedule-aux-"));
+  try {
+    const file = join(dir, "c.md");
+    const lessonsFile = join(dir, "lessons.json");
+    await writeFile(file, auxCourse(""));
+    await writeFile(lessonsFile, JSON.stringify(cLanguage(6)));
+
+    const planned = JSON.parse(
+      (await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", "2026-12-28", "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--elastic", "--lessons", lessonsFile, "--write", "--json"])).stdout,
+    );
+    assert.equal(planned.ok, true);
+    assert.equal(planned.lastLesson, "2026-11-25", "6 节排到 11-25");
+    const mark = (await readFile(file, "utf8")).match(/<!-- xuegen:schedule:start[^\n]*-->/)[0];
+    assert.doesNotMatch(mark, /end=/, "辅助课标记里不写 end=");
+    assert.equal(readSchedule(await readFile(file, "utf8")).end, null);
+
+    // 比最后一节（11-25）晚 10 天顺延：越过 --end（12-28）也不进「留到下个周期」。
+    const shifted = JSON.parse((await run("node", [SCRIPT, "shift", file, "--today", "2026-12-05", "--write", "--json"])).stdout);
+    assert.deepEqual(shifted.dropped, [], "没有课被移出表");
+    assert.equal(shifted.end, null, "shift 的 end 为 null（标记里没有 end=）");
+    assert.equal(shifted.written, true);
+
+    const after = await readFile(file, "utf8");
+    const { rows } = readSchedule(after);
+    const fresh = rows.filter((row) => row.kind === "new");
+    assert.equal(fresh.length, 6, "6 节都还在表里");
+    assert.deepEqual(fresh.map((row) => row.id), ["D1", "D2", "D3", "D4", "D5", "D6"]);
+    assert.ok(fresh.every((row) => row.date > "2026-12-05"), `每节都在今天之后：${fresh.map((row) => row.date).join(",")}`);
+    assert.ok(fresh.every((row) => monWed(row.date)), `每节都落在周一或周三：${fresh.map((row) => row.date).join(",")}`);
+    assert.doesNotMatch(after, /###\s+留到下个周期/, "文件里没有「留到下个周期」一节");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: 辅助课课次多于到 --end 的上课日时报建议截止日期；用该日期加 --elastic 重跑成功且不写 end=", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "course-schedule-aux-suggest-"));
+  try {
+    const file = join(dir, "c.md");
+    const lessonsFile = join(dir, "lessons.json");
+    await writeFile(file, auxCourse(""));
+    await writeFile(lessonsFile, JSON.stringify(cLanguage(6)));
+
+    // 11-09 ~ 11-18 的周一/周三只有 4 个上课日，放不下 6 节。
+    const failed = await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", "2026-11-18", "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--elastic", "--lessons", lessonsFile, "--write", "--json"]).then(
+      () => null,
+      (error) => error,
+    );
+    assert.ok(failed, "课次放不下时 plan 退出码非 0");
+    assert.notEqual(failed.code, 0);
+    const failure = JSON.parse(failed.stdout);
+    assert.equal(failure.ok, false);
+    assert.match(failure.error, /建议截止日期 2026-11-25/);
+    assert.equal(failure.suggestedEnd, "2026-11-25");
+    assert.equal(await readFile(file, "utf8"), auxCourse(""), "失败时不写文件");
+
+    // 不加 --json 时同样的原因写在 stderr（用户看到的就是这一行）。
+    await assert.rejects(
+      run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", "2026-11-18", "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--elastic", "--lessons", lessonsFile, "--write"]),
+      (error) => error.code !== 0 && /建议截止日期 2026-11-25/.test(error.stderr),
+    );
+
+    // 用建议日期作 --end 再加 --elastic：成功，标记里没有 end=。
+    const ok = JSON.parse(
+      (await run("node", [SCRIPT, "plan", file, "--start", "2026-11-09", "--end", failure.suggestedEnd, "--rest", "sun", "--days", "mon,wed", "--reviews", "anki", "--elastic", "--lessons", lessonsFile, "--write", "--json"])).stdout,
+    );
+    assert.equal(ok.ok, true);
+    assert.equal(ok.lastLesson, "2026-11-25");
+    const text = await readFile(file, "utf8");
+    assert.doesNotMatch(text.match(/<!-- xuegen:schedule:start[^\n]*-->/)[0], /end=/);
+    assert.equal(readSchedule(text).end, null);
+    assert.equal(readSchedule(text).rows.filter((row) => row.kind === "new").length, 6);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

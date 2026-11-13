@@ -14,7 +14,7 @@ import type { SessionsView } from "../../skins/contract.js";
 import type { ChatController } from "../chat/useChat.js";
 import * as client from "../client.js";
 import { sessionGroups, roleOfRow, type SessionListContext } from "./session-list.js";
-import { dateKey } from "./use-calendar.js";
+import { todayKey } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 import type { CycleResource } from "./use-cycle.js";
 
@@ -71,7 +71,7 @@ export function useSessionList(
         : {};
     const ctx: SessionListContext = {
       current: file,
-      today: dateKey(new Date()),
+      today: todayKey(),
       tzOffsetMinutes: new Date().getTimezoneOffset(),
       controlFiles: Object.values(settings.controlSessions),
       courseSessions: settings.courseSessions,
@@ -85,8 +85,10 @@ export function useSessionList(
   const onPick = useCallback(
     (picked: string) => {
       const row = groups.flatMap((group) => group.rows).find((item) => item.file === picked);
-      setActiveCourse(row?.slug ?? null);
-      void controller.openSession(picked, roleOfRow(row));
+      controller.guardSwitch(() => {
+        setActiveCourse(row?.slug ?? null);
+        void controller.openSession(picked, roleOfRow(row));
+      });
       setOpen(false);
     },
     [groups, controller, setActiveCourse],

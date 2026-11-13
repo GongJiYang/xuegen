@@ -127,6 +127,14 @@ function jj(fixture, args) {
 
 const mode = async (path) => (await stat(path)).mode & 0o777;
 
+/** 去掉看板首行「Last updated: <生成当天>」：副本是前一天生成的，重画会盖上今天，逐字比不动。 */
+function withoutLastUpdated(text) {
+  return text
+    .split("\n")
+    .filter((line) => !line.startsWith("Last updated:"))
+    .join("\n");
+}
+
 // ---- 课程页 ----
 
 /** 源库里的课程页名（只读）。 */
@@ -446,7 +454,12 @@ test("真实库副本：收课 commit 后 undo → 课程页与副本原文件�
       if (existsSync(slugDir)) assert.equal(await mode(slugDir), 0o555, `${slug}：课程目录应上锁 0555`);
 
       // 看板是收课提交的一部分，撤销后应与收课前逐字相同（上次记录日期也回去）。
-      assert.equal(await readFile(boardPath, "utf8"), boardBefore, `${slug}：撤销后看板应回到收课前的样子`);
+      // 「Last updated:」那一行随生成当天变（副本是前一天生成的），比较前两边都去掉。
+      assert.equal(
+        withoutLastUpdated(await readFile(boardPath, "utf8")),
+        withoutLastUpdated(boardBefore),
+        `${slug}：撤销后看板应回到收课前的样子`,
+      );
       t.diagnostic(`undo ${slug}：${undone.undone} 恢复 ${undone.restoreFiles.join("、")}`);
     }
     assert.equal(

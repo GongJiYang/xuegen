@@ -15,8 +15,8 @@ import type { CalendarPanelProps } from "../contract.js";
 import type { SessionRow } from "../../core/board/session-list.js";
 import { SessionRowButton } from "./sessions-popover.js";
 import { cellAuxTag, cellFlag, cellReadingTag, cellTag, dayLessons, daySlotLine, hasAux, legendNames } from "../../core/board/plan-view.js";
-import { dateKey } from "../../core/board/use-calendar.js";
 import { dayTitle } from "../../core/format.js";
+import { todayKey } from "../../core/today.js";
 import { strings } from "../../core/strings.js";
 import { Rich } from "./rich.js";
 
@@ -55,7 +55,7 @@ function DayDetail({
   courseTitles: Record<string, string>;
   onEditDay(date: string): void;
   slotLine: string | null;
-  lessons: { name: string; id: string; content: string; aux: boolean }[];
+  lessons: { name: string; id: string; content: string; aux: boolean; done: boolean }[];
   slotType: CycleDayType | null;
   isToday: boolean;
   sessions: SessionRow[];
@@ -74,8 +74,8 @@ function DayDetail({
       {(lessons.length > 0 || slotType) && (
         <ul className="bear-mcal-items">
           {lessons.map((lesson) => (
-            <li key={`${lesson.name}-${lesson.id}`} className={isToday ? "is-now" : ""}>
-              <span className="bear-pg-mark">{isToday ? "●" : "○"}</span>
+            <li key={`${lesson.name}-${lesson.id}`} className={[lesson.done ? "is-done" : "", isToday && !lesson.done ? "is-now" : ""].filter(Boolean).join(" ") || undefined}>
+              <span className="bear-pg-mark">{lesson.done ? "✓" : isToday ? "●" : "○"}</span>
               <span>
                 {lesson.aux && <span className="bear-cy-auxtag">{strings.cycle.auxTag}</span>}{" "}
                 <b>
@@ -190,7 +190,7 @@ export function CalendarPanel({
   daySessions,
   onOpenSession,
 }: CalendarPanelProps) {
-  const today = dateKey(new Date());
+  const today = todayKey();
   const days = month.status === "ready" ? month.value.days : {};
   const cycle = cycleMonth.status === "ready" ? cycleMonth.value : null;
   const cycleDays = cycle ? cycle.days : {};

@@ -115,6 +115,7 @@ export function Thread({
   activity,
   pin,
   header,
+  older,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -158,6 +159,11 @@ export function Thread({
       {pin && <PinRail pin={pin} pane={paneRef} />}
       <div className="bear-pane bear-body" ref={paneRef} role="log">
         {header}
+        {older && (
+          <button type="button" className="bear-cc-older" onClick={older.onToggle}>
+            {older.label}
+          </button>
+        )}
         {messages.length === 0 ? (
           card ?? (
             <p className="bear-empty">

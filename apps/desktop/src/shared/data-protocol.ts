@@ -97,6 +97,8 @@ export interface ShelfBook {
   doneToday: boolean;
   /** The block read today (`chunks[position - 1]`) when `doneToday`, else null. */
   doneChunk: ShelfChunk | null;
+  /** True when the book was resumed today: `chunk` is tomorrow's block, not today's. */
+  resumedToday: boolean;
   plannedEnd: string;
   end: string;
   late: number;
@@ -133,28 +135,57 @@ export interface ShelfUpcoming {
   to: number;
 }
 
-/** One book row of `bookshelf.mjs list --json` (`order` is null for free books without one). */
+/** One day of one book block (`bookshelf.mjs list --from/--to`): the block's planned day. */
+export interface ShelfScheduleRow {
+  index: number;
+  title: string;
+  from: number;
+  to: number;
+  /** The block's day: the record's date when read, else the planned day (past) or the carried date. */
+  date: string;
+  done: boolean;
+  /**
+   * A past planned day whose block was not read: the same block also shows up again
+   * on its carried date, so one block can occupy two rows (design: `plan2.jsx`).
+   */
+  missed?: boolean;
+}
+
+/**
+ * One book row of `bookshelf.mjs list --json` (`order` is null for free books
+ * without one). A `paused` book keeps its position but is not scheduled:
+ * `end` is "" (no projected finish, same as a queued book's `started`) and
+ * `upcoming` is empty.
+ */
 export interface ShelfListItem {
   slug: string;
   title: string;
   short: string;
   slot: "planned" | "free";
   order: number | null;
-  status: "queued" | "reading" | "done";
+  status: "queued" | "reading" | "paused" | "done";
   total: number;
   position: number;
   started: string;
   end: string;
+  /** The frontmatter 目标日期, or null when unset / not a valid date. */
+  target: string | null;
+  /** Days `end` slips past `target` (0 when not late); null without a target or an `end`. */
+  targetLate: number | null;
   extracts: ShelfExtract[];
   coreRead: ShelfCoreRead[];
   /** The next ≤5 unread blocks of the schedule (`[]` once the book is done). */
   upcoming: ShelfUpcoming[];
+  /** Every block planned inside the requested `--from/--to` range (absent unless the request carried both). */
+  schedule?: ShelfScheduleRow[];
 }
 
 /** Cache statistics from `flashcards.mjs stats --json`. */
 export interface CardsStats {
   total: number;
   unsynced: number;
+  /** Card blocks missing END: not counted in `total`/`unsynced`, never synced. */
+  broken: number;
   decks: { deck: string; total: number; unsynced: number; files: string[] }[];
   pendingExtracts: number;
 }
@@ -194,6 +225,8 @@ export interface CycleLesson {
   course: string;
   id: string;
   content: string;
+  /** Already recorded in the course's 「完成：」 line (absent in older data). */
+  done?: boolean;
 }
 
 /** A day's place in its cycle, from `cycle.mjs day --json`. `cycle` is null outside every cycle. */
@@ -303,7 +336,12 @@ export interface CycleOverview {
     /** The cycle page's title without 「C1 · 」. */
     title: string;
     start: string;
+    /** The actual end, projected from how the main courses slipped. */
     end: string;
+    /** The end written on the cycle page (the plan `end` is measured against). */
+    plannedEnd: string;
+    /** Days `end` slips past `plannedEnd` (≥ 0). */
+    delayDays: number;
     week: number;
     weeks: number;
     daysLeft: number;
@@ -413,7 +451,7 @@ export type DataRequest =
   | { kind: "reading.add"; source: string; priority: ReadingPriority; due: ReadingDue }
   | { kind: "reading.review"; slug: string; outcome: ReadingOutcome; position?: string }
   | { kind: "shelf.today"; today: string }
-  | { kind: "shelf.list" }
+  | { kind: "shelf.list"; from?: string; to?: string }
   | { kind: "shelf.done"; slug: string; today: string }
   | { kind: "shelf.extract"; slug: string; page: number; text: string; today: string }
   | { kind: "shelf.card"; slug: string; indexes: number[]; today: string }
@@ -580,7 +618,16 @@ export function isDataRequest(value: unknown): value is DataRequest {
     case "shelf.today":
       return typeof value.today === "string" && isIsoDate(value.today);
     case "shelf.list":
-      return true;
+      // The range is optional but must be given as a pair of valid ISO dates with from ≤ to.
+      return (
+        (value.from === undefined) === (value.to === undefined) &&
+        (value.from === undefined ||
+          (typeof value.from === "string" &&
+            typeof value.to === "string" &&
+            isIsoDate(value.from) &&
+            isIsoDate(value.to) &&
+            value.from <= value.to))
+      );
     case "shelf.done":
       return (
         typeof value.slug === "string" &&

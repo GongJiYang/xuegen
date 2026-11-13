@@ -217,6 +217,7 @@ export function Shell(props: ShellProps) {
               onClick={onToggleFocus}
             />
           </div>
+          {props.planbook}
           {!collapsed.chat && children}
         </section>
 
@@ -255,6 +256,26 @@ export function Shell(props: ShellProps) {
           </>
         )}
       </main>
+
+      {props.pendingSwitch && (
+        <div
+          className="chicago-win chicago-modeless chicago-show"
+          role="alertdialog"
+          aria-label={strings.switchGuard.text}
+        >
+          <div className="chicago-pane chicago-note">
+            <p>{strings.switchGuard.text}</p>
+            <div className="chicago-btns">
+              <button type="button" className="chicago-btn" onClick={props.confirmSwitch}>
+                {strings.switchGuard.confirm}
+              </button>
+              <button type="button" className="chicago-btn" onClick={props.cancelSwitch}>
+                {strings.switchGuard.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {sessions.open && (
         <div className="chicago-win chicago-modeless chicago-show chicago-sessions" aria-label={strings.sessions.title}>

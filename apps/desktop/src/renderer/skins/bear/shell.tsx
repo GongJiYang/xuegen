@@ -104,7 +104,16 @@ export function Shell(props: ShellProps) {
   const reduceMotion = useReducedMotion();
   const dark = useDark();
 
-  const open = requested || (activeTool !== null && activeTool !== dismissedFor);
+  // The control session is one page (the panel holds what the drawer would):
+  // no 课程与计划 button, no drawer, no ⌘1–5 (user 11-12).
+  const hasDrawer = props.planbook === null;
+  const open = hasDrawer && (requested || (activeTool !== null && activeTool !== dismissedFor));
+  // In the control session the panel's 技能与设置 / 新卡片 open their tool in a
+  // dialog instead (the startup tool counts as dismissed, as for the drawer).
+  const dialogTool =
+    !hasDrawer && (activeTool === "skills" || activeTool === "cards") && activeTool !== dismissedFor
+      ? activeTool
+      : null;
   const tab = picked !== null && picked.tool === activeTool ? TODAY_TAB : (activeTool ?? lastTool);
 
   // Mirror the window background so it opens in the paper colour (anti-flash).
@@ -151,6 +160,7 @@ export function Shell(props: ShellProps) {
     function onKeyDown(event: KeyboardEvent): void {
       if (!event.metaKey) return;
       if (/^[1-5]$/.test(event.key)) {
+        if (!hasDrawer) return;
         const tool = tools[Number(event.key) - 1];
         if (tool) {
           event.preventDefault();
@@ -166,7 +176,7 @@ export function Shell(props: ShellProps) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tools, openTool, onPrompt, onToggleFocus]);
+  }, [tools, openTool, onPrompt, onToggleFocus, hasDrawer]);
 
   return (
     <div
@@ -184,9 +194,16 @@ export function Shell(props: ShellProps) {
         {!focusMode && (
           <>
             <ContextButton contextUsage={contextUsage} />
-            <button type="button" className="bear-btn" onClick={() => onDrawerOpenChange(!open)}>
-              {strings.topBar.coursesAndPlans}
-            </button>
+            {props.planbook !== null && (
+              <button type="button" className="bear-btn" onClick={props.onToggleChat}>
+                {props.chatOpen ? strings.planbook.chatHide : strings.planbook.chatShow}
+              </button>
+            )}
+            {hasDrawer && (
+              <button type="button" className="bear-btn" onClick={() => onDrawerOpenChange(!open)}>
+                {strings.topBar.coursesAndPlans}
+              </button>
+            )}
           </>
         )}
         <MoreMenu
@@ -210,18 +227,67 @@ export function Shell(props: ShellProps) {
         />
       </header>
 
-      <main className="bear-col">
-        <div className="bear-column">
-          {notices.length > 0 && (
-            <div className="bear-notices">
-              {notices.map((notice, index) => (
-                <Notice key={`${index}-${notice.text}`} notice={notice} onDismiss={() => onDismissNotice(index)} />
-              ))}
-            </div>
-          )}
-          {children}
-        </div>
+      <main className={props.planbook !== null ? "bear-col bear-col--plan" : "bear-col"}>
+        {props.pendingSwitch && <SwitchGuard onConfirm={props.confirmSwitch} onCancel={props.cancelSwitch} />}
+        {props.planbook !== null ? (
+          <>
+            {/* The planbook owns the left; the conversation (notices + thread +
+                composer) moves into the right chat column the 收起聊天 button hides. */}
+            <section className="bear-pb-area">{props.planbook}</section>
+            <aside className="bear-pb-chat" hidden={!props.chatOpen}>
+              <div className="bear-column">
+                {notices.length > 0 && (
+                  <div className="bear-notices">
+                    {notices.map((notice, index) => (
+                      <Notice
+                        key={`${index}-${notice.text}`}
+                        notice={notice}
+                        onDismiss={() => onDismissNotice(index)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {children}
+              </div>
+            </aside>
+          </>
+        ) : (
+          <div className="bear-column">
+            {notices.length > 0 && (
+              <div className="bear-notices">
+                {notices.map((notice, index) => (
+                  <Notice
+                    key={`${index}-${notice.text}`}
+                    notice={notice}
+                    onDismiss={() => onDismissNotice(index)}
+                  />
+                ))}
+              </div>
+            )}
+            {children}
+          </div>
+        )}
       </main>
+
+      <RadixDialog.Root
+        open={dialogTool !== null}
+        onOpenChange={(next) => !next && setDismissedFor(activeTool)}
+      >
+        <RadixDialog.Portal>
+          <RadixDialog.Overlay className="bear-dlg-overlay" />
+          <RadixDialog.Content className="bear-dlg" aria-describedby={undefined}>
+            <div className="bear-dlg-top">
+              <RadixDialog.Title className="bear-dlg-title">
+                {tools.find((tool) => tool.id === dialogTool)?.name ?? ""}
+              </RadixDialog.Title>
+              <RadixDialog.Close className="bear-drawer-close">{strings.panel.dialogClose}</RadixDialog.Close>
+            </div>
+            <div className="bear-tabpanels">
+              {dialogTool !== null && <ToolPanel tool={dialogTool} panels={panels} />}
+            </div>
+          </RadixDialog.Content>
+        </RadixDialog.Portal>
+      </RadixDialog.Root>
 
       {/* Non-modal: the reader keeps typing and scrolling while the drawer is
           open, and nothing outside is hidden from assistive tech. */}
@@ -250,7 +316,9 @@ export function Shell(props: ShellProps) {
                           </RadixTabs.Trigger>
                         ))}
                       </RadixTabs.List>
-                      <RadixDialog.Close className="bear-drawer-close">{strings.chat.dismiss}</RadixDialog.Close>
+                      <RadixDialog.Close className="bear-drawer-close">
+                        {strings.chat.dismiss}
+                      </RadixDialog.Close>
                     </div>
                     <div className="bear-tabpanels">
                       <RadixTabs.Content value={TODAY_TAB}>
@@ -269,6 +337,37 @@ export function Shell(props: ShellProps) {
           )}
         </AnimatePresence>
       </RadixDialog.Root>
+    </div>
+  );
+}
+
+/**
+ * The ask before leaving a session mid-answer: a small card under the title
+ * bar. 「等它说完」 loses nothing, so it is the solid button and takes focus;
+ * Esc means the same.
+ */
+function SwitchGuard({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCancel();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+  return (
+    <div className="bear-guard" role="alertdialog" aria-labelledby="bear-guard-text">
+      <p id="bear-guard-text">{strings.switchGuard.text}</p>
+      <div className="bear-guard-actions">
+        <button type="button" className="bear-btn" onClick={onConfirm}>
+          {strings.switchGuard.confirm}
+        </button>
+        <button type="button" className="bear-btn-primary" onClick={onCancel} autoFocus>
+          {strings.switchGuard.cancel}
+        </button>
+      </div>
     </div>
   );
 }

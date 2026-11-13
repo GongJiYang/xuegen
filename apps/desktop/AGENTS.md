@@ -99,6 +99,7 @@ renderer ──▶ preload API ──▶ main ──▶ agent ──▶ Pi SDK
 界面会频繁更换，必须遵守 `docs/desktop/UI-ARCHITECTURE.md`：
 
 - 逻辑、数据、文案、内容解析放 `src/renderer/core/`，**不含任何样式**；每套界面是 `src/renderer/skins/<id>/` 下的一个皮肤，实现 `skins/contract.ts` 的全部插槽。
+- 取「今天 / 现在的日期」统一用 `core/today.ts` 的 `now()` / `todayKey()`，不直接 `new Date()`（`new Date().getTimezoneOffset()` 与计时用的 `Date.now()` 除外）；测试窗口可设 `XUEGEN_TODAY=YYYY-MM-DD` 指定日期、`XUEGEN_ANKI_URL`（假 AnkiConnect，仅本机回环地址），不设时与本机日期、默认 AnkiConnect 地址一致。
 - `core` 不得 import 皮肤；皮肤之间互不 import；皮肤不得自带文案（只用 `core/strings.ts`）。
 - 皮肤样式全部限定在 `[data-skin="<id>"]` 作用域下；不使用全局样式框架（Tailwind、shadcn 已移除）。第三方 CSS 随皮肤懒加载并加作用域前缀。
 - 每套皮肤必须命名并登记在 `docs/desktop/skins/README.md`，设计规范写在 `docs/desktop/skins/<id>.md`；实现以该文档为准，视觉改动升皮肤版本号。

@@ -52,9 +52,11 @@ export function useControlSession(
       return;
     }
     const known = settings.controlSessions[cycleId] ?? null;
-    setActiveCourse(null);
-    void controller.openSession(known, { kind: "control" }).then((opened) => {
-      if (opened && opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
+    controller.guardSwitch(() => {
+      setActiveCourse(null);
+      void controller.openSession(known, { kind: "control" }).then((opened) => {
+        if (opened && opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
+      });
     });
   }, [controller, cycleId, isControl, requestFocus, setActiveCourse, settings.controlSessions, update]);
 
@@ -67,13 +69,15 @@ export function useControlSession(
       return;
     }
     // Not in the 总控 session: switch over first, then send — the same
-    // openSession().then(...) shape as openControl.
+    // openSession().then(...) shape as openControl, behind the same guard.
     const known = settings.controlSessions[cycleId] ?? null;
-    setActiveCourse(null);
-    void controller.openSession(known, { kind: "control" }).then((opened) => {
-      if (!opened) return;
-      if (opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
-      send();
+    controller.guardSwitch(() => {
+      setActiveCourse(null);
+      void controller.openSession(known, { kind: "control" }).then((opened) => {
+        if (!opened) return;
+        if (opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
+        send();
+      });
     });
   }, [controller, cycleId, isControl, setActiveCourse, settings.controlSessions, update]);
 

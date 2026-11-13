@@ -49,20 +49,24 @@ describe("agent entry: every posted event carries a session id", () => {
 });
 
 describe("agent entry: a switch stops the old session first", () => {
-  it("unsubscribes and disposes before assigning the new session", () => {
+  it("unsubscribes, stops, and clears before assigning the new session", () => {
     const body = classBody();
-    const restart = body.slice(body.indexOf("private async restart("));
+    const restartStart = body.indexOf("private async restart(");
+    const restart = body.slice(restartStart, body.indexOf("  dispose(): void {", restartStart));
     const unsubscribe = restart.indexOf("this.unsubscribe?.()");
-    const dispose = restart.indexOf("this.session?.dispose()");
+    // The abort-then-dispose ordering lives in restart.ts (tested there); a
+    // bare `dispose()` here would lose the partial answer of a running turn.
+    const stop = restart.indexOf("await stopSessionForRestart(this.session)");
     const clear = restart.indexOf("this.session = null");
     const assign = restart.indexOf("this.session = session");
     expect(unsubscribe).toBeGreaterThan(-1);
-    expect(dispose).toBeGreaterThan(unsubscribe);
-    expect(clear).toBeGreaterThan(dispose);
+    expect(stop).toBeGreaterThan(unsubscribe);
+    expect(clear).toBeGreaterThan(stop);
     // The old session must be gone before the new one is subscribed, so a late
     // event from the old session cannot be stamped with the new id.
     expect(assign).toBeGreaterThan(clear);
     expect(restart.indexOf("this.unsubscribe = session.subscribe")).toBeGreaterThan(assign);
+    expect(restart).not.toContain("this.session?.dispose()");
   });
 });
 

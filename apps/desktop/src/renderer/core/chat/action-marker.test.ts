@@ -59,6 +59,15 @@ describe("actionLabel", () => {
   });
 });
 
+describe("the panel's own action names", () => {
+  it("names 建课 / 周核实 / 剪藏 / 交给总控", () => {
+    expect(actionLabel("new-course", null)).toBe(strings.actions["new-course"]);
+    expect(actionLabel("verify", "CTM")).toBe(`${strings.actions.verify} · CTM`);
+    expect(actionLabel("clip", null)).toBe(strings.actions.clip);
+    expect(actionLabel("ask", "Epp")).toBe(`${strings.actions.ask} · Epp`);
+  });
+});
+
 describe("legacyCommandLabel", () => {
   it("folds a pre-marker /skill command into a one-line label", () => {
     expect(legacyCommandLabel("/skill:course 新建课程…")).toBe("旧指令 · course");

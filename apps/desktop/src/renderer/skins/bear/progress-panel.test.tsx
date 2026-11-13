@@ -109,8 +109,11 @@ describe("Bear 总进度 panel", () => {
     expect(screen.getByText(strings.plan.courseEnd("12-24"))).toBeTruthy();
     expect(screen.getByText("/14")).toBeTruthy();
     expect(screen.getByText(strings.plan.auxNote)).toBeTruthy();
+    // 「Effective C」 已含科目短名「C」，所以不带「C ·」；行尾加预计学完。
     expect(screen.getByText("Effective C")).toBeTruthy();
-    expect(screen.getByText(strings.plan.auxProgress(0, 7))).toBeTruthy();
+    expect(
+      screen.getByText(`${strings.plan.auxProgress(0, 7)} · ${strings.plan.courseEnd("12-23", "aux")}`),
+    ).toBeTruthy();
     expect(screen.getByText("编程语言与编程范式")).toBeTruthy();
     expect(screen.getByText("C1", { selector: "em" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: `▸ ${strings.progress.materials(3, 2)}` }));

@@ -23,11 +23,13 @@ interface FocusProps {
 function Focus({ view, day, courses, agentReady, onStudyCourse, onVerifyCourse }: FocusProps) {
   const focus = view.focus;
   switch (focus.kind) {
-    case "lesson":
+    case "lesson": {
+      const done = focus.lesson.done === true;
       return (
         <div className="bear-cy-focus">
           <div className="bear-cy-k">{strings.cycle.minutes}</div>
-          <div className="bear-cy-title">
+          <div className={done ? "bear-cy-title is-done" : "bear-cy-title"}>
+            {done && <span className="bear-cy-mark">✓</span>}
             {focus.name} {focus.lesson.id}
           </div>
           <p className="bear-muted">
@@ -40,10 +42,11 @@ function Focus({ view, day, courses, agentReady, onStudyCourse, onVerifyCourse }
             disabled={!agentReady}
             onClick={() => onStudyCourse(focus.lesson.course)}
           >
-            {strings.cycle.start}
+            {done ? strings.today.backToCourse : strings.cycle.start}
           </button>
         </div>
       );
+    }
     case "verify": {
       const rows = courses.status === "ready" ? weekChecks(day, courses.value) : [];
       return (
@@ -94,6 +97,8 @@ export function CycleToday({ view, day, courses, anki, agentReady, onStudyCourse
   const due = anki.status === "ready" ? ankiDueCount(anki.value) : null;
   const ankiMeta = anki.status !== "ready" ? "—" : due === null ? strings.cycle.ankiOff : strings.cycle.ankiDue(due);
   const aux = view.aux;
+  // A 带读 lesson already in its course's 「完成：」 line reads like the focus row: ✓ + 回到这节课 →.
+  const auxDone = aux?.lesson.done === true;
   return (
     <>
       <div className="bear-cy-headrow">
@@ -114,9 +119,10 @@ export function CycleToday({ view, day, courses, anki, agentReady, onStudyCourse
       />
       {aux && (
         <ul className="bear-cy-list">
-          <li className="is-aux">
+          <li className={auxDone ? "is-aux is-done" : "is-aux"}>
             <span className="bear-cy-auxtag">{strings.cycle.auxTag}</span>
             <span className="bear-cy-text">
+              {auxDone && <span className="bear-cy-mark">✓</span>}
               <b>
                 {aux.name} {aux.lesson.id}
               </b>{" "}
@@ -128,7 +134,7 @@ export function CycleToday({ view, day, courses, anki, agentReady, onStudyCourse
               disabled={!agentReady}
               onClick={() => onStudyCourse(aux.lesson.course)}
             >
-              {strings.cycle.start}
+              {auxDone ? strings.today.backToCourse : strings.cycle.start}
             </button>
           </li>
         </ul>

@@ -249,9 +249,33 @@ test("讲后读：Today 里未勾选的讲后读进当天 readingDue", async () 
   );
 
   const day = await jsonCal(["get", vault, "2026-11-10"]);
-  assert.deepEqual(day.readingDue, [{ slug: "mono#讲后读-1", title: "讲后读 §1.1–1.4 核心页（mono）" }]);
+  assert.deepEqual(day.readingDue, [{ slug: "mono#讲后读-1", title: "讲后读 · §1.1–1.4 · mono" }]);
 
   const prev = await jsonCal(["get", vault, "2026-11-09"]);
   assert.deepEqual(prev.readingDue, []);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("讲后读：范围去掉「核心页」，带页码的照原样；书名不套括号", async () => {
+  const vault = await makeVault();
+  await writeCourse(
+    vault,
+    "discrete-math-epp",
+    [
+      "## Today",
+      "",
+      "- [ ] 讲后读 §2.4 pp.56–63 · 2026-11-12 读（完成条件：读完）",
+      "- [ ] 讲后读 §2.3 核心页 · 2026-11-13 读",
+    ].join("\n"),
+  );
+
+  const first = await jsonCal(["get", vault, "2026-11-12"]);
+  assert.deepEqual(first.readingDue, [
+    { slug: "discrete-math-epp#讲后读-1", title: "讲后读 · §2.4 pp.56–63 · discrete-math-epp" },
+  ]);
+  const second = await jsonCal(["get", vault, "2026-11-13"]);
+  assert.deepEqual(second.readingDue, [
+    { slug: "discrete-math-epp#讲后读-2", title: "讲后读 · §2.3 · discrete-math-epp" },
+  ]);
   await rm(vault, { recursive: true, force: true });
 });

@@ -22,8 +22,12 @@ export interface CycleTodayView {
   focus: CycleFocus;
   /** The day's auxiliary lesson (a short preview, not assessed), or null. */
   aux: { lesson: CycleLesson; name: string } | null;
-  /** Other courses' lessons that were missed; they shift when that course is opened. */
-  missed: { name: string; id: string }[];
+  /**
+   * Other courses' missed lessons, merged per course by {@link mergeOverdue}.
+   * `id` is the single lesson's id when `count` is 1; for a merged row it is
+   * the 「N 节（最早 …）」 label the row shows instead.
+   */
+  missed: { course: string; name: string; id: string; count: number; first: string }[];
   /** Every day but 休息 shows the Anki row. */
   showAnki: boolean;
   /** 「明天：…」, or null when tomorrow is outside every cycle. */
@@ -48,6 +52,34 @@ export function cycleHeadline(day: CycleDay): string | null {
   if (day.cycle === null || day.week === null || day.type === null) return null;
   const extra = day.type !== "深度" && day.lessons.length > 0;
   return strings.cycle.headline(day.week, day.weekday, day.type, extra);
+}
+
+/**
+ * Missed lessons, merged per course: each entry is the course, its short name,
+ * how many of its lessons are overdue, and the earliest missed date
+ * (`first`). Sorted by `first` ascending — the course waiting longest comes
+ * first. Shared by the 今日卡, this view's `missed` rows and the planbook's
+ * overdue list so all three report the same 课程 → 节数.
+ */
+export function mergeOverdue(
+  overdue: { course: string; id: string; date: string }[],
+  names: Record<string, string>,
+): { course: string; name: string; count: number; first: string }[] {
+  const counts = new Map<string, number>();
+  const firstMissed = new Map<string, string>();
+  for (const lesson of overdue) {
+    counts.set(lesson.course, (counts.get(lesson.course) ?? 0) + 1);
+    const first = firstMissed.get(lesson.course);
+    if (first === undefined || lesson.date < first) firstMissed.set(lesson.course, lesson.date);
+  }
+  return [...counts.entries()]
+    .map(([course, count]) => ({
+      course,
+      name: names[course] ?? course,
+      count,
+      first: firstMissed.get(course) ?? "",
+    }))
+    .sort((a, b) => (a.first === b.first ? a.course.localeCompare(b.course) : a.first < b.first ? -1 : 1));
 }
 
 /** 「明天：周六 · 低强度日」 (plus the main lesson and 「+ 辅助 X」), or null outside every cycle. */
@@ -77,7 +109,8 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
   const focus: CycleFocus = lesson
     ? {
         kind: "lesson",
-        lesson: { course: lesson.course, id: lesson.id, content: lesson.content },
+        // `done` rides along so the window can show ✓ + 「回到这节课 →」.
+        lesson: { course: lesson.course, id: lesson.id, content: lesson.content, ...(lesson.done === true ? { done: true } : {}) },
         name: cycleName(day, lesson.course),
         carriedFrom: carried ? carried.date : null,
       }
@@ -86,9 +119,14 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
       : day.type === "休息"
         ? { kind: "rest" }
         : { kind: "light" };
-  const missed = day.overdue
-    .filter((row) => row !== carried && !isAux(row.course))
-    .map((row) => ({ name: cycleName(day, row.course), id: row.id }));
+  const rest = day.overdue.filter((row) => row !== carried && !isAux(row.course));
+  const missed = mergeOverdue(rest, day.names).map((entry) => {
+    const single = entry.count === 1 ? rest.find((row) => row.course === entry.course) : undefined;
+    return {
+      ...entry,
+      id: single?.id ?? strings.cycle.missedCount(entry.count, entry.first),
+    };
+  });
   return {
     headline,
     focus,
@@ -98,7 +136,16 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
         day.overdue.find((item) => item.course === day.auxCourse) ??
         null;
       return auxLesson
-        ? { lesson: { course: auxLesson.course, id: auxLesson.id, content: auxLesson.content }, name: cycleName(day, auxLesson.course) }
+        ? {
+            // `done` rides along here too, so the 带读 row shows ✓ like the focus row.
+            lesson: {
+              course: auxLesson.course,
+              id: auxLesson.id,
+              content: auxLesson.content,
+              ...("done" in auxLesson && auxLesson.done === true ? { done: true } : {}),
+            },
+            name: cycleName(day, auxLesson.course),
+          }
         : null;
     })(),
     missed,

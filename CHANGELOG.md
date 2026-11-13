@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v0.12.0 — 2026-11-13
+
+- Desktop: the 总控 session is one page — six status tiles, 今天, 本周 / 本月 (week table with short cells, month calendar), 总进度, 书房 and 卡片 (`ControlPanel` slot; design `?d=dash`, `docs/desktop/PANEL-PLAN.md`). No 课程与计划 drawer or ⌘1–5 in the 总控; 技能与设置 and 新卡片 open as dialogs. The layout follows the panel's own width, so a 1440 window with the chat column open stacks 今天 above 本周.
+- Desktop: 书房 rows can 暂停 / 恢复, 改读法, 设目标日期 and 加一本书; each is handed to the 总控 as a folded request (`control-prompts.ts`), never written by the panel itself. `bookshelf.mjs` gains `pause`, `resume`, `target` and a `## 暂停` section.
+- Desktop: switching sessions while 学根 is answering asks first (「切换 / 等它说完」). 切换 stops the answer like the stop button and waits for it to settle, so the part already said is saved — before, Pi's `dispose()` dropped it (`agent/restart.ts`). Messages still queued go into the new session's input field.
+- Desktop: clicking 开课 twice no longer opens two sessions; 书房 读完这段 / 摘几句 and 阅读队列 writes ignore a second click while the first is running.
+- Skills: auxiliary courses are 带读 — no end date, carried across cycles; 讲后读 pages read are recorded on the book page (they never were since 11-08); the day a shelf book resumes no longer lists a block to read today.
+- Tooling: `scripts/lint-wording.mjs` checks user-facing wording against the word list (part of `npm test`); `XUEGEN_TODAY` and `XUEGEN_ANKI_URL` pin the date and Anki endpoint for scenario walkthroughs.
+- Fix: book titles in the panel no longer show their `raw/…` source path.
+
 ## v0.11.0 — 2026-11-11
 
 - Desktop: the installed app finds `jj`, `pdftotext` and `node` — an app opened from Finder has no shell `PATH`, so Homebrew's directories are added at start (`withToolPath`). Before this, 收课 / 计划 / 顺延 from the installed app wrote their files but never recorded a jj commit, and 「撤销这次收课」 could not work.

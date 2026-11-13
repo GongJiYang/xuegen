@@ -303,6 +303,14 @@ export interface DesktopSettings {
   controlSessions: Record<string, string>;
   /** The local day (`YYYY-MM-DD`) the 总控 brief was last asked for, keyed by cycle id. */
   controlBriefOn: Record<string, string>;
+  /**
+   * The `XUEGEN_TODAY` override (`YYYY-MM-DD`), injected by the main process on
+   * `get` so the renderer can pin "today" before its first render.
+   *
+   * Runtime-only: it is never read from or written to the settings file, and
+   * `set` drops it like any unknown key. Null (or absent) means the real clock.
+   */
+  todayOverride?: string | null;
 }
 
 /** Teaching style ids. `default` sends no prefix: 学根 then follows the subject's 讲解偏好. */

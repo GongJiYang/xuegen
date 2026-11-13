@@ -23,14 +23,26 @@
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |
 | `use-calendar.ts` | `calendar.month` + 翻月、选日、写笔记；`monthGrid`、`shiftMonth`、`dayMarks`、`dayOf` 为纯函数。 |
 | `use-skills.ts` | `skills.list` + 开关、获取。 |
-| `cycle-today.ts` | 把一天的周期数据（cycle.day）变成「今天」窗口的标题、主攻块、没学的课、明天一行（纯函数）。 |
+| `cycle-today.ts` | 把一天的周期数据（cycle.day）变成「今天」窗口的标题、主攻块、没学的课、明天一行（纯函数）；`mergeOverdue` 是今日卡 / 右侧面板 / 排程本三处共用的「没学」按课程合并。 |
 | `use-cycle.ts` | 读今天、明天的 cycle.day 和日历当月的 cycle.month。 |
 | `progress-groups.ts` | 把科目骨架（subjects.list）和课程列表组合成总进度的主项 / 路线外 / 已学专题，并给课程打记号（纯函数）。 |
 | `use-subjects.ts` | 读当天的 subjects.list。 |
 | `default-style.ts` | `defaultStyleLabel` 纯函数：活动课程的科目页写了默认风格时「默认」单选显示「默认 · X」。 |
-| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 书房行 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）。 |
+| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 书房行 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）；「没学」用 `mergeOverdue` 一门课一行。 |
+| `consistency-fixture.ts` / `consistency.test.ts` | 跨处一致性夹具与测试：同一天的数据（`CycleDay` / `CycleMonth` / `CycleOverview` / `AnkiStatus` / `ShelfToday` / 日历月）同时喂给今日卡、右侧今天面板、总进度、日历当天详情的视图函数，断言完成状态、Anki 张数、讲后读文字、带读叫法四处一致（`CHECK-PROCESS-1111.md` 第 2 项）。 |
 | `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `course.afterRead` 后刷新课程与日历；「读完这段」（10 秒可撤销）写 `shelf.done`；摘几句写 `shelf.extract`。 |
+| `planbook.ts` | 周计划本（PLANBOOK-1111）纯函数：`buildWeek` / `buildDay` / `buildMonth`——把周期课次、日历讲后读、书房 schedule、Anki 张数合成日 / 周 / 月视图模型（lane / mark / short / goals / overdue / reviewDate）。 |
+| `planbook-range.ts` | 计划本的日历计算：`planWeekRange`（周期周，C1 周五起；出周期退回周一–周日）/ `addDays` / `weekdayOf` / `mondayIndex` / `slotOf`，供 `planbook.ts` 与 `planbook-nav.ts` 复用（`planbook.ts` 原样再导出）。 |
+| `planbook-nav.ts` | 排程本翻页与标题纯函数：`PlanView` / `shiftAnchor`（日 ±1、周 ±7、月到上/下月 1 日）/ `rangeLabel`（「11-11 周三」「C1 W1 · 11-06 – 11-12」「2026 年 11 月」）/ `isTodayInView`（「今天」按钮置灰）。 |
+| `use-planbook.ts` | `usePlanbook(view, anchor, enabled)`：按视图拉 `cycle.month`（一或两个月）、`calendar.month`、带 `from`/`to` 的 `shelf.list`、`cycle.overview`、`courses.list`、`anki.status`，组装 `PlanbookInput` 调 `planbook.ts`；`enabled` false 不发请求。 |
+| `use-control-plan.ts` | `useControlPlan`：总控的周计划本组装 hook——今日卡（含「更早的对话」折叠行）加日 / 周 / 月视图状态（初值 day + 今天）、‹ › 翻页、「今天」与 `openDay`；非总控会话 card 为 null 且不拉 planbook 数据。 |
 | `use-control-session.ts` | `useControlSession`：总控会话开关与 `askBrief`（折叠为「今日简报」）；就绪后本次运行自动落一次总控、不发消息。 |
 | `shell-panels.ts` | `shellPanels` 纯函数：把各资源与动作组装成「今天」与五个工具窗的 props（含阅读面板的书房一节）。 |
+| `use-shell-panels.ts` | `useShellPanels`：`shellPanels` 调用的参数组装 hook（从 App 拆出控行数）——各 hook 结果进来，`shellPanels` 的 props 出去；另有两个代发指令的纯函数 `verifyMessage`（周核实标记，`use-control-planbook` 也用）与 `draftedCardsMessage`（起草卡片套标记、已带标记不重复套），课程名查 `courseTitleOf`。 |
+| `planbook-props.ts` | `planbookProps` 纯函数：`useControlPlan` 的 plan 状态 + `PlanbookResult` → `PlanbookProps`（按视图取 week/day/month，结果视图与当前视图不符时保持 loading；`showCard` = 日视图且锚点是今天）。 |
+| `use-control-planbook.ts` | `useControlPlanbook`：总控计划本的整包组装——内部调 `useControlPlan` + `planbookProps`，交出 `{ props, card, showCard }` 供 App 渲染 `Planbook` 槽。 |
+| `use-chat-column.ts` | `useChatColumn`：计划本聊天栏开合——宽窗默认开、≤900px 默认关；跨过断点只在用户没手动切过时跟随。 |
+| `control-prompts.ts` | 总控面板书房按钮发给总控的话（`addBookPrompt` / `changeModePrompt` / `setTargetPrompt` / `pausePrompt` / `resumePrompt`）：均带 `ask` 动作标记（折叠为「交给总控 · 短名」），末行固定为 `strings.panel.askConfirm`（先给看改动、说可以才写）；正文指明 `/skill:reading` 或 `/skill:course`。 |
+| `panel.ts` | 总控面板（PANEL-PLAN）纯函数：`panelTiles` 六个状态格（周期 / 今天 / 本周 / 书房 / Anki / 卡片，null 输入出加载态）、`shelfRows` 书房行（在读 → 带读 → 暂停 → 排队）、`unplannedMaterials` 未排计划资料；今天 / 本周 / Anki 张数复用 `buildDay` / `buildWeek` / `ankiDueCount`。 |
 
 写入动作（加入阅读、读完、存为新卡、写日历、技能开关）成功后刷新相关数据；失败结果返回给调用方由 `App` 呈现 Notice。日历网格、命令表等纯逻辑均有同目录 `*.test.ts`。

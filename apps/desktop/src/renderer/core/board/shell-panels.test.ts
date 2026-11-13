@@ -35,6 +35,8 @@ const EPP: ShelfListItem = {
   position: 1,
   started: "2026-11-10",
   end: "2027-01-28",
+  target: null,
+  targetLate: null,
   extracts: [
     { index: 2, page: 16, text: "乙", carded: null },
     { index: 3, page: 17, text: "丙", carded: null },
@@ -71,7 +73,7 @@ function input(list: BoardResource<ShelfListItem[]>, onDraftCards = vi.fn()): Sh
     courses: ready([]) as CoursesResource,
     reading,
     cards: {
-      stats: ready<CardsStats>({ total: 0, unsynced: 0, decks: [], pendingExtracts: 0 }),
+      stats: ready<CardsStats>({ total: 0, unsynced: 0, broken: 0, decks: [], pendingExtracts: 0 }),
       add: vi.fn(),
       reload: vi.fn(),
     },

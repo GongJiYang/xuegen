@@ -64,6 +64,26 @@ export interface ChatController {
    * `role` names the guard's permission set for the session being opened.
    */
   openSession(sessionFile: string | null, role: SessionRole): Promise<string | null>;
+  /**
+   * Run a session switch (open/new/continue) behind the mid-answer guard.
+   *
+   * Runs `run` immediately when idle; while 学根 is answering, holds `run` and
+   * raises {@link pendingSwitch} so the shell can ask first.
+   */
+  guardSwitch(run: () => void): void;
+  /** True while a held switch waits on the learner's answer to the confirm. */
+  pendingSwitch: boolean;
+  /** 「切换」: stop the answer like the stop button, then run the held switch. */
+  confirmSwitch(): void;
+  /** 「等它说完」: drop the held switch without running it. */
+  cancelSwitch(): void;
+  /**
+   * Words a confirmed switch withdrew from the old session's queue, waiting for
+   * the new session's composer; null when nothing was carried.
+   */
+  carriedDraft: string | null;
+  /** The composer took {@link carriedDraft} into its field: forget it. */
+  takeCarriedDraft(): void;
   /** The active session's transcript file, or null before one exists. */
   sessionFile: string | null;
   setModel(provider: string, id: string): void;

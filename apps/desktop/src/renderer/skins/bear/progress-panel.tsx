@@ -42,16 +42,13 @@ import { GroupedProgress, MARKS } from "./progress-groups.js";
 import { auxRows, courseCards, cycleView, routeView, type CourseCard } from "../../core/board/plan-view.js";
 import { CycleCard, RouteCard } from "./plan-top.js";
 import { PlanProgress } from "./plan-progress.js";
+import { todayKey } from "../../core/today.js";
 
 /** Course rows open and close with one short tween. */
 const EXPAND: Transition = { type: "tween", duration: 0.18, ease: [0.22, 1, 0.36, 1] };
 
-/** Today as `YYYY-MM-DD` in the local timezone. */
-function todayIso(): string {
-  const now = new Date();
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
+/** Today as `YYYY-MM-DD`, from the one clock (`XUEGEN_TODAY` applies). */
+const todayIso = todayKey;
 
 function CheckGlyph() {
   return (

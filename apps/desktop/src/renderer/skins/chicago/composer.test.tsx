@@ -22,6 +22,8 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     disabled: false,
     onSend: vi.fn(),
     onStop: vi.fn(),
+    carriedDraft: null,
+    onCarriedDraftTaken: vi.fn(),
     style: "plain",
     onStyle: vi.fn(),
     commandsOpen: false,

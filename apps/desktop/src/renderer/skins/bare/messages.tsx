@@ -39,6 +39,7 @@ export function Thread({
   intro,
   systemNotes,
   header,
+  older,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   const answerRef = useRef<HTMLDivElement | null>(null);
@@ -67,6 +68,11 @@ export function Thread({
   return (
     <div data-slot="thread" role="log" ref={paneRef}>
       {header}
+      {older && (
+        <button type="button" onClick={older.onToggle}>
+          {older.label}
+        </button>
+      )}
       {messages.map((message, index) => (
         <Fragment key={message.id}>
           {notes(index)}

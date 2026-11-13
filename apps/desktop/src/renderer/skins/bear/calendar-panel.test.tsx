@@ -129,4 +129,34 @@ describe("Bear 日历 panel", () => {
     expect(screen.getByText("离散 D2")).toBeTruthy();
     expect(screen.getAllByText(strings.plan.ankiItem).length).toBeGreaterThan(0);
   });
+
+  it("marks a lesson already in its 完成： line as ✓ instead of the pending ○ / ●", () => {
+    const cycleMonth = SAMPLE_PANELS.calendar.cycleMonth;
+    if (cycleMonth.status !== "ready") throw new Error("sample cycle month is not ready");
+    const date = "2026-11-09";
+    const lessons = cycleMonth.value.lessons[date] ?? [];
+    if (lessons.length === 0) throw new Error("sample has no lesson on 2026-11-09");
+    render(
+      <CalendarPanel
+        {...baseProps({
+          selected: date,
+          cycleMonth: {
+            status: "ready",
+            value: {
+              ...cycleMonth.value,
+              lessons: {
+                ...cycleMonth.value.lessons,
+                [date]: lessons.map((lesson, index) => (index === 0 ? { ...lesson, done: true } : lesson)),
+              },
+            },
+          },
+        })}
+      />,
+    );
+    const detail = document.querySelector(".bear-mcal-detail");
+    if (!detail) throw new Error("no day detail");
+    expect(detail.textContent).toContain("✓");
+    // The unfinished lesson on the same day keeps its ○ / ● mark.
+    expect(detail.textContent).toContain("○");
+  });
 });

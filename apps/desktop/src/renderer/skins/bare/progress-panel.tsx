@@ -19,14 +19,8 @@ import {
 } from "../../core/board/course-prompts.js";
 import type { ProgressPanelProps } from "../contract.js";
 import { routeView } from "../../core/board/plan-view.js";
+import { todayKey } from "../../core/today.js";
 import { strings } from "../../core/strings.js";
-
-/** Today as `YYYY-MM-DD` in the local timezone. */
-function todayIso(): string {
-  const now = new Date();
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
 
 function NewCourseForm({
   sources,
@@ -40,7 +34,7 @@ function NewCourseForm({
   const [title, setTitle] = useState("");
   const [material, setMaterial] = useState("");
   const [reading, setReading] = useState<ReadingMode>("guided");
-  const [startDate, setStartDate] = useState(todayIso);
+  const [startDate, setStartDate] = useState(todayKey);
   const [endInput, setEndInput] = useState<string | null>(null);
   const endDate = endInput ?? defaultEndDate(startDate);
   const [rest, setRest] = useState<RestDays>("sun");

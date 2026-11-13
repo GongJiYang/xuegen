@@ -7,9 +7,9 @@
  * instant the 总控 session opens. Pure: today and every input are arguments.
  */
 
-import type { CalendarMonth, CycleDay, ReadingQueueItem, ShelfBook, ShelfToday } from "@shared/data-protocol.js";
+import type { AnkiStatus, CalendarMonth, CycleDay, ReadingQueueItem, ShelfBook, ShelfToday } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
-import { cycleHeadline, cycleName, tomorrowLine } from "./cycle-today.js";
+import { ankiDueCount, cycleHeadline, cycleName, mergeOverdue, tomorrowLine } from "./cycle-today.js";
 
 export type ControlCardMark = "now" | "warn" | "plan" | "faint" | "done";
 
@@ -41,7 +41,7 @@ export interface ControlCardView {
 }
 
 /**
- * The `（course title）` a 讲后读 row's `（label）` is wrapped in, or -1.
+ * The `（course title）` an old-style 讲后读 title wraps around, or -1.
  *
  * The course title itself can hold balanced parens (「离散数学（Epp, 5th ed）」),
  * so the cut is the `（` whose matching `）` closes the string — not simply the
@@ -65,14 +65,25 @@ function courseParen(body: string): number {
  * A calendar readingDue item's course slug and the label the course page's
  * 「- [ ] 讲后读 <label> · <date> 读」 line carries — or null when the item is
  * not a 讲后读 row (its slug carries `#讲后读-N`).
+ *
+ * The title now reads 「讲后读 · <范围> · <课名>」 (calendar.mjs), so the label is
+ * the middle segment. Titles from before that change read
+ * 「讲后读 <范围>（<课名>）」; they still parse, and their label keeps the wording
+ * the course page's line was written with (「§1.1–1.4 核心页」) because the write
+ * matches that line verbatim.
  */
 function afterReadEntry(item: { slug: string; title: string }): { slug: string; label: string } | null {
   const hash = item.slug.indexOf("#讲后读-");
   if (hash === -1) return null;
+  const slug = item.slug.slice(0, hash);
   const body = item.title.startsWith("讲后读 ") ? item.title.slice("讲后读 ".length) : item.title;
+  if (body.startsWith("· ")) {
+    const range = body.slice(2);
+    const cut = range.lastIndexOf(" · ");
+    return { slug, label: (cut === -1 ? range : range.slice(0, cut)).trim() };
+  }
   const cut = courseParen(body);
-  const label = (cut === -1 ? body : body.slice(0, cut)).trim();
-  return { slug: item.slug.slice(0, hash), label };
+  return { slug, label: (cut === -1 ? body : body.slice(0, cut)).trim() };
 }
 
 /** The 读书 row: due is `YYYY-MM-DD`; an empty `due` is unscheduled, not due. */
@@ -81,9 +92,10 @@ function readingDue(item: ReadingQueueItem, today: string): boolean {
 }
 
 /**
- * One bookshelf row. `prefix` names the slot (读书 · / 自由读 ·).
+ * One bookshelf row. `prefix` names the slot (自读 · / 自读（计划外）·).
  *
- * A block already recorded today shows ✓ with the 摘几句 button; a block still
+ * A block already recorded today shows ✓ with the 摘几句 button; a book resumed
+ * today shows the block without the button (it is tomorrow's); a block still
  * to read shows 「读完这段」 plus a sub line (第 n 天 · 晚了几天 · 讲后读重叠);
  * a finished book produces no row.
  */
@@ -104,6 +116,17 @@ function bookRow(prefix: string, book: ShelfBook): ControlCardRow | null {
     };
   }
   if (book.chunk === null) return null;
+  // 今天刚恢复：这一段明天才读，不给「读完这段」按钮。
+  if (book.resumedToday) {
+    return {
+      mark: "plan",
+      text: prefix + card.shelfChunk(book.short, book.chunk),
+      sub: card.shelfResumed,
+      button: null,
+      action: null,
+      hint: null,
+    };
+  }
   const parts = [card.shelfDay(book.position + 1, book.total)];
   if (book.late > 0) parts.push(card.shelfLate(book.late, book.end));
   if (book.coreOverlap !== null) parts.push(card.shelfCore(book.coreOverlap));
@@ -117,7 +140,12 @@ function bookRow(prefix: string, book: ShelfBook): ControlCardRow | null {
   };
 }
 
-/** The 书房 rows: the planned and the free book, plus an empty-free hint line. */
+/**
+ * The 书房 rows: the planned and the free book.
+ *
+ * An empty 计划外 slot gets no row: whether to add another book is the learner's
+ * decision, so the card does not nag about it.
+ */
 function shelfRows(shelf: ShelfToday): ControlCardRow[] {
   const card = strings.control.card;
   const rows: ControlCardRow[] = [];
@@ -128,16 +156,6 @@ function shelfRows(shelf: ShelfToday): ControlCardRow[] {
   if (shelf.free !== null) {
     const row = bookRow(card.shelfFree, shelf.free);
     if (row !== null) rows.push(row);
-  }
-  if (shelf.planned !== null && shelf.free === null) {
-    rows.push({
-      mark: "plan",
-      text: card.shelfFreeEmpty,
-      sub: card.shelfFreeEmptySub,
-      button: null,
-      action: null,
-      hint: null,
-    });
   }
   return rows;
 }
@@ -161,6 +179,8 @@ export function controlCard(input: {
   queue: ReadingQueueItem[];
   /** `shelf.today`: the books the 书房 is currently reading. */
   shelf?: ShelfToday | null;
+  /** `anki.status`: adds today's due count to the Anki row when Anki is running. */
+  anki?: AnkiStatus | null;
 }): ControlCardView | null {
   const { today, day, calendar, queue } = input;
   if (day === null || day.cycle === null) return null;
@@ -176,25 +196,25 @@ export function controlCard(input: {
   }
 
   const rows: ControlCardRow[] = [];
-  for (const lesson of day.lessons) {
-    if (day.roles[lesson.course] === "aux") continue;
-    rows.push({
-      mark: "now",
-      text: `${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`,
-      button: card.study,
+  // A lesson already written into its course's 「完成：」 line keeps its study
+  // action but reads as done: ✓ plus 「回到这节课 →」.
+  const lessonRow = (lesson: (typeof day.lessons)[number], mark: ControlCardMark, text: string): ControlCardRow => {
+    const done = lesson.done === true;
+    return {
+      mark: done ? "done" : mark,
+      text,
+      button: done ? card.backToLesson : card.study,
       action: { kind: "study", slug: lesson.course },
       hint: card.studyHint,
-    });
+    };
+  };
+  for (const lesson of day.lessons) {
+    if (day.roles[lesson.course] === "aux") continue;
+    rows.push(lessonRow(lesson, "now", `${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`));
   }
   for (const lesson of day.lessons) {
     if (day.roles[lesson.course] !== "aux") continue;
-    rows.push({
-      mark: "plan",
-      text: `${card.auxPrefix}${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`,
-      button: card.study,
-      action: { kind: "study", slug: lesson.course },
-      hint: card.studyHint,
-    });
+    rows.push(lessonRow(lesson, "plan", `${card.auxPrefix}${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`));
   }
   if (day.type === "整合") {
     for (const [slug, role] of Object.entries(day.roles)) {
@@ -208,12 +228,16 @@ export function controlCard(input: {
       });
     }
   }
-  for (const lesson of day.overdue) {
+  // One 没学 row per course (the same merge the 今天 panel and planbook use):
+  // a single missed lesson keeps its 「原定 …」 date; several collapse into one
+  // 「N 节没学（最早 …）」 row instead of one line each.
+  for (const missed of mergeOverdue(day.overdue, day.names)) {
+    const single = missed.count === 1 ? day.overdue.find((lesson) => lesson.course === missed.course) : undefined;
     rows.push({
       mark: "warn",
-      text: card.missedRow(cycleName(day, lesson.course), lesson.id, lesson.date),
+      text: single ? card.missedRow(missed.name, single.id, single.date) : card.missedMany(missed.name, missed.count, missed.first),
       button: card.study,
-      action: { kind: "study", slug: lesson.course },
+      action: { kind: "study", slug: missed.course },
       hint: card.studyHint,
     });
   }
@@ -245,7 +269,16 @@ export function controlCard(input: {
     });
   }
   if (day.type !== "休息") {
-    rows.push({ mark: "plan", text: "Anki", button: card.anki, action: { kind: "anki" }, hint: null });
+    // One line, with today's count when Anki is open; a closed / unknown Anki
+    // just says 「Anki」 (no 「未打开」 nudge — the count is not the learner's task).
+    const due = input.anki ? ankiDueCount(input.anki) : null;
+    rows.push({
+      mark: "plan",
+      text: due === null ? card.ankiRow : card.ankiRowDue(due),
+      button: card.anki,
+      action: { kind: "anki" },
+      hint: null,
+    });
   }
   return { headline, rows };
 }

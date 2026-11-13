@@ -18,6 +18,7 @@ import { MODEL_ERROR_SUMMARIES } from "../core/chat/model-error.js";
 import { allCommands, filterCommands, groupCommands } from "../core/commands/commands.js";
 import { toolDescriptors } from "../skins/chicago/icons.js";
 import { SAMPLE_CONTROL_CARD, SAMPLE_CONTROL_CARD_LIGHT, SAMPLE_CONTROL_CARD_PENDING, SAMPLE_CONTROL_CARD_SHELF, SAMPLE_CONTROL_CARD_SHELF_DONE, SAMPLE_CONTROL_CARD_SHELF_PENDING, SAMPLE_PANELS, SAMPLE_SESSIONS, SAMPLE_SHELF_EMPTY } from "./panel-samples.js";
+import { SAMPLE_PLANBOOK_DAY_OTHER, SAMPLE_PLANBOOK_DAY_TODAY, SAMPLE_PLANBOOK_MONTH, SAMPLE_PLANBOOK_WEEK } from "./planbook-samples.js";
 import {
   SAMPLE_ACTION_MESSAGE,
   SAMPLE_ASSISTANT_MESSAGE,
@@ -143,6 +144,9 @@ export function Gallery({
     onNewSession: () => undefined,
     onOpenSessions: () => undefined,
     sessions: SAMPLE_SESSIONS,
+    pendingSwitch: false,
+    confirmSwitch: () => undefined,
+    cancelSwitch: () => undefined,
     agentStatus: "ready",
     notices: [],
     onDismissNotice: () => undefined,
@@ -156,6 +160,9 @@ export function Gallery({
     styleCourse: null,
     onPrompt: () => undefined,
     panels: SAMPLE_PANELS,
+    planbook: null,
+    chatOpen: true,
+    onToggleChat: () => undefined,
   };
 
   const allNodes = parseContent(SAMPLE_MARKDOWN);
@@ -172,6 +179,7 @@ export function Gallery({
           <h2>Thread / UserMessage / AssistantMessage</h2>
           <slots.Thread
             header={null}
+            older={null}
             messages={[SAMPLE_USER_MESSAGE, SAMPLE_ACTION_MESSAGE, SAMPLE_ASSISTANT_MESSAGE]}
             thinking={false}
             noModels={false}
@@ -192,6 +200,7 @@ export function Gallery({
           <h2>Streaming（思考中 + 流式文本）</h2>
           <slots.Thread
             header={null}
+            older={null}
             messages={[SAMPLE_STREAMING_MESSAGE]}
             thinking={false}
             noModels={false}
@@ -223,6 +232,7 @@ export function Gallery({
           <Message slots={slots} content={content} message={SAMPLE_ERROR_MESSAGE} />
           <slots.Thread
             header={null}
+            older={null}
             messages={[]}
             thinking={false}
             noModels={false}
@@ -235,6 +245,7 @@ export function Gallery({
           />
           <slots.Thread
             header={null}
+            older={null}
             messages={[]}
             thinking={false}
             noModels
@@ -270,6 +281,8 @@ export function Gallery({
             disabled={false}
             onSend={() => undefined}
             onStop={() => null}
+            carriedDraft={null}
+            onCarriedDraftTaken={() => undefined}
             style="plain"
             onStyle={() => undefined}
             commandsOpen={false}
@@ -290,6 +303,8 @@ export function Gallery({
             disabled={false}
             onSend={() => undefined}
             onStop={() => null}
+            carriedDraft={null}
+            onCarriedDraftTaken={() => undefined}
             style="detailed"
             onStyle={() => undefined}
             commandsOpen
@@ -337,7 +352,7 @@ export function Gallery({
         </section>
 
         <section>
-          <h2>ControlCard（深度日 / 低强度日 / 更早的对话 + 撤销 / 书房）</h2>
+          <h2>ControlCard（主攻日 / 低强度日 / 更早的对话 + 撤销 / 书房）</h2>
           <slots.Thread
             header={
               <slots.ControlCard
@@ -350,6 +365,7 @@ export function Gallery({
                 older={{ label: strings.control.card.older(38, "2026-11-05", false), onToggle: () => undefined }}
               />
             }
+            older={null}
             messages={[]}
             thinking={false}
             noModels={false}
@@ -405,6 +421,27 @@ export function Gallery({
             extract={{ slug: "epp", pages: "pp.10–18", saving: false, error: null, onSave: noop, onCancel: noop }}
             older={null}
           />
+        </section>
+
+        <section>
+          <h2>Planbook（周 / 日·今天 / 日·其他天 / 月）</h2>
+          <slots.Planbook {...SAMPLE_PLANBOOK_WEEK} />
+          <slots.Planbook
+            {...SAMPLE_PLANBOOK_DAY_TODAY}
+            todayCard={
+              <slots.ControlCard
+                view={SAMPLE_CONTROL_CARD}
+                onAction={noop}
+                onAskBrief={noop}
+                busy={false}
+                error={null}
+                extract={null}
+                older={null}
+              />
+            }
+          />
+          <slots.Planbook {...SAMPLE_PLANBOOK_DAY_OTHER} />
+          <slots.Planbook {...SAMPLE_PLANBOOK_MONTH} />
         </section>
 
         <section>

@@ -15,7 +15,7 @@ import type { ReadingPriority } from "@shared/data-protocol.js";
 import type { ReadingPanelProps } from "../contract.js";
 import type { ShelfBookView } from "../../core/board/shelf-view.js";
 import { dueLabel, isDueNow } from "../../core/board/reading-due.js";
-import { dateKey } from "../../core/board/use-calendar.js";
+import { todayKey } from "../../core/today.js";
 import { ReadingRow } from "./reading-row.js";
 import { strings } from "../../core/strings.js";
 
@@ -100,7 +100,7 @@ export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, o
   const [dueToday, setDueToday] = useState(true);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const today = dateKey(new Date());
+  const today = todayKey();
 
   // `/加入阅读` opens this tab with `focus: "reading-add"`: put the cursor in
   // the add field, then tell core the request was handled.

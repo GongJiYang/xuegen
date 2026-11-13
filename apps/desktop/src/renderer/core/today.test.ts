@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { CalendarDay, CourseSummary } from "@shared/data-protocol.js";
-import { resumePoint, resumePrompt, studyPrompt, todayPlanItems } from "./today.js";
+import { now, resumePoint, resumePrompt, setTodayOverride, studyPrompt, todayKey, todayPlanItems } from "./today.js";
+import { dateKey } from "./board/use-calendar.js";
+import { isoDate } from "./format.js";
 import { splitActionMarker, type ActionKind } from "./chat/action-marker.js";
 
 /** A prompt's visible body plus the action marker it folds to. */
@@ -95,6 +97,26 @@ describe("prompts", () => {
     expect(marked(studyPrompt(course({ slug: "a", title: "CTM", file: "/elsewhere/a.md" }))).body).toBe(
       "开始今天的 CTM（课程文件：wiki/courses/a.md，下次起点以此为准，不必先列目录或读看板）",
     );
+  });
+});
+
+describe("now / todayKey", () => {
+  afterEach(() => setTodayOverride(null));
+
+  it("without an override matches the real clock", () => {
+    setTodayOverride(null);
+    expect(todayKey()).toBe(dateKey(new Date()));
+    expect(Math.abs(now().getTime() - Date.now())).toBeLessThan(1000);
+  });
+
+  it("pins the date to the override but keeps the real time-of-day", () => {
+    setTodayOverride("2026-02-03");
+    const real = new Date();
+    const pinned = now();
+    expect(isoDate(pinned)).toBe("2026-02-03");
+    expect(todayKey()).toBe("2026-02-03");
+    expect(pinned.getHours()).toBe(real.getHours());
+    expect(pinned.getMinutes()).toBe(real.getMinutes());
   });
 });
 

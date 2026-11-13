@@ -9,8 +9,13 @@
  * URL is handed to the agent to clip, because `reading-queue.mjs add` only
  * accepts原文 inside the vault. That decision is exposed as a pure helper so the
  * panel can branch without duplicating the rule.
+ *
+ * `add` and `review` hold a synchronous lock on their key until the request
+ * settles, so a double click sends one write and the second call answers
+ * `busy` (the panels ignore the result of a dropped click).
  */
 
+import { useRef } from "react";
 import type {
   ReadingDue,
   ReadingItem,
@@ -20,6 +25,7 @@ import type {
 } from "@shared/data-protocol.js";
 import type { DataResultFor } from "@shared/data-protocol.js";
 import * as client from "../client.js";
+import { withActionMarker } from "../chat/action-marker.js";
 import { useBoardResource, type BoardResource, type LoadResult } from "./use-resource.js";
 import { useShelf, type ShelfResource } from "./use-shelf.js";
 
@@ -45,13 +51,18 @@ export function isWebUrl(source: string): boolean {
   return /^https?:\/\//i.test(source.trim());
 }
 
-/** Build the prompt that asks the agent to clip a URL and queue it. */
+/** Build the prompt that asks the agent to clip a URL and queue it; the transcript folds it into 「剪藏」. */
 export function clipPrompt(source: string, priority: ReadingPriority, due: ReadingDue): string {
   const when = due === "today" ? "今天就读" : "按默认间隔排期";
-  return `/skill:reading 把这篇文章剪藏到 clippings/ 并加入阅读队列（优先级 ${priority}，${when}）：${source.trim()}`;
+  return withActionMarker(
+    `/skill:reading 把这篇文章剪藏到 clippings/ 并加入阅读队列（优先级 ${priority}，${when}）：${source.trim()}`,
+    "clip",
+  );
 }
 
 export function useReading(): ReadingResource {
+  // Keys of the writes in flight (`add:<source>`, `review:<slug>`).
+  const inFlight = useRef<Set<string>>(new Set());
   const items = useBoardResource(
     () => client.data({ kind: "reading.today", limit: READING_TODAY_LIMIT }),
     [],
@@ -76,8 +87,13 @@ export function useReading(): ReadingResource {
     sources,
     shelf,
     reload,
-    add: (source, priority, due) =>
-      items
+    add: (source, priority, due) => {
+      const key = `add:${source}`;
+      if (inFlight.current.has(key)) {
+        return Promise.resolve({ ok: false, code: "unknown", error: "busy" });
+      }
+      inFlight.current.add(key);
+      return items
         .mutate(() => client.data({ kind: "reading.add", source, priority, due }))
         .then((result) => {
           if (result.ok) {
@@ -86,9 +102,18 @@ export function useReading(): ReadingResource {
             sources.reload();
           }
           return result;
-        }),
-    review: (slug, outcome, position) =>
-      items
+        })
+        .finally(() => {
+          inFlight.current.delete(key);
+        });
+    },
+    review: (slug, outcome, position) => {
+      const key = `review:${slug}`;
+      if (inFlight.current.has(key)) {
+        return Promise.resolve({ ok: false, code: "unknown", error: "busy" });
+      }
+      inFlight.current.add(key);
+      return items
         .mutate(() =>
           client.data(
             position === undefined
@@ -102,6 +127,10 @@ export function useReading(): ReadingResource {
             stats.reload();
           }
           return result;
-        }),
+        })
+        .finally(() => {
+          inFlight.current.delete(key);
+        });
+    },
   };
 }

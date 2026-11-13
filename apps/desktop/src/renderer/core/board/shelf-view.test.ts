@@ -23,6 +23,8 @@ function book(overrides: Partial<ShelfListItem> & { slug: string }): ShelfListIt
     position: 0,
     started: "2026-11-09",
     end: "2026-11-19",
+    target: null,
+    targetLate: null,
     extracts: [],
     coreRead: [],
     upcoming: [],

@@ -38,7 +38,7 @@ import { isDataRequest, type DataResponse } from "../shared/data-protocol.js";
 // The agent-side module only computes a path from the filesystem; importing it
 // here keeps a single implementation of the repo-root walk.
 import { findRepoRoot } from "../agent/environment.js";
-import { readSettings, writeSettings } from "./settings.js";
+import { readSettings, readSettingsForRenderer, writeSettings } from "./settings.js";
 import { handleDataRequest } from "./data/handler.js";
 import { createUpdater, type Updater } from "./update.js";
 
@@ -315,9 +315,9 @@ app.whenReady().then(() => {
     // Settings come from the renderer; validate the shape before touching disk.
     if (!isSettingsRequest(request)) {
       console.error("[main] 收到非法设置请求，已忽略:", request);
-      return readSettings();
+      return readSettingsForRenderer();
     }
-    const next = request.action === "get" ? readSettings() : writeSettings(request.patch);
+    const next = request.action === "get" ? readSettingsForRenderer() : writeSettings(request.patch);
     // Keep the window background in step with the stored colour so a palette
     // switch updates the chrome behind a translucent moment (e.g. while the
     // renderer repaints) and the next launch opens in the right colour.

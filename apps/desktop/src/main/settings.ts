@@ -15,6 +15,7 @@ import {
   type DesktopSettings,
 } from "../shared/protocol.js";
 import { resolveHome } from "../agent/environment.js";
+import { todayOverride } from "./today.js";
 
 /** Absolute path to the settings file inside the shared Xuegen home. */
 export function settingsPath(): string {
@@ -30,6 +31,15 @@ export function readSettings(): DesktopSettings {
     // Missing file, unreadable file, or invalid JSON all mean "use defaults".
     return { ...DEFAULT_DESKTOP_SETTINGS };
   }
+}
+
+/**
+ * The settings exactly as a settings `get` reports them: the stored values
+ * plus the runtime-only `todayOverride`. The field is never persisted — a
+ * `set` drops it through `normalizeDesktopSettings` like any unknown key.
+ */
+export function readSettingsForRenderer(): DesktopSettings {
+  return { ...readSettings(), todayOverride: todayOverride() };
 }
 
 /** Merge a partial update into the stored settings and write it atomically. */

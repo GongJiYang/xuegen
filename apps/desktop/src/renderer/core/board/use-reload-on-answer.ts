@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { now } from "../today.js";
 
 /** Call `reload` on the streaming true → false edge. */
 export function useReloadOnAnswer(streaming: boolean, reload: () => void): void {
@@ -33,14 +34,14 @@ export function useReloadOnFocusAndDay(reload: () => void): void {
   useEffect(() => {
     let last = 0;
     const onFocus = (): void => {
-      const now = Date.now();
-      if (now - last < 5000) return;
-      last = now;
+      const stamp = Date.now();
+      if (stamp - last < 5000) return;
+      last = stamp;
       reloadRef.current();
     };
-    let day = new Date().toDateString();
+    let day = now().toDateString();
     const timer = window.setInterval(() => {
-      const current = new Date().toDateString();
+      const current = now().toDateString();
       if (current === day) return;
       day = current;
       reloadRef.current();

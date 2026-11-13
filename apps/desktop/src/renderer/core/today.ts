@@ -6,10 +6,55 @@
  * entry has the newest date; its `Next Session` line is the point to resume
  * from. This is a pure function over the course list so it is testable and does
  * not read the clock.
+ *
+ * This module is also the renderer's only clock: `setTodayOverride` pins
+ * "today" to a fixed `YYYY-MM-DD` (the `XUEGEN_TODAY` override, applied in
+ * `main.tsx` before the first render), and `now()` / `todayKey()` are the only
+ * sanctioned ways to read the current day. Unset, they behave exactly like the
+ * real clock.
  */
 
 import type { CalendarDay, CourseSummary } from "@shared/data-protocol.js";
 import { withActionMarker } from "./chat/action-marker.js";
+// `isoDate` formats a local day exactly like `dateKey` in board/use-calendar;
+// importing that hook module here would create an import cycle (use-calendar
+// needs `todayKey` for its initial selection), so the format helper it is.
+import { isoDate } from "./format.js";
+
+let overrideDay: string | null = null;
+
+/**
+ * Pin "today" to a `YYYY-MM-DD`, or restore the real clock with null. Called
+ * once from `main.tsx` before the first render; tests reset it in `afterEach`.
+ */
+export function setTodayOverride(day: string | null): void {
+  overrideDay = day;
+}
+
+/**
+ * "Now": the real `new Date()`, or — under the override — the pinned day at the
+ * real local time-of-day. The result is an ordinary local `Date`, so weekday,
+ * arithmetic and `toDateString` all keep working.
+ */
+export function now(): Date {
+  const real = new Date();
+  if (overrideDay === null) return real;
+  const [year = 1970, month = 1, day = 1] = overrideDay.split("-").map(Number);
+  return new Date(
+    year,
+    month - 1,
+    day,
+    real.getHours(),
+    real.getMinutes(),
+    real.getSeconds(),
+    real.getMilliseconds(),
+  );
+}
+
+/** Today's `YYYY-MM-DD`: `isoDate(now())`, override applied. */
+export function todayKey(): string {
+  return isoDate(now());
+}
 
 /** The course to resume plus the point to resume from. */
 export interface ResumePoint {

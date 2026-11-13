@@ -5,7 +5,24 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { handleDataRequest } from "./handler.js";
+import { handleDataRequest, withToday } from "./handler.js";
+
+describe("withToday", () => {
+  it("appends --today for a pinned day", () => {
+    expect(withToday(["stats", "/v", "--json"], "2026-11-12")).toEqual([
+      "stats",
+      "/v",
+      "--json",
+      "--today",
+      "2026-11-12",
+    ]);
+  });
+
+  it("leaves the args untouched when no day is given", () => {
+    const args = ["stats", "/v", "--json"];
+    expect(withToday(args, null)).toBe(args);
+  });
+});
 
 function touch(file: string, text: string): void {
   mkdirSync(join(file, ".."), { recursive: true });
@@ -283,6 +300,29 @@ describe("handleDataRequest", () => {
       const data = queue.data as { slug: string; priority: string }[];
       expect(data).toHaveLength(1);
       expect(data[0]?.priority).toBe("low");
+    }
+  });
+
+  it("reading.add resolves 「今天就读」 against XUEGEN_TODAY when it is set", async () => {
+    touch(join(vault, "raw", "paper.md"), "# 论文\n\n正文。\n");
+    const previous = process.env.XUEGEN_TODAY;
+    process.env.XUEGEN_TODAY = "2026-11-12";
+    try {
+      const add = await handleDataRequest({
+        kind: "reading.add",
+        source: "raw/paper.md",
+        priority: "low",
+        due: "today",
+      });
+      expect(add.ok).toBe(true);
+      if (add.ok) {
+        // With the override the script receives `--today 2026-11-12`, so
+        // `--due today` lands on the pinned day, not the real one.
+        expect((add.data as { due: string }).due).toBe("2026-11-12");
+      }
+    } finally {
+      if (previous === undefined) delete process.env.XUEGEN_TODAY;
+      else process.env.XUEGEN_TODAY = previous;
     }
   });
 

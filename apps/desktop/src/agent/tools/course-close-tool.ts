@@ -153,7 +153,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
         path: Type.Optional(Type.String({ description: "库内相对路径（add 必填）" })),
         today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
         end: Type.Optional(
-          Type.String({ description: "shift 用：周期最后一天 YYYY-MM-DD（排期标记里已有 end= 时不填）" }),
+          Type.String({ description: "shift 用：只给排期标记里已有 end= 的旧课；新排的主项课与带读（辅助）课都不设完结，不填" }),
         ),
         report: Type.Optional(Type.String({ description: "snapshot 用：暂存目录里的报告 JSON 相对路径" })),
         out: Type.Optional(

@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { ALLOWED_ANKI_ACTIONS, buildAnkiRequest, dueQuery, isAllowedAnkiAction } from "./anki.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  ALLOWED_ANKI_ACTIONS,
+  ANKI_ENDPOINT,
+  ankiEndpoint,
+  buildAnkiRequest,
+  dueQuery,
+  isAllowedAnkiAction,
+} from "./anki.js";
 
 describe("AnkiConnect read-only whitelist", () => {
   it("allows the read-only actions the status probe uses", () => {
@@ -38,5 +45,36 @@ describe("AnkiConnect read-only whitelist", () => {
   it("counts a parent deck's own due cards without its subdecks", () => {
     expect(dueQuery("Link")).toBe('deck:"Link" -deck:"Link::*" is:due');
     expect(dueQuery('Say "hi"')).toBe('deck:"Say \\"hi\\"" -deck:"Say \\"hi\\"::*" is:due');
+  });
+});
+
+describe("ankiEndpoint / XUEGEN_ANKI_URL", () => {
+  it("uses a valid loopback override", () => {
+    expect(ankiEndpoint({ XUEGEN_ANKI_URL: "http://127.0.0.1:9876" })).toBe("http://127.0.0.1:9876");
+    expect(ankiEndpoint({ XUEGEN_ANKI_URL: "http://localhost:9876" })).toBe("http://localhost:9876");
+  });
+
+  it("falls back to the default when unset", () => {
+    expect(ankiEndpoint({})).toBe(ANKI_ENDPOINT);
+  });
+
+  it("warns and falls back on a malformed value", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(ankiEndpoint({ XUEGEN_ANKI_URL: "8765" })).toBe(ANKI_ENDPOINT);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("refuses a non-local address", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(ankiEndpoint({ XUEGEN_ANKI_URL: "http://example.com:8765" })).toBe(ANKI_ENDPOINT);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

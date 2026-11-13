@@ -51,6 +51,9 @@ import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
+import type { PlanView } from "../core/board/planbook-nav.js";
+import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
+import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
 
 /** How a skin draws a piece of classified content. */
 export interface ContentRenderers {
@@ -168,6 +171,15 @@ export interface ShellProps {
   onOpenSessions(): void;
   /** The session list behind the title/menu entry. */
   sessions: SessionsView;
+  /**
+   * A session switch is held waiting on the learner: show the switch-guard
+   * confirm ({@link strings.switchGuard}).
+   */
+  pendingSwitch: boolean;
+  /** 「切换」: stop the answer, then run the held switch. */
+  confirmSwitch(): void;
+  /** 「等它说完」: drop the held switch. */
+  cancelSwitch(): void;
   /** Agent process lifecycle, so the Shell can show a status line. */
   agentStatus: AgentStatus;
   /** Notices (errors, missing login, fallbacks) for the Shell to surface. */
@@ -200,6 +212,19 @@ export interface ShellProps {
 
   /** The view models the 今天 window and the five tool windows draw. */
   panels: ShellPanels;
+
+  /**
+   * The 总控 planbook (PLANBOOK-1111, batch 3b), or null on every other session.
+   *
+   * When set, the Shell puts it beside the conversation — Bear shows the book
+   * on the left and the chat in a right column; the reference skins stack it
+   * above `children`.
+   */
+  planbook: React.ReactNode | null;
+  /** Whether the planbook's chat column is open (Bear's 「和总控聊」 toggle). */
+  chatOpen: boolean;
+  /** Toggle the planbook's chat column. */
+  onToggleChat(): void;
 }
 
 /** The panel view models the Shell places in its side windows. */
@@ -223,6 +248,13 @@ export interface ThreadNote {
 export interface ThreadProps {
   /** Rendered above the messages (the 总控 今日卡), or null. */
   header: React.ReactNode | null;
+  /**
+   * The 「更早的对话」 fold row at the top of the message list, or null.
+   *
+   * On the 总控 session the card moved into the planbook's day view, so the
+   * fold row renders as a plain button where the transcript starts.
+   */
+  older: { label: string; onToggle(): void } | null;
   messages: ChatMessage[];
   /**
    * True while the last assistant block is still empty (thinking).
@@ -361,6 +393,13 @@ export interface ComposerProps {
    * accidental send or stop can be undone and a withdrawn message is not lost.
    */
   onStop(): string | null;
+  /**
+   * Words a confirmed session switch withdrew from the old session's queue; the
+   * skin puts them into the field once, then calls onCarriedDraftTaken.
+   */
+  carriedDraft: string | null;
+  /** The skin has put {@link carriedDraft} into the field: core forgets it. */
+  onCarriedDraftTaken(): void;
   /** The session's teaching style, shown as the radio row above the field. */
   style: TeachingStyle;
   /** Change the style from the composer's radio row. */
@@ -680,6 +719,92 @@ export interface ControlCardExtract {
   onCancel(): void;
 }
 
+/**
+ * The 总控 周计划本 (PLANBOOK-1111, batch 3b): the day / week / month views.
+ *
+ * `week` / `day` / `month` hold the loaded view model for the view `view`
+ * names (null until it loads); `todayCard` is the whole 今日卡 element for the
+ * day view on today, and `tomorrow` is its 「明天 …」 line.
+ */
+export interface PlanbookProps {
+  /** Which view is shown. */
+  view: PlanView;
+  /** Switch the view (日 / 周 / 月 segmented buttons). */
+  onView(view: PlanView): void;
+  /** The range title beside ‹ ›: 「11-11 周三」 / 「C1 W1 · 11-06 – 11-12」 / 「2026 年 11 月」. */
+  label: string;
+  onPrev(): void;
+  onNext(): void;
+  onToday(): void;
+  /** 「今天」 is disabled while the shown range already contains it. */
+  todayDisabled: boolean;
+  /** Print the planbook (window.print). */
+  onPrint(): void;
+  state: "loading" | "error" | "ready";
+  error: string | null;
+  /** `view === "week"`: the shown week. */
+  week: PlanWeek | null;
+  /** `view === "day"`: the shown day. */
+  day: PlanDay | null;
+  /** `view === "month"`: every day of the shown month. */
+  month: PlanDay[] | null;
+  /**
+   * The 今日卡 element for the day view on today (all buttons and the undo
+   * rows work), or null — e.g. when looking at another day or outside a cycle.
+   */
+  todayCard: React.ReactNode | null;
+  /** The 「明天 …」 line under today's list, or null outside every cycle. */
+  tomorrow: string | null;
+  /** A week/month cell click opens that day in the day view. */
+  onOpenDay(date: string): void;
+  /** The week grid's today Anki cell 「打开 →」: the 今日卡 Anki row's action. */
+  onOpenAnki(): void;
+}
+
+/**
+ * The 总控 面板 (design `?d=dash`, PANEL-PLAN): one page with the status row,
+ * 今天, 本周 / 月, 总进度, 书房, 卡片. Replaces the 周计划本 in the 总控 session;
+ * the chat column stays beside it. Every block gets its own loading / error
+ * state (checklist 1.3), so the props carry the per-block view models as-is.
+ */
+export interface ControlPanelProps {
+  tiles: PanelTile[];
+  /** 今天: the planbook's day view for today (null until loaded). */
+  day: PlanDay | null;
+  /** 本周 / 月: the shown week or month, plus its view switch and range. */
+  week: PlanWeek | null;
+  month: PlanDay[] | null;
+  view: PlanView;
+  onView(view: PlanView): void;
+  label: string;
+  onPrev(): void;
+  onNext(): void;
+  onToday(): void;
+  todayDisabled: boolean;
+  onPrint(): void;
+  /** 书房 rows (在读 → 带读 → 暂停 → 排队); null while loading. */
+  shelf: ShelfRow[] | null;
+  /** 已登记、没排的资料; null while loading. */
+  unplanned: UnplannedMaterial[] | null;
+  /** 总进度: the overview (null while loading). */
+  overview: CycleOverview | null;
+  /** 卡片: the cards stats (null while loading). */
+  cards: CardsStats | null;
+  /** The 今日卡 element for the day view on today, or null. */
+  todayCard: React.ReactNode | null;
+  /** The 「明天 …」 line under today's list, or null. */
+  tomorrow: string | null;
+  /** 书房 / 今天 / 周月格子的动作：开课、带读、读完这段、打开 Anki。 */
+  onOpenDay(date: string): void;
+  onOpenAnki(): void;
+  /** Ask the 总控 for a book change (the message is already marked, see control-prompts). */
+  onAsk(message: string): void;
+  /** Open the 技能与设置 dialog. */
+  onOpenSkills(): void;
+  /** Open the 新卡片 dialog (the cards tool: deck table and the new-card form). */
+  onOpenCards(): void;
+}
+
 /** The 总控 今日卡 above the 总控 session's transcript. */
 export interface ControlCardProps {
   view: ControlCardView;
@@ -731,6 +856,10 @@ export interface SkinSlots {
   CourseIntroCard: ComponentType<CourseIntroCardProps>;
   /** The 总控 今日卡 (local data, no model call). */
   ControlCard: ComponentType<ControlCardProps>;
+  /** The 总控 周计划本: day / week / month views beside the chat. */
+  Planbook: ComponentType<PlanbookProps>;
+  /** The 总控 面板 (design `?d=dash`): replaces the 周计划本 on the 总控 session. */
+  ControlPanel: ComponentType<ControlPanelProps>;
 }
 
 /** The lazily-loaded module a skin id resolves to. */

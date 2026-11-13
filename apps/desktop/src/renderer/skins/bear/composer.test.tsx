@@ -25,6 +25,8 @@ function baseProps(overrides: Partial<ComposerProps> = {}): ComposerProps {
     disabled: false,
     onSend: vi.fn(),
     onStop: vi.fn(),
+    carriedDraft: null,
+    onCarriedDraftTaken: vi.fn(),
     style: "plain",
     onStyle: vi.fn(),
     commandsOpen: false,
@@ -153,6 +155,23 @@ describe("Bear composer", () => {
     expect(onInput).toHaveBeenLastCalledWith("B\n新写的");
     // The caret moves once React has committed the value (next animation frame).
     await waitFor(() => expect(field.selectionStart).toBe("B".length));
+  });
+
+  it("puts words carried over from a confirmed switch in front of the draft, once", async () => {
+    const onInput = vi.fn();
+    const onCarriedDraftTaken = vi.fn();
+    const { rerender } = render(<Composer {...baseProps({ carriedDraft: null, onCarriedDraftTaken })} />);
+    const field = screen.getByRole("textbox") as HTMLTextAreaElement;
+    await userEvent.type(field, "草稿");
+    expect(onCarriedDraftTaken).not.toHaveBeenCalled();
+    rerender(<Composer {...baseProps({ carriedDraft: "排队那句", onInput, onCarriedDraftTaken })} />);
+    await waitFor(() => expect(field.value).toBe("排队那句\n草稿"));
+    expect(onInput).toHaveBeenLastCalledWith("排队那句\n草稿");
+    expect(onCarriedDraftTaken).toHaveBeenCalledTimes(1);
+    // Core clears the value after taking it: a re-render must not put it in again.
+    rerender(<Composer {...baseProps({ carriedDraft: null, onInput, onCarriedDraftTaken })} />);
+    expect(field.value).toBe("排队那句\n草稿");
+    expect(onCarriedDraftTaken).toHaveBeenCalledTimes(1);
   });
 
   it("let Escape close the / menu instead of stopping", async () => {

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { AgentToHostMessage, SessionRole, TeachingStyle } from "@shared/protocol.js";
 import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
+import { useSwitchGuard } from "./use-switch-guard.js";
 import { withStylePrefix } from "./style-prefix.js";
 import { splitActionMarker } from "./action-marker.js";
 import { isComposerDisabled, noticesFor } from "./view-models.js";
@@ -72,6 +73,49 @@ export function useChat(
   // id no longer matches is dropped by the agent with an error.
   const sessionIdRef = useRef<string | undefined>(undefined);
 
+  /**
+   * Withdraw the messages still waiting in Pi's queue and give their words back.
+   *
+   * The agent drops them from the conversation on abort, so handing them back is
+   * what keeps them from being lost. Returns null when nothing was queued (a
+   * command / marked action holds a place but is never handed back).
+   */
+  const withdrawQueued = useCallback((): string | null => {
+    const queued = queuedSentRef.current;
+    queuedSentRef.current = [];
+    if (queued.length === 0) return null;
+    lastSentRef.current = null;
+    const words = queued.filter((text): text is string => text !== null);
+    return words.length > 0 ? words.join("\n\n") : null;
+  }, []);
+
+  const stop = useCallback((): string | null => {
+    client.send({ type: "abort", sessionId: sessionIdRef.current });
+    // Queued words first: the one being answered keeps its half-saved answer.
+    const hadQueued = queuedSentRef.current.length > 0;
+    const queued = withdrawQueued();
+    if (hadQueued) return queued;
+    const lastSent = lastSentRef.current;
+    lastSentRef.current = null;
+    return lastSent;
+  }, [withdrawQueued]);
+
+  // The switch guard's stop (batch-switch-carry): a confirmed switch never hands
+  // the answer in progress back — its reply is already half-saved — it only keeps
+  // the words that were still queued, for the new session's composer.
+  const stopForSwitch = useCallback((): string | null => {
+    client.send({ type: "abort", sessionId: sessionIdRef.current });
+    const queued = withdrawQueued();
+    lastSentRef.current = null;
+    return queued;
+  }, [withdrawQueued]);
+
+  // Every session switch goes through this guard so a mid-answer click asks
+  // first (batch-switch-guard): confirm stops the answer via `stopForSwitch` and
+  // runs the held switch on the settled snapshot below.
+  const switchGuard = useSwitchGuard({ streamingRef, stop: stopForSwitch });
+  const { onStateSnapshot } = switchGuard;
+
   useEffect(() => {
     const unsubscribe = client.subscribe((event: AgentToHostMessage) => {
       dispatch({ kind: "agent-event", event });
@@ -86,6 +130,9 @@ export function useChat(
         const left = streaming ? event.state.queuedFollowUps : 0;
         if (queued.length > left) queuedSentRef.current = queued.slice(queued.length - left);
         streamingRef.current = streaming;
+        // A confirmed switch settles on the first non-streaming snapshot (or on
+        // its own timeout); unconfirmed ones are untouched by this.
+        onStateSnapshot(streaming);
         // Synchronously, so a send in the same turn as this snapshot already
         // targets the session it names (the agent drops a stale id).
         sessionIdRef.current = event.state.sessionId ?? undefined;
@@ -107,7 +154,7 @@ export function useChat(
     // required because the agent may have started before this window subscribed.
     client.send({ type: "init" });
     return unsubscribe;
-  }, []);
+  }, [onStateSnapshot]);
 
   // Re-request the command list whenever the disabled-skill set changes, so
   // turning a skill off removes its `/skill:<name>` entry without a restart.
@@ -150,21 +197,6 @@ export function useChat(
     });
   }, []);
 
-  const stop = useCallback((): string | null => {
-    client.send({ type: "abort", sessionId: sessionIdRef.current });
-    // The agent withdraws queued messages from the conversation on abort; hand
-    // their words back instead of the one being answered.
-    const queued = queuedSentRef.current;
-    queuedSentRef.current = [];
-    if (queued.length > 0) {
-      lastSentRef.current = null;
-      const words = queued.filter((text): text is string => text !== null);
-      return words.length > 0 ? words.join("\n\n") : null;
-    }
-    const lastSent = lastSentRef.current;
-    lastSentRef.current = null;
-    return lastSent;
-  }, []);
   const compact = useCallback(() => client.send({ type: "compact", sessionId: sessionIdRef.current }), []);
 
   // Retry resends the last user message. `withStylePrefix` never double-prefixes,
@@ -238,6 +270,12 @@ export function useChat(
       newSession,
       continueSession,
       openSession,
+      pendingSwitch: switchGuard.pendingSwitch,
+      carriedDraft: switchGuard.carriedDraft,
+      takeCarriedDraft: switchGuard.takeCarriedDraft,
+      guardSwitch: switchGuard.guardSwitch,
+      confirmSwitch: switchGuard.confirmSwitch,
+      cancelSwitch: switchGuard.cancelSwitch,
       sessionFile: state.session?.sessionFile ?? null,
       setModel,
       setThinkingLevel,
@@ -253,6 +291,7 @@ export function useChat(
     newSession,
     continueSession,
     openSession,
+    switchGuard,
     setModel,
     setThinkingLevel,
     dismissNotice,

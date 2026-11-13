@@ -35,6 +35,8 @@ import { DayEditor } from "./day-editor.js";
 import { SlashMenu } from "./slash-menu.js";
 import { UpdateBar } from "./update-bar.js";
 import { ControlCard } from "./control-card.js";
+import { Planbook } from "./planbook.js";
+import { ControlPanel } from "./control-panel.js";
 import { ChicagoContentNode } from "./content.js";
 import { chicagoMotion } from "./motion.js";
 import { chicagoBodyScaleSteps } from "./body-scale.js";
@@ -64,6 +66,8 @@ const slots: SkinSlots = {
   SlashMenu,
   CourseIntroCard,
   ControlCard,
+  Planbook,
+  ControlPanel,
 };
 
 /** The Chicago skin, consumed by the registry's lazy loader. */

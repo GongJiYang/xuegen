@@ -28,8 +28,7 @@ import { courseIntro, type CourseIntro, type CourseIntroState } from "./course-i
 import { editPlanPrompt, newCoursePrompt, type NewCourseRequest } from "./course-prompts.js";
 import { openingAction, startedTodayMap } from "./opening-action.js";
 import { startsFresh } from "./session-freshness.js";
-import { dateKey } from "./use-calendar.js";
-import { resumePrompt, studyPrompt, type ResumePoint } from "../today.js";
+import { resumePrompt, studyPrompt, todayKey, type ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 
 /** The course whose session is running, or null for a free chat. */
@@ -105,8 +104,13 @@ export function useCourseSessions(
   requestFocus: () => void,
 ): CourseSessionActions {
   const pendingNewCourse = useRef<PendingNewCourse | null>(null);
+  // Courses whose `openSession` call is still in flight. A ref (not state) so a
+  // second click in the same render pass sees the lock: `courseStartedOn` and
+  // `activeCourse` only update after the promise resolves, which is exactly the
+  // window in which a double click would start a duplicate session.
+  const opening = useRef<Set<string>>(new Set());
   const [intro, setIntro] = useState<CourseIntroState | null>(null);
-  const startedToday = startedTodayMap(settings.courseStartedOn, dateKey(new Date()));
+  const startedToday = startedTodayMap(settings.courseStartedOn, todayKey());
   // The latest transcript length, kept in a ref so the promise continuation
   // below reads the switched session's history instead of the stale closure.
   const messagesLength = useRef(controller.messages.length);
@@ -125,18 +129,21 @@ export function useCourseSessions(
 
   const startSession = useCallback(
     (slug: string, text: string, card: CourseIntro | null, startedOn: string | null, command = false, fresh = false) => {
+      // A click while this course's session is still opening starts no second
+      // session: nothing is sent and no card is shown for the dropped click.
+      if (opening.current.has(slug)) return;
       // A course-management request (改计划) is an instruction, not a lesson:
       // it goes out without the session style prefix.
       const deliver = (message: string): void => (command ? controller.sendCommand(message) : controller.send(message));
-      if (card) setIntro({ card, beforeIndex: controller.messages.length });
       // A remembered session from an earlier day is stale: 改计划 / 周核实 open a fresh one too.
       // No remembered file is not stale — the open session then belongs to this run.
       const remembered = settings.courseSessions[slug];
       const stale =
         remembered !== undefined &&
-        startsFresh(slug, settings.courseSessions, dateKey(new Date()), new Date().getTimezoneOffset());
+        startsFresh(slug, settings.courseSessions, todayKey(), new Date().getTimezoneOffset());
       const freshNow = fresh || stale;
       if (activeCourse === slug && !freshNow) {
+        if (card) setIntro({ card, beforeIndex: controller.messages.length });
         deliver(text);
         if (startedOn) {
           update({ courseStartedOn: { ...settings.courseStartedOn, [slug]: startedOn } });
@@ -146,24 +153,40 @@ export function useCourseSessions(
       // The day's first lesson starts a fresh session, so 学根 reads the course
       // file anew instead of answering from an older session's memory.
       const known = freshNow ? null : (settings.courseSessions[slug] ?? null);
-      setActiveCourse(slug);
-      void controller.openSession(known, { kind: "course", slug }).then((opened) => {
-        const patch: Partial<DesktopSettings> = {};
-        if (opened && opened !== known) {
-          patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
-        }
-        if (startedOn) {
-          patch.courseStartedOn = { ...settings.courseStartedOn, [slug]: startedOn };
-        }
-        if (Object.keys(patch).length > 0) update(patch);
-        if (card) {
-          // The switched session's history is in place now; put the card after
-          // it, still before the prompt that is about to be sent.
-          setIntro((current) =>
-            current?.card === card ? { card, beforeIndex: messagesLength.current } : current,
-          );
-        }
-        deliver(text);
+      // A running answer asks first: everything the switch changes (card,
+      // active course, the open lock) happens inside the guarded run, so
+      // 「等它说完」 leaves all of it untouched.
+      controller.guardSwitch(() => {
+        if (card) setIntro({ card, beforeIndex: controller.messages.length });
+        setActiveCourse(slug);
+        opening.current.add(slug);
+        void controller
+          .openSession(known, { kind: "course", slug })
+          .then((opened) => {
+            opening.current.delete(slug);
+            const patch: Partial<DesktopSettings> = {};
+            if (opened && opened !== known) {
+              patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
+            }
+            if (startedOn) {
+              patch.courseStartedOn = { ...settings.courseStartedOn, [slug]: startedOn };
+            }
+            if (Object.keys(patch).length > 0) update(patch);
+            if (card) {
+              // The switched session's history is in place now; put the card after
+              // it, still before the prompt that is about to be sent.
+              setIntro((current) =>
+                current?.card === card ? { card, beforeIndex: messagesLength.current } : current,
+              );
+            }
+            deliver(text);
+          })
+          .catch(() => {
+            // `openSession` resolves null rather than rejecting, but if it ever
+            // does reject the lock must still be released or this course could
+            // never be opened again.
+            opening.current.delete(slug);
+          });
       });
     },
     [activeCourse, controller, settings.courseSessions, settings.courseStartedOn, update, setActiveCourse],
@@ -178,18 +201,26 @@ export function useCourseSessions(
   const switchOnly = useCallback(
     (slug: string, retryText: string | null) => {
       const known = settings.courseSessions[slug] ?? null;
-      setIntro(null);
-      setActiveCourse(slug);
-      if (!known) return;
-      void controller.openSession(known, { kind: "course", slug }).then((opened) => {
-        const patch: Partial<DesktopSettings> = {};
-        if (opened && opened !== known) {
-          patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
-        }
-        if (Object.keys(patch).length > 0) update(patch);
-        // No session was opened, so there is nowhere to retry the opening.
-        if (retryText === null || opened === null) return;
-        if (!answeredRef.current) controller.send(retryText);
+      // No remembered file: nothing switches, the open session just becomes
+      // this course's — no guard needed.
+      if (!known) {
+        setIntro(null);
+        setActiveCourse(slug);
+        return;
+      }
+      controller.guardSwitch(() => {
+        setIntro(null);
+        setActiveCourse(slug);
+        void controller.openSession(known, { kind: "course", slug }).then((opened) => {
+          const patch: Partial<DesktopSettings> = {};
+          if (opened && opened !== known) {
+            patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
+          }
+          if (Object.keys(patch).length > 0) update(patch);
+          // No session was opened, so there is nowhere to retry the opening.
+          if (retryText === null || opened === null) return;
+          if (!answeredRef.current) controller.send(retryText);
+        });
       });
     },
     [controller, settings.courseSessions, update, setActiveCourse],
@@ -201,9 +232,15 @@ export function useCourseSessions(
    */
   const openCourse = useCallback(
     (slug: string, fallbackText: string, card: CourseIntro) => {
-      const today = dateKey(new Date());
+      const today = todayKey();
       const action = openingAction(slug, today, settings.courseStartedOn, activeCourse);
       if (action === "focus-only") {
+        requestFocus();
+        return;
+      }
+      // Still opening from an earlier click: treat this click like one on the
+      // already-open course instead of starting a duplicate session.
+      if (action === "send-opening" && opening.current.has(slug)) {
         requestFocus();
         return;
       }
@@ -248,16 +285,18 @@ export function useCourseSessions(
       // would mistake an existing course for the new one, so skip the claim.
       const before =
         courses.state.status === "ready" ? courses.state.value.map((course) => course.slug) : null;
-      setIntro(null);
-      setActiveCourse(null);
       // Creating a course is plan-level work (it writes wiki/courses/*.md), so
       // the session opens with the 总控 role. The claim below only remembers the
       // file; the first lesson reopens it as that course's session (see
       // startSession), which is when the course role applies.
-      void controller.openSession(null, { kind: "control" }).then((opened) => {
-        if (!opened) return;
-        if (before) pendingNewCourse.current = { request, sessionFile: opened, before };
-        controller.sendCommand(newCoursePrompt(request));
+      controller.guardSwitch(() => {
+        setIntro(null);
+        setActiveCourse(null);
+        void controller.openSession(null, { kind: "control" }).then((opened) => {
+          if (!opened) return;
+          if (before) pendingNewCourse.current = { request, sessionFile: opened, before };
+          controller.sendCommand(newCoursePrompt(request));
+        });
       });
     },
     [courses.state, controller, setActiveCourse],
@@ -290,9 +329,11 @@ export function useCourseSessions(
   }, [courses.state, settings.courseSessions, update, setActiveCourse]);
 
   const handleNewSession = useCallback(() => {
-    setIntro(null);
-    setActiveCourse(null);
-    controller.newSession();
+    controller.guardSwitch(() => {
+      setIntro(null);
+      setActiveCourse(null);
+      controller.newSession();
+    });
   }, [controller, setActiveCourse]);
 
   return {
