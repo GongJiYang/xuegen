@@ -20,8 +20,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CourseSummary } from "@shared/data-protocol.js";
-import type { DesktopSettings } from "@shared/protocol.js";
+import type { ChatMessage, DesktopSettings } from "@shared/protocol.js";
 import type { ChatController } from "../chat/useChat.js";
+import { splitActionMarker } from "../chat/action-marker.js";
 import { hasAnswer } from "../chat/has-answer.js";
 import { findNewCourseSlug } from "./course-claim.js";
 import { courseIntro, type CourseIntro, type CourseIntroState } from "./course-intro.js";
@@ -30,6 +31,24 @@ import { openingAction, startedTodayMap } from "./opening-action.js";
 import { startsFresh } from "./session-freshness.js";
 import { resumePrompt, studyPrompt, todayKey, type ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
+
+/**
+ * True when `history` already holds a user message carrying the same action
+ * marker (kind + slug) as `text`.
+ *
+ * Returning to a course that was opened earlier today reopens the *same*
+ * transcript; the request that opened it (or a 核实 / 改计划 already sent there)
+ * must not be sent a second time, or 学根 redoes the work from scratch.
+ */
+export function alreadyAsked(history: ChatMessage[], text: string): boolean {
+  const asked = splitActionMarker(text);
+  if (asked.action === null) return false;
+  return history.some((message) => {
+    if (message.role !== "user") return false;
+    const sent = splitActionMarker(message.markdown);
+    return sent.action === asked.action && sent.slug === asked.slug;
+  });
+}
 
 /** The course whose session is running, or null for a free chat. */
 export function resolveActiveCourse(
@@ -144,7 +163,9 @@ export function useCourseSessions(
       const freshNow = fresh || stale;
       if (activeCourse === slug && !freshNow) {
         if (card) setIntro({ card, beforeIndex: controller.messages.length });
-        deliver(text);
+        // Clicked again while this course is already open: the request is in
+        // this very transcript, so sending it again would redo the work.
+        if (!alreadyAsked(controller.messages, text)) deliver(text);
         if (startedOn) {
           update({ courseStartedOn: { ...settings.courseStartedOn, [slug]: startedOn } });
         }
@@ -179,6 +200,12 @@ export function useCourseSessions(
                 current?.card === card ? { card, beforeIndex: messagesLength.current } : current,
               );
             }
+            // Switching to the session remembered from earlier today: if it
+            // already holds this request, only switch — 学根 already answered it.
+            // Read `openedHistory()`, not `controller.messages`: the latter only
+            // catches up on the next render, so here it still holds the cleared
+            // transcript of the session we just left (batch-no-resend-2).
+            if (known !== null && alreadyAsked(controller.openedHistory(), text)) return;
             deliver(text);
           })
           .catch(() => {

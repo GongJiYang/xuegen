@@ -12,6 +12,11 @@ import type { NoticeItem, ThreadNote } from "../../skins/contract.js";
 
 export interface ChatController {
   messages: ChatMessage[];
+  /**
+   * The transcript the last `history` event carried — read synchronously right
+   * after `openSession` resolves (React state lags behind).
+   */
+  openedHistory(): ChatMessage[];
   models: ModelInfo[];
   modelsReason: string | null;
   currentModel: ModelInfo | null;

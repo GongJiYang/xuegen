@@ -27,6 +27,8 @@ function fakeController(overrides: Partial<ChatController> = {}) {
     sessionFile: null,
     streaming: false,
     messages: [],
+    // Everything here reads `messages`, never the just-arrived history.
+    openedHistory: () => [],
     sendCommand: vi.fn(),
     openSession: vi.fn((file: string | null) => Promise.resolve(file ?? "/sessions/new.jsonl")),
     // The guard passes the switch straight through unless a test replaces it.

@@ -14,6 +14,7 @@ import type { ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 import { dateKey } from "./use-calendar.js";
 import {
+  alreadyAsked,
   resolveActiveCourse,
   useCourseSessions,
   type CourseSessionActions,
@@ -42,12 +43,19 @@ function readyCourses(value: CourseSummary[]): CoursesResource {
   } as unknown as CoursesResource;
 }
 
+/**
+ * @param history What `openedHistory()` answers: the transcript the last
+ *   `history` event carried. Empty by default, like a controller that never saw
+ *   one.
+ */
 function fakeController(
   sessionFile: string | null = "/home/sessions/new.jsonl",
   messages: ChatMessage[] = [],
+  history: ChatMessage[] = [],
 ) {
   return {
     messages,
+    openedHistory: vi.fn(() => history),
     send: vi.fn(),
     sendCommand: vi.fn(),
     setRefreshNote: vi.fn(),
@@ -804,5 +812,179 @@ describe("useCourseSessions — session-switch guard", () => {
       held[0]?.();
     });
     expect(controller.newSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("alreadyAsked", () => {
+  function user(markdown: string): ChatMessage {
+    return { id: `u-${markdown.slice(0, 8)}`, role: "user", markdown, streaming: false, toolCalls: [] };
+  }
+  function assistant(markdown: string): ChatMessage {
+    return { id: "a1", role: "assistant", markdown, streaming: false, toolCalls: [] };
+  }
+  const verify = "核实第三周\n⟦xuegen:verify|ctm|CTM 7 周⟧";
+
+  it("is true for the same kind and slug", () => {
+    expect(alreadyAsked([user(verify)], verify)).toBe(true);
+  });
+
+  it("is false for the same kind on another course", () => {
+    expect(alreadyAsked([user("核实第三周\n⟦xuegen:verify|algebra|代数⟧")], verify)).toBe(false);
+  });
+
+  it("is false for another kind on the same course", () => {
+    const opened = "开始今天的 CTM 7 周\n⟦xuegen:open|ctm|CTM 7 周⟧";
+    expect(alreadyAsked([user(opened)], verify)).toBe(false);
+  });
+
+  it("is false when the text carries no marker", () => {
+    expect(alreadyAsked([user(verify)], "继续")).toBe(false);
+  });
+
+  it("ignores messages that are not the learner's", () => {
+    expect(alreadyAsked([assistant(verify)], verify)).toBe(false);
+  });
+});
+
+describe("useCourseSessions — no resending an identical request", () => {
+  const course = {
+    slug: "ctm",
+    title: "CTM 7 周",
+    weekLabel: "W3",
+    week: { done: 0, total: 0, tasks: [] },
+    overall: { done: 0, total: 0 },
+    lastRecord: null,
+    nextSession: "2.1",
+    styleHint: null,
+  } as CourseSummary;
+
+  /** The session-file stamp for a local day at local noon, in the file-name format. */
+  function stampFor(localDay: string): string {
+    const [year, month, day] = localDay.split("-").map(Number);
+    const iso = new Date(year ?? 2000, (month ?? 1) - 1, day ?? 1, 12, 0, 0).toISOString();
+    return `/home/sessions/${iso.replace(/[:.]/g, "-")}_abc.jsonl`;
+  }
+
+  const verify = "核实第三周\n⟦xuegen:verify|ctm|CTM 7 周⟧";
+  const opened = "开始今天的 CTM 7 周\n⟦xuegen:open|ctm|CTM 7 周⟧";
+
+  function message(id: string, role: "user" | "assistant", markdown: string): ChatMessage {
+    return { id, role, markdown, streaming: false, toolCalls: [] };
+  }
+
+  it("switches to today's remembered session without sending when it already holds the verify", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const history = [
+      message("u1", "user", verify),
+      message("a1", "assistant", "第三周对得上"),
+    ];
+    const controller = fakeController(file, history, history);
+    const setActiveCourse = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={setActiveCourse}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", verify);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith(file, { kind: "course", slug: "ctm" });
+    expect(setActiveCourse).toHaveBeenCalledWith("ctm");
+    expect(controller.send).not.toHaveBeenCalled();
+  });
+
+  it("sends when today's remembered session does not hold that request yet", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const history = [
+      message("u1", "user", opened),
+      message("a1", "assistant", "今天读 2.1"),
+    ];
+    const controller = fakeController(file, history, history);
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", verify);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith(file, { kind: "course", slug: "ctm" });
+    expect(controller.send).toHaveBeenCalledTimes(1);
+    expect(controller.send).toHaveBeenCalledWith(verify);
+  });
+
+  it("reads the switched session's history synchronously, not the lagging messages", async () => {
+    // The real window (batch-no-resend-2): 学根 posts `history` during the switch
+    // and `session-opened` right after; React has not re-rendered, so
+    // `controller.messages` is still the cleared transcript of the old session.
+    // Reading it made `alreadyAsked` always false and sent the 核实 twice.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController(file, [], [
+      message("u1", "user", verify),
+      message("a1", "assistant", "第三周对得上"),
+    ]);
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", verify);
+      await Promise.resolve();
+    });
+
+    expect(controller.openSession).toHaveBeenCalledWith(file, { kind: "course", slug: "ctm" });
+    expect(controller.send).not.toHaveBeenCalled();
+  });
+
+  it("does not send the opening again when it is already in that course's session", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    // Remembered file from today: the course's session is already open, so the
+    // click takes the "already in that course" branch instead of reopening.
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController(file, [message("u1", "user", opened)]);
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={vi.fn()}
+        setActiveCourse={vi.fn()}
+        activeCourse="ctm"
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStartSession("ctm", opened);
+    });
+
+    expect(controller.send).not.toHaveBeenCalled();
+    expect(controller.openSession).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { AgentToHostMessage, SessionRole, TeachingStyle } from "@shared/protocol.js";
+import type { AgentToHostMessage, ChatMessage, SessionRole, TeachingStyle } from "@shared/protocol.js";
 import { chatReducer, initialChatState, isThinking } from "./chat-reducer.js";
 import { useSwitchGuard } from "./use-switch-guard.js";
 import { withStylePrefix } from "./style-prefix.js";
@@ -59,6 +59,13 @@ export function useChat(
 
   // Pending `open-session` requests, resolved by the agent's `session-opened`.
   const openRequests = useRef(new Map<string, (sessionFile: string | null) => void>());
+
+  // The transcript the last `history` event carried, written synchronously by the
+  // event listener below. `state.messages` only catches up on the next render, so
+  // a caller reading it right after `openSession` resolves would still see the
+  // session it just left (the agent posts `history` before `session-opened`).
+  const openedHistoryRef = useRef<ChatMessage[]>([]);
+  const openedHistory = useCallback(() => openedHistoryRef.current, []);
 
   const disabledSkillsRef = useRef(disabledSkills);
   useEffect(() => {
@@ -141,6 +148,10 @@ export function useChat(
         openRequests.current.get(event.requestId)?.(event.sessionFile);
         openRequests.current.delete(event.requestId);
       }
+      // Synchronously, for the same reason as `sessionIdRef`: the `openSession`
+      // continuation runs before React re-renders, so it must read the switched
+      // session's transcript from here, not from `state.messages`.
+      if (event.type === "history") openedHistoryRef.current = event.messages;
       // Re-request the model and command lists whenever the agent reports ready
       // or switches sessions. The mount-time request can be dropped when the
       // agent process has not started yet, so `ready` is the reliable trigger.
@@ -247,6 +258,7 @@ export function useChat(
     };
     return {
       messages: state.messages,
+      openedHistory,
       models: state.models,
       modelsReason: state.modelsReason,
       currentModel: state.session?.model ?? null,
@@ -283,6 +295,7 @@ export function useChat(
     };
   }, [
     state,
+    openedHistory,
     compact,
     send,
     sendCommand,

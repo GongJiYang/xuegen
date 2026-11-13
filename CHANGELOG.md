@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.12.2 — 2026-11-13
+
+- Fix: clicking 核实 → (or 开课 →) again for a course already opened today re-sent the same request, so 学根 started the weekly check over (a real 离散 session got it four times). Reopening today's session now only switches to it when it already holds that request (`alreadyAsked`); the check reads the history the agent just sent (`controller.openedHistory()`), because React state still lags when `openSession` resolves.
+
 ## v0.12.1 — 2026-11-13
 
 - Fix: the 总控 panel's 本月 view showed nothing (the month data was never passed from the assembly hook to the panel). The panel now defaults to the week view and pages weeks / months with ‹ 今天 ›; a week- or month-cell click shows that day in the 今天 block with a 回到今天 link, and the 今日卡 stays on the panel while paging. Added a regression test over the assembly hook.

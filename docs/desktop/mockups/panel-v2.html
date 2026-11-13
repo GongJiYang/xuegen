@@ -1,0 +1,231 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>总控面板 v2 · 设计稿</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--card:#1c1c1b;--a3:#0f2a3d;--a9:#1aa3ff;--a11:#6cc3ff;--warn:#e8b45a;--done:#6cc092;--paper:#161615}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1500px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}.lead{color:var(--g11);margin:0 0 18px;max-width:92ch}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper)}
+/* top bar + tabs */
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--a9)}
+.more{color:var(--g8);font-size:16px;padding:0 10px}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex}
+.main{flex:1;min-width:0;padding:16px 20px}
+.chat{width:340px;border-left:1px solid var(--g6);padding:16px;color:var(--g11);font-size:13px}
+.inner{max-width:1480px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--g6);border-radius:8px;padding:11px 12px}
+.cap{font-size:12px;color:var(--g11)}.big{font-size:18px;line-height:26px;font-weight:600;margin:2px 0}
+.sub{font-size:12px;line-height:16px;color:var(--g11)}
+/* blocks */
+.row2{display:grid;grid-template-columns:minmax(330px,2fr) minmax(0,5fr);gap:14px;align-items:start}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.blk{background:var(--card);border:1px solid var(--g6);border-radius:8px;padding:14px 16px}
+.bh{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.bh h2{font-size:16px;margin:0}.bh .acts{margin-left:auto;display:flex;gap:14px}
+.lnk{color:var(--a11);font-size:12px;cursor:pointer}
+.day{font-size:12px;color:var(--g11);margin:-4px 0 12px}
+/* grouped today list */
+.grp{margin-bottom:12px}
+.gh{display:flex;align-items:baseline;gap:8px;padding-bottom:4px;border-bottom:1px solid var(--g6);margin-bottom:2px}
+.gh b{font-size:13px;white-space:nowrap;flex:none}.gh span{font-size:12px;color:var(--g11)}
+.it{display:grid;grid-template-columns:20px 1fr auto;gap:8px;align-items:start;padding:7px 0;border-bottom:1px solid var(--g3)}
+.it:last-child{border-bottom:0}
+.it .t{font-size:13px;line-height:19px}.it .s{font-size:12px;color:var(--g11);line-height:16px;margin-top:1px}
+.go{font-size:12px;color:var(--g12);white-space:nowrap;padding:2px 8px;border:1px solid var(--g7);border-radius:4px}
+.go.pri{background:var(--g12);color:var(--g1);border-color:var(--g12);font-weight:600}
+.m{width:14px;height:14px;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--g8)}
+.m.now{color:var(--a9)}
+.box{width:15px;height:15px;margin-top:2px;border:1.5px solid var(--g8);border-radius:4px}
+.box.on{background:var(--done);border-color:var(--done);color:var(--g1);font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.it.done .t{color:var(--g11)}
+.undo{font-size:12px;color:var(--a11)}
+.foot{font-size:12px;color:var(--g11);margin-top:6px}
+/* week grid */
+.wk{display:grid;grid-template-columns:78px repeat(7,minmax(0,1fr));font-size:12px;border:1px solid var(--g6);border-radius:6px;overflow:hidden}
+.wk>div{padding:6px 7px;border-right:1px solid var(--g3);border-bottom:1px solid var(--g3);min-height:34px}
+.dh b{display:block;font-size:12px}.dh span{color:var(--g11);font-size:11px}
+.dh.today{background:var(--a3)}.dh.today b{color:var(--a11)}
+.lh b{display:block}.lh span{color:var(--g11);font-size:11px}
+.c.today{background:rgba(26,163,255,.06)}
+.ci{line-height:15px;margin-bottom:3px}.ci.done{color:var(--g11)}.ci.moved{color:var(--g8)}.ci.now{font-weight:600}
+.legend{font-size:12px;color:var(--g11);margin-top:8px}
+.ctl{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--g7);border-radius:4px;overflow:hidden}.seg i{font-style:normal;padding:2px 10px;font-size:12px}.seg i.on{background:var(--g12);color:var(--g1)}
+.goal{display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px;color:var(--g11);margin-bottom:10px}.goal b{display:block;color:var(--g12);font-size:13px;font-weight:500;margin-top:2px}
+/* progress / shelf / cards */
+.pr{margin-bottom:12px}.pr .n{display:flex;justify-content:space-between;font-size:13px;font-weight:600}.pr .n i{font-style:normal;color:var(--g11);font-weight:400;font-variant-numeric:tabular-nums}
+.barr{height:3px;background:var(--g4);border-radius:2px;margin:5px 0}.barr i{display:block;height:100%;background:var(--a9);border-radius:2px}
+.tag{font-size:11px;padding:0 5px;border:1px solid var(--g7);border-radius:3px;color:var(--g11);margin-left:6px;font-weight:400}
+.bk{padding:8px 0;border-bottom:1px solid var(--g3)}.bk:last-child{border-bottom:0}
+.bk .n{display:flex;justify-content:space-between;font-size:13px;font-weight:600}.bk .n i{font-style:normal;color:var(--g11);font-weight:400}
+.bk .a{font-size:12px;color:var(--a11);margin-top:3px;display:flex;gap:12px}
+.ul{font-size:12px;color:var(--g11);margin-top:10px}.ul div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--g3)}
+table.cd{width:100%;border-collapse:collapse;font-size:12px}table.cd td,table.cd th{padding:4px 0;border-bottom:1px solid var(--g3);text-align:left}
+table.cd th{color:var(--g11);font-weight:400}table.cd td.r,table.cd th.r{text-align:right;font-variant-numeric:tabular-nums}
+/* spec section */
+.spec{margin-top:34px;color:var(--g12)}
+.spec h2{font-size:16px;margin:26px 0 8px}
+.spec table{border-collapse:collapse;width:100%;font-size:13px}
+.spec td,.spec th{border:1px solid var(--g7);padding:6px 9px;text-align:left;vertical-align:top}
+.spec th{background:var(--g3);font-weight:600}
+.spec .old{color:#f2766b}.spec .new{color:var(--done)}
+.q{background:var(--a3);border:1px solid var(--a9);border-radius:8px;padding:12px 14px;margin-top:10px}
+code{font-size:12px;color:var(--g11)}
+</style>
+<div class="doc">
+<h1>总控面板 v2 · 设计稿（深色，1440 宽）</h1>
+<p class="lead">在已批准的 <code>?d=dash</code> 布局上改三件事：① 顶栏换成<b>标签页</b>（已批准）；② 「今天」按<b>怎么算完成</b>分成「上课 / 阅读 / 复习」三组，阅读用<b>勾选框</b>、上课用「→」，一眼分得出「点了就完成」和「点了是进会话」；③ 去掉所有<b>评判、催促</b>的字眼（没学、晚了、过了日子还没做）。下面是精确到字的稿，最后是逐条文字对照表。</p>
+
+<div class="win">
+ <div class="bar">
+  <span class="tab on">总控 · C1</span><span class="tab">离散 D4</span><span class="tab">CTM D1 <span class="dot"></span></span><span class="tab more">＋</span>
+  <span class="gap"></span><span class="meta">上下文 14%<span>收起聊天</span><span>⋯</span></span>
+ </div>
+ <div class="shell">
+ <div class="main"><div class="inner">
+
+  <!-- tiles -->
+  <div class="tiles">
+   <div class="tile"><div class="cap">周期</div><div class="big">C1 · 第 2 周</div><div class="sub">预计 12-29 收尾</div></div>
+   <div class="tile"><div class="cap">今天</div><div class="big">1 / 8 项</div><div class="sub">整合日 · 先做两门周核实</div></div>
+   <div class="tile"><div class="cap">本周</div><div class="big">3 / 13 项</div><div class="sub">还剩 10 项</div></div>
+   <div class="tile"><div class="cap">书房</div><div class="big">3 本在读</div><div class="sub">Epp 预计 02-01 读完</div></div>
+   <div class="tile"><div class="cap">Anki</div><div class="big">42 张</div><div class="sub">今天到期 · Anki 已打开</div></div>
+   <div class="tile"><div class="cap">卡片</div><div class="big">全部已同步</div><div class="sub">共 501 张 · 10 个牌组</div></div>
+  </div>
+
+  <div class="row2">
+   <!-- TODAY grouped by how it completes -->
+   <section class="blk">
+    <div class="bh"><h2>今天</h2><span class="acts"><span class="lnk">让总控说说今天</span><span class="lnk">技能与设置</span><span class="lnk">打印</span></span></div>
+    <div class="day">11-13 周五 · 整合日（这天做周核实，不排新课）</div>
+
+    <div class="grp">
+     <div class="gh"><b>上课</b><span>主课、导读课、周核实：进会话讲，讲完在会话里点「收课」才算完成</span></div>
+     <div class="it"><span class="m now">●</span><div><div class="t">离散 · 周核实</div><div class="s">逐项核对本周学的</div></div><span class="go pri">开始 →</span></div>
+     <div class="it"><span class="m now">●</span><div><div class="t">CTM · 周核实</div><div class="s">逐项核对本周学的</div></div><span class="go pri">开始 →</span></div>
+     <div class="it"><span class="m">○</span><div><div class="t">导读课 · C 语言 D1 · 第一个程序、编译与运行</div><div class="s">原排 11-11 · 上完后面的课次跟着挪</div></div><span class="go">开课 →</span></div>
+     <div class="it"><span class="m">○</span><div><div class="t">导读课 · 数据结构 D1 · §1.1–1.2 概览</div><div class="s">原排 11-12</div></div><span class="go">开课 →</span></div>
+    </div>
+
+    <div class="grp">
+     <div class="gh"><b>阅读</b><span>读完勾一下就记下（10 秒内可撤销）；想让学根陪着读，点「陪读 →」</span></div>
+     <div class="it"><span class="box"></span><div><div class="t">课后读 · 离散 §1.1–1.4</div><div class="s">原排 11-10</div></div><span class="lnk">陪读 →</span></div>
+     <div class="it"><span class="box"></span><div><div class="t">课后读 · 离散 §2.1–2.2</div></div><span class="lnk">陪读 →</span></div>
+     <div class="it done"><span class="box on">✓</span><div><div class="t">课后读 · 离散 §2.3</div><div class="s">已记下</div></div><span class="undo">撤销 · 7</span></div>
+     <div class="it"><span class="box"></span><div><div class="t">自读 · Epp §1.1–1.4 · pp.1–9</div><div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+    </div>
+
+    <div class="grp">
+     <div class="gh"><b>复习</b><span>在 Anki 里刷，学根不记</span></div>
+     <div class="it"><span class="m">○</span><div><div class="t">Anki · 今天 42 张</div></div><span class="go">打开 Anki →</span></div>
+    </div>
+    <div class="foot">想改计划，直接在右边跟总控说。</div>
+   </section>
+
+   <!-- WEEK -->
+   <section class="blk">
+    <div class="bh"><h2>本周</h2></div>
+    <div class="ctl"><span class="seg"><i class="on">周</i><i>月</i></span><span class="sub">C1 第 2 周 · 11-13 – 11-19</span><span class="gap"></span><span class="lnk">‹ 上一周</span><span class="lnk">本周</span><span class="lnk">下一周 ›</span></div>
+    <div class="goal"><div>本周目标<b>CTM：能独立画出声明式模型的图</b></div><div>本周复盘<b>周五整合日和总控一起写</b></div></div>
+    <div class="wk">
+     <div></div>
+     <div class="dh today"><b>五 11-13</b><span>今天 · 整合</span></div><div class="dh"><b>六 11-14</b><span>低强度</span></div><div class="dh"><b>日 11-15</b><span>休息</span></div><div class="dh"><b>一 11-16</b><span>主攻</span></div><div class="dh"><b>二 11-17</b><span>主攻</span></div><div class="dh"><b>三 11-18</b><span>主攻</span></div><div class="dh"><b>四 11-19</b><span>主攻</span></div>
+     <div class="lh"><b>主课</b><span>要收课</span></div>
+      <div class="c today"><div class="ci now">● 离散 周核实</div><div class="ci now">● CTM 周核实</div></div><div class="c"></div><div class="c"><div class="ci done">休息</div></div><div class="c"><div class="ci">○ 离散 D4</div></div><div class="c"><div class="ci">○ CTM D2</div></div><div class="c"><div class="ci">○ 离散 D5</div></div><div class="c"><div class="ci">○ CTM D3</div></div>
+     <div class="lh"><b>导读课</b><span>要收课</span></div>
+      <div class="c today"><div class="ci">○ C 语言 D1</div><div class="ci">○ 数据结构 D1</div></div><div class="c"></div><div class="c"></div><div class="c"><div class="ci">○ C 语言 D2</div></div><div class="c"><div class="ci">○ 数据结构 D2</div></div><div class="c"><div class="ci">○ C 语言 D3</div></div><div class="c"><div class="ci">○ 数据结构 D3</div></div>
+     <div class="lh"><b>课后读</b><span>勾选完成</span></div>
+      <div class="c today"><div class="ci">☐ 离散 §1.1–1.4</div><div class="ci">☐ 离散 §2.1–2.2</div><div class="ci done">✓ 离散 §2.3</div></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div>
+     <div class="lh"><b>自读</b><span>勾选完成</span></div>
+      <div class="c today"><div class="ci">☐ Epp pp.1–9</div></div><div class="c"><div class="ci">☐ Epp pp.10–18</div></div><div class="c"><div class="ci">☐ Epp pp.19–27</div></div><div class="c"><div class="ci">☐ Epp pp.28–36</div></div><div class="c"><div class="ci">☐ Epp pp.37–45</div></div><div class="c"><div class="ci">☐ Epp pp.46–54</div></div><div class="c"><div class="ci">☐ Epp pp.55–63</div></div>
+     <div class="lh"><b>Anki</b><span>只提醒</span></div>
+      <div class="c today"><div class="ci">42 张 · 打开 →</div></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div>
+    </div>
+    <div class="legend">✓ 做完　● 今天　○ 之后　☐ 读完勾选　↷ 挪到了后面　·　点一格看那天</div>
+   </section>
+  </div>
+
+  <div class="row3">
+   <section class="blk">
+    <div class="bh"><h2>总进度</h2><span class="sub">只算主课</span></div>
+    <div class="pr"><div class="n">离散<i>3 / 15 节</i></div><div class="barr"><i style="width:20%"></i></div><div class="sub">下一节 D4 · 11-16 · 最后一节预计 12-23</div></div>
+    <div class="pr"><div class="n">CTM<i>0 / 14 节</i></div><div class="barr"><i style="width:0"></i></div><div class="sub">下一节 D1 · 最后一节预计 12-29</div></div>
+    <div class="sub" style="margin-top:12px">C1 按现在的进度 12-29 收尾（原计划 12-24）<br>下个周期 C2 预计 12-30 开始 · 整条路线预计 2028-07-25 结束</div>
+   </section>
+   <section class="blk">
+    <div class="bh"><h2>书房</h2><span class="acts"><span class="lnk">加一本书</span></span></div>
+    <div class="bk"><div class="n"><span>Epp<span class="tag">自读</span></span><i>0 / 81 段</i></div><div class="sub">预计 02-01 读完 · 目标 01-15</div><div class="a"><span>暂停</span><span>改读法</span><span>改目标</span></div></div>
+    <div class="bk"><div class="n"><span>C 语言<span class="tag">导读课</span></span><i>0 / 14 节</i></div><div class="sub">每周一、周三 · 预计 12-28 读完</div></div>
+    <div class="bk"><div class="n"><span>数据结构<span class="tag">导读课</span></span><i>0 / 14 节</i></div><div class="sub">每周二、周四 · 预计 12-29 读完</div></div>
+    <div class="bk"><div class="n"><span>CTM<span class="tag">排队</span></span><i>0 / 79 段</i></div><div class="sub">Epp 读完后开始 · 预计 04-21 读完</div><div class="a"><span>改读法</span><span>设目标日期</span></div></div>
+    <div class="ul"><div style="color:var(--g12);border:0">已登记、还没排进计划</div><div><span>CLRS《Introduction to Algorithms》4th</span><span>数据结构与算法</span></div><div><span>Davies · A Cool Brisk Walk</span><span>离散数学</span></div><div><span>Abelson &amp; Sussman · SICP</span><span>编程语言与编程范式</span></div></div>
+   </section>
+   <section class="blk">
+    <div class="bh"><h2>卡片</h2><span class="acts"><span class="lnk">新卡片</span></span></div>
+    <table class="cd"><tr><th>牌组</th><th class="r">张数</th><th class="r">待同步</th></tr>
+     <tr><td>DP</td><td class="r">18</td><td class="r">—</td></tr><tr><td>Link</td><td class="r">127</td><td class="r">—</td></tr><tr><td>MME</td><td class="r">78</td><td class="r">—</td></tr><tr><td>Mathematics::DiscreteMath</td><td class="r">121</td><td class="r">—</td></tr><tr><td>其余 6 个牌组</td><td class="r">157</td><td class="r">—</td></tr></table>
+    <div class="foot">全部已同步到 Anki。</div>
+   </section>
+  </div>
+ </div></div>
+ <aside class="chat">（和总控的聊天栏，宽 340，不变）</aside>
+ </div>
+</div>
+
+<div class="spec">
+<h2>一、完成规则：按钮样子 = 点了会怎样</h2>
+<table>
+<tr><th>组</th><th>包含</th><th>控件</th><th>点了会怎样</th><th>什么时候算完成</th></tr>
+<tr><td>上课</td><td>主课、导读课、周核实</td><td>右侧「开始 →」「开课 →」（箭头 = 去别处）</td><td>打开这门课的会话</td><td>在会话里讲完点「收课」</td></tr>
+<tr><td>阅读</td><td>课后读、自读</td><td>左侧勾选框 ☐（勾 = 记下）；右侧「陪读 →」（可选）</td><td>勾：直接记完成，变 ✓ + 「撤销 · 10」。陪读：打开一个陪你读这一段的会话，<b>不记完成</b>，读完还是勾一下</td><td>勾上那一刻（10 秒后写进书页 / 课程页）</td></tr>
+<tr><td>复习</td><td>Anki</td><td>右侧「打开 Anki →」</td><td>打开卡片面板</td><td>学根不记（只提醒，用户 11-11 定）</td></tr>
+</table>
+
+<h2>二、文字对照表（<span class="old">原文</span> → <span class="new">改成</span>）</h2>
+<table>
+<tr><th>位置</th><th>原文</th><th>问题</th><th>改成</th></tr>
+<tr><td>周期格</td><td class="old">预计 12-29 结束 · 比计划晚 5 天</td><td>「比计划晚」是评判，天天挂在最上面</td><td class="new">预计 12-29 收尾</td></tr>
+<tr><td>总进度底行</td><td class="old">（无）</td><td>原计划日期要有地方看</td><td class="new">C1 按现在的进度 12-29 收尾（原计划 12-24）</td></tr>
+<tr><td>今天格</td><td class="old">主攻日 · CTM D1 待上</td><td>「待上」生硬</td><td class="new">整合日 · 先做两门周核实（按当天类型说下一步）</td></tr>
+<tr><td>本周格</td><td class="old">5 项过了日子还没做</td><td>催促</td><td class="new">还剩 10 项</td></tr>
+<tr><td>书房格</td><td class="old">Epp 照现在会比目标晚 16 天</td><td>评判</td><td class="new">Epp 预计 02-01 读完</td></tr>
+<tr><td>书房行</td><td class="old">预计 01-31 读完 · 目标 01-15，会晚 16 天（黄字）</td><td>评判 + 警示色</td><td class="new">预计 02-01 读完 · 目标 01-15（灰字，两个日期自己比）</td></tr>
+<tr><td>Anki 格</td><td class="old">今天要复习 · 已连接</td><td>「已连接」是技术词</td><td class="new">今天到期 · Anki 已打开</td></tr>
+<tr><td>卡片格</td><td class="old">0 张待同步</td><td>0 的时候说反话</td><td class="new">全部已同步（有待同步时：「N 张待同步」）</td></tr>
+<tr><td>今天 · 没上的课</td><td class="old">CTM D1 没学（原定 11-12）（黄色 !）</td><td>「没学」是责备；黄色 ! 像报错</td><td class="new">CTM D1 · …（灰字小行「原排 11-12」，普通 ○）</td></tr>
+<tr><td>今天 · 几节没上</td><td class="old">C 语言 3 节没学（最早 11-11）· 开课时会顺延</td><td>同上</td><td class="new">C 语言 D1 起的 3 节 · 原排 11-11 起，开课后跟着挪</td></tr>
+<tr><td>今天 · 讲后读过期</td><td class="old">讲后读 · §1.1–1.4 … · 原定 11-10（黄色 !）</td><td>同上</td><td class="new">讲后读 · 离散 §1.1–1.4（灰字「原排 11-10」）</td></tr>
+<tr><td>今天 · 自读晚了</td><td class="old">第 1 / 81 天 · 晚了 3 天，读完日期顺延到 01-31</td><td>「晚了」+ 一行塞三件事</td><td class="new">第 1 / 81 段（预计日期在书房里看）</td></tr>
+<tr><td>今天 · 按钮</td><td class="old">读完了 / 读完这段</td><td>和「开课 →」长得一样，分不出点了会怎样</td><td class="new">左侧勾选框 ☐（无文字按钮）</td></tr>
+<tr><td>今天 · 周核实</td><td class="old">离散 周核实 · 核实 →</td><td>「核实 →」像动词又像按钮名</td><td class="new">离散 · 周核实 ／ 小行「逐项核对本周学的」／ 按钮「开始 →」</td></tr>
+<tr><td>今天 · 底行</td><td class="old">来自周期页、课程页与书房 · 改计划在下面直接跟总控说</td><td>「周期页、课程页」是内部说法；聊天在右边不在下面</td><td class="new">想改计划，直接在右边跟总控说。</td></tr>
+<tr><td>今天 · 别的日子</td><td class="old">这一天只能看，开课、读完等操作在今天的清单里</td><td>偏长</td><td class="new">这天只能看；要开课或勾读完，点「回到今天」。</td></tr>
+<tr><td>周表格 · 图例</td><td class="old">✓ 做完 ● 今天要做 ○ 还没到 ! 过了该做的日子还没做（Anki 不标）</td><td>「!」+「还没做」是催促</td><td class="new">✓ 做完　● 今天　○ 之后　☐ 读完勾选　↷ 挪到了后面</td></tr>
+<tr><td>周表格 · 过去没读</td><td class="old">! 自读 · Epp … · 没读，顺到明天</td><td>「没读」</td><td class="new">↷ Epp pp.1–9（灰色，已挪到后面）</td></tr>
+<tr><td>周表格 · 行名小字</td><td class="old">周期排期 / 书房</td><td>看不出怎么算完成</td><td class="new">要收课 / 勾选完成 / 只提醒</td></tr>
+<tr><td>周表格 · 翻页</td><td class="old">‹ 今天 ›</td><td>「今天」在周视图里其实是回本周</td><td class="new">‹ 上一周　本周　下一周 ›（月视图：上个月 / 本月 / 下个月）</td></tr>
+</table>
+
+<h2>三、已定：带读保持是课（A，用户 11-13）</h2>
+<p>界面上归到「上课」组，不再写在「书房」名下。用户补充：<b>阅读行（只勾选的）也要能针对这本书开会话陪读</b> → 每个阅读行右侧加「陪读 →」：打开一个会话，学根陪你读这一段（讲难点、答疑），<b>不记完成</b>；读完还是在面板上勾一下。陪读会话放在哪、用什么角色，见下面待定。</p>
+
+<h2>四、改名建议（用户说「名字可以改改」；设计稿已按建议列显示）</h2>
+<table>
+<tr><th>现在</th><th>建议</th><th>理由</th></tr>
+<tr><td>主项课</td><td class="new">主课</td><td>短，和「导读课」成对</td></tr>
+<tr><td>带读</td><td class="new">导读课</td><td>它是一门课（要开课、收课），内容只做概览和术语 = 导读；「读」字让人以为勾一下就完</td></tr>
+<tr><td>讲后读</td><td class="new">课后读</td><td>常见说法，一看就懂是上完课后读的</td></tr>
+<tr><td>（新）阅读行的会话入口</td><td class="new">陪读 →</td><td>学根陪着读，和「导读课」区分：陪读随时开、不排课、不收课</td></tr>
+<tr><td>自读、周核实、整合日</td><td>不变</td><td>已经清楚；周核实和「本周复盘」是两件事，不合并</td></tr>
+</table>
+<p style="color:var(--g11);font-size:13px">改名要同时改：界面文案、9 个技能里对你说的话、词表（SKIN-LEDGER 第三节）和用词闸门规则。库里的数据字段不改（仍叫 aux / 讲后读标记），只改给人看的字。</p>
+</div>
+</div>
+</div></html>

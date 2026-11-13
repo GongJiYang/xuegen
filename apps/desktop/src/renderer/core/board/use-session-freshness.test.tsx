@@ -48,6 +48,7 @@ function fakeController(streaming = false, messageCount = 1) {
   return {
     streaming,
     messages: Array.from({ length: messageCount }, (_, index) => ({ id: `m${index}` })),
+    openedHistory: () => [],
     setRefreshNote: vi.fn(),
     sendCommand: vi.fn(),
     contextUsage: null,

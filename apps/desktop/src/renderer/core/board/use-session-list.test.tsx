@@ -34,6 +34,7 @@ function Harness({ controller }: { controller: ChatController }) {
 function fakeController(guardSwitch: (run: () => void) => void) {
   return {
     sessionFile: "/sessions/current.jsonl",
+    openedHistory: () => [],
     openSession: vi.fn().mockResolvedValue("/sessions/current.jsonl"),
     guardSwitch: vi.fn(guardSwitch),
   } as unknown as ChatController & {
