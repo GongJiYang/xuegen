@@ -898,6 +898,7 @@ export const strings = {
     addCancel: "取消",
     addTitleMissing: "先写书名。",
     dialogClose: "关闭",
+    backToToday: "回到今天",
   },
   data: {
     errorTitle: "数据操作失败",

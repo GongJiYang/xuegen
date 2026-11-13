@@ -406,7 +406,7 @@ export function App() {
       <ControlPanel
         {...planbook.panelProps}
         todayCard={
-          planbook.showCard && planbook.card ? <ControlCard {...planbook.card} older={null} /> : null
+          planbook.panelShowCard && planbook.card ? <ControlCard {...planbook.card} older={null} /> : null
  }
       />
     ) : null,

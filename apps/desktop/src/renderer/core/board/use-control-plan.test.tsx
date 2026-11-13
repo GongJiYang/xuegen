@@ -148,20 +148,20 @@ describe("useControlPlan", () => {
     clientMock.data.mockReset();
   });
 
-  it("初始是日视图、锚在今天，「今天」按钮不可点", async () => {
+  it("初始是周视图（总控面板右块翻周 / 月，日在左块）、锚在今天，「今天」按钮不可点", async () => {
     await settle();
-    expect(captured?.plan.view).toBe("day");
+    expect(captured?.plan.view).toBe("week");
     expect(captured?.plan.anchor).toBe(TODAY);
     expect(captured?.plan.todayDisabled).toBe(true);
-    expect(captured?.plan.label).toBe("11-11 周三");
-    // 日视图拉了那一天的 planbook 数据。
+    expect(captured?.plan.label).toBe("C1 W1 · 11-06 – 11-12");
     expect(captured?.plan.data.status).toBe("ready");
-    if (captured?.plan.data.status !== "ready" || captured.plan.data.value.view !== "day") throw new Error("not a day result");
-    expect(captured.plan.data.value.day.date).toBe(TODAY);
+    if (captured?.plan.data.status !== "ready" || captured.plan.data.value.view !== "week") throw new Error("not a week result");
+    expect(captured.plan.data.value.week.start).toBe("2026-11-06");
   });
 
-  it("next() 后 anchor 进一天；prev() 退回", async () => {
+  it("日视图 next() 后 anchor 进一天；prev() 退回", async () => {
     await settle();
+    act(() => captured?.plan.setView("day"));
     act(() => captured?.plan.next());
     expect(captured?.plan.anchor).toBe("2026-11-12");
     expect(captured?.plan.todayDisabled).toBe(false);
@@ -173,7 +173,9 @@ describe("useControlPlan", () => {
     expect(captured?.plan.todayDisabled).toBe(true);
   });
 
-  it("切到周视图后标题是周期周范围", async () => {
+  it("从月视图切回周视图后标题是周期周范围", async () => {
+    await settle();
+    act(() => captured?.plan.setView("month"));
     await settle();
     act(() => captured?.plan.setView("week"));
     // 数据未到之前先用周一–周日兜底。
@@ -220,7 +222,7 @@ describe("useControlPlan 非总控", () => {
     await settle();
     expect(captured?.card).toBeNull();
     expect(captured?.older).toBeNull();
-    expect(captured?.plan.view).toBe("day");
+    expect(captured?.plan.view).toBe("week");
     expect(captured?.plan.data.status).toBe("loading");
     expect(requests("cycle.month")).toHaveLength(0);
     expect(requests("shelf.list")).toHaveLength(0);

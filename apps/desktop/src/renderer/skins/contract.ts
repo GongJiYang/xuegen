@@ -801,6 +801,10 @@ export interface ControlPanelProps {
   onAsk(message: string): void;
   /** Open the 技能与设置 dialog. */
   onOpenSkills(): void;
+  /** False while the 今天 block shows a clicked cell's day instead of today. */
+  shownToday: boolean;
+  /** 回到今天: the 今天 block shows today again. */
+  onBackToToday(): void;
   /** Open the 新卡片 dialog (the cards tool: deck table and the new-card form). */
   onOpenCards(): void;
 }

@@ -52,7 +52,8 @@ export interface ControlPlan {
 
 export function useControlPlan(input: ControlPlanInput): ControlPlan {
   const card = useControlCard(input);
-  const [view, setView] = useState<PlanView>("day");
+  // The 总控 panel's right block pages weeks / months; the day is the left block.
+  const [view, setView] = useState<PlanView>("week");
   const [anchor, setAnchor] = useState(todayKey);
   const resource = usePlanbook(view, anchor, input.isControl);
   const week: PlanWeek | null =

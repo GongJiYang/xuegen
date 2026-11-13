@@ -14,6 +14,7 @@ import type { SubjectsOverview } from "@shared/data-protocol.js";
 import type { BoardResource } from "./use-resource.js";
 import type { CardsResource } from "./use-cards.js";
 import { useControlPanel } from "./use-control-panel.js";
+import { useState } from "react";
 import { todayKey } from "../today.js";
 import type { useChat } from "../chat/useChat.js";
 import { tomorrowLine } from "./cycle-today.js";
@@ -50,6 +51,8 @@ export interface ControlPlanbookInput {
 export type ControlPanelHookProps = Omit<ControlPanelProps, "todayCard">;
 
 export interface ControlPlanbook {
+  /** The panel's 今天 block shows today, so App attaches the 今日卡. */
+  panelShowCard: boolean;
   /** `Planbook` props minus `todayCard` (App attaches the card element). */
   props: Omit<PlanbookProps, "todayCard" | "onOpenAnki"> & { onOpenAnki(): void };
   /** True only on the day view anchored at today: the 今日卡 belongs there. */
@@ -86,7 +89,11 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
   const { showCard, ...props } = planbookProps(plan.plan, plan.card, tomorrow, todayKey());
   // The 今日卡 Anki row and the week grid's 「打开 →」 run the same action: open
   // the cards tool.
+  // The 今天 block's date: null is today; a week / month cell click shows that day.
+  const [shownDay, setShownDay] = useState<string | null>(null);
+  const today = todayKey();
   const panel = useControlPanel({
+    shownDay,
     shelf: reading.shelf,
     cards: input.cards,
     anki,
@@ -101,8 +108,10 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     overview: panel.overview,
     cards: panel.cards,
     day: panel.day,
-    week: panel.week,
-    month: null,
+    // The right block pages with the plan (‹ 今天 ›); until a paged week loads,
+    // this week from the panel stands in.
+    week: props.week ?? panel.week,
+    month: props.month,
     view: plan.plan.view,
     onView: plan.plan.setView,
     label: plan.plan.label,
@@ -112,13 +121,16 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     todayDisabled: plan.plan.todayDisabled,
     onPrint: () => window.print(),
     tomorrow,
-    onOpenDay: plan.plan.openDay,
+    onOpenDay: (date) => setShownDay(date === today ? null : date),
+    shownToday: shownDay === null,
+    onBackToToday: () => setShownDay(null),
     onOpenAnki: () => input.openTool("cards"),
     onAsk: controller.send,
     onOpenSkills: () => input.openTool("skills"),
     onOpenCards: () => input.openTool("cards"),
   };
   return {
+    panelShowCard: shownDay === null && plan.card !== null,
     props: { ...props, onOpenAnki: () => input.openTool("cards") },
     showCard,
     card: plan.card,

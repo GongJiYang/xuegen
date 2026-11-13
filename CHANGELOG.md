@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.12.1 — 2026-11-13
+
+- Fix: the 总控 panel's 本月 view showed nothing (the month data was never passed from the assembly hook to the panel). The panel now defaults to the week view and pages weeks / months with ‹ 今天 ›; a week- or month-cell click shows that day in the 今天 block with a 回到今天 link, and the 今日卡 stays on the panel while paging. Added a regression test over the assembly hook.
+
 ## v0.12.0 — 2026-11-13
 
 - Desktop: the 总控 session is one page — six status tiles, 今天, 本周 / 本月 (week table with short cells, month calendar), 总进度, 书房 and 卡片 (`ControlPanel` slot; design `?d=dash`, `docs/desktop/PANEL-PLAN.md`). No 课程与计划 drawer or ⌘1–5 in the 总控; 技能与设置 and 新卡片 open as dialogs. The layout follows the panel's own width, so a 1440 window with the chat column open stacks 今天 above 本周.

@@ -14,7 +14,14 @@
 
 import type { CardsStats, CycleOverview, ShelfListItem, SubjectsOverview } from "@shared/data-protocol.js";
 import { todayKey } from "../today.js";
-import { panelTiles, shelfRows, unplannedMaterials, type PanelTile, type ShelfRow, type UnplannedMaterial } from "./panel.js";
+import {
+  panelTiles,
+  shelfRows,
+  unplannedMaterials,
+  type PanelTile,
+  type ShelfRow,
+  type UnplannedMaterial,
+} from "./panel.js";
 import type { PlanDay, PlanWeek } from "./planbook.js";
 import type { AsyncState } from "./state.js";
 import { usePlanbook } from "./use-planbook.js";
@@ -42,6 +49,8 @@ export interface ControlPanelInput {
   subjects: BoardResource<SubjectsOverview>;
   /** Whether the open session is the 总控 one (no requests otherwise). */
   enabled: boolean;
+  /** The date the 今天 block shows (a clicked cell), or null for today. */
+  shownDay: string | null;
 }
 
 function readyValue<T>(state: AsyncState<T>): T | null {
@@ -51,20 +60,39 @@ function readyValue<T>(state: AsyncState<T>): T | null {
 export function useControlPanel(input: ControlPanelInput): ControlPanelData {
   const today = todayKey();
   const day = usePlanbook("day", today, input.enabled);
+  // A clicked cell's day loads on its own; today's day keeps feeding the tiles.
+  const other = usePlanbook("day", input.shownDay ?? today, input.enabled && input.shownDay !== null);
   const week = usePlanbook("week", today, input.enabled);
   const shelfItems: ShelfListItem[] | null = readyValue(input.shelf.list.state);
   const overview = readyValue(input.overview.state);
   const anki = readyValue(input.anki.state);
   const cards = readyValue(input.cards.stats.state);
   const subjects = readyValue(input.subjects.state);
-  const dayValue = day.state.status === "ready" && day.state.value.view === "day" ? day.state.value.day : null;
-  const weekValue = week.state.status === "ready" && week.state.value.view === "week" ? week.state.value.week : null;
+  const dayValue =
+    day.state.status === "ready" && day.state.value.view === "day" ? day.state.value.day : null;
+  const weekValue =
+    week.state.status === "ready" && week.state.value.view === "week" ? week.state.value.week : null;
 
-  const tiles = panelTiles({ today, overview, day: dayValue, week: weekValue, shelf: shelfItems, anki, cards });
+  const tiles = panelTiles({
+    today,
+    overview,
+    day: dayValue,
+    week: weekValue,
+    shelf: shelfItems,
+    anki,
+    cards,
+  });
   const shelf =
     shelfItems !== null && overview !== null
       ? shelfRows({ today, shelf: shelfItems, overview, week: weekValue })
       : null;
   const unplanned = subjects !== null ? unplannedMaterials(subjects) : null;
-  return { tiles, shelf, unplanned, overview, cards, day: dayValue, week: weekValue };
+  const otherValue =
+    other.state.status === "ready" &&
+    other.state.value.view === "day" &&
+    other.state.value.day.date === input.shownDay
+      ? other.state.value.day
+      : null;
+  const shown = input.shownDay === null ? dayValue : otherValue;
+  return { tiles, shelf, unplanned, overview, cards, day: shown, week: weekValue };
 }

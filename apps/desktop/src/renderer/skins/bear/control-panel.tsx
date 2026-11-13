@@ -320,6 +320,11 @@ export function ControlPanel(props: ControlPanelProps) {
           title={strings.panel.blockToday}
           actions={
             <>
+              {!props.shownToday && (
+                <button type="button" className="bear-cp-link" onClick={props.onBackToToday}>
+                  {strings.panel.backToToday}
+                </button>
+              )}
               <button type="button" className="bear-cp-link" onClick={props.onOpenSkills}>
                 {strings.panel.todaySettings}
               </button>
