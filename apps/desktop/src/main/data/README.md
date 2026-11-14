@@ -8,14 +8,17 @@
 - `anki.ts`：只读 AnkiConnect 客户端；动作白名单（`version`/`deckNames`/`getNumCardsReviewedToday`/`findCards`），1.5 秒超时，连不上返回 `{running:false}`；禁止任何写入类 action。
 - `skills.ts`：合并内置/个人/待审核技能目录，启用/禁用记在 `desktop.json` 的 `disabledSkills`；`skills.fetch` 只 `git clone` 到 `skills-pending/`（仅 https），不自动启用；启用待审核技能时用 `skills.setEnabled` 把它移动到 `~/.xuegen/skills/`。**新启用/禁用的技能要等下一次会话**（agent 重新加载 resource loader）才对学根生效；`/` 菜单里 `disabledSkills` 的过滤是即时的（每次 `list-commands` 重新计算）。
 - `sources.ts`：`reading.sources` —— 列出库内 `raw/`、`clippings/` 下尚未入队的 `.md`/`.pdf`（按修改时间倒序，最多 50 条），供「加入阅读」输入框的候选。已在阅读页 `source` 里链接的原文会被排除。
+- `cycle-next.ts`：`cycle.mjs accept / preview` 的 JSON 输出 → `CycleAccept` / `CyclePreview`（逐字段守卫，坏输出降级）。
+- `plan-undo.ts`：`plan-undo.mjs list / undo` 的 JSON 输出 → `PlanCommit[]` / `PlanUndoResult`（「开周期」提交也在列）。
 
 不负责：模型调用、界面渲染、课程与阅读状态的解析逻辑（那些在 skill 脚本里）。
 
-- cycle.day / cycle.month → skills/cycle-plan/cycle.mjs（day / month，只读）
+- cycle.day / cycle.month / cycle.overview → skills/cycle-plan/cycle.mjs（day / month / overview，只读）
+- cycle.accept / cycle.preview → skills/cycle-plan/cycle.mjs（accept / preview，只读；输出经 `cycle-next.ts` 转协议类型）
 - subjects.list → skills/cycle-plan/subjects.mjs（list，只读）
 - course.afterRead → course-state.mjs after-read 打勾后：有 `[[shelf/<书>]]` 链接时记进书房书页（`bookshelf.mjs lecture`），否则照旧记阅读页（`reading-queue.mjs note`）；最后重建课程看板
 - terms.list → skills/course/course-terms.mjs list（只读）
-- plan.undoable → skills/course/plan-undo.mjs list（只读）：`--since` 是这一轮回答开始的时间，返回可撤销的「计划/顺延」提交
+- plan.undoable → skills/course/plan-undo.mjs list（只读）：`--since` 是这一轮回答开始的时间，返回可撤销的「计划/顺延/开周期」提交
 - plan.undo → skills/course/plan-undo.mjs undo（写）：`--workspace` 取 `agent/environment.ts` 的 `resolveWorkspace()`；脚本输出经 `plan-undo.ts` 转成协议类型
 - wiki.read → wiki-page.ts（只读，限 wiki/ 内的 .md）
 - shelf.today / shelf.list → skills/reading/bookshelf.mjs（today / list，只读）

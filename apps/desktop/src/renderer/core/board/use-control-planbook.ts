@@ -20,6 +20,7 @@ import { activityCards } from "./activity-feed.js";
 import { planMarks, changeLine } from "./plan-diff.js";
 import { usePlanChanges } from "./use-plan-changes.js";
 import { useReader } from "./use-reader.js";
+import { useNextCycle } from "./use-next-cycle.js";
 import type { ControlFeedView, PlanChangesView, ReaderNav } from "../../skins/contract.js";
 import { strings } from "../strings.js";
 import { useState } from "react";
@@ -116,6 +117,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
   // the cards tool.
   // The 今天 block's date: null is today; a week / month cell click shows that day.
   const [shownDay, setShownDay] = useState<string | null>(null);
+  const [weekFocus, setWeekFocus] = useState(0);
   const today = todayKey();
   const panel = useControlPanel({
     shownDay,
@@ -140,10 +142,18 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
       courses.reload();
       cycle.reload();
       input.subjects.reload();
-      controller.setRefreshNote(strings.chat.undoneNote);
+      controller.setOnceNote(strings.chat.undoneNote);
     },
   });
   const reader = useReader();
+  const nextCycle = useNextCycle({
+    enabled: control.isControl,
+    overview: panel.overview,
+    subjects: input.subjects.state.status === "ready" ? input.subjects.state.value : null,
+    unplanned: panel.unplanned,
+    names,
+    send: controller.send,
+  });
   const cards = activityCards({
     messages: fold.messages,
     changes: changes.byTurn,
@@ -169,7 +179,9 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
         onShowInWeek: (id) => {
           const first = changes.byTurn[id]?.[0];
           const date = first?.to ?? first?.from;
-          if (date !== null && date !== undefined) plan.plan.showWeek(date);
+          if (date === null || date === undefined) return;
+          plan.plan.showWeek(date);
+          setWeekFocus((count) => count + 1);
         },
         onUndo: changes.undoTurn,
         reader: reader.view,
@@ -219,6 +231,8 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     terms,
     onOpenTerm: openTerm,
     changes: changesView,
+    weekFocus,
+    ...(nextCycle === undefined ? {} : { nextCycle }),
   };
   return {
     panelShowCard: shownDay === null && plan.card !== null,

@@ -129,7 +129,8 @@ describe("panelTiles: six tiles, normal / loading", () => {
 
   it("today: 完成 / 总项，第一个未完成主课写「先上 …」；都做完写「都做完了」", () => {
     const normal = tile(panelTiles(input()), "today");
-    expect(normal).toEqual({ key: "today", value: "2 / 4 项", sub: "主攻日 · 先上 离散 D5", warn: false });
+    // 11-10 没读的讲后读跟到今天，算今天的一项。
+    expect(normal).toEqual({ key: "today", value: "2 / 5 项", sub: "主攻日 · 先上 离散 D5", warn: false });
 
     const allDone = { ...DAY, items: DAY.items.map((item) => ({ ...item, mark: "done" as const })) };
     expect(tile(panelTiles(input({ day: allDone })), "today").sub).toBe("今天的都做完了");

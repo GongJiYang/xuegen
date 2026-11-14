@@ -24,7 +24,7 @@ import type {
 import { assertNever, sessionRoleOrFree } from "../shared/protocol.js";
 import { createXuegenSession, findModel, listAvailableModels, listCommands } from "./session.js";
 import { createEventMapperState, mapPiEvent, type EventMapperState } from "./event-mapper.js";
-import { historyFromEntries, type HistoryReplay } from "./history.js";
+import { historyFromEntries, withQueued, type HistoryReplay } from "./history.js";
 import { sessionState } from "./snapshot.js";
 import { withSessionId } from "./session-request.js";
 import { stopSessionForRestart } from "./restart.js";
@@ -113,7 +113,10 @@ class AgentHost {
 
   private refreshHistory(): void {
     if (!this.session) return;
-    this.history = historyFromEntries(this.session.sessionManager.getBranch(), this.nextId("session"));
+    const rebuilt = historyFromEntries(this.session.sessionManager.getBranch(), this.nextId("session"));
+    // Prompts still queued in Pi are not in the session record yet; add them back
+    // so a stop drops the right ones (fix18d).
+    this.history = withQueued(rebuilt, this.mapperState.queuedTexts, this.nextId);
   }
 
   /** Report the session's current estimated context usage, when available. */

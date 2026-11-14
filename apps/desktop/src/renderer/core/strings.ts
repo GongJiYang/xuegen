@@ -179,6 +179,7 @@ export const strings = {
     brief: "今日简报",
     "undo-close": "撤销收课",
     accompany: "陪读",
+    "next-cycle": "开下一周期",
     legacy: "旧指令",
   },
   /** The buttons a course session shows beside the composer. */
@@ -361,6 +362,8 @@ export const strings = {
       /** A lesson not taken on its day: just the lesson, with a grey 「原排 …」 sub. */
       missedRow: (name: string, id: string, content: string): string => `${name} ${id} · ${content}`,
       missedSub: (date: string): string => `原排 ${date.slice(5)}`,
+      /** Several 课后读 of one course merged into one row: the earliest 原排 and the count. */
+      afterReadManySub: (first: string, count: number): string => `原排 ${first.slice(5)} 起 · ${count} 段`,
       /** Several such lessons of one course, merged into one row. */
       missedMany: (name: string, firstId: string, count: number): string =>
         `${name} ${firstId} 起 ${count} 节`,
@@ -1003,6 +1006,59 @@ export const strings = {
     addTitleMissing: "先写书名。",
     dialogClose: "关闭",
     backToToday: "回到今天",
+  },
+  /** 开下一周期: the 本周 banner and the five-step wizard (design plan2 第 7、8 屏). */
+  nextCycle: {
+    banner: (cycle: string, next: string): string =>
+      `${cycle} 最后一周 · 整合日做完周期验收后，就可以排 ${next}`,
+    bannerLate: (cycle: string, next: string, days: number): string =>
+      `${cycle} 按原计划这周结束，主课顺延了 ${days} 天 · 可以先验收，再决定补齐还是开 ${next}`,
+    open: "开下一周期 →",
+    title: (next: string): string => `开下一周期 · ${next}`,
+    meta: (cycle: string, start: string, end: string): string =>
+      `${cycle} · ${start.slice(5)} – ${end.slice(5)}`,
+    steps: (cycle: string): string[] => [`验收 ${cycle}`, "选主项", "选主资料", "书房", "看一周"],
+    acceptCaption: "主课的总目标",
+    acceptLessons: (done: number, total: number, remaining: string[]): string => {
+      const left =
+        remaining.length === 0
+          ? ""
+          : remaining.length <= 3
+            ? ` · 还差 ${remaining.join("、")}`
+            : ` · 还差 ${remaining[0]}–${remaining[remaining.length - 1]}`;
+      return `课次 ${done} / ${total}${left}`;
+    },
+    acceptGoals: (done: number, total: number): string => `目标 ${done} / ${total} 核实`,
+    shortfallCaption: "没达标的怎么办",
+    recover: "用恢复周补齐",
+    recoverMeta: (next: string): string => `${next} 晚一周开始，后面的周期一起往后挪`,
+    partial: (next: string, courses: string): string => `先开 ${next}，${courses} 剩下的转进书房自读`,
+    partialMeta: (cycle: string): string => `${cycle} 记「部分完成」`,
+    mainsCaption: (next: string): string => `${next} 的主项 · 最多两个 · 路线建议的已勾上，可以换`,
+    mainSuggested: "路线建议",
+    mainGuide: (cycle: string): string => `${cycle} 里在导读课`,
+    mainsNone: "科目页还没读出来。",
+    materialsCaption: "每个主项 7 周只主攻一份主资料 · 从科目页登记过的资料里选",
+    materialsNone: "科目页还没登记资料，交给总控后在聊天里说用哪份。",
+    fromCaption: "主课从哪开始：",
+    fromContinue: "接着导读课的进度往下讲",
+    fromFresh: "从头精讲",
+    shelfCaption: "书房 · 默认什么都不加，勾上的才排",
+    shelfNone: "没有登记过、还没排的资料。",
+    shelfNote: (guides: string): string =>
+      `正在读的自读书照常往后排，不受换周期影响。${guides === "" ? "" : `导读课 ${guides} 变成主课后自动停掉。`}`,
+    previewCaption: (next: string, start: string): string => `${next} 第 1 周预览 · ${start.slice(5)} 起`,
+    previewAux: (name: string): string => `导读 ${name}`,
+    previewUnchanged: "（照旧）",
+    previewNote:
+      "确认后总控按顺序写：周期页、路线页、主课、书房、看板；一次提交，能撤销。周模板沿用上一周期，要改在聊天里说。",
+    noNext: "路线表里这个周期后面没有下一周期，先在聊天里和总控排路线。",
+    loading: "正在读…",
+    failed: "没读出来。",
+    cancel: "取消",
+    back: "上一步",
+    next: "下一步",
+    submit: "交给总控写入",
   },
   data: {
     errorTitle: "数据操作失败",

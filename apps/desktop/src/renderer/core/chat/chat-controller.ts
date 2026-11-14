@@ -50,6 +50,8 @@ export interface ChatController {
   sendCommand(text: string): void;
   /** A note put in front of the next prompts (send and sendCommand) until set back to null. */
   setRefreshNote(note: string | null): void;
+  /** A note put in front of the next prompt only, in place of the refresh note. */
+  setOnceNote(note: string): void;
   /**
    * Stop the running answer.
    *

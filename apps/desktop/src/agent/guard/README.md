@@ -1,6 +1,6 @@
 # guard — 工具层权限拦截（路线阶段 2）
 
-按会话角色（总控 / 课程 / 自由）在 Pi 的 `tool_call` 钩子里检查 read / grep / find / ls / write / edit / bash / course_close / course_plan / calendar_write，清单写死在代码里（AuthBench：权限不交给模型生成）。被拦时把中文原因返回给模型并写一行审计；不弹框（界面讨论后再做）。
+按会话角色（总控 / 课程 / 自由）在 Pi 的 `tool_call` 钩子里检查 read / grep / find / ls / write / edit / bash / course_close / course_plan / cycle_open / calendar_write，清单写死在代码里（AuthBench：权限不交给模型生成）。被拦时把中文原因返回给模型并写一行审计；不弹框（界面讨论后再做）。
 
 模块：
 
@@ -29,7 +29,7 @@
 - `add` 的 `path` 只做形状检查：必须是库内相对路径、不含 `..`；这个页归不归这门课由脚本的 `isOwned` 判。
 - 缺参数不在 guard 拒：工具自己抛出中文错误让模型补齐。
 
-另两个专用工具：`course_plan`（`../tools/course-plan-tool.ts`，4a-i1）只给总控：建课、改计划、刷新看板；`calendar_write`（`../tools/calendar-write-tool.ts`，4a-i2）任何会话都能写日历笔记。
+另两个专用工具：`course_plan`（`../tools/course-plan-tool.ts`，4a-i1）只给总控：建课、改计划、刷新看板；`calendar_write`（`../tools/calendar-write-tool.ts`，4a-i2）任何会话都能写日历笔记。批 5a 加的 `cycle_open`（`../tools/cycle-open-tool.ts`）也只给总控：开下一周期走 `skills/cycle-plan/cycle-open.mjs` 周期事务，`staging` 必须在 `<工作区>/.cycle/` 里，其它角色拒（「建周期在总控会话里做」）。
 
 ## 已知缺口（要 Claude 定）
 

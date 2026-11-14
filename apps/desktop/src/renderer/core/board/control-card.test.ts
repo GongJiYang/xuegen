@@ -123,11 +123,11 @@ describe("controlCard", () => {
     expect(view?.rows[4]?.text).toBe("课后读 · 离散 §1.1–1.4");
     expect(view?.rows[4]?.sub).toBeNull();
     expect(view?.rows[5]?.text).toBe("Anki");
-    expect(view?.rows[3]?.action).toEqual({ kind: "afterRead", slug: "ctm", label: "Ch2 §2.2" });
+    expect(view?.rows[3]?.action).toEqual({ kind: "afterRead", slug: "ctm", labels: ["Ch2 §2.2"] });
     expect(view?.rows[4]?.action).toEqual({
       kind: "afterRead",
       slug: "discrete-math-epp",
-      label: "§1.1–1.4",
+      labels: ["§1.1–1.4"],
     });
     expect(view?.rows[5]?.action).toEqual({ kind: "anki" });
   });
@@ -327,8 +327,40 @@ describe("controlCard", () => {
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
     // 数据里仍写「讲后读」，给人看的是「课后读」。
     expect(view?.rows[0]?.text).toBe("课后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）");
-    expect(view?.rows[0]?.action).toEqual({ kind: "afterRead", slug: "epp", label: "§1.1–1.4" });
-    expect(view?.rows[1]?.action).toEqual({ kind: "afterRead", slug: "plain", label: "第 3 章" });
+    expect(view?.rows[0]?.action).toEqual({ kind: "afterRead", slug: "epp", labels: ["§1.1–1.4"] });
+    expect(view?.rows[1]?.action).toEqual({ kind: "afterRead", slug: "plain", labels: ["第 3 章"] });
+  });
+
+  it("merges one course's 课后读 into one row: ranges joined, 「原排 … 起」 from the earliest, one tick reads them all", () => {
+    const due = (n: number, range: string) => ({
+      slug: `discrete-math-epp#讲后读-${n}`,
+      title: `讲后读 · ${range} · 离散数学`,
+    });
+    const entry = (readingDue: { slug: string; title: string }[]) => ({
+      records: [],
+      plans: [],
+      readingDue,
+      log: [],
+      note: null,
+    });
+    const calendar = month({
+      "2026-11-09": entry([due(1, "§1.1–1.4")]),
+      "2026-11-10": entry([due(2, "§2.1–2.2"), due(3, "§2.3")]),
+      [TODAY]: entry([{ slug: "ctm#讲后读-1", title: "讲后读 · Ch2 §2.2 · CTM" }]),
+    });
+    const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
+    const reads = view?.rows.filter((row) => row.action?.kind === "afterRead") ?? [];
+    expect(reads.map((row) => row.text)).toEqual([
+      "课后读 · 离散 §1.1–1.4、§2.1–2.2、§2.3",
+      "课后读 · CTM Ch2 §2.2",
+    ]);
+    expect(reads[0]?.sub).toBe(strings.control.card.afterReadManySub("2026-11-09", 3));
+    expect(reads[0]?.action).toEqual({
+      kind: "afterRead",
+      slug: "discrete-math-epp",
+      labels: ["§1.1–1.4", "§2.1–2.2", "§2.3"],
+    });
+    expect(reads[1]?.sub).toBeNull();
   });
 
   it("still writes the old-style label into the course page for a 讲后读 title in the old shape", () => {
@@ -342,7 +374,7 @@ describe("controlCard", () => {
       },
     });
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
-    expect(view?.rows[0]?.action).toEqual({ kind: "afterRead", slug: "epp", label: "§1.1–1.4 核心页" });
+    expect(view?.rows[0]?.action).toEqual({ kind: "afterRead", slug: "epp", labels: ["§1.1–1.4 核心页"] });
   });
 
   it("merges a course's missed lessons into one row: 1 节一行原样，3 节合并", () => {
@@ -427,7 +459,7 @@ describe("withPendingRead", () => {
   it("turns the matching 读完了 row into ✓ with a 撤销 button, leaving the rest", () => {
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
     if (view === null) throw new Error("sample inside a cycle");
-    const shown = withPendingRead(view, { slug: "ctm", label: "Ch2 §2.2", left: 7 });
+    const shown = withPendingRead(view, { slug: "ctm", labels: ["Ch2 §2.2"], left: 7 });
     const row = shown.rows.find((entry) => entry.text === "课后读 · CTM Ch2 §2.2");
     // Panel v2: the ✓ row keeps its group, loses the 陪读 side action and shows 「已记下」.
     expect(row).toEqual({
@@ -448,7 +480,7 @@ describe("withPendingRead", () => {
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
     if (view === null) throw new Error("sample inside a cycle");
     expect(withPendingRead(view, null)).toBe(view);
-    expect(withPendingRead(view, { slug: "other", label: "x", left: 3 }).rows).toEqual(view.rows);
+    expect(withPendingRead(view, { slug: "other", labels: ["x"], left: 3 }).rows).toEqual(view.rows);
   });
 });
 

@@ -12,12 +12,12 @@ import type { ControlCardView } from "./control-card.js";
 /**
  * The row whose 「读完了」 is waiting out its undo window: ✓ and 「撤销 · N」.
  *
- * `pending` matches a row by slug and label (the same pair the write will use).
+ * `pending` matches a row by slug and labels (the same ones the write will use).
  * A null pending leaves the view untouched.
  */
 export function withPendingRead(
   view: ControlCardView,
-  pending: { slug: string; label: string; left: number } | null,
+  pending: { slug: string; labels: string[]; left: number } | null,
 ): ControlCardView {
   if (pending === null) return view;
   return {
@@ -25,7 +25,7 @@ export function withPendingRead(
     rows: view.rows.map((row) =>
       row.action?.kind === "afterRead" &&
       row.action.slug === pending.slug &&
-      row.action.label === pending.label
+      row.action.labels.join("\n") === pending.labels.join("\n")
         ? {
             ...row,
             mark: "done" as const,

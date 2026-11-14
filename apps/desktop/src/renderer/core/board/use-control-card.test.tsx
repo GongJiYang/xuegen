@@ -131,6 +131,36 @@ describe("useControlCard", () => {
     });
   });
 
+  it("one tick on a merged row writes every 课后读 of the course, in order", async () => {
+    const two = {
+      ...MONTH,
+      days: {
+        [TODAY]: {
+          ...MONTH.days[TODAY],
+          readingDue: [
+            { slug: "ctm#讲后读-1", title: "讲后读 · Ch2 §2.2 · CTM" },
+            { slug: "ctm#讲后读-2", title: "讲后读 · Ch2 §2.4 · CTM" },
+          ],
+        },
+      },
+    };
+    clientMock.data.mockImplementation((request: { kind: string }) =>
+      Promise.resolve({ ok: true, data: request.kind === "calendar.month" ? two : {} }),
+    );
+    render(<Harness props={input()} />);
+    await act(async () => {});
+    const rows = captured?.view.rows.filter((entry) => entry.action?.kind === "afterRead") ?? [];
+    expect(rows).toHaveLength(1);
+    act(() => captured?.onAction(rows[0]!));
+    await act(async () => {
+      vi.advanceTimersByTime(11_000);
+    });
+    const labels = clientMock.data.mock.calls
+      .filter(([request]) => request.kind === "course.afterRead")
+      .map(([request]) => (request as { label: string }).label);
+    expect(labels).toEqual(["Ch2 §2.2", "Ch2 §2.4"]);
+  });
+
   it("never writes when the learner undoes inside the window", async () => {
     render(<Harness props={input()} />);
     await act(async () => {});

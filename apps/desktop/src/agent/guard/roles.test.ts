@@ -786,6 +786,36 @@ describe("decide — course_plan：只有总控能用（阶段 4a，整理 1 起
   });
 });
 
+describe("decide — cycle_open：只有总控能用（批 5a，周期层走周期事务）", () => {
+  const open = (role: SessionRole, input: Record<string, unknown>): Decision =>
+    decide(role, "cycle_open", input, roots, canon, nothing);
+
+  it("lets 总控 stage / check / commit / abort through", () => {
+    for (const action of ["stage", "check", "commit", "abort"]) {
+      const decision = open(roles.control as SessionRole, { action });
+      expect(decision.allow, `${action}: ${decision.reason}`).toBe(true);
+    }
+  });
+
+  it("refuses the course session and the free session, naming 总控", () => {
+    for (const role of [roles.course as SessionRole, roles.free as SessionRole]) {
+      const decision = open(role, { action: "stage" });
+      expect(decision.allow, `${roleLabelOf(role)}: ${decision.reason}`).toBe(false);
+      expect(decision.reason).toContain("建周期在总控会话里做");
+    }
+  });
+
+  it("accepts a staging inside <workspace>/.cycle, refuses one outside it", () => {
+    const inside = open(roles.control as SessionRole, { action: "check", staging: `${W}/.cycle/C2-20261114-1200` });
+    expect(inside.allow, inside.reason).toBe(true);
+    for (const staging of [`${W}/.close/ctm-20261110-101010`, `${V}/wiki/cycles`, "/tmp/elsewhere"]) {
+      const decision = open(roles.control as SessionRole, { action: "check", staging });
+      expect(decision.allow, `${staging}: ${decision.reason}`).toBe(false);
+      expect(decision.reason).toContain(".cycle");
+    }
+  });
+});
+
 describe("decide — calendar_write：三个角色都放行（阶段 4a）", () => {
   it("lets every role write calendar notes (bash can no longer reach wiki/calendar)", () => {
     // 日历笔记只经 `calendar.mjs` 写（原子写入、空正文删文件），而这个工具就是它在

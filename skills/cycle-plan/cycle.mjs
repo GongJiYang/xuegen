@@ -7,7 +7,9 @@
 //   node cycle.mjs month <vault> YYYY-MM [--json]
 //   node cycle.mjs overview <vault> [--date YYYY-MM-DD] [--json]
 //   node cycle.mjs check <vault> [--json]
-// <vault> 是库根目录（含 wiki/）。
+//   node cycle.mjs accept <vault> <cN> [--json]
+//   node cycle.mjs preview <vault> --from <cN> --start <YYYY-MM-DD> --main <slugA[,slugB]> [--json]
+// <vault> 是库根目录（含 wiki/）。accept / preview 的实现见同目录 cycle-next.mjs（开周期向导用）。
 import { readFile, readdir } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -635,6 +637,8 @@ function usage() {
     "  node cycle.mjs month <vault> YYYY-MM [--json]",
     "  node cycle.mjs overview <vault> [--date YYYY-MM-DD] [--json]",
     "  node cycle.mjs check <vault> [--json]",
+    "  node cycle.mjs accept <vault> <cN> [--json]",
+    "  node cycle.mjs preview <vault> --from <cN> --start <YYYY-MM-DD> --main <slugA[,slugB]> [--json]",
     "",
     "  周期页与 route.md 的日期是计划日期；day / week / month / overview 输出的是按主课顺延推算的实际日期。",
   ].join("\n");
@@ -759,6 +763,62 @@ async function main() {
       lines.push(`${course.name} ${course.done}/${course.total} 节 · 结课 ${course.end ?? "—"}${next}`);
     }
     process.stdout.write(`${lines.length > 0 ? lines.join("\n") : `${date} 没有路线页，也不在任何周期内`}\n`);
+    return;
+  }
+
+  if (command === "accept") {
+    const cN = positional[2];
+    if (!/^C\d+$/i.test(cN ?? "")) fail(`accept 需要 <cN>（如 C1），收到 ${cN ?? "（空）"}`);
+    let info;
+    try {
+      const { loadAccept } = await import("./cycle-next.mjs");
+      info = await loadAccept(vault, cN);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    if (flags.json) {
+      process.stdout.write(`${JSON.stringify(info)}\n`);
+      return;
+    }
+    const lines = [`${info.cycle} · ${info.start} ~ ${info.end}`];
+    for (const course of info.courses) {
+      const open = course.goals.filter((goal) => !goal.done).length;
+      lines.push(
+        `${course.title}（${course.slug} · ${course.subject}）· 课次 ${course.lessons.done}/${course.lessons.total}` +
+          `${course.lessons.remaining.length > 0 ? ` 剩 ${course.lessons.remaining.join("、")}` : ""} · 总目标还差 ${open} 条`,
+      );
+    }
+    lines.push(info.next ? `下一周期：${info.next.cycle} ${info.next.start} ~ ${info.next.end} · 建议主项 ${info.next.mains.join("、") || "—"} · ${info.next.status}` : "路线里没有下一周期");
+    process.stdout.write(`${lines.join("\n")}\n`);
+    return;
+  }
+
+  if (command === "preview") {
+    const from = flags.from;
+    const start = flags.start;
+    const mains = (flags.main ?? "")
+      .split(",")
+      .map((slug) => slug.trim())
+      .filter((slug) => slug !== "");
+    if (!/^C\d+$/i.test(from ?? "")) fail(`preview 需要 --from <cN>（如 C1），收到 ${from ?? "（空）"}`);
+    let info;
+    try {
+      const { loadPreview } = await import("./cycle-next.mjs");
+      info = await loadPreview(vault, from, start ?? "", mains);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
+    if (flags.json) {
+      process.stdout.write(`${JSON.stringify(info)}\n`);
+      return;
+    }
+    const lines = info.days.map(
+      (day) =>
+        `${day.weekday} ${day.date.slice(5)}  ${day.type}` +
+        `${day.name ? `  ${day.name}${day.unchanged === true ? "（照旧）" : ""}` : ""}` +
+        `${day.auxName ? `  导读 ${day.auxName}` : ""}`,
+    );
+    process.stdout.write(`${lines.join("\n")}\n`);
     return;
   }
 

@@ -12,7 +12,7 @@ function isPlanCommit(value: unknown): value is PlanCommit {
   const commit = value as Record<string, unknown>;
   return (
     typeof commit.id === "string" &&
-    (commit.kind === "计划" || commit.kind === "顺延") &&
+    (commit.kind === "计划" || commit.kind === "顺延" || commit.kind === "开周期") &&
     typeof commit.slug === "string" &&
     typeof commit.date === "string"
   );

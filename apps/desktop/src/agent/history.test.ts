@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { historyFromEntries, historyFromMessages } from "./history.js";
+import { historyFromEntries, historyFromMessages, withQueued } from "./history.js";
+import type { ChatMessage } from "../shared/protocol.js";
 
 describe("historyFromMessages", () => {
   it("keeps user and assistant text and drops everything else", () => {
@@ -176,5 +177,61 @@ describe("historyFromEntries automatic retry", () => {
     // new question is: three messages, no retry marker anywhere.
     expect(messages.map((message) => message.markdown)).toEqual(["q", "q again", "answer"]);
     expect(messages.map((message) => message.retry)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+describe("withQueued", () => {
+  /** Deterministic id factory, so the assertions never depend on time. */
+  function idFactory(): (prefix: string) => string {
+    let counter = 0;
+    return (prefix) => {
+      counter += 1;
+      return `${prefix}-q${counter}`;
+    };
+  }
+
+  const answered: ChatMessage = {
+    id: "session-history-2",
+    role: "assistant",
+    markdown: "答甲",
+    streaming: false,
+    toolCalls: [],
+  };
+  const history = {
+    messages: [
+      { id: "session-history-0", role: "user", markdown: "甲", streaming: false, toolCalls: [] } as ChatMessage,
+      answered,
+    ],
+    notes: [{ beforeIndex: 0, kind: "compaction" as const }],
+  };
+
+  it("appends a message for a prompt that is still queued in Pi", () => {
+    const rebuilt = withQueued(history, ["乙"], idFactory());
+
+    expect(rebuilt.messages.map((message) => message.role)).toEqual(["user", "assistant", "user"]);
+    expect(rebuilt.messages.at(-1)).toEqual({
+      id: "user-q1",
+      role: "user",
+      markdown: "乙",
+      streaming: false,
+      toolCalls: [],
+    });
+    // The restored messages and the notes are untouched.
+    expect(rebuilt.messages.slice(0, 2)).toEqual(history.messages);
+    expect(rebuilt.notes).toEqual(history.notes);
+  });
+
+  it("returns the transcript unchanged when nothing is queued", () => {
+    const rebuilt = withQueued(history, [], idFactory());
+
+    expect(rebuilt.messages).toEqual(history.messages);
+    expect(rebuilt.notes).toEqual(history.notes);
+  });
+
+  it("appends two queued prompts in order", () => {
+    const rebuilt = withQueued(history, ["乙", "丙"], idFactory());
+
+    expect(rebuilt.messages.map((message) => message.markdown)).toEqual(["甲", "答甲", "乙", "丙"]);
+    expect(rebuilt.messages.slice(2).map((message) => message.id)).toEqual(["user-q1", "user-q2"]);
   });
 });

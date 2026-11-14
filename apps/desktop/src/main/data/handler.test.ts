@@ -220,6 +220,126 @@ describe("handleDataRequest", () => {
     if (overview.ok) expect(overview.data).toMatchObject({ route: null, cycle: { cycle: "C1" } });
   });
 
+  it("cycle.accept and cycle.preview serve the 开周期 wizard data", async () => {
+    touch(
+      join(vault, "wiki", "cycles", "c1.md"),
+      [
+        "---",
+        "cycle: C1",
+        "start: 2026-11-06",
+        "end: 2026-12-24",
+        "---",
+        "",
+        "## Weekly Template",
+        "",
+        "| 星期 | 类型 | 课程 |",
+        "|---|---|---|",
+        "| 周一 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周二 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周三 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周四 | 深度 | [[subjects/demo\\|Demo]] |",
+        "| 周五 | 整合 | — |",
+        "| 周六 | 低强度 | — |",
+        "| 周日 | 休息 | — |",
+        "",
+      ].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "cycles", "route.md"),
+      [
+        "---",
+        "route: 测试路线",
+        "start: 2026-11-06",
+        "end: 2027-04-08",
+        "buffer_weeks: 12",
+        "---",
+        "",
+        "## Cycles",
+        "",
+        "| 周期 | 开始 | 结束 | 主项 | 辅助（下周期主项） | 状态 |",
+        "|---|---|---|---|---|---|",
+        "| [[cycles/c1\\|C1]] | 2026-11-06 | 2026-12-24 | 演示科目 | — | 进行中 |",
+        "| C2 | 2026-12-25 | 2027-02-11 | 演示科目 | — | 未开始 |",
+        "",
+      ].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "subjects", "demo.md"),
+      ["# 演示科目", "", "## Courses", "", "- [[courses/demo\\|Demo]]", ""].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "courses", "demo.md"),
+      [
+        "# Demo",
+        "",
+        "## Overall Goals",
+        "",
+        "- [ ] 最低：不查书写出真值表",
+        "- [x] 没有级别的行",
+        "",
+        "## 计划表",
+        "",
+        "<!-- xuegen:schedule:start rest=sun days=mon reviews=anki end=2026-12-24 -->",
+        "| 天 | 日期 | 内容 | 材料 | 完成条件 |",
+        "|---|---|---|---|---|",
+        "| D1 | 2026-11-09（周一） | 第 1 课 | — | — |",
+        "| D2 | 2026-11-16（周一） | 第 2 课 | — | — |",
+        "<!-- xuegen:schedule:end -->",
+        "",
+        "## Learning Record",
+        "",
+        "### 2026-11-09-01",
+        "",
+        "完成：D1",
+        "",
+      ].join("\n"),
+    );
+
+    const accept = await handleDataRequest({ kind: "cycle.accept", cycle: "C1" });
+    expect(accept.ok).toBe(true);
+    if (accept.ok) {
+      expect(accept.data).toEqual({
+        cycle: "C1",
+        start: "2026-11-06",
+        end: "2026-12-24",
+        courses: [
+          {
+            slug: "demo",
+            title: "Demo",
+            subject: "demo",
+            goals: [
+              { level: "最低", text: "不查书写出真值表", done: false },
+              { level: "", text: "没有级别的行", done: true },
+            ],
+            lessons: { done: 1, total: 2, remaining: ["D2"] },
+          },
+        ],
+        next: { cycle: "C2", start: "2026-12-25", end: "2027-02-11", mains: ["demo"], status: "未开始" },
+      });
+    }
+
+    const preview = await handleDataRequest({
+      kind: "cycle.preview",
+      from: "C1",
+      start: "2026-12-25",
+      main: ["algo"],
+    });
+    expect(preview.ok).toBe(true);
+    if (preview.ok) {
+      const data = preview.data as { days: { date: string; subject: string | null }[] };
+      expect(data.days).toHaveLength(7);
+      expect(data.days[0]).toMatchObject({ date: "2026-12-25", type: "整合", subject: null });
+      expect(data.days[3]).toMatchObject({ date: "2026-12-28", weekday: "周一", type: "深度", subject: "algo" });
+    }
+
+    const missing = await handleDataRequest({ kind: "cycle.accept", cycle: "C9" });
+    expect(missing).toEqual({
+      ok: false,
+      code: "script-failed",
+      error: expect.stringContaining("没有这个周期"),
+    });
+  });
+
   it("subjects.list reads the subject pages", async () => {
     touch(
       join(vault, "wiki", "subjects", "demo-subject.md"),

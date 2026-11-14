@@ -19,6 +19,7 @@ import { listReadingSources } from "./sources.js";
 import { listSessions } from "./sessions.js";
 import { readWikiPage } from "./wiki-page.js";
 import { planCommitsOf, planUndoResultOf } from "./plan-undo.js";
+import { cycleAcceptOf, cyclePreviewOf } from "./cycle-next.js";
 import { resolveHome, resolveWorkspace } from "../../agent/environment.js";
 import { todayOverride } from "../today.js";
 
@@ -301,6 +302,31 @@ async function handleScriptRequest(
       return runScript("cycle-plan/cycle.mjs", ["month", vault.vault, request.month, "--json"]);
     case "cycle.overview":
       return runScript("cycle-plan/cycle.mjs", ["overview", vault.vault, "--date", request.date, "--json"]);
+    case "cycle.accept": {
+      const result = await runScript("cycle-plan/cycle.mjs", [
+        "accept",
+        vault.vault,
+        request.cycle,
+        "--json",
+      ]);
+      if (!result.ok) return result;
+      return { ok: true, data: cycleAcceptOf(result.data) };
+    }
+    case "cycle.preview": {
+      const result = await runScript("cycle-plan/cycle.mjs", [
+        "preview",
+        vault.vault,
+        "--from",
+        request.from,
+        "--start",
+        request.start,
+        "--main",
+        request.main.join(","),
+        "--json",
+      ]);
+      if (!result.ok) return result;
+      return { ok: true, data: cyclePreviewOf(result.data) };
+    }
     case "subjects.list":
       return runScript("cycle-plan/subjects.mjs", ["list", vault.vault, "--date", request.date, "--json"]);
     case "plan.undoable": {

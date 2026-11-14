@@ -37,7 +37,8 @@ export type ControlCardAction =
   | { kind: "verify"; slug: string }
   | { kind: "read" }
   | { kind: "anki" }
-  | { kind: "afterRead"; slug: string; label: string }
+  /** Every label of the row: one course's 课后读 due by today are one row (user 11-11). */
+  | { kind: "afterRead"; slug: string; labels: string[] }
   | { kind: "undoRead" }
   | { kind: "shelfDone"; slug: string }
   | { kind: "undoShelf" }
@@ -184,37 +185,50 @@ function lessonGroup(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   return [...lessonRows(day), ...verifyRows(input, day), ...missedRows(day)];
 }
 
-/** Due 讲后读 rows of the calendar month, up to today. */
+/**
+ * Due 讲后读 rows of the calendar month, up to today: one row per course, its
+ * ranges joined, so two readings landing on one day never read as two chores.
+ */
 function afterReadRows(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   const card = strings.control.card;
   if (input.calendar === null) return [];
-  const rows: ControlCardRow[] = [];
+  const byCourse = new Map<string, { labels: string[]; titles: string[]; ranges: string[]; first: string }>();
   for (const date of Object.keys(input.calendar.days).sort()) {
     if (date > input.today) continue;
     for (const item of input.calendar.days[date]?.readingDue ?? []) {
       const entry = afterReadEntry(item);
       if (entry === null) continue;
-      const title = afterReadTitle(item.title);
-      // 「课后读 · 离散 §1.1–1.4」 (panel v2): the course short name, then the
-      // range; 核心页 is the skill's word, never shown.
-      const short = day.names[entry.slug];
-      const range = entry.label.replace(/\s*核心页$/, "");
-      rows.push({
-        group: "read",
-        side: {
-          label: card.accompany,
-          action: { kind: "accompany", prompt: card.accompanyAfterReadPrompt(title, entry.slug) },
-        },
-        mark: "plan",
-        text: short === undefined ? title : `${card.afterReadPrefix}${short} ${range}`,
-        sub: date < input.today ? card.missedSub(date) : null,
-        button: card.afterRead,
-        action: { kind: "afterRead", slug: entry.slug, label: entry.label },
-        hint: card.afterReadHint,
-      });
+      const group = byCourse.get(entry.slug) ?? { labels: [], titles: [], ranges: [], first: date };
+      group.labels.push(entry.label);
+      group.titles.push(afterReadTitle(item.title));
+      // 核心页 is the skill's word, never shown.
+      group.ranges.push(entry.label.replace(/\s*核心页$/, ""));
+      byCourse.set(entry.slug, group);
     }
   }
-  return rows;
+  return [...byCourse].map(([slug, group]) => {
+    const short = day.names[slug];
+    const title = group.titles.join("、");
+    const late = group.first < input.today;
+    return {
+      group: "read",
+      side: {
+        label: card.accompany,
+        action: { kind: "accompany", prompt: card.accompanyAfterReadPrompt(title, slug) },
+      },
+      mark: "plan",
+      // 「课后读 · 离散 §1.1–1.4、§2.1–2.2」 (panel v2): the course short name, then the ranges.
+      text: short === undefined ? title : `${card.afterReadPrefix}${short} ${group.ranges.join("、")}`,
+      sub: !late
+        ? null
+        : group.labels.length > 1
+          ? card.afterReadManySub(group.first, group.labels.length)
+          : card.missedSub(group.first),
+      button: card.afterRead,
+      action: { kind: "afterRead", slug, labels: group.labels },
+      hint: card.afterReadHint,
+    } satisfies ControlCardRow;
+  });
 }
 
 /** The reading queue's rows due today — bold only on a 低强度 day. */

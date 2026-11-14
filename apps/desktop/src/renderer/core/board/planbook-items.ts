@@ -47,34 +47,78 @@ export function lessonItems(input: PlanbookInput, date: string): PlanItem[] {
   return items;
 }
 
-/** 讲后读 items of one date (the `readingDue` rows whose slug marks them). */
+/** One calendar 讲后读 row as a grid item, before the per-course merge. */
+function afterReadItem(
+  input: PlanbookInput,
+  due: { slug: string; title: string },
+  date: string,
+): PlanItem | null {
+  const cut = due.slug.indexOf(AFTER_READ_MARK);
+  if (cut === -1) return null;
+  // The lane already says 讲后读; drop the title's 「讲后读 · 」/「讲后读 」 lead.
+  const text = due.title.startsWith("讲后读 · ")
+    ? due.title.slice("讲后读 · ".length)
+    : due.title.startsWith("讲后读 ")
+      ? due.title.slice("讲后读 ".length)
+      : due.title;
+  const slug = due.slug.slice(0, cut);
+  const name =
+    input.cycleMonths.map((month) => month.names[slug]).find((value) => value !== undefined) ?? slug;
+  const late = date < input.today;
+  return {
+    lane: "after",
+    text,
+    // 「离散 §2.1–2.2」: the course short name plus the range before the first 「 · 」.
+    short: `${name} ${text.split(" · ")[0]}`,
+    mark: markOf(date, input.today, false, "after"),
+    slug,
+    id: null,
+    ...(late ? { from: date } : {}),
+  };
+}
+
+/** One item per course: ranges joined with 「、」, the earliest `from`, ⚠ if any is late. */
+function mergeByCourse(items: PlanItem[]): PlanItem[] {
+  const merged = new Map<string | null, PlanItem>();
+  for (const item of items) {
+    const seen = merged.get(item.slug);
+    if (seen === undefined) {
+      merged.set(item.slug, item);
+      continue;
+    }
+    const range = item.short.slice(item.short.indexOf(" ") + 1);
+    const from = seen.from ?? item.from;
+    merged.set(item.slug, {
+      ...seen,
+      text: `${seen.text}；${item.text}`,
+      short: `${seen.short}、${range}`,
+      mark: seen.mark === "warn" || item.mark === "warn" ? "warn" : seen.mark,
+      ...(from === undefined ? {} : { from }),
+    });
+  }
+  return [...merged.values()];
+}
+
+/**
+ * 讲后读 items of one date (the `readingDue` rows whose slug marks them). The
+ * calendar lists only unread ones, so a past one is still owed: it leaves its
+ * own day and shows on today, with `from` (user 11-11: no 「!」 left hanging).
+ */
 export function afterReadItems(input: PlanbookInput, date: string): PlanItem[] {
+  if (date < input.today) return [];
   const items: PlanItem[] = [];
   for (const month of input.calendarMonths) {
-    for (const due of month.days[date]?.readingDue ?? []) {
-      const cut = due.slug.indexOf(AFTER_READ_MARK);
-      if (cut === -1) continue;
-      // The lane already says 讲后读; drop the title's 「讲后读 · 」/「讲后读 」 lead.
-      const text = due.title.startsWith("讲后读 · ")
-        ? due.title.slice("讲后读 · ".length)
-        : due.title.startsWith("讲后读 ")
-          ? due.title.slice("讲后读 ".length)
-          : due.title;
-      const slug = due.slug.slice(0, cut);
-      const name =
-        input.cycleMonths.map((month) => month.names[slug]).find((value) => value !== undefined) ?? slug;
-      items.push({
-        lane: "after",
-        text,
-        // 「离散 §2.1–2.2」: the course short name plus the range before the first 「 · 」.
-        short: `${name} ${text.split(" · ")[0]}`,
-        mark: markOf(date, input.today, false, "after"),
-        slug: due.slug.slice(0, cut),
-        id: null,
-      });
+    const dates = Object.keys(month.days)
+      .filter((day) => (date === input.today ? day <= date : day === date))
+      .sort();
+    for (const day of dates) {
+      for (const due of month.days[day]?.readingDue ?? []) {
+        const item = afterReadItem(input, due, day);
+        if (item !== null) items.push(item);
+      }
     }
   }
-  return items;
+  return mergeByCourse(items);
 }
 
 /** date → self-reading items, indexed once for the whole range. */

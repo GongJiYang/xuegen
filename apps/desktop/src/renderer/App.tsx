@@ -37,6 +37,7 @@ import { useShellPanels } from "./core/board/use-shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
 import { useTurnActivity } from "./core/chat/use-turn-activity.js";
 import { useLessonActions } from "./core/chat/use-lesson-actions.js";
+import { useExerciseActions } from "./core/chat/use-exercise-actions.js";
 import { useControlFold } from "./core/board/use-control-fold.js";
 import { pinBoard } from "./core/chat/pin-board.js";
 import { routeDismiss } from "./core/chat/view-models.js";
@@ -134,16 +135,8 @@ export function App() {
   const cycleId = cycle.today.state.status === "ready" ? cycle.today.state.value.cycle : null;
   // The 总控 session has no course page: it is refreshed on release/skill edits instead.
   const openIsControl = isControlSession(settings, cycleId, openSessionFile);
-  const freshness = useSessionFreshness(
-    controller,
-    courses,
-    activeCourse,
-    openSessionFile,
-    settings,
-    handleStudy,
-    handleContinueFresh,
-    openIsControl,
-  );
+  const freshness = useSessionFreshness(controller, courses, activeCourse, openSessionFile, settings,
+    handleStudy, handleContinueFresh, openIsControl);
   const agentReady = controller.agentStatus === "ready" && !controller.disabled;
   const control = useControlSession(controller, settings, update, cycleId, setActiveCourse,
     () => setFocusRequest((value) => value + 1), agentReady);
@@ -196,9 +189,6 @@ export function App() {
   // A field inside a tool window to focus once that window is open (e.g. the
   // reading add box after /加入阅读). Cleared after the panel consumes it.
   const [pendingFocus, setPendingFocus] = useState<ToolFocus | null>(null);
-  // The 「检查理解」 question being answered, plus a counter that asks the composer
-  // to focus its field. Both are owned here so they survive a skin switch (B10).
-  const [answering, setAnswering] = useState<number | null>(null);
   const updateBar = useUpdate();
 
   const requestedSkin = querySkin ?? settings.skin;
@@ -231,23 +221,8 @@ export function App() {
     [controller],
   );
 
-  // 「检查理解」 actions (B10): answering focuses the composer and names the
-  // question; hint and skip send a prompt referencing the same question number.
-  const handleExerciseAnswer = useCallback((index: number) => {
-    setAnswering(index);
-    setFocusRequest((value) => value + 1);
-  }, []);
-  const handleExerciseHint = useCallback(
-    (index: number) => controller.sendCommand(strings.content.exerciseHintPrompt(index)),
-    [controller],
-  );
-  const handleExerciseSkip = useCallback(
-    (index: number) => {
-      controller.sendCommand(strings.content.exerciseSkipPrompt(index));
-      setAnswering((current) => (current === index ? null : current));
-    },
-    [controller],
-  );
+  // 「检查理解」 state and row actions (B10), owned here so they survive a skin switch.
+  const exercise = useExerciseActions(controller, () => setFocusRequest((value) => value + 1));
 
   // Execute a `/` command by routing its pure effect to the right action.
   const runCommand = useRunCommand({
@@ -350,13 +325,13 @@ export function App() {
           pin={pinBoard(controller.messages)} feed={planbook.feed}
           renderMessage={(message, thinking) => (
             <MessageRenderer slots={skin.slots} content={skin.content} message={message} thinking={thinking} onRetry={controller.retry}
-              onExerciseAnswer={handleExerciseAnswer} onExerciseHint={handleExerciseHint} onExerciseSkip={handleExerciseSkip} />
+              onExerciseAnswer={exercise.onAnswer} onExerciseHint={exercise.onHint} onExerciseSkip={exercise.onSkip} />
           )}
         />
         <Composer
           streaming={controller.streaming}
           disabled={controller.disabled}
-          onSend={(text) => controller.send(answering === null ? text : strings.content.exerciseAnswerPrefix(answering, text))}
+          onSend={(text) => controller.send(exercise.answering === null ? text : strings.content.exerciseAnswerPrefix(exercise.answering, text))}
           onStop={controller.stop}
           carriedDraft={controller.carriedDraft}
           onCarriedDraftTaken={controller.takeCarriedDraft}
@@ -370,8 +345,8 @@ export function App() {
           onRunCommand={runCommand}
           onCloseCommands={slash.close}
           onInput={slash.update}
-          answering={answering}
-          onCancelAnswer={() => setAnswering(null)}
+          answering={exercise.answering}
+          onCancelAnswer={exercise.cancelAnswer}
           focusRequest={focusRequest}
           lessonActions={lessonButtons}
           defaultStyleLabel={defaultStyleLabel(subjects.state, activeCourse)}

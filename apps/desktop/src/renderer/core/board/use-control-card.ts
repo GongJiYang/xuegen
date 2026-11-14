@@ -34,7 +34,7 @@ const UNDO_WINDOW_MS = 10_000;
 
 /** A row parked in its undo window; the `kind` decides which write the deadline runs. */
 type Pending =
-  | { kind: "afterRead"; slug: string; label: string; deadline: number }
+  | { kind: "afterRead"; slug: string; labels: string[]; deadline: number }
   | { kind: "shelf"; slug: string; deadline: number };
 
 export interface ControlCardInput {
@@ -120,10 +120,17 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         .finally(() => setWriting(false));
       return;
     }
-    void client
-      .data({ kind: "course.afterRead", slug: entry.slug, label: entry.label, date: today })
-      .then((result) => {
-        if (result.ok) {
+    // One write per label, in order; the first failure stops the rest.
+    const readAll = async (): Promise<boolean> => {
+      for (const label of entry.labels) {
+        const result = await client.data({ kind: "course.afterRead", slug: entry.slug, label, date: today });
+        if (!result.ok) return false;
+      }
+      return true;
+    };
+    void readAll()
+      .then((ok) => {
+        if (ok) {
           input.refresh();
           reloadMonth();
           // The 讲后读 may land in a 书房 page (核心页已读): refresh the book rows too.
@@ -172,7 +179,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         const deadline = Date.now() + UNDO_WINDOW_MS;
         setPending(
           action.kind === "afterRead"
-            ? { kind: "afterRead", slug: action.slug, label: action.label, deadline }
+            ? { kind: "afterRead", slug: action.slug, labels: action.labels, deadline }
             : { kind: "shelf", slug: action.slug, deadline },
         );
         setNow(Date.now());
@@ -199,7 +206,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
     withPendingShelf(
       withPendingRead(
         view,
-        pending?.kind === "afterRead" ? { slug: pending.slug, label: pending.label, left } : null,
+        pending?.kind === "afterRead" ? { slug: pending.slug, labels: pending.labels, left } : null,
       ),
       pending?.kind === "shelf" ? { slug: pending.slug, left } : null,
     ),

@@ -49,6 +49,8 @@ export interface PlanItem {
   mark: PlanMark;
   slug: string | null;
   id: string | null;
+  /** A 讲后读 not read on its day, shown on today instead: the earliest original date. */
+  from?: string;
 }
 
 export interface PlanDay {

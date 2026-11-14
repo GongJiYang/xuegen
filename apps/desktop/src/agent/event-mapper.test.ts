@@ -209,6 +209,27 @@ describe("mapPiEvent queue and state", () => {
     expect(mapped.stateChanged).toBe(true);
   });
 
+  it("remembers the queued texts, steering first, so a transcript rebuild can add them back", () => {
+    const mapped = mapPiEvent(
+      createEventMapperState(),
+      { type: "queue_update", steering: ["甲改"], followUp: ["乙"] },
+      idFactory(),
+    );
+    expect(mapped.state.queuedTexts).toEqual(["甲改", "乙"]);
+    expect(mapped.state.queuedFollowUps).toBe(2);
+  });
+
+  it("drops the remembered texts when the queue empties", () => {
+    const queued = mapPiEvent(
+      createEventMapperState(),
+      { type: "queue_update", steering: ["甲改"], followUp: ["乙"] },
+      idFactory(),
+    );
+    const drained = mapPiEvent(queued.state, { type: "queue_update", steering: [], followUp: [] }, idFactory());
+    expect(drained.state.queuedTexts).toEqual([]);
+    expect(drained.state.queuedFollowUps).toBe(0);
+  });
+
   it("flags agent lifecycle events as state changes", () => {
     const events: AgentSessionEvent[] = [
       { type: "agent_start" },

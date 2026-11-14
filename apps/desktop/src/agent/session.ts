@@ -35,6 +35,7 @@ import { createSandboxRunner } from "./sandbox/runner.js";
 import { createCalendarWriteExtension } from "./tools/calendar-write-tool.js";
 import { createCourseCloseExtension } from "./tools/course-close-tool.js";
 import { createCoursePlanExtension } from "./tools/course-plan-tool.js";
+import { createCycleOpenExtension } from "./tools/cycle-open-tool.js";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { CommandInfo, ModelInfo, SessionRole } from "../shared/protocol.js";
 
@@ -169,6 +170,7 @@ export async function createXuegenSession(
       // already judged by the role rules; it runs the script itself, off bash.
       { name: "course-close", factory: createCourseCloseExtension({ repo: repoRoot, home, cwd }) },
       { name: "course-plan", factory: createCoursePlanExtension({ repo: repoRoot, home, cwd }) },
+      { name: "cycle-open", factory: createCycleOpenExtension({ repo: repoRoot, home, cwd }) },
       { name: "calendar-write", factory: createCalendarWriteExtension({ repo: repoRoot, home }) },
       { name: "tool-search", factory: createToolSearchExtension() },
       { name: "mcp", factory: createMcpExtension() },

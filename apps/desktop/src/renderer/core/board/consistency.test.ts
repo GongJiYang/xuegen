@@ -244,7 +244,7 @@ describe("同一份数据进四处视图", () => {
     // 今日卡的「读完了」写回课程页时用的 label，就是从日历标题里解析出的范围（不是标题原文）。
     const action = cardRow?.action;
     expect(action?.kind).toBe("afterRead");
-    expect(action?.kind === "afterRead" ? action.label : null).toBe(AFTER_READ_RANGE);
+    expect(action?.kind === "afterRead" ? action.labels : null).toEqual([AFTER_READ_RANGE]);
 
     // 日历当天详情：讲后读列在它原定的那天（bear / chicago 的 DayDetail 读 readingDue.title）。
     const calendarReading = CALENDAR_MONTH.days[AFTER_READ_DATE]?.readingDue.map((item) => item.title) ?? [];

@@ -110,7 +110,7 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
 4. **书房要不要加**：列出已登记、还没排的资料，**默认一本都不加**，用户点名的才排；每本问读法（导读课 / 自读）、导读课的星期几（同一天只排一本导读课）、可选目标日期。正在读的书房书照常往后排，不受换周期影响。
 5. **看一周再写**：用 `week` 的格式给出新周期第一周预览（主课、课后读、导读课、自读、Anki），用户说可以才写入：
    - 定 `start`、`end`：以路线页这一周期那一行为准（`end = start + 48 天`）；周模板沿用上一周期，用户要改再改。
-   - 写 `wiki/cycles/<cN>.md`（上面的格式 + Overview / Acceptance / Pending / Log），登记到 `wiki/index.md` 的 `## Cycles`，路线页这一行的周期格改成 `[[cycles/cN\|CN]]`、状态改「进行中」（上一周期改「完成」；主项与用户选的不同时，把这一行的主项一并改掉），更新 `wiki/subjects.md` 的「当前周期」，`wiki/log.md` 追加 `## [YYYY-MM-DD] cycle | CN`。
+   - 周期层文件（新周期页、上一周期页的 Acceptance / Log、路线页、`subjects.md`、`index.md`、`log.md`）一律经 `cycle_open`（周期事务）：`stage <cN>` → 用编辑工具改暂存目录里的副本——写 `wiki/cycles/<cN>.md`（上面的格式 + Overview / Acceptance / Pending / Log）、登记到 `wiki/index.md` 的 `## Cycles`、路线页这一行的周期格改成 `[[cycles/cN\|CN]]`、状态改「进行中」（上一周期改「完成」；主项与用户选的不同时，把这一行的主项一并改掉）、更新 `wiki/subjects.md` 的「当前周期」、`wiki/log.md` 追加 `## [YYYY-MM-DD] cycle | CN`——→ `check` → 用户说可以 → `commit`（一笔 jj「开周期 <cN>」提交，可随这一轮计划一起撤销）。
    - 每门主课由 `course` 建立或重排（`course_plan` 计划事务）：`plan … --days <该课的深度日> --reviews anki`，加 `elastic`；第一天不是深度日但用户要上课时加 `--extra`。主课原书方式固定为「课后读（错开）」（数据值写作 `讲后读（错开）`），通读进书房（`reading` 技能「书房」，计划内一次一本）。
    - 第 4 步选的导读课按 `course`「学习周期里的课」建辅助课；自读按 `reading`「书房」加书。
    - 运行 `check`，零问题才算完成；最后用三五行说新周期的主课、主资料、书房里在读什么。
@@ -131,7 +131,7 @@ node "$Y" check "$W" [--json]                      # 校验所有周期页与课
 
 ## 读写边界
 
-- 可写：`wiki/cycles/`、`wiki/subjects.md`、`wiki/subjects/`、登记用的 `wiki/knowledge/sources/` 新页、`wiki/index.md`、`wiki/log.md`（只追加）。
+- 可写：`wiki/subjects.md`、`wiki/subjects/`、登记用的 `wiki/knowledge/sources/` 新页、`wiki/index.md`、`wiki/log.md`（只追加）。`wiki/cycles/`（周期页与路线页）只经 `cycle_open` 写：`stage` → 改暂存目录里的副本 → `check` → `commit`；开周期时对 `subjects.md`、`index.md`、`log.md` 的连带改动放进同一笔事务，不直接编辑。
 - 只读：`wiki/courses/`（改课程一律交给 `course`）、`wiki/knowledge/flashcards/`、`wiki/reading/`、`raw/`、`clippings/`、`wiki/prompts/`、凭据目录。
 - 记忆：科目页的 `## 讲解偏好` 归 `course`（按用户确认写），本技能不改；总控可以读各科偏好，只在用户明确要求时写 `wiki/profile.md`（全局）。
 - 状态记号与库规则一致：● 学习中 · ! 需注意 · ✓ 已完成 · ○ 已排期 · ◌ 未制定计划 / 搁置。

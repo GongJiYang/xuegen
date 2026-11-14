@@ -35,6 +35,8 @@ export interface EventMapperState {
   lastFailedMessage: ChatMessage | null;
   /** Number of queued follow-up/steering messages. */
   queuedFollowUps: number;
+  /** 还在 Pi 队列里的原话（steering 在前），刷新后重建转写时补回去。 */
+  queuedTexts: string[];
 }
 
 /** Fresh mapper state. */
@@ -46,6 +48,7 @@ export function createEventMapperState(): EventMapperState {
     lastAssistantMessageId: null,
     lastFailedMessage: null,
     queuedFollowUps: 0,
+    queuedTexts: [],
   };
 }
 
@@ -264,7 +267,11 @@ export function mapPiEvent(
       break;
     }
     case "queue_update": {
-      next = { ...next, queuedFollowUps: event.steering.length + event.followUp.length };
+      next = {
+        ...next,
+        queuedFollowUps: event.steering.length + event.followUp.length,
+        queuedTexts: [...event.steering, ...event.followUp],
+      };
       stateChanged = true;
       break;
     }

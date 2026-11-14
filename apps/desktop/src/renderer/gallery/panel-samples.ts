@@ -330,7 +330,7 @@ export const SAMPLE_CONTROL_CARD_LIGHT = must(controlCard({
 /** 今日卡 · 「读完了」等撤销：该行变 ✓ + 「撤销 · N」。 */
 export const SAMPLE_CONTROL_CARD_PENDING = withPendingRead(SAMPLE_CONTROL_CARD, {
   slug: "discrete-math-epp",
-  label: "§1.1–1.4",
+  labels: ["§1.1–1.4"],
   left: 7,
 });
 

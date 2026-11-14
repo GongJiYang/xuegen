@@ -123,6 +123,7 @@ export function decide(
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
   if (tool === "course_close") return decideCourseClose(role, input, roots, canon);
   if (tool === "course_plan") return decideCoursePlan(role, input, roots, canon);
+  if (tool === "cycle_open") return decideCycleOpen(role, input, roots, canon);
   // `calendar_write`（tools/calendar-write-tool.ts）：任何会话都能记日历，与
   // 以前 bash 跑 calendar.mjs 的范围一致；原子写入与「空正文删除」由脚本管。
   if (tool === "calendar_write") return ALLOW;
@@ -142,6 +143,23 @@ function decideCoursePlan(role: SessionRole, input: Record<string, unknown>, roo
     !within(canon(input.staging), canon(`${roots.workspace}/.close`))
   ) {
     return deny("暂存目录不在工作区的 .close 里。");
+  }
+  return ALLOW;
+}
+
+/** `cycle_open`（tools/cycle-open-tool.ts）：周期层文件走周期事务，只有总控会话能用；
+ * 带 staging 参数时它必须在 `<工作区>/.cycle/` 里（周期暂存只开在那）。参数形状
+ * （cycle 合法性、staging 必填）由工具自己用中文报错。 */
+function decideCycleOpen(role: SessionRole, input: Record<string, unknown>, roots: Roots, canon: CanonFn): Decision {
+  if (role.kind !== "control") {
+    return deny(`${roleLabel(role)}不能用 cycle_open：建周期在总控会话里做。`);
+  }
+  if (
+    typeof input.staging === "string" &&
+    input.staging !== "" &&
+    !within(canon(input.staging), canon(`${roots.workspace}/.cycle`))
+  ) {
+    return deny("暂存目录不在工作区的 .cycle 里。");
   }
   return ALLOW;
 }

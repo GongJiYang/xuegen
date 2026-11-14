@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v0.13.0 — 2026-11-14
+
+- Desktop: 开下一周期 — from the planned last week of a cycle the 总控 panel's 本周 block shows a banner; its five-step wizard (accept the cycle → pick at most two mains → one main material each → 书房 → first-week preview) hands every answer to the 总控 in one folded message (`next-cycle.ts`, `use-next-cycle.ts`, Bear `next-cycle.tsx`). The 总控 writes through the new `cycle_open` transaction (stage → check → the user agrees → one jj 「开周期」 commit), which 「撤销这次改动」 can undo. Data: `cycle.mjs accept / preview` (`cycle.accept`, `cycle.preview`), `skills/cycle-plan/cycle-open.mjs`; `plan-undo.mjs` recognises 「开周期」 commits.
+- Desktop: the 总控 right column is an activity feed — one card per turn, plan changes listed and marked on the week grid / month calendar with a banner, a wide reader for the full answer, and 「撤销这次改动」 that restores the files this turn's 计划 / 顺延 commits changed (`plan.undo`; refused when they changed again later).
+- Desktop: 术语 block under 本周 lists the concept pages saved in the last two weeks, filters by course, and opens each page in the reader (`wiki.read`) with 上一个 / 下一个 and ← →; 在 Obsidian 打开 stays in the reader.
+- Desktop: panel v2 — the 今日卡 groups 上课 / 阅读 / 复习, reading rows have a checkbox and 陪读 → (a free session folded as 「陪读」), 周核实 shows ✓ by `verifiedOn` in the card and the week grid; user-facing names are 主课 / 导读课 / 课后读.
+- Desktop: session tabs in the top bar (总控 + courses opened today + a temporary tab + ＋), busy dots, ⌃Tab cycling, Bear ⌘0 back to 总控; tabs that do not fit move into ＋.
+- Desktop: unread 课后读 blocks follow you to today and merge per course (「原排 11-10 起 · 3 段」); one tick records every block in order.
+- Fix: refreshing the window while messages were queued and then stopping no longer removed the answer being written (queued prompts are kept in the rebuilt history, `withQueued`).
+- Fix: after an undo, the next message always carries the undo note (one-shot `setOnceNote`), so 学根 no longer answers from the dates before the undo. 「在周表格里看」 scrolls the page to the week grid.
+
 ## v0.12.2 — 2026-11-13
 
 - Fix: clicking 核实 → (or 开课 →) again for a course already opened today re-sent the same request, so 学根 started the weekly check over (a real 离散 session got it four times). Reopening today's session now only switches to it when it already holds that request (`alreadyAsked`); the check reads the history the agent just sent (`controller.openedHistory()`), because React state still lags when `openSession` resolves.

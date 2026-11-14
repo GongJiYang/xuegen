@@ -110,6 +110,23 @@ describe("useChat prompt prefixing (B9)", () => {
     });
     expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.not.stringContaining("[N]") });
   });
+
+  it("a once note rides only the next prompt, instead of the refresh note, and survives the refresh note being reset", () => {
+    const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    render(<ActionsHarness />);
+    act(() => {
+      captured?.setOnceNote("[撤销]");
+      captured?.setRefreshNote(null);
+      captured?.setRefreshNote("[N]");
+      captured?.send("D5 在哪天");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.stringContaining("[撤销] D5 在哪天") });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.not.stringContaining("[N]") });
+    act(() => {
+      captured?.send("再问");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.stringContaining("[N] 再问") });
+  });
 });
 
 describe("useChat openSession", () => {

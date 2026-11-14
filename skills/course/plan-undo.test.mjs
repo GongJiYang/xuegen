@@ -107,6 +107,17 @@ async function commitAs(fixture, rel, content, message = "计划 epp 2026-11-14"
 const SINCE = () => new Date().toISOString();
 const undoArgs = (fixture, since) => ["undo", fixture.vault, "--since", since, "--workspace", fixture.ws];
 
+/** 一次写多个文件并整体提交为 message（周期事务是一笔多文件提交），返回 commit_id。 */
+async function commitFiles(fixture, files, message) {
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = join(fixture.vault, rel);
+    await mkdir(dirname(abs), { recursive: true });
+    await writeFile(abs, content);
+  }
+  fixture.jj(["commit", "-m", message]);
+  return fixture.jj(["log", "-r", "@-", "--no-graph", "-T", "commit_id"]).trim();
+}
+
 jjTest("list：输出 commits（id/kind/slug/date，从旧到新），空库是空数组", async () => {
   const fixture = await makeRepo();
   try {
@@ -241,6 +252,70 @@ jjTest("undo：库不在 jj 下 → 报「撤销需要库在 jj 下」", async (
     assert.match(listFailed.stderr, /撤销需要库在 jj 下/);
   } finally {
     await cleanup({ root });
+  }
+});
+
+jjTest("undo：一轮里一笔开周期 + 一笔计划，一起撤回；周期文件不锁只读", async () => {
+  const fixture = await makeRepo();
+  try {
+    await commitFiles(
+      fixture,
+      { "wiki/log.md": "# 日志\n", "wiki/cycles/route.md": "# 路线\n" },
+      "基线补充",
+    );
+    const since = SINCE();
+    const cycleCommit = await commitFiles(
+      fixture,
+      {
+        "wiki/cycles/c2.md": "# C2\n",
+        "wiki/log.md": "# 日志\n- 开 C2\n",
+        "wiki/cycles/route.md": "# 路线\n- C2\n",
+      },
+      "开周期 C2 2026-11-14",
+    );
+    const planCommit = await commitAs(fixture, "wiki/courses/epp.md", `${PAGE_V1}- v2\n`, "计划 epp 2026-11-14");
+    const out = await cliJson(undoArgs(fixture, since), { env: fixture.env });
+    assert.deepEqual(out.undone.sort(), [cycleCommit, planCommit].sort());
+    assert.deepEqual(
+      [...out.restoreFiles].sort(),
+      ["wiki/courses/epp.md", "wiki/cycles/route.md", "wiki/log.md"].sort(),
+    );
+    assert.deepEqual(out.keptNew, ["wiki/cycles/c2.md"]);
+    assert.equal(out.jj, "ok");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), PAGE_V1);
+    assert.equal(await readFile(join(fixture.vault, "wiki", "log.md"), "utf8"), "# 日志\n");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "cycles", "route.md"), "utf8"), "# 路线\n");
+    assert.ok(existsSync(join(fixture.vault, "wiki", "cycles", "c2.md")), "新建的周期页保留");
+    const mode = async (path) => (await stat(path)).mode & 0o777;
+    assert.equal(await mode(join(fixture.vault, "wiki", "courses", "epp.md")), 0o444, "课程页锁回");
+    assert.equal(await mode(join(fixture.vault, "wiki", "cycles", "route.md")), 0o644, "周期文件不锁");
+    assert.match(fixture.jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销计划.*epp/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("undo：一轮只有开周期提交也能撤（cN 不是课程 slug，不碰 lockCourse）", async () => {
+  const fixture = await makeRepo();
+  try {
+    await commitAs(fixture, "wiki/log.md", "# 日志\n", "基线补充");
+    const since = SINCE();
+    await commitFiles(
+      fixture,
+      { "wiki/cycles/c2.md": "# C2\n", "wiki/log.md": "# 日志\n- 开 C2\n" },
+      "开周期 C2 2026-11-14",
+    );
+    const listed = await cliJson(["list", fixture.vault, "--since", since], { env: fixture.env });
+    assert.deepEqual(listed.commits.map((commit) => commit.kind), ["开周期"]);
+    assert.equal(listed.commits[0].slug, "C2");
+    const out = await cliJson(undoArgs(fixture, since), { env: fixture.env });
+    assert.deepEqual(out.restoreFiles, ["wiki/log.md"]);
+    assert.deepEqual(out.keptNew, ["wiki/cycles/c2.md"]);
+    assert.equal(out.jj, "ok");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "log.md"), "utf8"), "# 日志\n");
+    assert.match(fixture.jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销计划 C2/);
+  } finally {
+    await cleanup(fixture);
   }
 });
 

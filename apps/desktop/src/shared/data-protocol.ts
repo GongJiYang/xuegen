@@ -455,14 +455,67 @@ export interface SessionMeta {
 }
 
 /**
- * One 「计划」/「顺延」 jj commit made in the current turn, as `plan-undo.mjs
- * list` reports it (oldest first).
+ * One 「计划」/「顺延」/「开周期」 jj commit made in the current turn, as
+ * `plan-undo.mjs list` reports it (oldest first). For 开周期 commits `slug`
+ * holds the cycle id (`C2`), not a course slug.
  */
 export interface PlanCommit {
   id: string;
-  kind: "计划" | "顺延";
+  kind: "计划" | "顺延" | "开周期";
   slug: string;
   date: string;
+}
+
+/** One overall goal of a main course, from `cycle.mjs accept --json`. */
+export interface CycleAcceptGoal {
+  /** The word before the full-width colon ("" when the line has none). */
+  level: string;
+  text: string;
+  done: boolean;
+}
+
+/** One main course of the cycle being accepted (auxiliary courses are excluded). */
+export interface CycleAcceptCourse {
+  slug: string;
+  title: string;
+  /** The subject this course belongs to. */
+  subject: string;
+  goals: CycleAcceptGoal[];
+  lessons: { done: number; total: number; remaining: string[] };
+}
+
+/**
+ * The previous cycle's acceptance material, from `cycle.mjs accept --json`;
+ * the first step of the 「开下一周期」 wizard.
+ */
+export interface CycleAccept {
+  cycle: string;
+  start: string;
+  end: string;
+  courses: CycleAcceptCourse[];
+  /** The route row right after this cycle (shifted to actual dates), or null. */
+  next: { cycle: string; start: string; end: string; mains: string[]; status: string } | null;
+}
+
+/** One day of the new cycle's first week, from `cycle.mjs preview --json`. */
+export interface CyclePreviewDay {
+  date: string;
+  /** 周一 … 周日. */
+  weekday: string;
+  type: CycleDayType;
+  /** The main subject slug for a 深度 day (already swapped), else null. */
+  subject: string | null;
+  /** The subject's short name (the `subject` slug itself when unknown). */
+  name: string | null;
+  aux: string | null;
+  auxName: string | null;
+  /** Present when the old main subject stayed because fewer mains were chosen. */
+  unchanged?: boolean;
+}
+
+/** The new cycle's first-week preview, reusing the source cycle's template. */
+export interface CyclePreview {
+  days: CyclePreviewDay[];
 }
 
 /**
@@ -513,6 +566,8 @@ export type DataRequest =
   | { kind: "cycle.day"; date: string }
   | { kind: "cycle.month"; month: string }
   | { kind: "cycle.overview"; date: string }
+  | { kind: "cycle.accept"; cycle: string }
+  | { kind: "cycle.preview"; from: string; start: string; main: string[] }
   | { kind: "subjects.list"; date: string }
   | { kind: "plan.undoable"; since: string }
   | { kind: "plan.undo"; since: string }
@@ -559,6 +614,8 @@ export interface DataResponseMap {
   "cycle.day": CycleDay;
   "cycle.month": CycleMonth;
   "cycle.overview": CycleOverview;
+  "cycle.accept": CycleAccept;
+  "cycle.preview": CyclePreview;
   "subjects.list": SubjectsOverview;
   "plan.undoable": PlanCommit[];
   "plan.undo": PlanUndoResult;
@@ -740,6 +797,19 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return typeof value.date === "string" && isIsoDate(value.date);
     case "cycle.month":
       return typeof value.month === "string" && isIsoMonth(value.month);
+    case "cycle.accept":
+      return typeof value.cycle === "string" && /^C\d+$/.test(value.cycle);
+    case "cycle.preview":
+      return (
+        typeof value.from === "string" &&
+        /^C\d+$/.test(value.from) &&
+        typeof value.start === "string" &&
+        isIsoDate(value.start) &&
+        Array.isArray(value.main) &&
+        value.main.length >= 1 &&
+        value.main.length <= 2 &&
+        value.main.every((slug) => typeof slug === "string" && /^[a-z0-9][a-z0-9-]*$/.test(slug))
+      );
     case "subjects.list":
       return typeof value.date === "string" && isIsoDate(value.date);
     case "plan.undoable":

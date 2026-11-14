@@ -305,10 +305,11 @@ describe("buildWeek", () => {
     expect(laneItems(dayOf(week, "2026-11-09"), "main")[0]).toMatchObject({ mark: "done" });
   });
 
-  it("讲后读：只有 slug 含 #讲后读- 的项进 after 行，去掉标题前缀", () => {
+  it("讲后读：只有 slug 含 #讲后读- 的项进 after 行，去掉标题前缀；过期没读的跟到今天，标原排日", () => {
     const week = buildWeek(input());
-    const tenth = laneItems(dayOf(week, "2026-11-10"), "after");
-    expect(tenth).toEqual([
+    // 11-10 没读的课后读不留在原日子，跟到今天（11-11），带 from。
+    expect(laneItems(dayOf(week, "2026-11-10"), "after")).toEqual([]);
+    expect(laneItems(dayOf(week, "2026-11-11"), "after")).toEqual([
       {
         lane: "after",
         text: "Ch2 §2.1 · 离散",
@@ -316,6 +317,7 @@ describe("buildWeek", () => {
         mark: "warn",
         slug: "discrete-math",
         id: null,
+        from: "2026-11-10",
       },
     ]);
     const twelfth = laneItems(dayOf(week, "2026-11-12"), "after");
@@ -323,6 +325,29 @@ describe("buildWeek", () => {
     expect(twelfth.map((item) => item.mark)).toEqual(["plan", "plan"]);
     // 「某篇文章」不是讲后读，不出现。
     expect(twelfth.some((item) => item.text.includes("某篇文章"))).toBe(false);
+  });
+
+  it("讲后读：同一天同一门课的几份合成一项，范围用顿号连", () => {
+    const week = buildWeek(
+      input({
+        calendarMonths: [
+          {
+            ...CAL_NOV,
+            days: {
+              ...CAL_NOV.days,
+              "2026-11-12": calDay([
+                { slug: "discrete-math#讲后读-2", title: "讲后读 · Ch2 §2.2 · 离散" },
+                { slug: "discrete-math#讲后读-4", title: "讲后读 · Ch2 §2.4 · 离散" },
+                { slug: "ctm#讲后读-1", title: "讲后读 · Ch1 §1.3 · CTM" },
+              ]),
+            },
+          },
+        ],
+      }),
+    );
+    const twelfth = laneItems(dayOf(week, "2026-11-12"), "after");
+    expect(twelfth.map((item) => item.short)).toEqual(["离散 Ch2 §2.2、Ch2 §2.4", "CTM Ch1 §1.3"]);
+    expect(twelfth[0]?.text).toBe("Ch2 §2.2 · 离散；Ch2 §2.4 · 离散");
   });
 
   it("自读：过去没读的原定日标 warn 并说明顺到明天，今天是顺延后的段", () => {
@@ -436,7 +461,8 @@ describe("buildWeek", () => {
     });
     const day = dayOf(buildWeek(today), "2026-11-11");
     expect(laneItems(day, "main").map((item) => item.mark)).toEqual(["now"]);
-    expect(laneItems(day, "after").map((item) => item.mark)).toEqual(["plan"]);
+    // 今天自己的 §2.3 和跟过来的 11-10 §2.1 是同一门课，合成一项；带着过期的就是 warn。
+    expect(laneItems(day, "after").map((item) => [item.short, item.mark])).toEqual([["离散 Ch2 §2.1、Ch2 §2.3", "warn"]]);
     expect(laneItems(day, "guide").map((item) => item.mark)).toEqual(["plan"]);
     expect(laneItems(day, "self").map((item) => item.mark)).toEqual(["plan"]);
     // 日视图与月视图用的是同一份逐天逻辑：今天的主项课也是 now。
@@ -606,7 +632,7 @@ describe("buildDay", () => {
     expect(day.weekday).toBe("周二");
     expect(day.type).toBe("深度");
     expect(day.isToday).toBe(false);
-    expect(day.items.map((item) => item.lane)).toEqual(["after", "self"]);
+    expect(day.items.map((item) => item.lane)).toEqual(["self"]);
     expect(day.ankiDue).toBeNull();
     const today = buildDay(input(), "2026-11-11");
     expect(today.isToday).toBe(true);

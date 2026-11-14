@@ -58,6 +58,14 @@ import type { TermLessonView } from "../core/board/terms.js";
 import type { ActivityCard, UndoState } from "../core/board/activity-feed.js";
 import type { PlanMarks } from "../core/board/plan-diff.js";
 import type { ReaderView } from "../core/board/use-reader.js";
+import type {
+  AcceptRow,
+  MainFrom,
+  MainOption,
+  MaterialOption,
+  PreviewCell,
+  Shortfall,
+} from "../core/board/next-cycle.js";
 
 /** How a skin draws a piece of classified content. */
 export interface ContentRenderers {
@@ -883,6 +891,68 @@ export interface ControlPanelProps {
   onOpenTerm(path: string, title: string): void;
   /** What the latest 总控 answer moved, until 「知道了」; null when nothing. */
   changes: PlanChangesView | null;
+  /** Bumped by 「在周表格里看」: bring the 本周 block into view. A skin may ignore it. */
+  weekFocus?: number;
+  /** 开下一周期: the 本周 banner and the wizard. A skin without it shows neither. */
+  nextCycle?: NextCycleView;
+}
+
+/** The 开下一周期 banner (last week of a cycle) and its five-step wizard. */
+export interface NextCycleView {
+  /** The banner line, or null outside a cycle's last week. */
+  banner: string | null;
+  onOpen(): void;
+  /** Non-null while the wizard is open. */
+  wizard: NextCycleWizardView | null;
+}
+
+export interface NextCycleWizardView {
+  title: string;
+  meta: string;
+  steps: string[];
+  /** 0 – 4. */
+  step: number;
+  /** The acceptance data (step 1) loading or failed; the other steps wait for it. */
+  state: "loading" | "error" | "ready";
+  error: string | null;
+  accept: {
+    rows: AcceptRow[];
+    /** Null when every course met its goals (no question asked). */
+    shortfall: Shortfall | null;
+    options: { value: Shortfall; label: string; meta: string }[];
+    onShortfall(value: Shortfall): void;
+  };
+  mains: {
+    caption: string;
+    options: (MainOption & { checked: boolean; disabled: boolean; meta: string })[];
+    onToggle(slug: string): void;
+  };
+  materials: {
+    groups: {
+      slug: string;
+      name: string;
+      options: MaterialOption[];
+      picked: string | null;
+      onPick(title: string): void;
+      /** Null unless the subject was a 导读课 in the closing cycle. */
+      from: MainFrom | null;
+      onFrom(value: MainFrom): void;
+    }[];
+  };
+  shelf: {
+    options: { key: string; title: string; meta: string; checked: boolean }[];
+    onToggle(key: string): void;
+    note: string;
+  };
+  preview: {
+    caption: string;
+    state: "loading" | "error" | "ready";
+    cells: PreviewCell[];
+  };
+  canNext: boolean;
+  onBack(): void;
+  onNext(): void;
+  onClose(): void;
 }
 
 /** The 总控 今日卡 above the 总控 session's transcript. */

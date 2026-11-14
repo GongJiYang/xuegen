@@ -1,9 +1,18 @@
-# PROGRESS（更新于 2026-11-14 19:10；最新发布 v0.12.2；当前主线：总控右栏「动态」+ 术语阅读层 +「撤销这次改动」都已做完待用户看；领域总控未开始（ROUTE 4a））
+# PROGRESS（更新于 2026-11-14 20:30；最新发布 v0.13.0；当前主线：周计划本主线批 5 开周期已做完并发版；下一步批 6「今天学过」或领域总控（ROUTE 4a），等用户定）
 
 ## ▶ 下一步（新会话直接从这里开始）
 
 **总清单 = `docs/platform/ROUTE-1109.md`（「待办总表」一节）。每次报告末尾附阶段完成表（记忆 xuegen-route-progress）。界面已在做（用户批准了周计划本 / 总控面板），界面代码由 Claude 亲自写（11-12 起）。**
 **派活规则**：Devin 一次一批；DeepSeek 一次只跑一个、单子切小（10–15 分钟、先写测试）、命令必须接 `< /dev/null`（见 CLAUDE.md，模型 `deepseek-v4.1-flash` 不带 eco）。OpenDesign 断了就接着上次进度重派一次，再断就停下问用户。派 DeepSeek 时同时跑看守 `/tmp/xg-watch-pi.sh`（改里面的 LOG/FILES、PID）。派 Devin 前先 `ps` 确认没有残留的 `devin -p`（11-12 出过两个同时跑同一单）。
+
+### ★★★★★★★★★★★ 11-14 20:30 前三档做完并发 v0.13.0
+- **用户定**：「前三档先开始，结束后没问题就发版」。
+- **第一档**：本地提交 `4e312ac`；fix18d（DeepSeek，`docs/archive/platform/batch-fix18d-*`）刷新后停止不再撤掉回答（`refreshHistory` 把排队的消息并回历史，`withQueued`）；Obsidian 重新选库仍等用户自己做。
+- **第二档**（Claude 界面）：没读的课后读跟到今天、同课合成一行「原排 11-10 起 · 3 段」，勾一次逐段写；周表格今天格同样合并；「在周表格里看」滚到本周块；撤销后的说明改成一次性 note（`setOnceNote`），真机验过模型答对 11-18。
+- **第三档**：拆文件（DeepSeek，`control-panel.tsx` 467→263 + `control-shelf.tsx`；`App.tsx` 452→427 + `use-exercise-actions.ts`）；批 5a 后端（Devin，`cycle.mjs accept / preview`、`cycle-next.mjs`、`cycle-open.mjs` 事务、`cycle_open` 工具只许总控、`plan-undo` 认「开周期」、协议 `cycle.accept / cycle.preview`）；批 5b 界面（Claude，`next-cycle.ts` / `use-next-cycle.ts` / Bear `next-cycle.tsx`，本周横幅 + 五步向导）。
+- **真机场景**（`XUEGEN_TODAY=2026-12-21`，测试库副本）：横幅「C1 按原计划这周结束，主课顺延了 5 天」→ 向导五步 → 交给总控 → 总控 stage + check 通过、列出 6 个文件和第一周（01-06 起）、等确认 → 回「可以」→ jj「开周期 C2 2026-11-14」→ 卡片「撤销这次改动」→ 路线页 / C1 / subjects / index / log 全部恢复，`c2.md` 按规则保留。截图 `/tmp/xg-e2e/shots/nc-*.png`。测试库现在多一个 `wiki/cycles/c2.md`（撤销后保留的新文件）。
+- **总控回答里提的两点**（留给以后）：C1 辅助列在 C2 用不上（路线新辅助体系结构 / 计算理论还没科目页），它按「辅列暂空」处理；`cycle_open check` 只查周期层，提交后要接着 `course_plan` 排两门主课，否则 `cycle.mjs check` 会红。Devin 报告：守卫没有硬拦总控直写 `wiki/cycles/`（目前是技能约定）。
+- **检查**：类型 0 错；eslint 干净；vitest 1449 过；根 `npm test` 686 过；lint:wording 0；lint:skills 0 错。
 
 ### ★★★★★★★★★★ 11-14 19:10 术语块挪位 + 阅读层排版（全部未提交、未发版、未 push）
 - 用户指出宽窗口「本周」下面空一块（今天 925px、本周 673px 并排）。术语块挪进右栏「本周」下面（`bear-cp-col` + `bear-cp-termslot`），宽窗口填满到「今天」底边、行多了在块内滚动；单列（面板 ≤1200px）时按内容高、最多 320px 滚动。两门以上课出课程筛选（全部 / 离散 / CTM，带个数），标题旁写总数；最多显示 40 节课。

@@ -4537,6 +4537,185 @@
 [data-skin="bear"] .bear-reader-nav button:disabled {
   visibility: hidden;
 }
+
+/* 开下一周期: the 本周 banner and the five-step wizard (plan2 第 7、8 屏). */
+[data-skin="bear"] .bear-nc-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-1);
+  background: var(--gray-3);
+  font-size: var(--fs-2);
+}
+[data-skin="bear"] .bear-dlg.bear-nc {
+  width: min(680px, calc(100vw - 2 * var(--sp-5)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-nc-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  list-style: none;
+  color: var(--gray-8);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-steps .is-done {
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-nc-steps .is-on {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-11);
+  text-underline-offset: 4px;
+}
+[data-skin="bear"] .bear-nc-body {
+  min-height: 220px;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+[data-skin="bear"] .bear-nc-body .bear-cp-caption,
+[data-skin="bear"] .bear-nc-set > legend.bear-cp-caption {
+  margin: var(--sp-3) 0 var(--sp-2);
+  padding: 0;
+  color: var(--gray-11);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-rows,
+[data-skin="bear"] .bear-nc-goals {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-skin="bear"] .bear-nc-rows > li + li {
+  margin-top: var(--sp-3);
+}
+[data-skin="bear"] .bear-nc-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-nc-row .bear-cp-meta {
+  margin-left: auto;
+  font-size: var(--fs-1);
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-nc-mark {
+  width: 1em;
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-nc-mark.is-done {
+  color: var(--accent-11);
+}
+[data-skin="bear"] .bear-nc-mark.is-warn {
+  color: var(--warn, var(--accent-11));
+}
+[data-skin="bear"] .bear-nc-goals {
+  margin: var(--sp-1) 0 0 calc(1em + var(--sp-2));
+  color: var(--gray-11);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-goals .is-done {
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-nc-set {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+[data-skin="bear"] .bear-nc-rows + .bear-nc-set {
+  margin-top: var(--sp-4);
+}
+[data-skin="bear"] .bear-nc-subject {
+  margin-top: var(--sp-3);
+  padding: 0;
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-nc-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-nc-choice input {
+  margin-top: 0.3em;
+  accent-color: var(--accent-11);
+}
+[data-skin="bear"] .bear-nc-choice b {
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-nc-choice small {
+  display: block;
+  color: var(--gray-11);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-choice.is-off {
+  cursor: default;
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-nc-from {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-1) calc(13px + var(--sp-2));
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-scroll {
+  max-height: 260px;
+  overflow: auto;
+}
+[data-skin="bear"] .bear-nc-note {
+  margin-top: var(--sp-3);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--gray-6);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-1);
+  overflow: hidden;
+}
+[data-skin="bear"] .bear-nc-week li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 84px;
+  padding: var(--sp-2);
+  background: var(--card);
+  color: var(--gray-11);
+  font-size: var(--fs-1);
+}
+[data-skin="bear"] .bear-nc-week li.is-deep {
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-nc-week b {
+  color: var(--gray-11);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-nc-week small {
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-nc-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
 [data-skin="bear"] .bear-cp-banner {
   display: flex;
   flex-wrap: wrap;
@@ -4591,6 +4770,11 @@
 }
 [data-skin="bear"] .bear-pb-it.is-ghost small {
   color: var(--gray-8);
+}
+/* A 课后读 carried to today: 「原排 11-10」 under it, grey like the 今天 card's sub. */
+[data-skin="bear"] .bear-pb-it.is-from small {
+  display: block;
+  color: var(--gray-11);
 }
 [data-skin="bear"] .bear-pb-mc em.is-changed {
   outline: 1.5px solid var(--accent-9);

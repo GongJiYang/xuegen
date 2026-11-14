@@ -113,12 +113,19 @@ function WeekView({
                     return (
                       <span
                         key={index}
-                        className={`bear-pb-it is-${item.mark === "now" ? "now" : item.mark === "done" ? "done" : "plain"}${note === undefined ? "" : " is-changed"}`}
+                        className={`bear-pb-it is-${item.mark === "now" ? "now" : item.mark === "done" ? "done" : "plain"}${note !== undefined ? " is-changed" : item.from !== undefined ? " is-from" : ""}`}
                         title={item.text}
                       >
                         <Mark mark={item.mark} lane={item.lane} />
                         {/* The row head names the lane (panel v2), so cells hold the short name only. */}
-                        {item.short || item.text}
+                        {note === undefined && item.from !== undefined ? (
+                          <span>
+                            {item.short || item.text}
+                            <small>{strings.control.card.missedSub(item.from)}</small>
+                          </span>
+                        ) : (
+                          item.short || item.text
+                        )}
                         {note !== undefined && <small>{note}</small>}
                       </span>
                     );

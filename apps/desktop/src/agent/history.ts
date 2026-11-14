@@ -169,3 +169,27 @@ export function historyFromMessages(messages: readonly unknown[], idPrefix: stri
   });
   return buildTranscript(restored).messages;
 }
+
+/**
+ * Append the prompts that are still waiting in Pi's queue to a rebuilt transcript.
+ *
+ * A queued prompt has not reached Pi's session record yet, so rebuilding the
+ * transcript from the branch loses it. Without it, a stop's "drop the last n user
+ * messages" walks back over the wrong prompt (fix18d). Steering messages run
+ * before follow-ups, matching the order `queue_update` reports them in.
+ */
+export function withQueued(
+  history: HistoryReplay,
+  queued: readonly string[],
+  nextId: (prefix: string) => string,
+): HistoryReplay {
+  if (queued.length === 0) return history;
+  const appended: ChatMessage[] = queued.map((markdown) => ({
+    id: nextId("user"),
+    role: "user",
+    markdown,
+    streaming: false,
+    toolCalls: [],
+  }));
+  return { ...history, messages: [...history.messages, ...appended] };
+}

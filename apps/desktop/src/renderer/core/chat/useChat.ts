@@ -45,6 +45,16 @@ export function useChat(
   const setRefreshNote = useCallback((note: string | null) => {
     refreshNoteRef.current = note;
   }, []);
+  // Kept apart from the refresh note, which an effect recomputes on every render.
+  const onceNoteRef = useRef<string | null>(null);
+  const setOnceNote = useCallback((note: string) => {
+    onceNoteRef.current = note;
+  }, []);
+  const takeNote = (): string | null => {
+    const once = onceNoteRef.current;
+    onceNoteRef.current = null;
+    return once ?? refreshNoteRef.current;
+  };
 
   // The prompt last sent by `send`, remembered so `stop` can give it back. Cleared
   // by `stop` itself and whenever a turn settles normally, so a stop never
@@ -183,7 +193,7 @@ export function useChat(
     const own = splitActionMarker(trimmed).action === null ? trimmed : null;
     if (streamingRef.current) queuedSentRef.current = [...queuedSentRef.current, own];
     lastSentRef.current = own;
-    const note = refreshNoteRef.current;
+    const note = takeNote();
     const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
     // a tag on display (see `splitStyleTag`), so the raw prefix is never shown.
@@ -200,7 +210,7 @@ export function useChat(
     const trimmed = text.trim();
     if (!trimmed) return;
     if (streamingRef.current) queuedSentRef.current = [...queuedSentRef.current, null];
-    const note = refreshNoteRef.current;
+    const note = takeNote();
     client.send({
       type: "prompt",
       text: note ? `${note} ${trimmed}` : trimmed,
@@ -277,6 +287,7 @@ export function useChat(
       send,
       sendCommand,
       setRefreshNote,
+      setOnceNote,
       stop,
       retry,
       newSession,
@@ -300,6 +311,7 @@ export function useChat(
     send,
     sendCommand,
     setRefreshNote,
+    setOnceNote,
     stop,
     newSession,
     continueSession,
