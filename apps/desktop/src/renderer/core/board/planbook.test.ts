@@ -309,7 +309,14 @@ describe("buildWeek", () => {
     const week = buildWeek(input());
     const tenth = laneItems(dayOf(week, "2026-11-10"), "after");
     expect(tenth).toEqual([
-      { lane: "after", text: "Ch2 §2.1 · 离散", short: "离散 Ch2 §2.1", mark: "warn", slug: "discrete-math", id: null },
+      {
+        lane: "after",
+        text: "Ch2 §2.1 · 离散",
+        short: "离散 Ch2 §2.1",
+        mark: "warn",
+        slug: "discrete-math",
+        id: null,
+      },
     ]);
     const twelfth = laneItems(dayOf(week, "2026-11-12"), "after");
     expect(twelfth.map((item) => item.text)).toEqual(["Ch2 §2.2 · 离散", "Ch1 §1.3 · CTM"]);
@@ -322,7 +329,14 @@ describe("buildWeek", () => {
     const week = buildWeek(input());
     // 11-09、11-10 是原定日、没读 → 「没读，顺到明天」。
     expect(laneItems(dayOf(week, "2026-11-09"), "self")).toEqual([
-      { lane: "self", text: "Epp Ch1 pp.1–9" + MISSED, short: "Epp pp.1–9", mark: "warn", slug: "epp", id: null },
+      {
+        lane: "self",
+        text: "Epp Ch1 pp.1–9" + MISSED,
+        short: "Epp pp.1–9",
+        mark: "warn",
+        slug: "epp",
+        id: null,
+      },
     ]);
     expect(laneItems(dayOf(week, "2026-11-10"), "self")[0]).toEqual({
       lane: "self",
@@ -458,6 +472,36 @@ describe("buildWeek", () => {
       { course: "ctm", name: "CTM", label: "周核实：能独立画出声明式模型的图", done: false },
     ]);
     // 带读课的任务不算（c-language 不在 courses 里也一样）。
+  });
+
+  it("整合日：每门主课一条「周核实」进主课行；今天 ●、做完 ✓、别的日子 ○（面板 v2）", () => {
+    const past = laneItems(dayOf(buildWeek(input()), "2026-11-06"), "main");
+    expect(past.map((item) => [item.short, item.mark, item.id])).toEqual([
+      ["离散 周核实", "plan", null],
+      ["CTM 周核实", "plan", null],
+    ]);
+    const onTheDay = buildWeek(input({ today: "2026-11-06" }));
+    expect(laneItems(dayOf(onTheDay, "2026-11-06"), "main").map((item) => item.mark)).toEqual(["now", "now"]);
+    const doneCtm = COURSES.map((course) =>
+      course.slug === "ctm"
+        ? {
+            ...course,
+            week: { ...course.week, tasks: course.week.tasks.map((task) => ({ ...task, done: true })) },
+          }
+        : course,
+    );
+    const verified = buildWeek(input({ today: "2026-11-06", courses: doneCtm }));
+    expect(laneItems(dayOf(verified, "2026-11-06"), "main").map((item) => item.mark)).toEqual([
+      "now",
+      "done",
+    ]);
+    // 和今天卡同一规则：这天发起过核实（verifiedOn）就算 ✓；别的日子发起的不算。
+    const started = buildWeek(
+      input({ today: "2026-11-06", verifiedOn: { "discrete-math": "2026-11-06", ctm: "2026-10-30" } }),
+    );
+    expect(laneItems(dayOf(started, "2026-11-06"), "main").map((item) => item.mark)).toEqual(["done", "now"]);
+    // 月视图格子窄，不放周核实。
+    expect(buildMonth(input(), "2026-11").find((day) => day.date === "2026-11-06")?.items).toEqual([]);
   });
 
   it("周复盘日期：本周结束后的那个整合日（W1 → 11-13）", () => {

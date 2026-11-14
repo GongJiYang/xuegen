@@ -33,10 +33,7 @@ export interface ShelfResource {
 export function useShelf(): ShelfResource {
   // Keys of the writes in flight (`done:<slug>`, `extract:<slug>:<page>:<text>`).
   const inFlight = useRef<Set<string>>(new Set());
-  const today = useBoardResource(
-    () => client.data({ kind: "shelf.today", today: todayKey() }),
-    [],
-  );
+  const today = useBoardResource(() => client.data({ kind: "shelf.today", today: todayKey() }), []);
   const list = useBoardResource(() => client.data({ kind: "shelf.list" }), []);
 
   const reload = (): void => {

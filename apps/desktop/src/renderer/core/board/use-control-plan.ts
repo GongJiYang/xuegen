@@ -10,6 +10,7 @@
  * and fold are null and no planbook request is made.
  */
 
+import { useReloadOnAnswer } from "./use-reload-on-answer.js";
 import { useState } from "react";
 import type { ControlCardProps } from "../../skins/contract.js";
 import { strings } from "../strings.js";
@@ -46,6 +47,10 @@ export interface ControlPlan {
     label: string;
     /** Jump to a day cell: switches to the day view anchored on `date`. */
     openDay(date: string): void;
+    /** Show the week containing `date`. */
+    showWeek(date: string): void;
+    /** Read the shown range again (after an undo). */
+    reload(): void;
     data: AsyncState<PlanbookResult>;
   };
 }
@@ -55,9 +60,13 @@ export function useControlPlan(input: ControlPlanInput): ControlPlan {
   // The 总控 panel's right block pages weeks / months; the day is the left block.
   const [view, setView] = useState<PlanView>("week");
   const [anchor, setAnchor] = useState(todayKey);
-  const resource = usePlanbook(view, anchor, input.isControl);
+  const resource = usePlanbook(view, anchor, input.isControl, input.verifiedOn);
+  // A 总控 answer may have moved lessons: the grid reloads like the other boards.
+  useReloadOnAnswer(input.streaming, resource.reload);
   const week: PlanWeek | null =
-    resource.state.status === "ready" && resource.state.value.view === "week" ? resource.state.value.week : null;
+    resource.state.status === "ready" && resource.state.value.view === "week"
+      ? resource.state.value.week
+      : null;
   const older =
     input.isControl && input.fold.older !== null
       ? {
@@ -82,6 +91,11 @@ export function useControlPlan(input: ControlPlanInput): ControlPlan {
         setView("day");
         setAnchor(date);
       },
+      showWeek: (date: string) => {
+        setView("week");
+        setAnchor(date);
+      },
+      reload: resource.reload,
       data: resource.state,
     },
   };

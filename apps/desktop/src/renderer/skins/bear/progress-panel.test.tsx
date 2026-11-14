@@ -99,7 +99,11 @@ describe("Bear 总进度 panel", () => {
 
   it("with the cycle overview shows the route end, the cycle dates and course cards", async () => {
     const user = userEvent.setup();
-    render(<ProgressPanel {...baseProps({ groups: SAMPLE_GROUPS, overview: { status: "ready", value: SAMPLE_OVERVIEW } })} />);
+    render(
+      <ProgressPanel
+        {...baseProps({ groups: SAMPLE_GROUPS, overview: { status: "ready", value: SAMPLE_OVERVIEW } })}
+      />,
+    );
     expect(screen.getByText("2028 年 7 月 20 日")).toBeTruthy();
     expect(screen.getByText(strings.plan.routeEndLabel)).toBeTruthy();
     expect(screen.getByText("离散数学 + 编程语言与编程范式")).toBeTruthy();

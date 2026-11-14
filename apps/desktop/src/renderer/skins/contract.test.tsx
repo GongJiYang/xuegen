@@ -91,6 +91,7 @@ describe.each(SKINS)("skin contract: $id", (definition) => {
 
     render(
       <Shell
+        tabs={null}
         sessionTitle={null}
         control={null}
         contextUsage={contextUsageView(null, false, () => {})}

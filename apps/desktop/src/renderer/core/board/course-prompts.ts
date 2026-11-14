@@ -51,7 +51,11 @@ export type RestDays = (typeof REST_DAYS)[number];
 export const READING_MODES = ["guided", "read-first", "read-along"] as const;
 export type ReadingMode = (typeof READING_MODES)[number];
 
-const READING_NAMES: Record<ReadingMode, string> = { guided: "带读", "read-first": "先读后讲", "read-along": "边读边讲" };
+const READING_NAMES: Record<ReadingMode, string> = {
+  guided: "带读",
+  "read-first": "先读后讲",
+  "read-along": "边读边讲",
+};
 
 const REST_NAMES: Record<RestDays, string> = { none: "不休息", sun: "周日休息", "sat,sun": "周六日休息" };
 
@@ -64,11 +68,18 @@ export function defaultEndDate(startDate: string): string {
   return `${end.getUTCFullYear()}-${pad(end.getUTCMonth() + 1)}-${pad(end.getUTCDate())}`;
 }
 
-const STYLE_NAMES: Record<TeachingStyle, string> = { default: "默认", plain: "大白话", detailed: "细讲", deep: "深度" };
+const STYLE_NAMES: Record<TeachingStyle, string> = {
+  default: "默认",
+  plain: "大白话",
+  detailed: "细讲",
+  deep: "深度",
+};
 
 /** 「默认」不写风格；选了别的就请学根按讲解偏好规则写进科目页（先确认）。 */
 function styleClause(style: TeachingStyle): string {
-  return style === "default" ? "" : `，默认讲解风格「${STYLE_NAMES[style]}」（按 course 的讲解偏好写进科目页，先问我确认）`;
+  return style === "default"
+    ? ""
+    : `，默认讲解风格「${STYLE_NAMES[style]}」（按 course 的讲解偏好写进科目页，先问我确认）`;
 }
 
 /**
@@ -125,7 +136,10 @@ function newCourseBody(request: NewCourseRequest): string {
 }
 
 /** The request that changes an existing course's plan. */
-export function editPlanPrompt(course: Pick<CourseSummary, "slug" | "title" | "file">, change: string): string {
+export function editPlanPrompt(
+  course: Pick<CourseSummary, "slug" | "title" | "file">,
+  change: string,
+): string {
   const text = `/skill:course 修改「${course.title}」的学习计划：${change.trim()}。改完后告诉我新的本周安排，并刷新课程看板。${courseFileHint(course)}`;
   return withActionMarker(text, "plan", { slug: course.slug, title: course.title });
 }

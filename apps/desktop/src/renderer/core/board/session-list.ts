@@ -151,7 +151,11 @@ function rowOf(meta: SessionMeta, ctx: SessionListContext): SessionRow {
   const marker = splitActionMarker(splitStyleTag(meta.firstUser).body);
   const control = ctx.controlFiles.includes(meta.file);
   const slug = control ? null : slugOf(meta, marker.slug, ctx);
-  const kind: SessionRow["kind"] = control ? "control" : slug !== null || meta.pin !== null ? "course" : "free";
+  const kind: SessionRow["kind"] = control
+    ? "control"
+    : slug !== null || meta.pin !== null
+      ? "course"
+      : "free";
   const tag =
     kind === "control"
       ? strings.sessions.control

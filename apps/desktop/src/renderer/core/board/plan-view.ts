@@ -94,7 +94,9 @@ function weekStates(state: SegmentState, start: string, end: string, today: stri
   if (state === "done") return Array.from({ length: count }, () => "done");
   if (state === "plan") return Array.from({ length: count }, () => "plan");
   const current = Math.min(count, Math.floor(daysBetween(start, today) / 7) + 1);
-  return Array.from({ length: count }, (_, index) => (index + 1 < current ? "done" : index + 1 === current ? "now" : "left"));
+  return Array.from({ length: count }, (_, index) =>
+    index + 1 < current ? "done" : index + 1 === current ? "now" : "left",
+  );
 }
 
 export function routeView(overview: CycleOverview, today: string): RouteView | null {
@@ -106,7 +108,11 @@ export function routeView(overview: CycleOverview, today: string): RouteView | n
     sub: strings.plan.routeSub(route.start, route.weeksLeft, route.bufferWeeks),
     segments: route.cycles.map((cycle) => {
       const state: SegmentState =
-        cycle.status === "完成" || cycle.end < today ? "done" : isNow(cycle.start, cycle.end, today) ? "now" : "plan";
+        cycle.status === "完成" || cycle.end < today
+          ? "done"
+          : isNow(cycle.start, cycle.end, today)
+            ? "now"
+            : "plan";
       return {
         id: cycle.id,
         label: cycle.id,
@@ -133,7 +139,12 @@ export function cycleView(overview: CycleOverview, today: string): CycleView | n
   return {
     id: cycle.cycle,
     name: cycle.title || cycle.cycle,
-    range: strings.plan.cycleRange(cycle.start.slice(5), cycle.end.slice(5), shortDay(cycle.end).split(" ")[1] ?? "", cycle.daysLeft),
+    range: strings.plan.cycleRange(
+      cycle.start.slice(5),
+      cycle.end.slice(5),
+      shortDay(cycle.end).split(" ")[1] ?? "",
+      cycle.daysLeft,
+    ),
     title: cycle.title ? `${cycle.cycle} · ${cycle.title}` : cycle.cycle,
     week: strings.plan.week(cycle.week, cycle.weeks),
     start: shortDay(cycle.start),
@@ -271,7 +282,9 @@ export function auxRows(overview: CycleOverview): AuxRow[] {
       subjectName,
       label: course ? auxLabel(subjectName, course.name) : subjectName,
       end: course?.end ? strings.plan.courseEnd(course.end.slice(5), "aux") : null,
-      course: course ? { slug: course.slug, name: course.name, done: course.done, total: course.total } : null,
+      course: course
+        ? { slug: course.slug, name: course.name, done: course.done, total: course.total }
+        : null,
     };
   });
 }
@@ -295,5 +308,12 @@ export function cyclePlacement(
 ): CyclePlacement | null {
   const cycle = overview.cycle;
   if (!cycle) return null;
-  return { cycle: cycle.cycle, subject, subjectName, role, days: cycle.subjectDays[subject] ?? [], end: cycle.end };
+  return {
+    cycle: cycle.cycle,
+    subject,
+    subjectName,
+    role,
+    days: cycle.subjectDays[subject] ?? [],
+    end: cycle.end,
+  };
 }

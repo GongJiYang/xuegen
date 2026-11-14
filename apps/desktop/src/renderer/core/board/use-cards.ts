@@ -24,8 +24,7 @@ export function useCards(): CardsResource {
   return {
     stats,
     reload: stats.reload,
-    add: (deck, front, back) =>
-      stats.mutate(() => client.data({ kind: "cards.add", deck, front, back })),
+    add: (deck, front, back) => stats.mutate(() => client.data({ kind: "cards.add", deck, front, back })),
   };
 }
 

@@ -47,9 +47,9 @@ function cycleTile(overview: CycleOverview | null): PanelTile {
   if (cycle === null) return { key: "cycle", value: strings.panel.tileNoCycle, sub: "", warn: false };
   return {
     key: "cycle",
-    value: strings.panel.tileCycle(cycle.cycle, cycle.week, cycle.weeks),
-    sub: strings.panel.tileCycleSub(cycle.end, cycle.delayDays),
-    warn: cycle.delayDays > 0,
+    value: strings.panel.tileCycle(cycle.cycle, cycle.week),
+    sub: strings.panel.tileCycleSub(cycle.end),
+    warn: false,
   };
 }
 
@@ -58,13 +58,19 @@ function todayTile(day: PlanDay | null): PanelTile {
   // `day.items` never holds an Anki row — the count lives in `day.ankiDue`.
   const done = day.items.filter((item) => item.mark === "done").length;
   const typeName = day.type === null ? "" : strings.cycle.dayType[day.type];
+  const verifying = day.items.filter(
+    (item) => item.lane === "main" && item.id === null && item.mark !== "done",
+  );
   const next = day.items.find((item) => item.lane === "main" && item.mark !== "done");
   const pending = day.items.some((item) => item.mark !== "done");
-  const sub = next
-    ? strings.panel.tileTodaySub(typeName, next.short)
-    : pending
-      ? typeName
-      : strings.panel.tileAllDone;
+  const sub =
+    day.type === "整合" && verifying.length > 0
+      ? strings.panel.tileTodayVerify(typeName, verifying.length)
+      : next
+        ? strings.panel.tileTodaySub(typeName, next.short || next.text)
+        : pending
+          ? typeName
+          : strings.panel.tileAllDone;
   return { key: "today", value: strings.panel.tileItems(done, day.items.length), sub, warn: false };
 }
 
@@ -72,12 +78,11 @@ function weekTile(week: PlanWeek | null): PanelTile {
   if (week === null) return loading("week");
   const items = week.days.flatMap((day) => day.items);
   const done = items.filter((item) => item.mark === "done").length;
-  const warned = items.filter((item) => item.mark === "warn").length;
   return {
     key: "week",
     value: strings.panel.tileItems(done, items.length),
-    sub: warned > 0 ? strings.panel.tileWeekWarn(warned) : "",
-    warn: warned > 0,
+    sub: strings.panel.tileWeekLeft(items.length - done),
+    warn: false,
   };
 }
 
@@ -85,14 +90,15 @@ function shelfTile(shelf: ShelfListItem[] | null, overview: CycleOverview | null
   if (shelf === null || overview === null) return loading("shelf");
   const reading = shelf.filter((item) => item.status === "reading").length;
   const guides = overview.courses.filter((course) => course.role === "aux").length;
-  const latest = shelf
-    .filter((item) => (item.targetLate ?? 0) > 0)
-    .sort((left, right) => (right.targetLate ?? 0) - (left.targetLate ?? 0))[0];
+  // The planned book being read: its projected end, a plain date (panel v2).
+  const planned = shelf.find(
+    (item) => item.slot === "planned" && item.status === "reading" && item.end !== "",
+  );
   return {
     key: "shelf",
     value: strings.panel.tileShelf(reading + guides),
-    sub: latest ? strings.panel.tileShelfLate(latest.short, latest.targetLate ?? 0) : "",
-    warn: latest !== undefined,
+    sub: planned ? strings.panel.tileShelfEnd(planned.short, planned.end) : "",
+    warn: false,
   };
 }
 
@@ -158,7 +164,9 @@ export interface ShelfRowsInput {
 function queuedAfter(shelf: ShelfListItem[]): Map<string, string> {
   const planned = shelf
     .filter((item) => item.slot === "planned" && item.status !== "done")
-    .sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER));
+    .sort(
+      (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER),
+    );
   const after = new Map<string, string>();
   let previous = planned.find((item) => item.status === "reading" || item.status === "paused") ?? null;
   for (const item of planned.filter((book) => book.status === "queued")) {
@@ -172,13 +180,13 @@ function queuedAfter(shelf: ShelfListItem[]): Map<string, string> {
 type ShelfBook = ShelfListItem & { status: "reading" | "paused" | "queued" };
 
 function bookRow(item: ShelfBook, afterSelf: boolean, after: Map<string, string>): ShelfRow {
-  const warn = item.status === "reading" && (item.targetLate ?? 0) > 0;
+  const warn = false;
   const meta =
     item.status === "paused"
       ? strings.panel.bookPaused(item.position)
       : item.status === "queued"
         ? strings.panel.bookQueued(after.get(item.slug) ?? null, item.end)
-        : strings.panel.bookMeta(item.end, item.target, item.targetLate);
+        : strings.panel.bookMeta(item.end, item.target);
   return {
     kind: "book",
     slug: item.slug,
@@ -268,7 +276,7 @@ export function unplannedMaterials(subjects: SubjectsOverview): UnplannedMateria
       .map((material) => ({
         subject: subject.slug,
         subjectTitle: subject.title,
- title: bookTitle(material.title),
+        title: bookTitle(material.title),
         type: material.type,
         role: material.role,
       })),

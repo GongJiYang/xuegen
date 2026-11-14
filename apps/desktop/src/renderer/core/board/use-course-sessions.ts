@@ -56,11 +56,7 @@ export function resolveActiveCourse(
   courseSessions: Record<string, string>,
   openSessionFile: string | null,
 ): string | null {
-  return (
-    chosen ??
-    Object.entries(courseSessions).find(([, file]) => file === openSessionFile)?.[0] ??
-    null
-  );
+  return chosen ?? Object.entries(courseSessions).find(([, file]) => file === openSessionFile)?.[0] ?? null;
 }
 
 /** State `App` keeps across skin switches: the chosen course and the open file. */
@@ -147,13 +143,21 @@ export function useCourseSessions(
   }, [controller.messages]);
 
   const startSession = useCallback(
-    (slug: string, text: string, card: CourseIntro | null, startedOn: string | null, command = false, fresh = false) => {
+    (
+      slug: string,
+      text: string,
+      card: CourseIntro | null,
+      startedOn: string | null,
+      command = false,
+      fresh = false,
+    ) => {
       // A click while this course's session is still opening starts no second
       // session: nothing is sent and no card is shown for the dropped click.
       if (opening.current.has(slug)) return;
       // A course-management request (改计划) is an instruction, not a lesson:
       // it goes out without the session style prefix.
-      const deliver = (message: string): void => (command ? controller.sendCommand(message) : controller.send(message));
+      const deliver = (message: string): void =>
+        command ? controller.sendCommand(message) : controller.send(message);
       // A remembered session from an earlier day is stale: 改计划 / 周核实 open a fresh one too.
       // No remembered file is not stale — the open session then belongs to this run.
       const remembered = settings.courseSessions[slug];
@@ -161,8 +165,14 @@ export function useCourseSessions(
         remembered !== undefined &&
         startsFresh(slug, settings.courseSessions, todayKey(), new Date().getTimezoneOffset());
       const freshNow = fresh || stale;
+      // A 周核实 sent today — now, or already in today's transcript — is recorded
+      // so the 今日卡 offers 「回到核实 →」 instead of starting it again.
+      const marksVerify = splitActionMarker(text).action === "verify";
       if (activeCourse === slug && !freshNow) {
         if (card) setIntro({ card, beforeIndex: controller.messages.length });
+        if (marksVerify && settings.verifiedOn[slug] !== todayKey()) {
+          update({ verifiedOn: { ...settings.verifiedOn, [slug]: todayKey() } });
+        }
         // Clicked again while this course is already open: the request is in
         // this very transcript, so sending it again would redo the work.
         if (!alreadyAsked(controller.messages, text)) deliver(text);
@@ -185,12 +195,21 @@ export function useCourseSessions(
           .openSession(known, { kind: "course", slug })
           .then((opened) => {
             opening.current.delete(slug);
+            // Switching to the session remembered from earlier today: if it
+            // already holds this request, only switch — 学根 already answered it.
+            // Read `openedHistory()`, not `controller.messages`: the latter only
+            // catches up on the next render, so here it still holds the cleared
+            // transcript of the session we just left (batch-no-resend-2).
+            const alreadyInSession = known !== null && alreadyAsked(controller.openedHistory(), text);
             const patch: Partial<DesktopSettings> = {};
             if (opened && opened !== known) {
               patch.courseSessions = { ...settings.courseSessions, [slug]: opened };
             }
             if (startedOn) {
               patch.courseStartedOn = { ...settings.courseStartedOn, [slug]: startedOn };
+            }
+            if (marksVerify) {
+              patch.verifiedOn = { ...settings.verifiedOn, [slug]: todayKey() };
             }
             if (Object.keys(patch).length > 0) update(patch);
             if (card) {
@@ -200,12 +219,7 @@ export function useCourseSessions(
                 current?.card === card ? { card, beforeIndex: messagesLength.current } : current,
               );
             }
-            // Switching to the session remembered from earlier today: if it
-            // already holds this request, only switch — 学根 already answered it.
-            // Read `openedHistory()`, not `controller.messages`: the latter only
-            // catches up on the next render, so here it still holds the cleared
-            // transcript of the session we just left (batch-no-resend-2).
-            if (known !== null && alreadyAsked(controller.openedHistory(), text)) return;
+            if (alreadyInSession) return;
             deliver(text);
           })
           .catch(() => {
@@ -216,7 +230,15 @@ export function useCourseSessions(
           });
       });
     },
-    [activeCourse, controller, settings.courseSessions, settings.courseStartedOn, update, setActiveCourse],
+    [
+      activeCourse,
+      controller,
+      settings.courseSessions,
+      settings.courseStartedOn,
+      settings.verifiedOn,
+      update,
+      setActiveCourse,
+    ],
   );
 
   /**
@@ -277,14 +299,7 @@ export function useCourseSessions(
       }
       startSession(slug, fallbackText, card, today, false, true);
     },
-    [
-      activeCourse,
-      requestFocus,
-      settings.courseSessions,
-      settings.courseStartedOn,
-      startSession,
-      switchOnly,
-    ],
+    [activeCourse, requestFocus, settings.courseSessions, settings.courseStartedOn, startSession, switchOnly],
   );
 
   const handleStartSession = useCallback(

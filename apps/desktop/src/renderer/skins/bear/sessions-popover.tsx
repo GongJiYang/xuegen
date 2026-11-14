@@ -13,7 +13,7 @@ import {
   Portal as PopoverPortal,
   Trigger as PopoverTrigger,
 } from "@animate-ui/react/primitives/radix-ui/popover";
-import type { SessionsView } from "../contract.js";
+import type { SessionsView, SessionTabsView } from "../contract.js";
 import type { ControlView } from "../../core/board/bot-state.js";
 import type { SessionRow } from "../../core/board/session-list.js";
 import { strings } from "../../core/strings.js";
@@ -39,20 +39,32 @@ export function SessionsButton({
   sessions,
   control,
   title,
+  plus = false,
+  overflow = null,
 }: {
   sessions: SessionsView;
   control: ControlView | null;
   title: string | null;
+  /** The tab strip's 「＋」 trigger instead of the 「<标题> ▾」 one. */
+  plus?: boolean;
+  /** Tabs that did not fit in the strip, listed above the session list. */
+  overflow?: SessionTabsView | null;
 }) {
   return (
     <Popover open={sessions.open} onOpenChange={sessions.onOpenChange}>
-      <PopoverTrigger className="bear-title bear-title-btn">
-        {control && <ControlBot mood={control.mood} />}
-        {title ?? strings.chat.freeSession}
-        <span className="bear-title-caret" aria-hidden="true">
-          ▾
-        </span>
-      </PopoverTrigger>
+      {plus ? (
+        <PopoverTrigger className="bear-stab bear-stab-more" title={strings.sessions.title}>
+          ＋
+        </PopoverTrigger>
+      ) : (
+        <PopoverTrigger className="bear-title bear-title-btn">
+          {control && <ControlBot mood={control.mood} />}
+          {title ?? strings.chat.freeSession}
+          <span className="bear-title-caret" aria-hidden="true">
+            ▾
+          </span>
+        </PopoverTrigger>
+      )}
       <PopoverPortal>
         <PopoverContent className="bear-sessions" align="start" sideOffset={6}>
           <div className="bear-sessions-head">
@@ -61,6 +73,25 @@ export function SessionsButton({
               {strings.sessions.newSession}
             </button>
           </div>
+          {overflow !== null && (
+            <section className="bear-sessions-tabs">
+              <h5 className="bear-sessions-day">{strings.sessions.foldedTabs}</h5>
+              {overflow.items.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className="bear-sessions-row"
+                  onClick={() => {
+                    sessions.onOpenChange(false);
+                    overflow.onPick(tab.key);
+                  }}
+                >
+                  <span className="bear-sessions-name">{tab.label}</span>
+                  {tab.busy && <span className="bear-stab-dot" aria-label={strings.sessions.tabBusy} />}
+                </button>
+              ))}
+            </section>
+          )}
           {sessions.status === "loading" && <p className="bear-sessions-note">{strings.sessions.loading}</p>}
           {sessions.status === "error" && <p className="bear-sessions-note">{strings.sessions.failed}</p>}
           {sessions.status === "ready" && sessions.groups.length === 0 && (

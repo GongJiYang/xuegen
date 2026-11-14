@@ -41,7 +41,11 @@ export interface ReadingResource {
   /** The bookshelf (整本书通读): today's blocks and the whole shelf. */
   shelf: ShelfResource;
   add(source: string, priority: ReadingPriority, due: ReadingDue): Promise<DataResultFor<"reading.add">>;
-  review(slug: string, outcome: "next" | "postpone" | "done", position?: string): Promise<LoadResult<unknown>>;
+  review(
+    slug: string,
+    outcome: "next" | "postpone" | "done",
+    position?: string,
+  ): Promise<LoadResult<unknown>>;
   /** Reload every reading resource (used after a write from another panel). */
   reload(): void;
 }

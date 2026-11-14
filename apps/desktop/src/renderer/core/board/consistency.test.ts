@@ -169,7 +169,7 @@ describe("同一份数据进四处视图", () => {
     expect(cardLessonRows().map((row) => row.text)).toEqual([
       "CTM D2 · Ch2 §2.1 递归与迭代",
       "离散 D5 · Ch3 §3.1 谓词与量词",
-      "带读 · Effective C D3 · Ch3 资源管理",
+      "导读课 · Effective C D3 · Ch3 资源管理",
     ]);
   });
 
@@ -200,7 +200,7 @@ describe("同一份数据进四处视图", () => {
     expect(calendarLesson(COURSE_B)).toEqual({ id: "D5", done: false, aux: false });
   });
 
-  it("完成状态（C 带读已收课）：今日卡 = 右侧面板 = 日历，三处都是完成", () => {
+  it("完成状态（C 导读课已收课）：今日卡 = 右侧面板 = 日历，三处都是完成", () => {
     expect(cardRowFor(COURSE_C).mark).toBe("done");
     expect(cardRowFor(COURSE_C).button).toBe(strings.control.card.backToLesson);
 
@@ -229,13 +229,17 @@ describe("同一份数据进四处视图", () => {
     expect(numbersIn(cardText)).toEqual(numbersIn(panelText));
   });
 
-  it("讲后读：今日卡与日历当天详情都不含「核心页」，都含「§1.1–1.4」", () => {
-    // 今日卡：过期的那一行仍是同一条标题（后面只多「原定 11-10」）。
-    const cardRow = (CARD?.rows ?? []).find((row) => row.text.startsWith("讲后读"));
+  it("课后读：今日卡与日历当天详情都不含「核心页」，都含「§1.1–1.4」", () => {
+    // 今日卡：数据里还是「讲后读」，给人看的是「课后读 · 离散 §1.1–1.4」（课程简称 + 范围，
+    // 面板 v2）；过期的那一行下面只多一行灰字「原排 11-10」。
+    const cardRow = (CARD?.rows ?? []).find((row) =>
+      row.text.startsWith(strings.control.card.afterReadPrefix),
+    );
     const cardText = cardRow?.text ?? "";
-    expect(cardText.startsWith(AFTER_READ_TITLE)).toBe(true);
+    expect(cardText).toBe(`${strings.control.card.afterReadPrefix}离散 ${AFTER_READ_RANGE}`);
     expect(cardText).toContain(AFTER_READ_RANGE);
     expect(cardText).not.toContain("核心页");
+    expect(cardRow?.sub).toBe(strings.control.card.missedSub(AFTER_READ_DATE));
 
     // 今日卡的「读完了」写回课程页时用的 label，就是从日历标题里解析出的范围（不是标题原文）。
     const action = cardRow?.action;
@@ -249,14 +253,15 @@ describe("同一份数据进四处视图", () => {
     expect(calendarReading.filter((title) => title.includes("核心页"))).toEqual([]);
   });
 
-  it("带读叫法：四处的标签都是「带读」，任何一处都不出现「辅助」", () => {
-    const aux = strings.cycle.auxTag;
-    expect(aux).toBe("带读");
-    expect(strings.plan.auxTitle).toBe("带读");
+  it("导读课叫法：四处的标签都是「导读课」，任何一处都不出现「带读」「辅助」", () => {
+    // 给人看的名字是「导读课」（panel v2 改名，设计稿第四节）；数据里的 `aux` 不变。
+    const aux = "导读课";
+    expect(strings.cycle.auxTag).toBe(aux);
+    expect(strings.plan.auxTitle).toBe(aux);
+    expect(strings.control.card.auxPrefix).toBe("导读课 · ");
 
     // 一处一处地看它实际画的标签。
     expect(cardRowFor(COURSE_C).text.startsWith(strings.control.card.auxPrefix)).toBe(true);
-    expect(strings.control.card.auxPrefix).toBe("带读 · ");
     expect(PANEL?.aux).not.toBeNull();
     expect(AUX_ROWS.some((row) => row.course?.slug === COURSE_C)).toBe(true);
     expect(calendarLesson(COURSE_C).aux).toBe(true);
@@ -265,11 +270,11 @@ describe("同一份数据进四处视图", () => {
       const texts = textsOf(place);
       expect(
         texts.some((text) => text.includes(aux)),
-        `${place} 没有「带读」`,
+        `${place} 没有「导读课」`,
       ).toBe(true);
       expect(
-        texts.filter((text) => text.includes("辅助")),
-        `${place} 出现了「辅助」`,
+        texts.filter((text) => text.includes("带读") || text.includes("辅助")),
+        `${place} 出现了旧叫法`,
       ).toEqual([]);
     }
   });
@@ -377,8 +382,8 @@ describe("同一份数据进四处视图", () => {
     });
     expect(new Map(week.overdue.map((row) => [row.course, row.count]))).toEqual(expected);
 
-    // 今日卡：warn + study 的没学行，一门课一行；节数写在行文字里
-    // （「离散 2 节没学（最早 11-06）」→ 2，「概统 P1 没学（原定 11-10）」→ 1）。
+    // 今日卡：不想再数「没学」了（panel v2），改用两个新信号——灰字小行「原排 …」
+    // 和合并行的「起 N 节」——去数同一组课：一门课一行，节数写在行文字里。
     const card = controlCard({
       today: TODAY,
       day: missedDay,
@@ -388,20 +393,20 @@ describe("同一份数据进四处视图", () => {
       anki: ANKI,
     });
     const missedRows = (card?.rows ?? []).filter(
-      (row) => row.mark === "warn" && row.action?.kind === "study",
+      (row) => row.action?.kind === "study" && (row.sub ?? "").startsWith("原排"),
     );
     const cardCounts = new Map(
       missedRows.map((row) => {
         const slug = row.action?.kind === "study" ? row.action.slug : "";
-        const count = Number(row.text.match(/(\d+) 节没学/)?.[1] ?? 1);
+        const count = Number(row.text.match(/(\d+) 节$/)?.[1] ?? 1);
         return [slug, count];
       }),
     );
     expect(cardCounts).toEqual(expected);
-    // 顺带：合并行的文字与排序（最早没学的课排前面）。
+    // 顺带：文字与排序（最早的那节排前面），并且都是普通 ○，不是黄色警示。
     expect(missedRows.map((row) => row.text)).toEqual([
-      strings.control.card.missedMany("离散", 2, "2026-11-06"),
-      strings.control.card.missedRow("概统", "P1", "2026-11-10"),
+      strings.control.card.missedMany("离散", "D2", 2),
+      strings.control.card.missedRow("概统", "P1", "样本空间"),
     ]);
   });
 });

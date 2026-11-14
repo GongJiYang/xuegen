@@ -36,6 +36,14 @@ export function setTodayOverride(day: string | null): void {
  * real local time-of-day. The result is an ordinary local `Date`, so weekday,
  * arithmetic and `toDateString` all keep working.
  */
+/**
+ * The real instant as ISO, never shifted by `XUEGEN_TODAY`: for comparing with
+ * timestamps the outside world writes (jj commit times), not for 「today」.
+ */
+export function realNowIso(): string {
+  return new Date().toISOString();
+}
+
 export function now(): Date {
   const real = new Date();
   if (overrideDay === null) return real;

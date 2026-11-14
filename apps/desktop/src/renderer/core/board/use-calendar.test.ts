@@ -42,8 +42,6 @@ describe("dayMarks", () => {
         note: "笔记",
       }),
     ).toBe("●◆▲");
-    expect(
-      dayMarks({ records: [], plans: [], readingDue: [], log: [], note: null }),
-    ).toBe("");
+    expect(dayMarks({ records: [], plans: [], readingDue: [], log: [], note: null })).toBe("");
   });
 });

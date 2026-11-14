@@ -14,29 +14,37 @@ import type { PlanbookProps } from "../contract.js";
 import type { PlanDay, PlanLane, PlanMark, PlanWeek } from "../../core/board/planbook.js";
 import { mondayIndex } from "../../core/board/planbook.js";
 import type { PlanView } from "../../core/board/planbook-nav.js";
+import type { PlanMarks } from "../../core/board/plan-diff.js";
 import { strings } from "../../core/strings.js";
 
-const MARK: Record<PlanMark, string> = { done: "✓", now: "●", plan: "○", warn: "!" };
+// `warn` is a block or lesson moved past its day: a quiet ↷, not a warning (panel v2).
+const MARK: Record<PlanMark, string> = { done: "✓", now: "●", plan: "○", warn: "↷" };
+/** 阅读 lanes are ticked, so their not-yet-done items show an empty box. */
+const READ_LANES: PlanLane[] = ["after", "self"];
 const LANES: PlanLane[] = ["main", "after", "guide", "self"];
 const VIEWS: PlanView[] = ["day", "week", "month"];
 
-function Mark({ mark }: { mark: PlanMark }) {
-  const tone = mark === "done" ? "done" : mark === "now" ? "now" : mark === "warn" ? "warn" : "plain";
-  return <span className={`bear-pb-mark is-${tone}`}>{MARK[mark]}</span>;
+function Mark({ mark, lane }: { mark: PlanMark; lane?: PlanLane }) {
+  const tone = mark === "done" ? "done" : mark === "now" ? "now" : mark === "warn" ? "moved" : "plain";
+  const glyph = mark === "plan" && lane !== undefined && READ_LANES.includes(lane) ? "☐" : MARK[mark];
+  return <span className={`bear-pb-mark is-${tone}`}>{glyph}</span>;
 }
 
 function WeekView({
   week,
   onOpenDay,
   onOpenAnki,
+  marks,
 }: {
   week: PlanWeek;
   onOpenDay(date: string): void;
   onOpenAnki(): void;
+  marks: PlanMarks | null;
 }) {
   const lane = strings.planbook.lanes;
   return (
-    <div className="bear-pb-week">
+    // Keyed by the week so paging re-mounts it and the fade-in replays.
+    <div key={week.start} className="bear-pb-week">
       <div className="bear-pb-goals">
         <section>
           <p className="bear-pb-cap">{strings.planbook.goalsCaption}</p>
@@ -86,6 +94,7 @@ function WeekView({
             </div>
             {week.days.map((day) => {
               const items = day.items.filter((item) => item.lane === laneId);
+              const ghosts = (marks?.ghosts[day.date] ?? []).filter((ghost) => ghost.lane === laneId);
               return (
                 <button
                   key={day.date}
@@ -93,19 +102,27 @@ function WeekView({
                   className={`bear-pb-cell${day.isToday ? " is-today" : ""}${day.type === "休息" ? " is-rest" : ""}`}
                   onClick={() => onOpenDay(day.date)}
                 >
-                  {items.map((item, index) => (
-                    <span
-                      key={index}
-                      className={`bear-pb-it is-${item.mark === "now" ? "now" : item.mark === "done" ? "done" : "plain"}`}
-                      title={item.text}
-                    >
-                      <Mark mark={item.mark} />
-                      {/* Only the main lesson reads as the lesson itself; the reading
-                          lanes repeat their row name, as the design's cells do. */}
-                      {strings.planbook.lanePrefix(item.lane)}
-                      {item.short || item.text}
+                  {ghosts.map((ghost) => (
+                    <span key={ghost.label} className="bear-pb-it is-ghost">
+                      {ghost.label}
+                      <small>{ghost.note}</small>
                     </span>
                   ))}
+                  {items.map((item, index) => {
+                    const note = marks?.at[`${day.date}|${item.slug ?? ""}|${item.id ?? ""}`];
+                    return (
+                      <span
+                        key={index}
+                        className={`bear-pb-it is-${item.mark === "now" ? "now" : item.mark === "done" ? "done" : "plain"}${note === undefined ? "" : " is-changed"}`}
+                        title={item.text}
+                      >
+                        <Mark mark={item.mark} lane={item.lane} />
+                        {/* The row head names the lane (panel v2), so cells hold the short name only. */}
+                        {item.short || item.text}
+                        {note !== undefined && <small>{note}</small>}
+                      </span>
+                    );
+                  })}
                   {day.type === "休息" && laneId === "main" && (
                     <span className="bear-pb-it is-rest">{day.type}</span>
                   )}
@@ -133,7 +150,7 @@ function WeekView({
                       {strings.planbook.ankiToday(day.ankiDue)}
                     </button>
                     <button type="button" className="bear-pb-link" onClick={onOpenAnki}>
-                      {strings.control.card.anki}
+                      {strings.planbook.ankiOpen}
                     </button>
                   </span>
                 </div>
@@ -168,7 +185,7 @@ function DayView({
 }) {
   return (
     <div className="bear-pb-day">
-      <section className="bear-pb-daylist">
+      <section key={day.date} className="bear-pb-daylist">
         {/* Today's card carries its own 「11-11 周三 · 主攻日」 line; only other days need the caption. */}
         {todayCard === null && (
           <p className="bear-pb-cap">{strings.planbook.dayCaption(day.date, day.weekday, day.type)}</p>
@@ -183,7 +200,7 @@ function DayView({
             <ul className="bear-pb-rows">
               {day.items.map((item, index) => (
                 <li key={index} className={item.mark === "now" ? "is-now" : undefined}>
-                  <Mark mark={item.mark} />
+                  <Mark mark={item.mark} lane={item.lane} />
                   <span>
                     {strings.planbook.lanePrefix(item.lane)}
                     {item.text}
@@ -199,11 +216,19 @@ function DayView({
   );
 }
 
-function MonthView({ month, onOpenDay }: { month: PlanDay[]; onOpenDay(date: string): void }) {
+function MonthView({
+  month,
+  onOpenDay,
+  marks,
+}: {
+  month: PlanDay[];
+  onOpenDay(date: string): void;
+  marks: PlanMarks | null;
+}) {
   const first = month[0];
   const lead = first === undefined ? 0 : mondayIndex(first.date);
   return (
-    <div className="bear-pb-month">
+    <div key={first?.date} className="bear-pb-month">
       <div className="bear-pb-mgrid">
         {strings.planbook.weekdays.map((weekday) => (
           <span key={weekday} className="bear-pb-wd">
@@ -227,8 +252,22 @@ function MonthView({ month, onOpenDay }: { month: PlanDay[]; onOpenDay(date: str
               onClick={() => onOpenDay(day.date)}
             >
               <b>{Number(day.date.slice(8))}</b>
-              {main !== undefined && <em>{main.short}</em>}
-              {guide !== undefined && <em className="is-guide">{guide.short}</em>}
+              {main !== undefined && (
+                <em
+                  className={
+                    marks?.at[`${day.date}|${main.slug ?? ""}|${main.id ?? ""}`] ? "is-changed" : undefined
+                  }
+                >
+                  {main.short}
+                </em>
+              )}
+              {guide !== undefined && (
+                <em
+                  className={`is-guide${marks?.at[`${day.date}|${guide.slug ?? ""}|${guide.id ?? ""}`] ? " is-changed" : ""}`}
+                >
+                  {guide.short}
+                </em>
+              )}
               {main === undefined && guide === undefined && typeTag !== "" && (
                 <em className="is-type">{typeTag}</em>
               )}
@@ -286,14 +325,14 @@ export function Planbook(props: PlanbookProps) {
       )}
       {props.state === "ready" && (
         <PlanbookBody
-   view={props.view}
-   day={props.day}
-   week={props.week}
-   month={props.month}
+          view={props.view}
+          day={props.day}
+          week={props.week}
+          month={props.month}
           todayCard={props.todayCard}
-   tomorrow={props.tomorrow}
+          tomorrow={props.tomorrow}
           onOpenDay={props.onOpenDay}
-   onOpenAnki={props.onOpenAnki}
+          onOpenAnki={props.onOpenAnki}
         />
       )}
     </div>
@@ -313,17 +352,20 @@ export function PlanbookBody(props: {
   tomorrow: string | null;
   onOpenDay(date: string): void;
   onOpenAnki(): void;
+  /** The latest 总控 answer's changes to mark on the grid (panel only). */
+  marks?: PlanMarks | null;
 }) {
+  const marks = props.marks ?? null;
   return (
     <>
       {props.view === "week" && props.week !== null && (
-        <WeekView week={props.week} onOpenDay={props.onOpenDay} onOpenAnki={props.onOpenAnki} />
+        <WeekView week={props.week} onOpenDay={props.onOpenDay} onOpenAnki={props.onOpenAnki} marks={marks} />
       )}
       {props.view === "day" && props.day !== null && (
- <DayView day={props.day} todayCard={props.todayCard} tomorrow={props.tomorrow} />
+        <DayView day={props.day} todayCard={props.todayCard} tomorrow={props.tomorrow} />
       )}
       {props.view === "month" && props.month !== null && (
-        <MonthView month={props.month} onOpenDay={props.onOpenDay} />
+        <MonthView month={props.month} onOpenDay={props.onOpenDay} marks={marks} />
       )}
     </>
   );

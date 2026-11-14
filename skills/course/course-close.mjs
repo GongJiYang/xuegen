@@ -33,19 +33,19 @@ import {
   rmSync,
   statSync,
 } from "node:fs";
-import { dirname, join, posix, relative, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail } from "./close/fail.mjs";
 import { isOwned, isSafeRelPath } from "./close/rules.mjs";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
 import {
   diffEntries,
-  filesetLiteral,
   guardLaterChanges,
   isJjRepo,
   jj,
   jjCommit,
 } from "./close/jj.mjs";
+import { restoreFiles as restoreFromRev } from "./close/restore.mjs";
 import {
   cloneInto,
   localDate,
@@ -238,50 +238,11 @@ function cmdUndo(vaultArg, slug, workspaceArg, json) {
   // 收课之后同一批文件又被改过（提交或工作副本）就不能直接撤回，否则会盖掉那次改动。
   // 新建的页也要查：它们之后被改过同样拦下来（保持原行为）。
   guardLaterChanges(vault, slug, id, [...new Set([...keptNew, ...restoreFiles])]);
-  // 放开可能上了只读锁的课程目录与文件，记下原权限事后恢复。
-  const restored = new Map();
-  const open = (abs, bits) => {
-    const mode = statSync(abs).mode & 0o777;
-    if (mode & 0o200) return;
-    if (!restored.has(abs)) restored.set(abs, mode);
-    chmodSync(abs, mode | bits);
-  };
-  for (const rel of restoreFiles) {
-    const abs = join(vault, rel);
-    let dir = dirname(abs);
-    // 只放开库内的祖先目录（用 relative 判断，避免 /vault2 被 startsWith("/vault") 误当成库内）。
-    while (existsSync(dir) && dir !== vault) {
-      const up = relative(vault, dir);
-      if (up === "" || up.startsWith("..") || posix.isAbsolute(up)) break;
-      open(dir, 0o700);
-      dir = dirname(dir);
-    }
-    if (existsSync(abs) && statSync(abs).isFile()) open(abs, 0o200);
-  }
   // 只新建过文件时没有可恢复的东西：不调 jj restore、不提交，直接输出。
   let jjResult = "skipped";
   let board = null;
   if (restoreFiles.length > 0) {
-    try {
-      // 一次调用传全部路径：中间某个失败时不会已经撤了一半。
-      jj(["restore", "--from", `${id}-`, "--to", "@", "--", ...restoreFiles.map(filesetLiteral)], vault);
-    } catch (error) {
-      for (const [dir, mode] of restored) {
-        try {
-          chmodSync(dir, mode);
-        } catch {
-          /* 恢复失败不遮主错 */
-        }
-      }
-      fail(`jj restore 失败：${error instanceof Error ? error.message : error}`);
-    }
-    for (const [dir, mode] of restored) {
-      try {
-        chmodSync(dir, mode);
-      } catch {
-        /* 同上 */
-      }
-    }
+    restoreFromRev(vault, `${id}-`, restoreFiles);
     lockCourse(vault, slug, restoreFiles);
     board = refreshBoard(vault);
     jjResult = jjCommit(vault, `撤销收课 ${slug} ${originalDate}`, [...restoreFiles, ...board.paths]);

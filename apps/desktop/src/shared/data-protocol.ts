@@ -44,6 +44,30 @@ export interface CourseSummary {
   file?: string;
 }
 
+/** One concept-page link of a 「存库」 line, as `course-terms.mjs list --json` reports it. */
+export interface TermLink {
+  title: string;
+  path: string;
+  definition: string | null;
+  exists: boolean;
+}
+
+/** One lesson's stored concept pages, grouped by course + date + lesson. */
+export interface TermGroup {
+  course: string;
+  courseTitle: string;
+  date: string;
+  lesson: string | null;
+  terms: TermLink[];
+}
+
+/** One wiki page read for display: its H1 (or file name) and the Markdown without frontmatter. */
+export interface WikiPage {
+  path: string;
+  title: string;
+  markdown: string;
+}
+
 /** One due reading item as returned by `reading-queue.mjs today --json`. */
 export interface ReadingItem {
   slug: string;
@@ -430,6 +454,29 @@ export interface SessionMeta {
   count: number;
 }
 
+/**
+ * One 「计划」/「顺延」 jj commit made in the current turn, as `plan-undo.mjs
+ * list` reports it (oldest first).
+ */
+export interface PlanCommit {
+  id: string;
+  kind: "计划" | "顺延";
+  slug: string;
+  date: string;
+}
+
+/**
+ * What `plan-undo.mjs undo` did: the commits it reverted, the files it restored
+ * to before the earliest plan commit, the pages that commit batch created
+ * (kept, not deleted), and the board rebuild outcome.
+ */
+export interface PlanUndoResult {
+  undone: string[];
+  restoreFiles: string[];
+  keptNew: string[];
+  board: string;
+}
+
 /** One source file that can still be added to the reading queue. */
 export interface ReadingSource {
   /** Vault-relative path under `raw/` or `clippings/`, e.g. `raw/papers/x.pdf`. */
@@ -444,6 +491,8 @@ export interface ReadingSource {
 export type DataRequest =
   | { kind: "courses.list" }
   | { kind: "course.afterRead"; slug: string; label: string; date: string }
+  | { kind: "terms.list"; since?: string }
+  | { kind: "wiki.read"; path: string }
   | { kind: "reading.today"; limit: number }
   | { kind: "reading.stats" }
   | { kind: "reading.sources" }
@@ -465,6 +514,8 @@ export type DataRequest =
   | { kind: "cycle.month"; month: string }
   | { kind: "cycle.overview"; date: string }
   | { kind: "subjects.list"; date: string }
+  | { kind: "plan.undoable"; since: string }
+  | { kind: "plan.undo"; since: string }
   | { kind: "sessions.list"; current: string }
   | { kind: "skills.list" }
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
@@ -479,6 +530,8 @@ export type DataRequest =
 export interface DataResponseMap {
   "courses.list": CourseSummary[];
   "course.afterRead": { label: string; reading: string | null; book: string | null };
+  "terms.list": TermGroup[];
+  "wiki.read": WikiPage;
   "reading.today": ReadingItem[];
   "reading.stats": ReadingStats;
   "reading.sources": ReadingSource[];
@@ -507,6 +560,8 @@ export interface DataResponseMap {
   "cycle.month": CycleMonth;
   "cycle.overview": CycleOverview;
   "subjects.list": SubjectsOverview;
+  "plan.undoable": PlanCommit[];
+  "plan.undo": PlanUndoResult;
   "sessions.list": SessionMeta[];
   "skills.list": SkillInfo[];
   "skills.setEnabled": DesktopSettings;
@@ -601,6 +656,14 @@ export function isDataRequest(value: unknown): value is DataRequest {
         typeof value.date === "string" &&
         isIsoDate(value.date)
       );
+    case "terms.list":
+      return value.since === undefined || (typeof value.since === "string" && isIsoDate(value.since));
+    case "wiki.read":
+      // The path is re-checked against `<vault>/wiki/` in the main process; here
+      // it only has to be a plausible absolute `.md` path.
+      return (
+        typeof value.path === "string" && value.path.startsWith("/") && value.path.endsWith(".md")
+      );
     case "reading.today":
       return typeof value.limit === "number" && Number.isInteger(value.limit) && value.limit >= 0;
     case "reading.add":
@@ -679,6 +742,15 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return typeof value.month === "string" && isIsoMonth(value.month);
     case "subjects.list":
       return typeof value.date === "string" && isIsoDate(value.date);
+    case "plan.undoable":
+    case "plan.undo":
+      // `since` is an ISO timestamp with timezone recorded when the answer
+      // started; Date.parse both validates the shape and rejects garbage.
+      return (
+        typeof value.since === "string" &&
+        value.since.length > 0 &&
+        !Number.isNaN(Date.parse(value.since))
+      );
     case "sessions.list":
       return typeof value.current === "string" && value.current.endsWith(".jsonl");
     case "skills.setEnabled":

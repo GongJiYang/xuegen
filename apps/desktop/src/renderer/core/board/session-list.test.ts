@@ -4,7 +4,13 @@ import { sessionGroups, roleOfRow, type SessionListContext } from "./session-lis
 
 const DIR = "/home/sessions";
 
-function meta(name: string, startedAt: number, firstUser: string, pin: string | null, count: number): SessionMeta {
+function meta(
+  name: string,
+  startedAt: number,
+  firstUser: string,
+  pin: string | null,
+  count: number,
+): SessionMeta {
   return { file: `${DIR}/${name}`, startedAt, firstUser, pin, count };
 }
 
@@ -30,8 +36,20 @@ function ctx(overrides: Partial<SessionListContext> = {}): SessionListContext {
 describe("roleOfRow", () => {
   const rows = sessionGroups(
     [
-      meta("2026-11-08T09-00-00-000Z_ctrl.jsonl", Date.UTC(2026, 10, 8, 9, 0), "/skill:cycle-plan 给出今天的简报", null, 4),
-      meta("2026-11-08T10-00-00-000Z_epp.jsonl", Date.UTC(2026, 10, 8, 10, 0), "⟦xuegen:resume|epp|离散⟧", "离散 D2", 9),
+      meta(
+        "2026-11-08T09-00-00-000Z_ctrl.jsonl",
+        Date.UTC(2026, 10, 8, 9, 0),
+        "/skill:cycle-plan 给出今天的简报",
+        null,
+        4,
+      ),
+      meta(
+        "2026-11-08T10-00-00-000Z_epp.jsonl",
+        Date.UTC(2026, 10, 8, 10, 0),
+        "⟦xuegen:resume|epp|离散⟧",
+        "离散 D2",
+        9,
+      ),
       meta("2026-11-07T18-00-00-000Z_free.jsonl", Date.UTC(2026, 10, 7, 18, 0), "帮我理解递归", null, 2),
     ],
     ctx(),
@@ -68,7 +86,8 @@ describe("sessionGroups: pins whose course short name contains a space", () => {
   });
 
   it("keeps 「C 语言」 as the tag when the slug is unknown", () => {
-    const row = sessionGroups([pinned("C 语言 D1")], cCtx({ courseSessions: {}, courseNames: {} }))[0]?.rows[0];
+    const row = sessionGroups([pinned("C 语言 D1")], cCtx({ courseSessions: {}, courseNames: {} }))[0]
+      ?.rows[0];
     expect(row).toMatchObject({ kind: "course", slug: null, tag: "C 语言", title: "D1" });
   });
 
@@ -86,9 +105,27 @@ describe("sessionGroups: pins whose course short name contains a space", () => {
 
 describe("sessionGroups", () => {
   const metas: SessionMeta[] = [
-    meta("2026-11-08T09-00-00-000Z_ctrl.jsonl", Date.UTC(2026, 10, 8, 9, 0), "/skill:cycle-plan 给出今天的简报", null, 4),
-    meta("2026-11-08T10-00-00-000Z_epp.jsonl", Date.UTC(2026, 10, 8, 10, 0), "[风格：细讲] 继续上次\n⟦xuegen:resume|epp|离散⟧", "离散 D2", 9),
-    meta("2026-11-07T20-00-00-000Z_old.jsonl", Date.UTC(2026, 10, 7, 20, 0), "开始今天的离散数学", "离散 D1", 5),
+    meta(
+      "2026-11-08T09-00-00-000Z_ctrl.jsonl",
+      Date.UTC(2026, 10, 8, 9, 0),
+      "/skill:cycle-plan 给出今天的简报",
+      null,
+      4,
+    ),
+    meta(
+      "2026-11-08T10-00-00-000Z_epp.jsonl",
+      Date.UTC(2026, 10, 8, 10, 0),
+      "[风格：细讲] 继续上次\n⟦xuegen:resume|epp|离散⟧",
+      "离散 D2",
+      9,
+    ),
+    meta(
+      "2026-11-07T20-00-00-000Z_old.jsonl",
+      Date.UTC(2026, 10, 7, 20, 0),
+      "开始今天的离散数学",
+      "离散 D1",
+      5,
+    ),
     meta("2026-11-07T18-00-00-000Z_free.jsonl", Date.UTC(2026, 10, 7, 18, 0), "帮我理解递归", null, 2),
     meta("2026-11-06T08-00-00-000Z_empty.jsonl", Date.UTC(2026, 10, 6, 8, 0), "", null, 0),
   ];
@@ -96,7 +133,11 @@ describe("sessionGroups", () => {
   it("groups by local day, newest first, with 今天/昨天/周X labels", () => {
     const groups = sessionGroups(metas, ctx());
     expect(groups.map((group) => group.date)).toEqual(["2026-11-08", "2026-11-07", "2026-11-06"]);
-    expect(groups.map((group) => group.label)).toEqual(["今天 · 11-08 周日", "昨天 · 11-07 周六", "11-06 周五"]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "今天 · 11-08 周日",
+      "昨天 · 11-07 周六",
+      "11-06 周五",
+    ]);
     expect(groups[0]?.rows.map((row) => row.time)).toEqual(["10:00", "09:00"]);
   });
 
@@ -181,6 +222,11 @@ describe("sessionGroups", () => {
       null,
       13,
     );
-    expect(sessionGroups([old], ctx())[0]?.rows[0]).toMatchObject({ kind: "course", slug: "ctm", tag: "CTM", title: "开今天的课" });
+    expect(sessionGroups([old], ctx())[0]?.rows[0]).toMatchObject({
+      kind: "course",
+      slug: "ctm",
+      tag: "CTM",
+      title: "开今天的课",
+    });
   });
 });

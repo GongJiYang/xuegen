@@ -14,6 +14,8 @@ import type { PanelTile, ShelfRow, UnplannedMaterial } from "../../core/board/pa
 import type { CardsStats, CycleOverview } from "@shared/data-protocol.js";
 import { strings } from "../../core/strings.js";
 import { PlanbookBody } from "./planbook.js";
+import { TermsBlock } from "./terms-block.js";
+import { ChangesBanner } from "./changes-banner.js";
 import {
   addBookPrompt,
   changeModePrompt,
@@ -147,7 +149,7 @@ function progressLine(
   if (course.next === null) return { text: panel.progressFinished, warn: false };
   const end = course.end === null ? "" : ` · ${panel.progressEnd(course.end)}`;
   if (course.next.date < today)
-    return { text: panel.progressLate(course.next.id, course.next.date) + end, warn: true };
+    return { text: panel.progressLate(course.next.id, course.next.date) + end, warn: false };
   return {
     text: panel.progressNext(course.next.id, course.next.date, course.next.date === today) + end,
     warn: false,
@@ -177,8 +179,13 @@ function Progress({ overview }: { overview: CycleOverview | null }) {
             })()}
           </div>
         ))}
-      {(overview.cycle?.next ?? null) !== null || overview.route !== null ? (
+      {overview.cycle !== null && (
         <p className="bear-cp-meta bear-cp-route">
+          {strings.panel.progressCycle(overview.cycle.cycle, overview.cycle.end, overview.cycle.plannedEnd)}
+        </p>
+      )}
+      {(overview.cycle?.next ?? null) !== null || overview.route !== null ? (
+        <p className="bear-cp-meta">
           {[
             overview.cycle?.next
               ? strings.panel.progressNext2(overview.cycle.next.cycle, overview.cycle.next.start)
@@ -298,13 +305,13 @@ function WeekControls(props: ControlPanelProps) {
       <span className="bear-cp-meta">{props.label}</span>
       <span className="bear-cp-nav">
         <button type="button" className="bear-cp-link" onClick={props.onPrev}>
-          {strings.planbook.prev}
+          {strings.planbook.paging[props.view].prev}
         </button>
         <button type="button" className="bear-cp-link" disabled={props.todayDisabled} onClick={props.onToday}>
-          {strings.planbook.today}
+          {strings.planbook.paging[props.view].now}
         </button>
         <button type="button" className="bear-cp-link" onClick={props.onNext}>
-          {strings.planbook.next}
+          {strings.planbook.paging[props.view].next}
         </button>
       </span>
     </div>
@@ -349,29 +356,32 @@ export function ControlPanel(props: ControlPanelProps) {
             />
           )}
         </Block>
-        <Block title={props.view === "month" ? strings.panel.blockMonth : strings.panel.blockWeek}>
-          <WeekControls {...props} />
-          <PlanbookBody
-            view={props.view === "month" ? "month" : "week"}
-            day={null}
-            week={props.week}
-            month={props.month}
-            todayCard={null}
-            tomorrow={null}
-            onOpenDay={props.onOpenDay}
-            onOpenAnki={props.onOpenAnki}
-          />
-        </Block>
+        <div className="bear-cp-col">
+          <Block title={props.view === "month" ? strings.panel.blockMonth : strings.panel.blockWeek}>
+            <WeekControls {...props} />
+            {props.changes !== null && <ChangesBanner changes={props.changes} />}
+            <PlanbookBody
+              view={props.view === "month" ? "month" : "week"}
+              day={null}
+              week={props.week}
+              month={props.month}
+              todayCard={null}
+              tomorrow={null}
+              onOpenDay={props.onOpenDay}
+              onOpenAnki={props.onOpenAnki}
+              marks={props.changes?.marks ?? null}
+            />
+          </Block>
+          <div className="bear-cp-termslot">
+            <TermsBlock terms={props.terms} onOpenTerm={props.onOpenTerm} />
+          </div>
+        </div>
       </div>
       <div className="bear-cp-row3">
         <Block title={strings.panel.blockProgress} caption={strings.panel.blockProgressCaption}>
           <Progress overview={props.overview} />
         </Block>
-        <Block
-          title={strings.panel.blockShelf}
-          caption={strings.panel.blockShelfCaption}
-          actions={<AddBook onAsk={props.onAsk} />}
-        >
+        <Block title={strings.panel.blockShelf} actions={<AddBook onAsk={props.onAsk} />}>
           <ShelfList rows={props.shelf} onAsk={props.onAsk} />
           <Unplanned items={props.unplanned} />
         </Block>

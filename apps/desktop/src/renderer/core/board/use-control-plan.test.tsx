@@ -108,6 +108,8 @@ function input(overrides: Partial<ControlPlanInput> = {}): ControlPlanInput {
     onVerify: vi.fn(),
     onOpenTool: vi.fn(),
     onAskBrief: vi.fn(),
+    onAccompany: vi.fn(),
+    verifiedOn: {},
     refresh: vi.fn(),
     isControl: true,
     fold: fold(),

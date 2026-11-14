@@ -14,6 +14,10 @@
 - cycle.day / cycle.month → skills/cycle-plan/cycle.mjs（day / month，只读）
 - subjects.list → skills/cycle-plan/subjects.mjs（list，只读）
 - course.afterRead → course-state.mjs after-read 打勾后：有 `[[shelf/<书>]]` 链接时记进书房书页（`bookshelf.mjs lecture`），否则照旧记阅读页（`reading-queue.mjs note`）；最后重建课程看板
+- terms.list → skills/course/course-terms.mjs list（只读）
+- plan.undoable → skills/course/plan-undo.mjs list（只读）：`--since` 是这一轮回答开始的时间，返回可撤销的「计划/顺延」提交
+- plan.undo → skills/course/plan-undo.mjs undo（写）：`--workspace` 取 `agent/environment.ts` 的 `resolveWorkspace()`；脚本输出经 `plan-undo.ts` 转成协议类型
+- wiki.read → wiki-page.ts（只读，限 wiki/ 内的 .md）
 - shelf.today / shelf.list → skills/reading/bookshelf.mjs（today / list，只读）
 - shelf.done → skills/reading/bookshelf.mjs done（写书页 position/读书记录，读完自动开下一本并重写 index.md）
 - shelf.extract → skills/reading/bookshelf.mjs extract（在 `## 摘录` 记一句 `#待做卡`）

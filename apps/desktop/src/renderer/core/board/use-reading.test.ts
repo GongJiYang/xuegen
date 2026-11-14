@@ -78,7 +78,9 @@ describe("clipPrompt", () => {
     const marked = splitActionMarker(clipPrompt(" https://example.com/a ", "medium", "today"));
     expect(marked.action).toBe("clip");
     expect(marked.courseTitle).toBeNull();
-    expect(marked.body).toBe("/skill:reading 把这篇文章剪藏到 clippings/ 并加入阅读队列（优先级 medium，今天就读）：https://example.com/a");
+    expect(marked.body).toBe(
+      "/skill:reading 把这篇文章剪藏到 clippings/ 并加入阅读队列（优先级 medium，今天就读）：https://example.com/a",
+    );
   });
 
   it("still tells a URL from a vault path", () => {

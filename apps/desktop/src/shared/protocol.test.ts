@@ -228,6 +228,7 @@ describe("normalizeDesktopSettings", () => {
     const normalized = normalizeDesktopSettings({ skin: "bare", bodyScale: 1 });
     expect(normalized.disabledSkills).toEqual([]);
     expect(normalized.courseStartedOn).toEqual({});
+    expect(normalized.verifiedOn).toEqual({});
   });
 
   it("keeps only real dates in courseStartedOn", () => {
@@ -244,6 +245,22 @@ describe("normalizeDesktopSettings", () => {
       },
     });
     expect(normalized.courseStartedOn).toEqual({ ctm: "2026-11-04" });
+  });
+
+  it("keeps only real dates in verifiedOn", () => {
+    const normalized = normalizeDesktopSettings({
+      skin: "bare",
+      bodyScale: 1,
+      verifiedOn: {
+        ctm: "2026-11-04",
+        bad: "2026-13-40",
+        short: "2026-1-4",
+        empty: "",
+        "": "2026-11-04",
+        number: 20261104,
+      },
+    });
+    expect(normalized.verifiedOn).toEqual({ ctm: "2026-11-04" });
   });
 });
 

@@ -34,6 +34,8 @@ import { CardsPanel } from "./cards-panel.js";
 import { CalendarPanel } from "./calendar-panel.js";
 import { SkillsPanel } from "./skills-panel.js";
 import { SessionsButton } from "./sessions-popover.js";
+import { SessionTabs } from "./session-tabs.js";
+import { useTabShortcuts } from "./use-tab-shortcuts.js";
 import { useDark } from "./use-dark.js";
 
 /** The paper colour the window should open with (anti-flash). */
@@ -178,6 +180,8 @@ export function Shell(props: ShellProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [tools, openTool, onPrompt, onToggleFocus, hasDrawer]);
 
+  useTabShortcuts(focusMode ? null : props.tabs);
+
   return (
     <div
       className="bear-root"
@@ -187,9 +191,12 @@ export function Shell(props: ShellProps) {
       data-focus={focusMode ? "true" : undefined}
     >
       <header className="bear-bar">
-        {!focusMode && (
-          <SessionsButton sessions={props.sessions} control={props.control} title={props.sessionTitle} />
-        )}
+        {!focusMode &&
+          (props.tabs !== null ? (
+            <SessionTabs tabs={props.tabs} sessions={props.sessions} />
+          ) : (
+            <SessionsButton sessions={props.sessions} control={props.control} title={props.sessionTitle} />
+          ))}
         <span className="bear-bar-gap" />
         {!focusMode && (
           <>

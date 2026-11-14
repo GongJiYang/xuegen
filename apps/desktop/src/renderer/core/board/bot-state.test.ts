@@ -39,7 +39,13 @@ describe("botMood", () => {
     expect(botMood(true, true, null)).toBe("working");
   });
   it("notifies about missed lessons, sleeps on a rest day, idles otherwise", () => {
-    expect(botMood(false, false, day({ overdue: [{ course: "epp", id: "D1", content: "Ch1", date: "2026-11-06" }] }))).toBe("notifying");
+    expect(
+      botMood(
+        false,
+        false,
+        day({ overdue: [{ course: "epp", id: "D1", content: "Ch1", date: "2026-11-06" }] }),
+      ),
+    ).toBe("notifying");
     expect(botMood(false, false, day({ type: "休息", subject: null, course: null }))).toBe("sleeping");
     expect(botMood(false, false, day({}))).toBe("idle");
     expect(botMood(false, false, null)).toBe("idle");
@@ -54,7 +60,12 @@ describe("toolRunning and controlView", () => {
   });
   it("is null outside the 总控 session", () => {
     expect(controlView(false, true, [], { status: "loading" })).toBeNull();
-    expect(controlView(true, false, [], { status: "ready", value: day({ type: "休息", subject: null, course: null }) })).toEqual({ mood: "sleeping" });
+    expect(
+      controlView(true, false, [], {
+        status: "ready",
+        value: day({ type: "休息", subject: null, course: null }),
+      }),
+    ).toEqual({ mood: "sleeping" });
     expect(controlView(true, false, [], { status: "loading" })).toEqual({ mood: "idle" });
   });
 });

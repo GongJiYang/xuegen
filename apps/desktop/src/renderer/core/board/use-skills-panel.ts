@@ -46,13 +46,15 @@ export function useSkillsPanel(
     review,
     onReview: (name) => {
       setReview({ status: "loading" });
-      void skills.review(name).then((result) =>
-        setReview(
-          result.ok
-            ? { status: "ready", value: result.data }
-            : { status: "error", code: result.code, message: result.error },
-        ),
-      );
+      void skills
+        .review(name)
+        .then((result) =>
+          setReview(
+            result.ok
+              ? { status: "ready", value: result.data }
+              : { status: "error", code: result.code, message: result.error },
+          ),
+        );
     },
     onCloseReview: () => setReview(null),
     onEnableReviewed: (name) => {

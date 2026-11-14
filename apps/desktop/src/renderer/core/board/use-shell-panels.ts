@@ -41,7 +41,9 @@ export function courseTitleOf(courses: CoursesResource, slug: string): string | 
 /** 周核实: the cycle page's 「核实 →」 hands this to the course's own session. */
 export function verifyMessage(slug: string, title: string | null): string {
   const text = strings.cycle.verifyPrompt(slug);
-  return title === null ? withActionMarker(text, "verify") : withActionMarker(text, "verify", { slug, title });
+  return title === null
+    ? withActionMarker(text, "verify")
+    : withActionMarker(text, "verify", { slug, title });
 }
 
 /** 起草卡片: the cards panel's default prompt, or the text the panel passed in. */
@@ -86,11 +88,7 @@ export interface ShellPanelsArgs {
   studyCourse(slug: string): void;
   /** `setEditingDay`: open the day editor for the given date. */
   setEditingDay: Dispatch<SetStateAction<{ date: string; text: string } | null>>;
-  handleReadingAdd(
-    source: string,
-    priority: ReadingPriority,
-    due: ReadingDue,
-  ): Promise<AddedReading | null>;
+  handleReadingAdd(source: string, priority: ReadingPriority, due: ReadingDue): Promise<AddedReading | null>;
   handleReadingClip(url: string, priority: ReadingPriority, due: ReadingDue): void;
 }
 
@@ -129,7 +127,8 @@ export function useShellPanels(input: ShellPanelsArgs): ShellPanels {
       input.setEditingDay({ date, text: day?.note ?? "" });
     },
     onStudyCourse: input.studyCourse,
-    onVerifyCourse: (slug) => input.handleStartSession(slug, verifyMessage(slug, courseTitleOf(input.courses, slug))),
+    onVerifyCourse: (slug) =>
+      input.handleStartSession(slug, verifyMessage(slug, courseTitleOf(input.courses, slug))),
     onOpenControl: cycleId ? control.openControl : null,
     sessions: sessionList.view,
   });

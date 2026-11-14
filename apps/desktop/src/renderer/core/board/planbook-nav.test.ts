@@ -72,18 +72,28 @@ describe("rangeLabel", () => {
 });
 
 describe("isTodayInView", () => {
-  const cases: { view: PlanView; anchor: string; today: string; week: PlanWeek | null; expected: boolean }[] = [
-    { view: "day", anchor: "2026-11-11", today: "2026-11-11", week: null, expected: true },
-    { view: "day", anchor: "2026-11-12", today: "2026-11-11", week: null, expected: false },
-    { view: "week", anchor: "2026-11-11", today: "2026-11-10", week: CYCLE_WEEK, expected: true },
-    { view: "week", anchor: "2026-11-20", today: "2026-11-11", week: { ...CYCLE_WEEK, week: 3, start: "2026-11-20", end: "2026-11-26" }, expected: false },
-    // 周数据没到时按 anchor 的周一–周日判断。
-    { view: "week", anchor: "2026-11-11", today: "2026-11-15", week: null, expected: true },
-    { view: "week", anchor: "2026-11-11", today: "2026-11-16", week: null, expected: false },
-    { view: "month", anchor: "2026-11-30", today: "2026-11-11", week: null, expected: true },
-    { view: "month", anchor: "2026-12-01", today: "2026-11-30", week: null, expected: false },
-  ];
-  it.each(cases)("$view anchor=$anchor today=$today → $expected", ({ view, anchor, today, week, expected }) => {
-    expect(isTodayInView(view, anchor, today, week)).toBe(expected);
-  });
+  const cases: { view: PlanView; anchor: string; today: string; week: PlanWeek | null; expected: boolean }[] =
+    [
+      { view: "day", anchor: "2026-11-11", today: "2026-11-11", week: null, expected: true },
+      { view: "day", anchor: "2026-11-12", today: "2026-11-11", week: null, expected: false },
+      { view: "week", anchor: "2026-11-11", today: "2026-11-10", week: CYCLE_WEEK, expected: true },
+      {
+        view: "week",
+        anchor: "2026-11-20",
+        today: "2026-11-11",
+        week: { ...CYCLE_WEEK, week: 3, start: "2026-11-20", end: "2026-11-26" },
+        expected: false,
+      },
+      // 周数据没到时按 anchor 的周一–周日判断。
+      { view: "week", anchor: "2026-11-11", today: "2026-11-15", week: null, expected: true },
+      { view: "week", anchor: "2026-11-11", today: "2026-11-16", week: null, expected: false },
+      { view: "month", anchor: "2026-11-30", today: "2026-11-11", week: null, expected: true },
+      { view: "month", anchor: "2026-12-01", today: "2026-11-30", week: null, expected: false },
+    ];
+  it.each(cases)(
+    "$view anchor=$anchor today=$today → $expected",
+    ({ view, anchor, today, week, expected }) => {
+      expect(isTodayInView(view, anchor, today, week)).toBe(expected);
+    },
+  );
 });

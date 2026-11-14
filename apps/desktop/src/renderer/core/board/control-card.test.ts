@@ -42,7 +42,12 @@ describe("controlCard", () => {
   it("returns null outside every cycle or without a day", () => {
     expect(controlCard({ today: TODAY, day: null, calendar: EMPTY_MONTH, queue: [] })).toBeNull();
     expect(
-      controlCard({ today: TODAY, day: day({ cycle: null, week: null, type: null }), calendar: EMPTY_MONTH, queue: [] }),
+      controlCard({
+        today: TODAY,
+        day: day({ cycle: null, week: null, type: null }),
+        calendar: EMPTY_MONTH,
+        queue: [],
+      }),
     ).toBeNull();
   });
 
@@ -54,7 +59,9 @@ describe("controlCard", () => {
       queue: [],
     });
     expect(view?.headline).toBe("C1 · 第 1 周 · 周日 · 休息日");
-    expect(view?.rows).toEqual([{ mark: "faint", text: strings.plan.restItem, button: null, action: null, hint: null }]);
+    expect(view?.rows).toEqual([
+      { mark: "faint", text: strings.plan.restItem, button: null, action: null, hint: null },
+    ]);
   });
 
   it("deep day: main, aux, overdue, 讲后读 (today and overdue), Anki — in that order", () => {
@@ -69,7 +76,9 @@ describe("controlCard", () => {
       "2026-11-11": {
         records: [],
         plans: [],
-        readingDue: [{ slug: "discrete-math-epp#讲后读-2", title: "讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）" }],
+        readingDue: [
+          { slug: "discrete-math-epp#讲后读-2", title: "讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）" },
+        ],
         log: [],
         note: null,
       },
@@ -93,17 +102,33 @@ describe("controlCard", () => {
       calendar,
       queue: [],
     });
-    expect(view?.rows.map((row) => row.mark)).toEqual(["now", "plan", "warn", "warn", "plan", "plan"]);
+    // Panel v2: nothing is a yellow warning any more — a lesson not taken on its
+    // day and an overdue 课后读 are plain ○ rows with a grey 「原排 …」 sub.
+    expect(view?.rows.map((row) => row.mark)).toEqual(["now", "plan", "plan", "plan", "plan", "plan"]);
+    expect(view?.rows.map((row) => row.group)).toEqual([
+      "lesson",
+      "lesson",
+      "lesson",
+      "read",
+      "read",
+      "review",
+    ]);
     expect(view?.rows[0]?.text).toBe("离散 D3 · Ch2 §2.3：有效论证");
-    expect(view?.rows[1]?.text).toBe("带读 · Effective C D1 · Ch1 起步");
-    expect(view?.rows[2]?.text).toBe(strings.control.card.missedRow("CTM", "D1", "2026-11-10"));
-    // The overdue 讲后读 sorts before today's, flagged with its due date.
-    expect(view?.rows[3]?.text).toBe("讲后读 · Ch2 §2.2 · CTM" + strings.control.card.afterReadDue("2026-11-10"));
-    expect(view?.rows[4]?.text).toBe("讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）");
+    expect(view?.rows[1]?.text).toBe("导读课 · Effective C D1 · Ch1 起步");
+    expect(view?.rows[2]?.text).toBe(strings.control.card.missedRow("CTM", "D1", "Ch1"));
+    expect(view?.rows[2]?.sub).toBe(strings.control.card.missedSub("2026-11-10"));
+    // The overdue 课后读 sorts before today's, flagged with its due date.
+    expect(view?.rows[3]?.text).toBe("课后读 · CTM Ch2 §2.2");
+    expect(view?.rows[3]?.sub).toBe(strings.control.card.missedSub("2026-11-10"));
+    expect(view?.rows[4]?.text).toBe("课后读 · 离散 §1.1–1.4");
+    expect(view?.rows[4]?.sub).toBeNull();
     expect(view?.rows[5]?.text).toBe("Anki");
-    expect(view?.rows[3]?.text).toBe("讲后读 · Ch2 §2.2 · CTM · 原定 11-10");
     expect(view?.rows[3]?.action).toEqual({ kind: "afterRead", slug: "ctm", label: "Ch2 §2.2" });
-    expect(view?.rows[4]?.action).toEqual({ kind: "afterRead", slug: "discrete-math-epp", label: "§1.1–1.4" });
+    expect(view?.rows[4]?.action).toEqual({
+      kind: "afterRead",
+      slug: "discrete-math-epp",
+      label: "§1.1–1.4",
+    });
     expect(view?.rows[5]?.action).toEqual({ kind: "anki" });
   });
 
@@ -122,6 +147,7 @@ describe("controlCard", () => {
     });
     expect(view?.rows.slice(0, 2)).toEqual([
       {
+        group: "lesson",
         mark: "done",
         text: "离散 D3 · Ch2 §2.3：有效论证",
         button: strings.control.card.backToLesson,
@@ -129,17 +155,20 @@ describe("controlCard", () => {
         hint: strings.control.card.studyHint,
       },
       {
+        group: "lesson",
         mark: "done",
-        text: "带读 · Effective C D1 · Ch1 起步",
+        text: "导读课 · Effective C D1 · Ch1 起步",
         button: strings.control.card.backToLesson,
         action: { kind: "study", slug: "effective-c" },
         hint: strings.control.card.studyHint,
       },
     ]);
-    // 过期课次不受影响，仍是 ！ + 开课 →。
+    // 过期课次不受影响：普通 ○ + 开课 →，只多一行灰字「原排 …」。
     expect(view?.rows[2]).toEqual({
-      mark: "warn",
-      text: strings.control.card.missedRow("CTM", "D1", "2026-11-10"),
+      group: "lesson",
+      mark: "plan",
+      text: strings.control.card.missedRow("CTM", "D1", "Ch1"),
+      sub: strings.control.card.missedSub("2026-11-10"),
       button: strings.control.card.study,
       action: { kind: "study", slug: "ctm" },
       hint: strings.control.card.studyHint,
@@ -171,19 +200,70 @@ describe("controlCard", () => {
       queue: [],
     });
     expect(view?.rows.slice(0, 2)).toEqual([
-      { mark: "now", text: "离散 周核实", button: strings.control.card.verify, action: { kind: "verify", slug: "discrete-math-epp" }, hint: strings.control.card.verifyHint },
-      { mark: "now", text: "CTM 周核实", button: strings.control.card.verify, action: { kind: "verify", slug: "ctm" }, hint: strings.control.card.verifyHint },
+      {
+        group: "lesson",
+        mark: "now",
+        text: "离散 · 周核实",
+        sub: strings.control.card.verifySub,
+        button: strings.control.card.verify,
+        action: { kind: "verify", slug: "discrete-math-epp" },
+        hint: strings.control.card.verifyHint,
+      },
+      {
+        group: "lesson",
+        mark: "now",
+        text: "CTM · 周核实",
+        sub: strings.control.card.verifySub,
+        button: strings.control.card.verify,
+        action: { kind: "verify", slug: "ctm" },
+        hint: strings.control.card.verifyHint,
+      },
     ]);
+
+    // `verifiedOn` 是「slug → 那次周核实开始的日子」（`YYYY-MM-DD` 字符串）：今天开始过的
+    // 那门课读作已完成，按钮只回到那次核实。
+    const started = controlCard({
+      today: TODAY,
+      day: day({ type: "整合", subject: null, course: null }),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      verifiedOn: { "discrete-math-epp": TODAY, ctm: "2026-11-04" },
+    });
+    expect(started?.rows[0]).toEqual({
+      group: "lesson",
+      mark: "done",
+      text: "离散 · 周核实",
+      sub: strings.control.card.verifyStarted,
+      button: strings.control.card.verifyBack,
+      action: { kind: "verify", slug: "discrete-math-epp" },
+      hint: strings.control.card.verifyHint,
+    });
+    // 上周开始的那门课不算今天做过。
+    expect(started?.rows[1]?.mark).toBe("now");
+    expect(started?.rows[1]?.button).toBe(strings.control.card.verify);
   });
 
   it("light day marks due reading as now; other days mark it plan", () => {
     const queue = [
-      { slug: "jepa", title: "LeCun 论文", priority: "medium", due: "2026-11-11", position: "第 3 页", status: "active" },
+      {
+        slug: "jepa",
+        title: "LeCun 论文",
+        priority: "medium",
+        due: "2026-11-11",
+        position: "第 3 页",
+        status: "active",
+      },
       { slug: "later", title: "之后", priority: "low", due: "2026-11-20", position: "", status: "queued" },
       { slug: "unscheduled", title: "没排期", priority: "low", due: "", position: "", status: "queued" },
     ];
-    const light = controlCard({ today: TODAY, day: day({ type: "低强度", subject: null, course: null }), calendar: EMPTY_MONTH, queue });
+    const light = controlCard({
+      today: TODAY,
+      day: day({ type: "低强度", subject: null, course: null }),
+      calendar: EMPTY_MONTH,
+      queue,
+    });
     expect(light?.rows[0]).toEqual({
+      group: "read",
       mark: "now",
       text: "读书：LeCun 论文 · 从 第 3 页",
       button: strings.control.card.read,
@@ -197,23 +277,41 @@ describe("controlCard", () => {
   });
 
   it("spells the Anki row with today's due count when Anki is running", () => {
-    const running = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], anki: ANKI_RUNNING });
+    const running = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      anki: ANKI_RUNNING,
+    });
     const ankiRow = running?.rows.find((row) => row.action?.kind === "anki");
-    expect(ankiRow?.text).toBe("Anki · 今日 74 张");
+    expect(ankiRow?.text).toBe("Anki · 今天 74 张");
     expect(ankiRow?.button).toBe(strings.control.card.anki);
   });
 
   it("keeps the Anki row plain when Anki is closed or was not read", () => {
-    const closed = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], anki: ANKI_CLOSED });
+    const closed = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      anki: ANKI_CLOSED,
+    });
     expect(closed?.rows.find((row) => row.action?.kind === "anki")?.text).toBe("Anki");
     // Running with nothing due says so instead of falling back to the plain row.
-    const nothing = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], anki: { running: true } });
-    expect(nothing?.rows.find((row) => row.action?.kind === "anki")?.text).toBe("Anki · 今日 0 张");
+    const nothing = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      anki: { running: true },
+    });
+    expect(nothing?.rows.find((row) => row.action?.kind === "anki")?.text).toBe("Anki · 今天 0 张");
     const unknown = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [] });
     expect(unknown?.rows.find((row) => row.action?.kind === "anki")?.text).toBe("Anki");
   });
 
-  it("takes the 讲后读 label from between 「讲后读 · 」 and 「 · 课名」, keeping the course name's parens", () => {
+  it("takes the 课后读 label from between 「讲后读 · 」 and 「 · 课名」, keeping the course name's parens", () => {
     const calendar = month({
       [TODAY]: {
         records: [],
@@ -227,7 +325,8 @@ describe("controlCard", () => {
       },
     });
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
-    expect(view?.rows[0]?.text).toBe("讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）");
+    // 数据里仍写「讲后读」，给人看的是「课后读」。
+    expect(view?.rows[0]?.text).toBe("课后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）");
     expect(view?.rows[0]?.action).toEqual({ kind: "afterRead", slug: "epp", label: "§1.1–1.4" });
     expect(view?.rows[1]?.action).toEqual({ kind: "afterRead", slug: "plain", label: "第 3 章" });
   });
@@ -261,23 +360,27 @@ describe("controlCard", () => {
     });
     expect(view?.rows.slice(0, 1)).toEqual([
       {
-        mark: "warn",
-        text: strings.control.card.missedMany("CTM", 3, "2026-11-09"),
+        group: "lesson",
+        mark: "plan",
+        text: strings.control.card.missedMany("CTM", "D1", 3),
+        sub: strings.control.card.missedManySub("2026-11-09"),
         button: strings.control.card.study,
         action: { kind: "study", slug: "ctm" },
         hint: strings.control.card.studyHint,
       },
     ]);
-    expect(view?.rows[0]?.text).toBe("CTM 3 节没学（最早 11-09）· 开课时会顺延");
+    expect(view?.rows[0]?.text).toBe("CTM D1 起 3 节");
+    expect(view?.rows[0]?.sub).toBe("原排 11-09 起 · 开课后后面的课次跟着挪");
 
-    // 只有一节时仍是「原定 …」那一行。
+    // 只有一节时仍是那一节本来的文字（带内容），下面只多一行「原排 …」。
     const one = controlCard({
       today: TODAY,
       day: day({ overdue: [{ course: "ctm", id: "D1", content: "Ch1", date: "2026-11-10" }] }),
       calendar: EMPTY_MONTH,
       queue: [],
     });
-    expect(one?.rows[0]?.text).toBe(strings.control.card.missedRow("CTM", "D1", "2026-11-10"));
+    expect(one?.rows[0]?.text).toBe(strings.control.card.missedRow("CTM", "D1", "Ch1"));
+    expect(one?.rows[0]?.sub).toBe("原排 11-10");
   });
 
   it("two courses' missed lessons: one merged row each, earliest date first", () => {
@@ -295,10 +398,14 @@ describe("controlCard", () => {
       queue: [],
     });
     expect(view?.rows.slice(0, 2).map((row) => row.text)).toEqual([
-      strings.control.card.missedMany("离散", 2, "2026-11-08"),
-      strings.control.card.missedMany("CTM", 2, "2026-11-09"),
+      strings.control.card.missedMany("离散", "D0", 2),
+      strings.control.card.missedMany("CTM", "D1", 2),
     ]);
-    expect(view?.rows.slice(0, 2).map((row) => row.mark)).toEqual(["warn", "warn"]);
+    expect(view?.rows.slice(0, 2).map((row) => row.sub)).toEqual([
+      strings.control.card.missedManySub("2026-11-08"),
+      strings.control.card.missedManySub("2026-11-09"),
+    ]);
+    expect(view?.rows.slice(0, 2).map((row) => row.mark)).toEqual(["plan", "plan"]);
     expect(view?.rows.slice(0, 2).map((row) => row.action)).toEqual([
       { kind: "study", slug: "discrete-math-epp" },
       { kind: "study", slug: "ctm" },
@@ -321,10 +428,14 @@ describe("withPendingRead", () => {
     const view = controlCard({ today: TODAY, day: day({}), calendar, queue: [] });
     if (view === null) throw new Error("sample inside a cycle");
     const shown = withPendingRead(view, { slug: "ctm", label: "Ch2 §2.2", left: 7 });
-    const row = shown.rows.find((entry) => entry.text === "讲后读 · Ch2 §2.2 · CTM");
+    const row = shown.rows.find((entry) => entry.text === "课后读 · CTM Ch2 §2.2");
+    // Panel v2: the ✓ row keeps its group, loses the 陪读 side action and shows 「已记下」.
     expect(row).toEqual({
+      group: "read",
       mark: "done",
-      text: "讲后读 · Ch2 §2.2 · CTM",
+      text: "课后读 · CTM Ch2 §2.2",
+      sub: strings.control.card.shelfPendingSub,
+      side: null,
       button: strings.control.card.undo(7),
       action: { kind: "undoRead" },
       hint: null,
@@ -364,8 +475,14 @@ function book(overrides: Partial<ShelfBook> = {}): ShelfBook {
   };
 }
 
-/** A 讲后读 row due today, so the card has a row before the 书房 rows. */
-const ANKI_RUNNING = { running: true, due: [{ deck: "离散", count: 70 }, { deck: "CTM", count: 4 }] };
+/** A 课后读 row due today, so the card has a row before the 书房 rows. */
+const ANKI_RUNNING = {
+  running: true,
+  due: [
+    { deck: "离散", count: 70 },
+    { deck: "CTM", count: 4 },
+  ],
+};
 const ANKI_CLOSED = { running: false };
 
 const AFTER_READ_MONTH = month({
@@ -378,10 +495,17 @@ const AFTER_READ_MONTH = month({
   },
 });
 
-const DUE_ITEM = { slug: "jepa", title: "LeCun 论文", priority: "medium" as const, due: TODAY, position: "", status: "active" as const };
+const DUE_ITEM = {
+  slug: "jepa",
+  title: "LeCun 论文",
+  priority: "medium" as const,
+  due: TODAY,
+  position: "",
+  status: "active" as const,
+};
 
 describe("controlCard 书房行", () => {
-  it("sits after the 讲后读 rows and before the reading queue", () => {
+  it("sits after the 课后读 rows and before the reading queue", () => {
     const view = controlCard({
       today: TODAY,
       day: day({}),
@@ -390,7 +514,7 @@ describe("controlCard 书房行", () => {
       shelf: { planned: book(), free: null },
     });
     const texts = view?.rows.map((row) => row.text) ?? [];
-    expect(texts[0]).toBe("讲后读 · Ch2 §2.2 · CTM");
+    expect(texts[0]).toBe("课后读 · CTM Ch2 §2.2");
     expect(texts[1]).toBe("自读 · Epp Ch1 §1.1–1.4 · pp.10–18");
     // 计划外没有书时不提示这一行（加不加书由用户自己决定）。
     expect(texts[2]).toBe("读书：LeCun 论文");
@@ -410,22 +534,44 @@ describe("controlCard 书房行", () => {
     expect(view?.rows[1]?.text).toBe("自读 · Epp Ch1 §1.1–1.4 · pp.10–18");
   });
 
-  it("marks a late block warn, an on-time block plan, a block done today done", () => {
-    const warn = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book({ late: 1, end: "2027-01-29" }), free: null } });
-    expect(warn?.rows[0]?.mark).toBe("warn");
-    const plan = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book(), free: null } });
+  it("marks a late block plan too (no warning), an on-time block plan, a block done today done", () => {
+    // Panel v2: a block behind its planned end is no longer a warning — the dates
+    // live in the 书房; the card row stays a plain ○.
+    const late = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book({ late: 1, end: "2027-01-29" }), free: null },
+    });
+    expect(late?.rows[0]?.mark).toBe("plan");
+    expect(late?.rows[0]?.sub).toBe(strings.control.card.shelfDay(2, 81));
+    const plan = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book(), free: null },
+    });
     expect(plan?.rows[0]?.mark).toBe("plan");
     const done = controlCard({
       today: TODAY,
       day: day({}),
       calendar: EMPTY_MONTH,
       queue: [],
-      shelf: { planned: book({ position: 2, doneToday: true, doneChunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 } }), free: null },
+      shelf: {
+        planned: book({
+          position: 2,
+          doneToday: true,
+          doneChunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 },
+        }),
+        free: null,
+      },
     });
     expect(done?.rows[0]?.mark).toBe("done");
   });
 
-  it("joins the sub in order: 第 n 天 → 晚了 → 讲后读重叠", () => {
+  it("joins the sub in order: 第 n 段 → 课后读重叠（不再写「晚了 N 天」）", () => {
     const card = strings.control.card;
     const view = controlCard({
       today: TODAY,
@@ -434,18 +580,34 @@ describe("controlCard 书房行", () => {
       queue: [],
       shelf: { planned: book({ late: 2, end: "2027-01-30", coreOverlap: "pp.12–15" }), free: null },
     });
-    expect(view?.rows[0]?.sub).toBe(
-      [card.shelfDay(2, 81), card.shelfLate(2, "2027-01-30"), card.shelfCore("pp.12–15")].join(" · "),
-    );
+    expect(view?.rows[0]?.sub).toBe([card.shelfDay(2, 81), card.shelfCore("pp.12–15")].join(" · "));
+    expect(view?.rows[0]?.sub).not.toContain("晚了");
     // Without 晚 and overlap only the day line is left.
-    const plain = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book(), free: null } });
+    const plain = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book(), free: null },
+    });
     expect(plain?.rows[0]?.sub).toBe(card.shelfDay(2, 81));
   });
 
   it("has a 读完这段 row that records the block, and a 摘几句 row once done today", () => {
     const card = strings.control.card;
-    const view = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book(), free: null } });
+    const view = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book(), free: null },
+    });
     expect(view?.rows[0]).toEqual({
+      group: "read",
+      side: {
+        label: card.accompany,
+        action: { kind: "accompany", prompt: card.accompanyBookPrompt(book().title, "epp", book().chunk!) },
+      },
       mark: "plan",
       text: "自读 · Epp Ch1 §1.1–1.4 · pp.10–18",
       sub: card.shelfDay(2, 81),
@@ -460,9 +622,19 @@ describe("controlCard 书房行", () => {
       day: day({}),
       calendar: EMPTY_MONTH,
       queue: [],
-      shelf: { planned: book({ position: 2, doneToday: true, doneChunk, chunk: { index: 3, title: "Ch1 §1.5", from: 19, to: 27 } }), free: null },
+      shelf: {
+        planned: book({
+          position: 2,
+          doneToday: true,
+          doneChunk,
+          chunk: { index: 3, title: "Ch1 §1.5", from: 19, to: 27 },
+        }),
+        free: null,
+      },
     });
     expect(done?.rows[0]).toEqual({
+      group: "read",
+      side: null,
       mark: "done",
       text: "自读 · Epp Ch1 §1.1–1.4 · pp.10–18",
       sub: card.shelfDoneSub({ from: 19, to: 27 }),
@@ -480,12 +652,20 @@ describe("controlCard 书房行", () => {
       calendar: EMPTY_MONTH,
       queue: [],
       shelf: {
-        planned: book({ position: 4, total: 4, chunk: null, doneToday: true, doneChunk: { index: 4, title: "Ch1", from: 28, to: 36 } }),
+        planned: book({
+          position: 4,
+          total: 4,
+          chunk: null,
+          doneToday: true,
+          doneChunk: { index: 4, title: "Ch1", from: 28, to: 36 },
+        }),
         free: null,
       },
     });
     // The last block read today still shows: ✓ with the finished sub.
     expect(view?.rows[0]).toEqual({
+      group: "read",
+      side: null,
       mark: "done",
       text: "自读 · Epp Ch1 · pp.28–36",
       sub: card.shelfFinished,
@@ -507,6 +687,7 @@ describe("controlCard 书房行", () => {
       shelf: { planned: book({ resumedToday: true }), free: null },
     });
     expect(view?.rows[0]).toEqual({
+      group: "read",
       mark: "plan",
       text: "自读 · Epp Ch1 §1.1–1.4 · pp.10–18",
       sub: card.shelfResumed,
@@ -516,7 +697,13 @@ describe("controlCard 书房行", () => {
     });
     expect(card.shelfResumed).toBe("今天恢复，明天接着读");
     // Not resumed (the default): the row keeps its 读完这段 button.
-    const plain = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book(), free: null } });
+    const plain = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book(), free: null },
+    });
     expect(plain?.rows[0]?.button).toBe(card.shelfDone);
     expect(plain?.rows[0]?.sub).toBe(card.shelfDay(2, 81));
   });
@@ -538,7 +725,13 @@ describe("controlCard 书房行", () => {
   });
 
   it("no 计划外 hint line, whether or not a planned book exists", () => {
-    const withPlanned = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: { planned: book(), free: null } });
+    const withPlanned = controlCard({
+      today: TODAY,
+      day: day({}),
+      calendar: EMPTY_MONTH,
+      queue: [],
+      shelf: { planned: book(), free: null },
+    });
     expect(withPlanned?.rows.map((row) => row.text)).toEqual(["自读 · Epp Ch1 §1.1–1.4 · pp.10–18", "Anki"]);
     // A finished planned book produces no row of its own either.
     const finished = controlCard({
@@ -557,7 +750,10 @@ describe("controlCard 书房行", () => {
       queue: [],
       shelf: { planned: null, free: book({ slot: "free", slug: "free", short: "Free" }) },
     });
-    expect(onlyFree?.rows.map((row) => row.text)).toEqual(["自读（计划外）· Free Ch1 §1.1–1.4 · pp.10–18", "Anki"]);
+    expect(onlyFree?.rows.map((row) => row.text)).toEqual([
+      "自读（计划外）· Free Ch1 §1.1–1.4 · pp.10–18",
+      "Anki",
+    ]);
     const none = controlCard({ today: TODAY, day: day({}), calendar: EMPTY_MONTH, queue: [], shelf: null });
     expect(none?.rows.map((row) => row.text)).toEqual(["Anki"]);
   });
@@ -572,6 +768,8 @@ describe("withPendingShelf", () => {
     const card = strings.control.card;
     const shown = withPendingShelf(view, { slug: "epp", left: 7 });
     expect(shown.rows[0]).toEqual({
+      group: "read",
+      side: null,
       mark: "done",
       text: "自读 · Epp Ch1 §1.1–1.4 · pp.10–18",
       sub: card.shelfPendingSub,

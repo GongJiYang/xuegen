@@ -99,7 +99,7 @@ export function MessageRenderer({
   if (message.role === "user") {
     const { body: styled, styleTag } = splitStyleTag(message.markdown);
     // The 「先重读课程页 / 先重读技能」 note is an instruction to 学根, not something the user wrote.
-    const note = [strings.chat.refreshNote, strings.chat.controlRefreshNote].find((candidate) =>
+    const note = [strings.chat.refreshNote, strings.chat.controlRefreshNote, strings.chat.undoneNote].find((candidate) =>
       styled.startsWith(candidate),
     );
     const marked = splitActionMarker(note ? styled.slice(note.length).trimStart() : styled);

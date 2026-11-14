@@ -5,7 +5,7 @@
  * Not DEV-gated: this replaces the page zoom the app menu used to offer, and a
  * fractional page zoom blurs the pixel fonts. A window-level listener also fires
  * while a field is focused, and the ⌘/Ctrl combination does not type a character
- * there.
+ * there. A key another shortcut already handled (Bear's ⌘0 → 总控) is skipped.
  */
 
 import { useEffect } from "react";
@@ -34,7 +34,7 @@ export function useBodyScaleShortcuts(
   useEffect(() => {
     if (!skin) return;
     function onKeyDown(event: KeyboardEvent): void {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      if (event.defaultPrevented || !(event.metaKey || event.ctrlKey) || event.altKey) return;
       const direction = bodyScaleDirection(event.key);
       if (!direction) return;
       event.preventDefault();

@@ -59,12 +59,7 @@ describe("Bear retry lines", () => {
 
   it("keeps the alert and 重试 for a failure that was not retried", () => {
     const props = retryProps("recovered");
-    render(
-      <AssistantMessage
-        {...props}
-        message={{ ...props.message, id: "a2", retry: undefined }}
-      />,
-    );
+    render(<AssistantMessage {...props} message={{ ...props.message, id: "a2", retry: undefined }} />);
 
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.getByRole("button", { name: strings.chat.retry })).toBeTruthy();

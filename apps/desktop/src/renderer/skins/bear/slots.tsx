@@ -46,6 +46,7 @@ import { isAborted, translateModelError } from "../../core/chat/model-error.js";
 import { retryDisplayOf } from "../../core/chat/retry-state.js";
 import { bearMotion } from "./motion.js";
 import { PinRail } from "./pin-rail.js";
+import { ControlFeed } from "./control-feed.js";
 import { publishBackToLatest, clearBackToLatest } from "./back-to-latest.js";
 
 /**
@@ -116,6 +117,7 @@ export function Thread({
   pin,
   header,
   older,
+  feed,
 }: ThreadProps) {
   const paneRef = useRef<HTMLDivElement | null>(null);
   // Restore the reading position across a skin switch (core remembers it).
@@ -153,6 +155,8 @@ export function Thread({
         {note.text}
       </p>
     ));
+
+  if (feed) return <ControlFeed feed={feed} older={older} renderMessage={renderMessage} />;
 
   return (
     <div className="bear-thread-wrap">

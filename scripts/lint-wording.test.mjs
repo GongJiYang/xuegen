@@ -4,6 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -213,6 +215,68 @@ test("normalizeRules：缺字段当空数组，坏条目丢掉", () => {
   assert.deepEqual(rules.banned, [{ word: "书架", say: "书房" }]);
 });
 
+test("改名三词：临时仓库里讲后读 / 带读 / 主项课被报出，allow 里的文件不报", async () => {
+  // 词表与 allow 都写在临时目录里，不依赖真实仓库当前是否已经改干净。
+  const root = await mkdtemp(join(tmpdir(), "lint-wording-rename-"));
+  try {
+    await mkdir(join(root, "apps/desktop/src/renderer"), { recursive: true });
+    await mkdir(join(root, "apps/desktop/src/renderer/core"), { recursive: true });
+    await writeFile(
+      join(root, "apps/desktop/src/renderer/x.ts"),
+      [
+        'const a = "课后读还没读";',
+        'const b = "讲后读 · pp.1–5 · 11-13";',
+        'const c = "带读 C 语言";',
+        'const d = "这是 C1 主项课";',
+      ].join("\n"),
+      "utf8",
+    );
+    // 数据格式：课程页那行的标题常量，用 allow 放行。
+    await writeFile(
+      join(root, "apps/desktop/src/renderer/core/allowed.ts"),
+      'export const PREFIX = "讲后读 · ";\nexport const MARK = "#讲后读-";\n',
+      "utf8",
+    );
+    const rulesPath = join(root, "rules.json");
+    await writeFile(
+      rulesPath,
+      JSON.stringify({
+        banned: [
+          { word: "讲后读", say: "课后读" },
+          { word: "带读", say: "导读课" },
+          { word: "主项课", say: "主课" },
+        ],
+        allow: [
+          { file: "apps/desktop/src/renderer/core/allowed.ts", word: "讲后读", why: "数据格式：课程页行前缀" },
+        ],
+      }),
+      "utf8",
+    );
+
+    let code = 0;
+    let stdout = "";
+    try {
+      ({ stdout } = await run("node", [SCRIPT, "--root", root, "--rules", rulesPath], {
+        encoding: "utf8",
+      }));
+    } catch (error) {
+      code = error.code ?? 1;
+      stdout = error.stdout ?? "";
+    }
+
+    // 第 1 行是干净的新说法，不报；2/3/4 行各一处。
+    assert.match(stdout, /apps\/desktop\/src\/renderer\/x\.ts:2 {2}「讲后读」→ 用「课后读」/);
+    assert.match(stdout, /apps\/desktop\/src\/renderer\/x\.ts:3 {2}「带读」→ 用「导读课」/);
+    assert.match(stdout, /apps\/desktop\/src\/renderer\/x\.ts:4 {2}「主项课」→ 用「主课」/);
+    assert.doesNotMatch(stdout, /x\.ts:1 /);
+    assert.doesNotMatch(stdout, /allowed\.ts/, "allow 里的文件不该报");
+    assert.match(stdout, /^lint-wording: 3 处$/m);
+    assert.equal(code, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("真实仓库：脚本能跑完并打印 lint-wording 收尾行（不断言 0 处）", async () => {
   let code = 0;
   let stdout = "";
@@ -224,6 +288,30 @@ test("真实仓库：脚本能跑完并打印 lint-wording 收尾行（不断言
   }
   assert.match(stdout, /^lint-wording: \d+ 处$/m, "收尾行必须打印处数");
   assert.ok(code === 0 || code === 1, `退出码只应是 0（无命中）或 1（有命中），实际 ${code}`);
+});
+
+// 技能对用户说的话要用新名字（主项课→主课、带读→导读课、讲后读→课后读）；
+// 数据格式行（`- [ ] 讲后读 …`、`## 讲后读已读`、周模板「辅助」列）不在此列，
+// 所以只查 extractMarkdownVisibleText 取出的、真正说给用户听的那部分。
+test("真实仓库：skills/course/SKILL.md 对用户说的话不再用旧名字", async () => {
+  const source = await readFile(join(REPO, "skills", "course", "SKILL.md"), "utf8");
+  const visible = extractMarkdownVisibleText(source);
+  const rules = normalizeRules({
+    banned: [{ word: "讲后读" }, { word: "带读" }, { word: "主项课" }],
+    allow: [],
+  });
+  const hits = findBanned(visible, rules);
+  assert.deepEqual(
+    hits,
+    [],
+    `对用户说的旧词（讲后读 / 带读 / 主项课）应改成课后读 / 导读课 / 主课：${JSON.stringify(hits)}`,
+  );
+});
+
+// 用户 2026-11-14 定：开课只讲课，不核验课后读读没读。
+test("真实仓库：skills/course/SKILL.md 开课不再问课后读读了没有", async () => {
+  const source = await readFile(join(REPO, "skills", "course", "SKILL.md"), "utf8");
+  assert.equal(source.includes("读了没有"), false, "开课不再核验课后读，不该再出现「读了没有」");
 });
 
 test("真实仓库：--json 输出与文本输出处数一致", async () => {

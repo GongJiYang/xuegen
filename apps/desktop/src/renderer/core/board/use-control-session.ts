@@ -55,7 +55,8 @@ export function useControlSession(
     controller.guardSwitch(() => {
       setActiveCourse(null);
       void controller.openSession(known, { kind: "control" }).then((opened) => {
-        if (opened && opened !== known) update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
+        if (opened && opened !== known)
+          update({ controlSessions: { ...settings.controlSessions, [cycleId]: opened } });
       });
     });
   }, [controller, cycleId, isControl, requestFocus, setActiveCourse, settings.controlSessions, update]);

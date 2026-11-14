@@ -80,7 +80,10 @@ export function changeModePrompt(book: AskBook): string {
     `/skill:reading 改《${book.short}》（${book.slug}）的读法：先问我想换成哪一种——` +
     "讲后读（跟主项课：课上定要读的页、隔天读）、带读（学根陪读，每次 ≤ 45 分钟，数据上是 course 的带读课）、" +
     "自读（自己读原文，每天一段）；我说定之后再按 reading 与 course 技能改。";
-  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", { slug: book.slug, title: book.short });
+  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", {
+    slug: book.slug,
+    title: book.short,
+  });
 }
 
 /** 设目标: set or clear the target finish date through `bookshelf.mjs target`. */
@@ -92,7 +95,10 @@ export function setTargetPrompt(book: AskBook, date: string | null): string {
       : `/skill:reading 给《${book.short}》（${book.slug}）设目标日期 ${date}：` +
         `node bookshelf.mjs target "<库根>" ${book.slug} --date ${date}；` +
         "它只用来对比（list / today 会多出 target、targetLate，告诉我预计哪天读完、比目标晚几天），不为赶目标加页数、不改每天一段的规矩。";
-  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", { slug: book.slug, title: book.short });
+  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", {
+    slug: book.slug,
+    title: book.short,
+  });
 }
 
 /** 暂停: stop a book's schedule — the shelf script, or the 带读 course's plan. */
@@ -100,7 +106,10 @@ export function pausePrompt(book: AskBook): string {
   const text =
     `/skill:course 暂停《${book.short}》（${book.slug}）：自读的书用 node bookshelf.mjs pause "<库根>" ${book.slug} ` +
     "（停在当前进度、不再往后排）；如果它是带读课，就按 course 技能改那门课的排期，把之后的带读停掉。恢复时我再说。";
-  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", { slug: book.slug, title: book.short });
+  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", {
+    slug: book.slug,
+    title: book.short,
+  });
 }
 
 /** 恢复: put a paused book back on the schedule. */
@@ -108,5 +117,8 @@ export function resumePrompt(book: AskBook): string {
   const text =
     `/skill:course 恢复《${book.short}》（${book.slug}）：自读的书用 node bookshelf.mjs resume "<库根>" ${book.slug} ` +
     "（明天接着读同一段、不跳段）；如果它是带读课，按 course 技能把那门课的带读接着排上。";
-  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", { slug: book.slug, title: book.short });
+  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", {
+    slug: book.slug,
+    title: book.short,
+  });
 }

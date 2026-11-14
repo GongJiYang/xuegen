@@ -33,14 +33,18 @@ function baseProps(overrides: Partial<CardsPanelProps> = {}): CardsPanelProps {
 describe("Bear 卡片 panel", () => {
   it("shows Anki connected with today's reviews, or 重试 when closed", async () => {
     const { unmount } = render(
-      <CardsPanel {...baseProps({ anki: { status: "ready", value: { running: true, reviewedToday: 7 } } })} />,
+      <CardsPanel
+        {...baseProps({ anki: { status: "ready", value: { running: true, reviewedToday: 7 } } })}
+      />,
     );
     expect(screen.getByText(strings.cards.ankiRunning)).toBeTruthy();
     expect(screen.getByText(strings.cards.reviewedTodayCount(7))).toBeTruthy();
     unmount();
 
     const onRetryAnki = vi.fn();
-    render(<CardsPanel {...baseProps({ anki: { status: "ready", value: { running: false } }, onRetryAnki })} />);
+    render(
+      <CardsPanel {...baseProps({ anki: { status: "ready", value: { running: false } }, onRetryAnki })} />,
+    );
     await userEvent.click(screen.getByRole("button", { name: strings.cards.retry }));
     expect(onRetryAnki).toHaveBeenCalledTimes(1);
   });
@@ -51,7 +55,10 @@ describe("Bear 卡片 panel", () => {
     const onDraft = vi.fn();
     const { unmount } = render(
       <CardsPanel
-        {...baseProps({ cards: { status: "ready", value: { ...sample.value, pendingExtracts: 2 } }, onDraft })}
+        {...baseProps({
+          cards: { status: "ready", value: { ...sample.value, pendingExtracts: 2 } },
+          onDraft,
+        })}
       />,
     );
     expect(screen.getByText(strings.cards.extractsCount(2))).toBeTruthy();
@@ -60,7 +67,9 @@ describe("Bear 卡片 panel", () => {
     unmount();
 
     render(
-      <CardsPanel {...baseProps({ cards: { status: "ready", value: { ...sample.value, pendingExtracts: 0 } } })} />,
+      <CardsPanel
+        {...baseProps({ cards: { status: "ready", value: { ...sample.value, pendingExtracts: 0 } } })}
+      />,
     );
     expect(screen.queryByRole("button", { name: strings.cards.draft })).toBeNull();
   });
@@ -82,7 +91,10 @@ describe("Bear 卡片 panel", () => {
               pendingExtracts: 0,
             },
           },
-          anki: { status: "ready", value: { running: true, reviewedToday: 0, due: [{ deck: "DP", count: 4 }] } },
+          anki: {
+            status: "ready",
+            value: { running: true, reviewedToday: 0, due: [{ deck: "DP", count: 4 }] },
+          },
         })}
       />,
     );

@@ -102,6 +102,14 @@ export function resolveHome(): string {
   return resolve(process.env.XUEGEN_HOME || join(homedir(), ".xuegen"));
 }
 
+/**
+ * The agent's working directory (also where `.close/` staging journals live, so
+ * skill scripts that take `--workspace` get this same path).
+ */
+export function resolveWorkspace(): string {
+  return resolve(process.env.XUEGEN_DESKTOP_CWD || join(homedir(), "learning"));
+}
+
 /** Directories that hold the tools Xuegen shells out to (`jj`, `node`, `pdftotext`). */
 const darwinToolDirs = ["/opt/homebrew/bin", "/usr/local/bin"];
 /** What macOS gives a process launched from Finder or the Dock. */
@@ -159,7 +167,7 @@ export function applyXuegenEnvironment(): { home: string; cwd: string } {
   // with `spawnSync jj ENOENT` — course planning and undo silently lost history.
   process.env.PATH = withToolPath(process.env.PATH, existsSync, process.platform);
 
-  const cwd = resolve(process.env.XUEGEN_DESKTOP_CWD || join(homedir(), "learning"));
+  const cwd = resolveWorkspace();
   mkdirSync(cwd, { recursive: true });
 
   return { home, cwd };

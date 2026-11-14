@@ -477,7 +477,7 @@ function usage() {
     "  node course-schedule.mjs plan <course.md> --start YYYY-MM-DD --end YYYY-MM-DD [--rest sun|sat,sun|none] [--days mon,wed] [--extra YYYY-MM-DD,…] [--reviews spaced|anki] [--elastic] --lessons <lessons.json> [--write] [--json]",
     "  node course-schedule.mjs shift <course.md> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--write] [--json]",
     "  node course-schedule.mjs next <course.md> [--date YYYY-MM-DD] [--json]",
-    "  --elastic：照 --end 铺课，但不把 end 记进排期标记（主项课：以后顺延不受周期结束日限制）",
+    "  --elastic：照 --end 铺课，但不把 end 记进排期标记（主课：以后顺延不受周期结束日限制）",
   ].join("\n");
 }
 

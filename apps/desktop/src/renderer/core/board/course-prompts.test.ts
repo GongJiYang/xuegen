@@ -28,7 +28,15 @@ describe("course prompts", () => {
 
   it("folds the create-course request into 「建课」 without naming a course yet", () => {
     const marked = splitActionMarker(
-      newCoursePrompt({ title: "CSAPP 第 7 章", material: "", reading: "guided", startDate: "2026-11-10", endDate: "2026-12-08", rest: "none", style: "default" }),
+      newCoursePrompt({
+        title: "CSAPP 第 7 章",
+        material: "",
+        reading: "guided",
+        startDate: "2026-11-10",
+        endDate: "2026-12-08",
+        rest: "none",
+        style: "default",
+      }),
     );
     expect(marked.action).toBe("new-course");
     expect(marked.courseTitle).toBe("CSAPP 第 7 章");
@@ -38,7 +46,17 @@ describe("course prompts", () => {
   });
 
   it("uses the title as the course name when it has no slug characters", () => {
-    const marked = splitActionMarker(newCoursePrompt({ title: "《离散数学》", material: "", reading: "guided", startDate: "2026-11-10", endDate: "2026-12-08", rest: "none", style: "default" }));
+    const marked = splitActionMarker(
+      newCoursePrompt({
+        title: "《离散数学》",
+        material: "",
+        reading: "guided",
+        startDate: "2026-11-10",
+        endDate: "2026-12-08",
+        rest: "none",
+        style: "default",
+      }),
+    );
     expect(marked.action).toBe("new-course");
     expect(marked.courseTitle).toBe("《离散数学》");
   });
@@ -50,14 +68,29 @@ describe("course prompts", () => {
   });
 
   it("asks for material when none was given", () => {
-    const text = newCoursePrompt({ title: "x", material: " ", reading: "guided", startDate: "2026-11-05", endDate: "2026-12-03", rest: "none", style: "deep" });
+    const text = newCoursePrompt({
+      title: "x",
+      material: " ",
+      reading: "guided",
+      startDate: "2026-11-05",
+      endDate: "2026-12-03",
+      rest: "none",
+      style: "deep",
+    });
     expect(text).toContain("先问我要用什么资料");
     expect(text).toContain("原书「带读」");
     expect(text).toContain("「深度」");
   });
 
   it("leaves the style out for 「默认」 and asks confirmation otherwise", () => {
-    const base = { title: "x", material: "", reading: "guided" as const, startDate: "2026-11-05", endDate: "2026-12-03", rest: "none" as const };
+    const base = {
+      title: "x",
+      material: "",
+      reading: "guided" as const,
+      startDate: "2026-11-05",
+      endDate: "2026-12-03",
+      rest: "none" as const,
+    };
     const silent = newCoursePrompt({ ...base, style: "default" });
     expect(silent).not.toContain("讲解风格");
     const named = newCoursePrompt({ ...base, style: "deep" });
@@ -65,7 +98,11 @@ describe("course prompts", () => {
   });
 
   it("asks the course skill to change one course's plan", () => {
-    expect(splitActionMarker(editPlanPrompt({ slug: "ctm", title: "CTM 7 周学习计划" }, " 每天改成 40 分钟，往后推一周 "))).toEqual({
+    expect(
+      splitActionMarker(
+        editPlanPrompt({ slug: "ctm", title: "CTM 7 周学习计划" }, " 每天改成 40 分钟，往后推一周 "),
+      ),
+    ).toEqual({
       action: "plan",
       slug: "ctm",
       courseTitle: "CTM 7 周学习计划",
@@ -82,7 +119,14 @@ describe("course prompts", () => {
       rest: "none",
       reading: "guided",
       style: "plain",
-      cycle: { cycle: "C1", subject: "c-systems-programming", subjectName: "C 与系统编程", role: "aux", days: ["周一", "周三"], end: "2026-12-24" },
+      cycle: {
+        cycle: "C1",
+        subject: "c-systems-programming",
+        subjectName: "C 与系统编程",
+        role: "aux",
+        days: ["周一", "周三"],
+        end: "2026-12-24",
+      },
     });
     expect(text).toContain("这是 C1 辅助课（科目：C 与系统编程），只排在周一、周三，每节不超过 45 分钟");
     expect(text).toContain("加 elastic");
@@ -92,8 +136,21 @@ describe("course prompts", () => {
     expect(text).toContain("学习周期里的课");
     expect(text).not.toContain("不休息");
     const main = newCoursePrompt({
-      title: "SICP", material: "SICP", startDate: "2026-11-06", endDate: "2026-12-24", rest: "none", reading: "read-first", style: "deep",
-      cycle: { cycle: "C1", subject: "programming-paradigms", subjectName: "编程语言与编程范式", role: "main", days: ["周二", "周四"], end: "2026-12-24" },
+      title: "SICP",
+      material: "SICP",
+      startDate: "2026-11-06",
+      endDate: "2026-12-24",
+      rest: "none",
+      reading: "read-first",
+      style: "deep",
+      cycle: {
+        cycle: "C1",
+        subject: "programming-paradigms",
+        subjectName: "编程语言与编程范式",
+        role: "main",
+        days: ["周二", "周四"],
+        end: "2026-12-24",
+      },
     });
     expect(main).toContain("这是 C1 主项课");
     expect(main).toContain("不估时长");

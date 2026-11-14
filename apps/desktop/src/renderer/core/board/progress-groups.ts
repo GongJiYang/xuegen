@@ -61,7 +61,11 @@ export function courseMark(course: CourseSummary, today: string): CourseMark {
   return dayNumber(today) - dayNumber(course.lastRecord.date) > STALE_DAYS ? "warn" : "now";
 }
 
-export function groupProgress(overview: SubjectsOverview, courses: CourseSummary[], today: string): ProgressGroups {
+export function groupProgress(
+  overview: SubjectsOverview,
+  courses: CourseSummary[],
+  today: string,
+): ProgressGroups {
   const bySlug = new Map(courses.map((course) => [course.slug, course]));
   const assigned = new Set<string>();
   const toGroup = (subject: SubjectInfo): SubjectGroup => {
@@ -93,7 +97,13 @@ export function groupProgress(overview: SubjectsOverview, courses: CourseSummary
     .filter((course) => !assigned.has(course.slug))
     .map((course) => ({ course, mark: courseMark(course, today) }));
   if (unassigned.length > 0) {
-    other.push({ slug: "", title: strings.progress.unassigned, courses: unassigned, materials: [], unplanned: 0 });
+    other.push({
+      slug: "",
+      title: strings.progress.unassigned,
+      courses: unassigned,
+      materials: [],
+      unplanned: 0,
+    });
   }
   const aux = overview.cycle?.aux ?? null;
   return {

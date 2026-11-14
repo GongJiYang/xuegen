@@ -9,10 +9,24 @@
 
 import { Fragment, useState } from "react";
 import type { ControlCardExtract, ControlCardProps } from "../contract.js";
-import type { ControlCardMark } from "../../core/board/control-card.js";
+import type { ControlCardGroup, ControlCardMark, ControlCardRow } from "../../core/board/control-card.js";
 import { strings } from "../../core/strings.js";
 
 const MARK: Record<ControlCardMark, string> = { now: "●", warn: "!", plan: "○", faint: "◌", done: "✓" };
+
+const GROUPS: ControlCardGroup[] = ["lesson", "read", "review"];
+
+/**
+ * A 阅读 row is ticked, not opened (panel v2): its left control is a checkbox.
+ * Unticked rows tick on click; a ticked row in its undo window unticks.
+ */
+function checkState(row: ControlCardRow): "off" | "on" | null {
+  const kind = row.action?.kind;
+  if (kind === "afterRead" || kind === "shelfDone") return "off";
+  if (kind === "undoRead" || kind === "undoShelf") return "on";
+  if (row.group === "read" && row.mark === "done") return "on";
+  return null;
+}
 
 /** The 摘几句 form: page + sentence fields, cancel/save, note and error. */
 function ExtractForm({ extract }: { extract: ControlCardExtract }) {
@@ -77,6 +91,77 @@ function ExtractForm({ extract }: { extract: ControlCardExtract }) {
   );
 }
 
+/** One row: mark or checkbox, text with its sub line, then the right-hand button(s). */
+function Row({
+  row,
+  busy,
+  onAction,
+  extract,
+}: {
+  row: ControlCardRow;
+  busy: boolean;
+  onAction: ControlCardProps["onAction"];
+  extract: ControlCardProps["extract"];
+}) {
+  const check = checkState(row);
+  const undo = row.action?.kind === "undoRead" || row.action?.kind === "undoShelf";
+  return (
+    <>
+      <li data-mark={row.mark} data-group={row.group}>
+        {check === null ? (
+          <span className="bear-cc-mark" aria-hidden="true">
+            {MARK[row.mark]}
+          </span>
+        ) : (
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={check === "on"}
+            aria-label={`${row.text} · ${check === "on" ? strings.control.card.checkedLabel : strings.control.card.afterRead}`}
+            className={`bear-cc-box${check === "on" ? " is-on" : ""}`}
+            disabled={busy || (check === "on" && !undo)}
+            title={row.hint ?? undefined}
+            onClick={() => onAction(row)}
+          >
+            {check === "on" ? "✓" : ""}
+          </button>
+        )}
+        <span className="bear-cc-text">
+          {row.text}
+          {row.sub != null && row.sub !== "" && <span className="bear-cc-sub">{row.sub}</span>}
+        </span>
+        <span className="bear-cc-right">
+          {row.side && (
+            <button
+              type="button"
+              className="bear-cc-side"
+              disabled={busy}
+              onClick={() => onAction({ ...row, action: row.side!.action })}
+            >
+              {row.side.label}
+            </button>
+          )}
+          {/* A checkbox row's own action is the box; only undo / 摘几句 keep a button. */}
+          {row.button !== null && (check === null || undo || row.action?.kind === "extract") && (
+            <button
+              type="button"
+              className="bear-cc-btn"
+              disabled={busy}
+              title={row.hint ?? undefined}
+              onClick={() => onAction(row)}
+            >
+              {row.button}
+            </button>
+          )}
+        </span>
+      </li>
+      {extract !== null && row.action?.kind === "extract" && row.action.slug === extract.slug && (
+        <ExtractForm extract={extract} />
+      )}
+    </>
+  );
+}
+
 export function ControlCard({ view, onAction, onAskBrief, busy, error, extract, older }: ControlCardProps) {
   return (
     <>
@@ -88,27 +173,33 @@ export function ControlCard({ view, onAction, onAskBrief, busy, error, extract, 
           </button>
         </div>
         <ul className="bear-cc-rows">
-          {view.rows.map((row, index) => (
-            <Fragment key={index}>
-              <li data-mark={row.mark}>
-                <span className="bear-cc-mark" aria-hidden="true">
-                  {MARK[row.mark]}
-                </span>
-                <span className="bear-cc-text">
-                  {row.text}
-                  {row.sub != null && row.sub !== "" && <span className="bear-cc-sub"> · {row.sub}</span>}
-                </span>
-                {row.button !== null && (
-                  <button type="button" className="bear-cc-btn" disabled={busy} title={row.hint ?? undefined} onClick={() => onAction(row)}>
-                    {row.button}
-                  </button>
-                )}
-              </li>
-              {extract !== null && row.action?.kind === "extract" && row.action.slug === extract.slug && (
-                <ExtractForm extract={extract} />
-              )}
-            </Fragment>
-          ))}
+          {view.rows
+            .filter((row) => row.group === undefined)
+            .map((row, index) => (
+              <Row key={`free-${index}`} row={row} busy={busy} onAction={onAction} extract={extract} />
+            ))}
+          {GROUPS.map((group) => {
+            const rows = view.rows.filter((row) => row.group === group);
+            if (rows.length === 0) return null;
+            const head = strings.control.card.groups[group];
+            return (
+              <Fragment key={group}>
+                <li className="bear-cc-gh">
+                  <b>{head.title}</b>
+                  <span>{head.note}</span>
+                </li>
+                {rows.map((row, index) => (
+                  <Row
+                    key={`${group}-${index}`}
+                    row={row}
+                    busy={busy}
+                    onAction={onAction}
+                    extract={extract}
+                  />
+                ))}
+              </Fragment>
+            );
+          })}
         </ul>
         <p className="bear-cc-foot">{strings.control.card.foot}</p>
         {error && <p className="bear-cc-error">{error}</p>}

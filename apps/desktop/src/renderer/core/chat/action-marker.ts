@@ -22,6 +22,7 @@ export const ACTION_KINDS = [
   "continue",
   "brief",
   "undo-close",
+  "accompany",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 

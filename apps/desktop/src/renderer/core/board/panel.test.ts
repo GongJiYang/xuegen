@@ -13,7 +13,14 @@ import type {
   SubjectsOverview,
 } from "@shared/data-protocol.js";
 import { ankiDueCount } from "./cycle-today.js";
-import { bookTitle, panelTiles, shelfRows, unplannedMaterials, type PanelTile, type PanelTilesInput } from "./panel.js";
+import {
+  bookTitle,
+  panelTiles,
+  shelfRows,
+  unplannedMaterials,
+  type PanelTile,
+  type PanelTilesInput,
+} from "./panel.js";
 import { buildDay, buildWeek, type PlanbookInput } from "./planbook.js";
 import {
   ANKI,
@@ -46,7 +53,16 @@ const CARDS: CardsStats = {
 };
 
 function input(overrides: Partial<PanelTilesInput> = {}): PanelTilesInput {
-  return { today: TODAY, overview: OVERVIEW, day: DAY, week: WEEK, shelf: SHELF_LIST, anki: ANKI, cards: CARDS, ...overrides };
+  return {
+    today: TODAY,
+    overview: OVERVIEW,
+    day: DAY,
+    week: WEEK,
+    shelf: SHELF_LIST,
+    anki: ANKI,
+    cards: CARDS,
+    ...overrides,
+  };
 }
 
 function tile(tiles: PanelTile[], key: PanelTile["key"]): PanelTile {
@@ -75,19 +91,24 @@ function book(overrides: Partial<ShelfListItem> & { slug: string }): ShelfListIt
   };
 }
 
-describe("panelTiles: six tiles, normal / warn / loading", () => {
-  it("cycle: 周期名与周数、预计结束；delayDays > 0 时标 warn", () => {
+describe("panelTiles: six tiles, normal / loading", () => {
+  it("cycle: 周期名与周数、预计收尾；晚开始也不标 warn（panel v2）", () => {
     const normal = tile(panelTiles(input()), "cycle");
-    expect(normal).toEqual({ key: "cycle", value: "C1 · 第 1 / 7 周", sub: "预计 12-24 结束", warn: false });
+    expect(normal).toEqual({ key: "cycle", value: "C1 · 第 1 周", sub: "预计 12-24 收尾", warn: false });
 
     const cycle = OVERVIEW.cycle;
     if (cycle === null) throw new Error("fixture 要有周期");
+    // delayDays 不再进这一格：原计划 / 按现在进度两条线写在总进度最后一行。
     const delayed: CycleOverview = {
       ...OVERVIEW,
       cycle: { ...cycle, end: "2026-12-29", delayDays: 5 },
     };
-    const warn = tile(panelTiles(input({ overview: delayed })), "cycle");
-    expect(warn).toEqual({ key: "cycle", value: "C1 · 第 1 / 7 周", sub: "预计 12-29 结束 · 比计划晚 5 天", warn: true });
+    expect(tile(panelTiles(input({ overview: delayed })), "cycle")).toEqual({
+      key: "cycle",
+      value: "C1 · 第 1 周",
+      sub: "预计 12-29 收尾",
+      warn: false,
+    });
   });
 
   it("cycle: 不在周期内时写「不在周期内」，overview 没读回来时留空", () => {
@@ -98,52 +119,106 @@ describe("panelTiles: six tiles, normal / warn / loading", () => {
       sub: "",
       warn: false,
     });
-    expect(tile(panelTiles(input({ overview: null })), "cycle")).toEqual({ key: "cycle", value: "", sub: "", warn: false });
+    expect(tile(panelTiles(input({ overview: null })), "cycle")).toEqual({
+      key: "cycle",
+      value: "",
+      sub: "",
+      warn: false,
+    });
   });
 
-  it("today: 完成 / 总项，第一个未完成主项课「待上」；都做完写「都做完了」", () => {
+  it("today: 完成 / 总项，第一个未完成主课写「先上 …」；都做完写「都做完了」", () => {
     const normal = tile(panelTiles(input()), "today");
-    expect(normal).toEqual({ key: "today", value: "2 / 4 项", sub: "主攻日 · 离散 D5 待上", warn: false });
+    expect(normal).toEqual({ key: "today", value: "2 / 4 项", sub: "主攻日 · 先上 离散 D5", warn: false });
 
     const allDone = { ...DAY, items: DAY.items.map((item) => ({ ...item, mark: "done" as const })) };
     expect(tile(panelTiles(input({ day: allDone })), "today").sub).toBe("今天的都做完了");
 
     const outside = { ...DAY, type: null };
-    expect(tile(panelTiles(input({ day: outside })), "today").sub).toBe("离散 D5 待上");
-    expect(tile(panelTiles(input({ day: null })), "today")).toEqual({ key: "today", value: "", sub: "", warn: false });
+    expect(tile(panelTiles(input({ day: outside })), "today").sub).toBe("先上 离散 D5");
+    expect(tile(panelTiles(input({ day: null })), "today")).toEqual({
+      key: "today",
+      value: "",
+      sub: "",
+      warn: false,
+    });
   });
 
-  it("week: 全周完成 / 总项；有 warn 项时写「N 项过了日子还没做」", () => {
-    const normal = tile(panelTiles(input()), "week");
-    expect(normal).toEqual({ key: "week", value: "3 / 11 项", sub: "6 项过了日子还没做", warn: true });
+  it("today on a 整合日: 「整合日 · 先做两门周核实」 while 周核实 are left; one left reads 「先做周核实」", () => {
+    const verify = (slug: string, mark: "now" | "done") => ({
+      lane: "main" as const,
+      text: `${slug} · 周核实`,
+      short: `${slug} 周核实`,
+      mark,
+      slug,
+      id: null,
+    });
+    const integration = {
+      ...DAY,
+      type: "整合" as const,
+      items: [verify("离散", "now"), verify("CTM", "now")],
+    };
+    expect(tile(panelTiles(input({ day: integration })), "today").sub).toBe("整合日 · 先做两门周核实");
+    const oneLeft = { ...integration, items: [verify("离散", "done"), verify("CTM", "now")] };
+    expect(tile(panelTiles(input({ day: oneLeft })), "today").sub).toBe("整合日 · 先做周核实");
+  });
 
-    const quiet = { ...WEEK, days: WEEK.days.map((day) => ({ ...day, items: day.items.filter((item) => item.mark !== "warn") })) };
+  it("week: 全周完成 / 总项，小行只写还剩几项（不再数「过了日子还没做」）", () => {
+    const normal = tile(panelTiles(input()), "week");
+    expect(normal).toEqual({ key: "week", value: "3 / 11 项", sub: "还剩 8 项", warn: false });
+
+    const quiet = {
+      ...WEEK,
+      days: WEEK.days.map((day) => ({ ...day, items: day.items.filter((item) => item.mark !== "warn") })),
+    };
     const done = quiet.days.flatMap((day) => day.items).filter((item) => item.mark === "done").length;
     const total = quiet.days.flatMap((day) => day.items).length;
     expect(tile(panelTiles(input({ week: quiet })), "week")).toEqual({
       key: "week",
       value: `${done} / ${total} 项`,
+      sub: `还剩 ${total - done} 项`,
+      warn: false,
+    });
+    expect(tile(panelTiles(input({ week: null })), "week")).toEqual({
+      key: "week",
+      value: "",
       sub: "",
       warn: false,
     });
-    expect(tile(panelTiles(input({ week: null })), "week")).toEqual({ key: "week", value: "", sub: "", warn: false });
   });
 
-  it("shelf: 在读的书 + 带读的课；targetLate > 0 取最晚那本标 warn", () => {
+  it("shelf: 在读的书 + 导读课；小行是计划内那本的预计读完日", () => {
     const normal = tile(panelTiles(input()), "shelf");
-    expect(normal).toEqual({ key: "shelf", value: "2 本在读", sub: "", warn: false });
+    expect(normal).toEqual({ key: "shelf", value: "2 本在读", sub: "HTSP 预计 11-12 读完", warn: false });
 
+    // 比目标晚的书不再标 warn，也不写「会晚 N 天」：只写预计读完的那一天。
     const late = book({ slug: "epp", short: "Epp", target: "2027-01-15", targetLate: 15, end: "2027-01-30" });
-    const later = book({ slug: "ctm", short: "CTM", order: 2, target: "2027-02-01", targetLate: 30, end: "2027-03-03" });
-    const warn = tile(panelTiles(input({ shelf: [late, later] })), "shelf");
-    expect(warn).toEqual({ key: "shelf", value: "3 本在读", sub: "CTM 照现在会比目标晚 30 天", warn: true });
+    const later = book({
+      slug: "ctm",
+      short: "CTM",
+      order: 2,
+      target: "2027-02-01",
+      targetLate: 30,
+      end: "2027-03-03",
+    });
+    expect(tile(panelTiles(input({ shelf: [late, later] })), "shelf")).toEqual({
+      key: "shelf",
+      value: "3 本在读",
+      sub: "Epp 预计 01-30 读完",
+      warn: false,
+    });
 
-    expect(tile(panelTiles(input({ shelf: null })), "shelf")).toEqual({ key: "shelf", value: "", sub: "", warn: false });
+    expect(tile(panelTiles(input({ shelf: null })), "shelf")).toEqual({
+      key: "shelf",
+      value: "",
+      sub: "",
+      warn: false,
+    });
   });
 
-  it("anki: 连接时「N 张 · 今天要复习 · 已连接」；没开时写「没开」不提没刷", () => {
+  it("anki: 连接时「N 张 · 今天到期 · Anki 已打开」；没开时写「没开」不提没刷", () => {
     const normal = tile(panelTiles(input()), "anki");
-    expect(normal).toEqual({ key: "anki", value: "42 张", sub: "今天要复习 · 已连接", warn: false });
+    expect(normal).toEqual({ key: "anki", value: "42 张", sub: "今天到期 · Anki 已打开", warn: false });
 
     const off: AnkiStatus = { running: false };
     expect(tile(panelTiles(input({ anki: off })), "anki")).toEqual({
@@ -152,7 +227,12 @@ describe("panelTiles: six tiles, normal / warn / loading", () => {
       sub: "打开 Anki 后显示今天的张数",
       warn: false,
     });
-    expect(tile(panelTiles(input({ anki: null })), "anki")).toEqual({ key: "anki", value: "", sub: "", warn: false });
+    expect(tile(panelTiles(input({ anki: null })), "anki")).toEqual({
+      key: "anki",
+      value: "",
+      sub: "",
+      warn: false,
+    });
   });
 
   it("cards: 待同步数；broken > 0 时改写「B 张格式不全」并标 warn", () => {
@@ -160,12 +240,30 @@ describe("panelTiles: six tiles, normal / warn / loading", () => {
     expect(normal).toEqual({ key: "cards", value: "39 张待同步", sub: "共 505 张 · 9 个牌组", warn: false });
 
     const broken = tile(panelTiles(input({ cards: { ...CARDS, broken: 3 } })), "cards");
-    expect(broken).toEqual({ key: "cards", value: "39 张待同步", sub: "共 505 张 · 3 张格式不全", warn: true });
-    expect(tile(panelTiles(input({ cards: null })), "cards")).toEqual({ key: "cards", value: "", sub: "", warn: false });
+    expect(broken).toEqual({
+      key: "cards",
+      value: "39 张待同步",
+      sub: "共 505 张 · 3 张格式不全",
+      warn: true,
+    });
+    expect(tile(panelTiles(input({ cards: null })), "cards")).toEqual({
+      key: "cards",
+      value: "",
+      sub: "",
+      warn: false,
+    });
   });
 
   it("全部输入还在读取时，六格都留空", () => {
-    const tiles = panelTiles({ today: TODAY, overview: null, day: null, week: null, shelf: null, anki: null, cards: null });
+    const tiles = panelTiles({
+      today: TODAY,
+      overview: null,
+      day: null,
+      week: null,
+      shelf: null,
+      anki: null,
+      cards: null,
+    });
     expect(tiles.map((item) => [item.key, item.value, item.sub])).toEqual([
       ["cycle", "", ""],
       ["today", "", ""],
@@ -177,23 +275,71 @@ describe("panelTiles: six tiles, normal / warn / loading", () => {
   });
 });
 
-describe("shelfRows: 在读 → 带读 → 暂停 → 排队", () => {
+describe("shelfRows: 在读 → 导读课 → 暂停 → 排队", () => {
   const overview: CycleOverview = {
     ...OVERVIEW,
     courses: [
       ...OVERVIEW.courses.filter((course) => course.role !== "aux"),
-      { slug: COURSE_C, subject: "c-systems-programming", role: "aux", name: "Effective C", total: 7, done: 1, end: "2026-12-23", next: null, lessons: [] },
-      { slug: "ds-guide", subject: "data-structures", role: "aux", name: "数据结构", total: 10, done: 2, end: "2026-12-24", next: null, lessons: [] },
+      {
+        slug: COURSE_C,
+        subject: "c-systems-programming",
+        role: "aux",
+        name: "Effective C",
+        total: 7,
+        done: 1,
+        end: "2026-12-23",
+        next: null,
+        lessons: [],
+      },
+      {
+        slug: "ds-guide",
+        subject: "data-structures",
+        role: "aux",
+        name: "数据结构",
+        total: 10,
+        done: 2,
+        end: "2026-12-24",
+        next: null,
+        lessons: [],
+      },
     ],
   };
   const shelf: ShelfListItem[] = [
-    book({ slug: "epp", short: "Epp", title: "Epp 书", position: 3, total: 81, end: "2027-01-30", target: "2027-01-15", targetLate: 15, coreRead: [{ pages: "12–15", course: "epp", label: "§1.3", date: "2026-11-09" }] }),
-    book({ slug: "htsp", short: "HTSP", title: "HTSP 书", order: 3, status: "paused", position: 3, total: 12, started: "2026-10-30" }),
-    book({ slug: "ctm", short: "CTM", title: "CTM 书", order: 2, status: "queued", total: 79, started: "", end: "2027-02-10" }),
+    book({
+      slug: "epp",
+      short: "Epp",
+      title: "Epp 书",
+      position: 3,
+      total: 81,
+      end: "2027-01-30",
+      target: "2027-01-15",
+      targetLate: 15,
+      coreRead: [{ pages: "12–15", course: "epp", label: "§1.3", date: "2026-11-09" }],
+    }),
+    book({
+      slug: "htsp",
+      short: "HTSP",
+      title: "HTSP 书",
+      order: 3,
+      status: "paused",
+      position: 3,
+      total: 12,
+      started: "2026-10-30",
+    }),
+    book({
+      slug: "ctm",
+      short: "CTM",
+      title: "CTM 书",
+      order: 2,
+      status: "queued",
+      total: 79,
+      started: "",
+      end: "2027-02-10",
+    }),
     book({ slug: "old", short: "OLD", title: "读完的", order: 4, status: "done", position: 10 }),
   ];
 
-  it("排序与字段：读完的不列，顺序是 在读 → 带读 → 暂停 → 排队", () => {
+  it("排序与字段：读完的不列，顺序是 在读 → 导读课 → 暂停 → 排队", () => {
     const rows = shelfRows({ today: TODAY, shelf, overview, week: WEEK });
     expect(rows.map((row) => [row.slug, row.status])).toEqual([
       ["epp", "reading"],
@@ -204,11 +350,20 @@ describe("shelfRows: 在读 → 带读 → 暂停 → 排队", () => {
     ]);
     const epp = rows[0];
     if (!epp) throw new Error("没有 epp 行");
-    expect(epp).toMatchObject({ kind: "book", mode: "after-self", unit: "段", done: 3, total: 81, warn: true, target: "2027-01-15" });
-    expect(epp.meta).toBe("预计 01-30 读完 · 目标 01-15，会晚 15 天");
+    expect(epp).toMatchObject({
+      kind: "book",
+      mode: "after-self",
+      unit: "段",
+      done: 3,
+      total: 81,
+      warn: false,
+      target: "2027-01-15",
+    });
+    // 预计日与目标日两个平日子（panel v2）：不写「会晚 N 天」。
+    expect(epp.meta).toBe("预计 01-30 读完 · 目标 01-15");
   });
 
-  it("带读行：星期来自 subjectDays，预计日期是课程的 end", () => {
+  it("导读课行：星期来自 subjectDays，预计日期是课程的 end", () => {
     const rows = shelfRows({ today: TODAY, shelf, overview, week: WEEK });
     const ec = rows.find((row) => row.slug === COURSE_C);
     const ds = rows.find((row) => row.slug === "ds-guide");
@@ -230,7 +385,19 @@ describe("shelfRows: 在读 → 带读 → 暂停 → 排队", () => {
       ...WEEK,
       days: WEEK.days.map((day) => ({
         ...day,
-        items: day.date === TODAY ? [{ lane: "after" as const, text: "讲后读", short: "", mark: "plan" as const, slug: "ctm", id: null }] : day.items,
+        items:
+          day.date === TODAY
+            ? [
+                {
+                  lane: "after" as const,
+                  text: "讲后读",
+                  short: "",
+                  mark: "plan" as const,
+                  slug: "ctm",
+                  id: null,
+                },
+              ]
+            : day.items,
       })),
     };
     const rows = shelfRows({ today: TODAY, shelf, overview, week });
@@ -295,18 +462,18 @@ describe("unplannedMaterials: 路径不进书名", () => {
     const subjects = {
       subjects: [
         {
-   slug: "data-structures-algorithms",
-   title: "数据结构与算法",
+          slug: "data-structures-algorithms",
+          title: "数据结构与算法",
           materials: [
-     {
-       type: "书籍",
-mark: "none",
-       status: "未制定计划",
-       role: "参考",
-       title: "CLRS《Introduction to Algorithms》4th（`raw/学习路径/数据结构/clrs.pdf`）",
-       course: null,
-     },
-   ],
+            {
+              type: "书籍",
+              mark: "none",
+              status: "未制定计划",
+              role: "参考",
+              title: "CLRS《Introduction to Algorithms》4th（`raw/学习路径/数据结构/clrs.pdf`）",
+              course: null,
+            },
+          ],
         },
       ],
     } as unknown as SubjectsOverview;
@@ -320,7 +487,9 @@ describe("bookTitle", () => {
   it("drops a trailing path note, with or without more notes after the path", () => {
     expect(bookTitle("SICP（`raw/library/sicp.pdf`）")).toBe("SICP");
     expect(
-      bookTitle("CLRS《Introduction to Algorithms》4th（`raw/学习路径/数据结构和算法/x.pdf`，1312 页，书目未建 source 页）"),
+      bookTitle(
+        "CLRS《Introduction to Algorithms》4th（`raw/学习路径/数据结构和算法/x.pdf`，1312 页，书目未建 source 页）",
+      ),
     ).toBe("CLRS《Introduction to Algorithms》4th");
     expect(bookTitle("Davies · A Cool Brisk Walk")).toBe("Davies · A Cool Brisk Walk");
     expect(bookTitle("离散数学（Epp, 5th ed）")).toBe("离散数学（Epp, 5th ed）");

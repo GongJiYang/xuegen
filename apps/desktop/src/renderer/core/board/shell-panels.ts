@@ -116,7 +116,9 @@ export function shellPanels(input: ShellPanelsInput): ShellPanels {
         const book = reading.shelf.list.state.value.find((item) => item.slug === slug);
         if (book === undefined) return;
         const pending = book.extracts.filter((extract) => extract.carded === null).length;
-        input.onDraftCards(withActionMarker(strings.reading.shelfCardsPrompt(book.short, slug, pending), "cards"));
+        input.onDraftCards(
+          withActionMarker(strings.reading.shelfCardsPrompt(book.short, slug, pending), "cards"),
+        );
       },
       focus: input.focus ?? undefined,
       onFocusHandled: input.onFocusHandled,

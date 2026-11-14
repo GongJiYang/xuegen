@@ -2,11 +2,23 @@
   "banned": [
     {
       "word": "辅助",
-      "say": "带读"
+      "say": "导读课"
     },
     {
       "word": "核心页",
-      "say": "讲后读 · pp.… · 日期"
+      "say": "课后读 · pp.… · 日期"
+    },
+    {
+      "word": "讲后读",
+      "say": "课后读"
+    },
+    {
+      "word": "带读",
+      "say": "导读课"
+    },
+    {
+      "word": "主项课",
+      "say": "主课"
     },
     {
       "word": "教材通读",
@@ -96,7 +108,7 @@
     {
       "file": "skills/course/SKILL.md",
       "word": "辅助",
-      "why": "「辅助课」是技能内部词，同行已要求对用户说「带读」"
+      "why": "「辅助课」是技能内部词，同行已要求对用户说「导读课」"
     },
     {
       "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
@@ -112,6 +124,71 @@
       "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
       "word": "留到下个周期",
       "why": "同上，且是反向说明"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/consistency-fixture.ts",
+      "word": "讲后读",
+      "why": "日历样例数据：课程页行标题与 #讲后读- 标记原样，界面经 afterReadTitle 显示「课后读 · …」"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/control-prompts.ts",
+      "word": "带读",
+      "why": "发给模型的指令：按 course 技能建带读课（数据上是 course 的带读课）"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/control-prompts.ts",
+      "word": "讲后读",
+      "why": "发给模型的指令：读法名按技能里的说法，技能词下一张单子统一改"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/control-prompts.ts",
+      "word": "主项课",
+      "why": "同上：指令里转述技能对「主项课」的说法"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
+      "word": "带读",
+      "why": "建课提示词：原书方式「带读」是课程页 Key Facts 的数据值"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/course-prompts.ts",
+      "word": "讲后读",
+      "why": "同上：主项课的「讲后读（错开）」是课程页原书方式的数据值"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/strings.ts",
+      "word": "带读",
+      "why": "新课表单的读法选项「带读」= 原书方式 guided，不是导读课"
+    },
+    {
+      "file": "apps/desktop/src/renderer/gallery/panel-samples.ts",
+      "word": "讲后读",
+      "why": "画廊样例数据：日历 readingDue 标题原样，界面显示「课后读 · …」"
+    },
+    {
+      "file": "skills/calendar/calendar.mjs",
+      "word": "讲后读",
+      "why": "数据格式：课程页 Today 行「- [ ] 讲后读 …」与日历标题「讲后读 · …」"
+    },
+    {
+      "file": "skills/course/course-state.mjs",
+      "word": "讲后读",
+      "why": "数据格式：课程页行前缀「- [ ] 讲后读 」，报错里点名的也是这一行"
+    },
+    {
+      "file": "skills/reading/bookshelf.mjs",
+      "word": "讲后读",
+      "why": "数据格式：书页节名「## 讲后读已读」与读书记录行「讲后读 … 已读」"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/control-card-rows.ts",
+      "word": "讲后读",
+      "why": "数据格式：解析日历标题前缀「讲后读 · 」与 #讲后读-N 标记"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/board/planbook-items.ts",
+      "word": "讲后读",
+      "why": "数据格式：#讲后读- 标记与日历标题前缀「讲后读 · 」"
     }
   ]
 }

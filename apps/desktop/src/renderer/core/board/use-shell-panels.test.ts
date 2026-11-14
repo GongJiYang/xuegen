@@ -6,7 +6,11 @@ import { actionLabel, splitActionMarker } from "../chat/action-marker.js";
 import { courseTitleOf, draftedCardsMessage, verifyMessage } from "./use-shell-panels.js";
 
 function ready<T>(value: T): BoardResource<T> {
-  return { state: { status: "ready", value }, reload: () => undefined, mutate: () => undefined } as unknown as BoardResource<T>;
+  return {
+    state: { status: "ready", value },
+    reload: () => undefined,
+    mutate: () => undefined,
+  } as unknown as BoardResource<T>;
 }
 
 function courses(value: unknown[]): CoursesResource {
@@ -31,7 +35,16 @@ describe("面板代发的课程指令", () => {
     const list = courses([{ slug: "ctm", title: "CTM 第 7 章" }]);
     expect(courseTitleOf(list, "ctm")).toBe("CTM 第 7 章");
     expect(courseTitleOf(list, "nope")).toBeNull();
-    expect(courseTitleOf({ state: { status: "loading" }, reload: () => undefined, mutate: () => undefined } as unknown as CoursesResource, "ctm")).toBeNull();
+    expect(
+      courseTitleOf(
+        {
+          state: { status: "loading" },
+          reload: () => undefined,
+          mutate: () => undefined,
+        } as unknown as CoursesResource,
+        "ctm",
+      ),
+    ).toBeNull();
   });
 
   it("起草卡片：面板传进来的自定义文字也套标记", () => {

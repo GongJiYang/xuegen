@@ -1,14 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { strings } from "../strings.js";
 import { splitActionMarker } from "../chat/action-marker.js";
-import { addBookPrompt, changeModePrompt, pausePrompt, resumePrompt, setTargetPrompt } from "./control-prompts.js";
+import {
+  addBookPrompt,
+  changeModePrompt,
+  pausePrompt,
+  resumePrompt,
+  setTargetPrompt,
+} from "./control-prompts.js";
 
 const EPP = { slug: "epp", short: "Epp" };
 
 describe("总控书房按钮发给总控的话", () => {
   it("加书：按 reading 技能排进书房，读法是自读", () => {
     const marked = splitActionMarker(
-      addBookPrompt({ title: "Discrete Mathematics", slug: "epp", subject: "", mode: "self", days: [], target: "2027-01-15" }),
+      addBookPrompt({
+        title: "Discrete Mathematics",
+        slug: "epp",
+        subject: "",
+        mode: "self",
+        days: [],
+        target: "2027-01-15",
+      }),
     );
     expect(marked.action).toBe("ask");
     expect(marked.courseTitle).toBe("Discrete Mathematics");
@@ -19,7 +32,14 @@ describe("总控书房按钮发给总控的话", () => {
 
   it("加书：带读排到指定的星期几，并提醒同一天只排一本", () => {
     const marked = splitActionMarker(
-      addBookPrompt({ title: "SICP", slug: "sicp", subject: "programming-paradigms", mode: "guide", days: ["周一", "周三"], target: null }),
+      addBookPrompt({
+        title: "SICP",
+        slug: "sicp",
+        subject: "programming-paradigms",
+        mode: "guide",
+        days: ["周一", "周三"],
+        target: null,
+      }),
     );
     expect(marked.action).toBe("ask");
     expect(marked.body).toContain("/skill:course");

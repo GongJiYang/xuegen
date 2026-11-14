@@ -21,9 +21,15 @@ export interface CycleResource {
  */
 export function useCycle(today: string, tomorrow: string, month: string): CycleResource {
   const todayResource = useBoardResource(() => client.data({ kind: "cycle.day", date: today }), [today]);
-  const tomorrowResource = useBoardResource(() => client.data({ kind: "cycle.day", date: tomorrow }), [tomorrow]);
+  const tomorrowResource = useBoardResource(
+    () => client.data({ kind: "cycle.day", date: tomorrow }),
+    [tomorrow],
+  );
   const monthResource = useBoardResource(() => client.data({ kind: "cycle.month", month }), [month]);
-  const overviewResource = useBoardResource(() => client.data({ kind: "cycle.overview", date: today }), [today]);
+  const overviewResource = useBoardResource(
+    () => client.data({ kind: "cycle.overview", date: today }),
+    [today],
+  );
   return {
     today: todayResource,
     tomorrow: tomorrowResource,

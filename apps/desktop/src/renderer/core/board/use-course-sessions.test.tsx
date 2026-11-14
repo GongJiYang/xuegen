@@ -13,6 +13,7 @@ import type { ChatController } from "../chat/useChat.js";
 import type { ResumePoint } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 import { dateKey } from "./use-calendar.js";
+import { verifyMessage } from "./use-shell-panels.js";
 import {
   alreadyAsked,
   resolveActiveCourse,
@@ -986,5 +987,181 @@ describe("useCourseSessions — no resending an identical request", () => {
 
     expect(controller.send).not.toHaveBeenCalled();
     expect(controller.openSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("useCourseSessions — verifiedOn", () => {
+  const today = "2026-11-04";
+  const course = {
+    slug: "ctm",
+    title: "CTM 7 周",
+    weekLabel: "W3",
+    week: { done: 0, total: 0, tasks: [] },
+    overall: { done: 0, total: 0 },
+    lastRecord: null,
+    nextSession: "2.1",
+    styleHint: null,
+  } as CourseSummary;
+
+  /** The session-file stamp for a local day at local noon, in the file-name format. */
+  function stampFor(localDay: string): string {
+    const [year, month, day] = localDay.split("-").map(Number);
+    const iso = new Date(year ?? 2000, (month ?? 1) - 1, day ?? 1, 12, 0, 0).toISOString();
+    return `/home/sessions/${iso.replace(/[:.]/g, "-")}_abc.jsonl`;
+  }
+
+  const verify = verifyMessage("ctm", "CTM 7 周");
+  const opened = "开始今天的 CTM 7 周\n⟦xuegen:open|ctm|CTM 7 周⟧";
+
+  function message(id: string, role: "user" | "assistant", markdown: string): ChatMessage {
+    return { id, role, markdown, streaming: false, toolCalls: [] };
+  }
+
+  it("records the day when the 周核实 goes out in the switched session", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController(file);
+    const update = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", verify);
+      await Promise.resolve();
+    });
+
+    expect(controller.send).toHaveBeenCalledWith(verify);
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ verifiedOn: { ctm: today } }));
+  });
+
+  it("records the day when the 周核实 goes out in the already-open session", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController(file);
+    const update = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        activeCourse="ctm"
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStartSession("ctm", verify);
+    });
+
+    expect(controller.send).toHaveBeenCalledWith(verify);
+    expect(update).toHaveBeenCalledWith({ verifiedOn: { ctm: today } });
+  });
+
+  it("does not record the day for a plain opening message", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const controller = fakeController(file);
+    const update = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", opened);
+      await Promise.resolve();
+    });
+
+    expect(controller.send).toHaveBeenCalledWith(opened);
+    expect(update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ verifiedOn: expect.anything() }),
+    );
+  });
+
+  it("only switches when today's session already holds that 核实, but still records the day", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const history = [
+      message("u1", "user", verify),
+      message("a1", "assistant", "第三周对得上"),
+    ];
+    const controller = fakeController(file, history, history);
+    const update = vi.fn();
+    render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        settings={{ ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } }}
+      />,
+    );
+
+    await act(async () => {
+      actions?.handleStartSession("ctm", verify);
+      await Promise.resolve();
+    });
+
+    expect(controller.send).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ verifiedOn: { ctm: today } }));
+  });
+
+  it("records the day once in the already-open session even when the 核实 is already there", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 4, 9));
+    const file = stampFor(dateKey(new Date()));
+    const history = [message("u1", "user", verify), message("a1", "assistant", "第三周对得上")];
+    const controller = fakeController(file, history, history);
+    const update = vi.fn();
+    const settings = { ...DEFAULT_DESKTOP_SETTINGS, courseSessions: { ctm: file } };
+    const { rerender } = render(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        activeCourse="ctm"
+        settings={settings}
+      />,
+    );
+
+    act(() => {
+      actions?.handleStartSession("ctm", verify);
+    });
+    expect(controller.send).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({ verifiedOn: { ctm: today } });
+
+    update.mockClear();
+    rerender(
+      <Harness
+        controller={controller}
+        courses={readyCourses([course])}
+        update={update}
+        setActiveCourse={vi.fn()}
+        activeCourse="ctm"
+        settings={{ ...settings, verifiedOn: { ctm: today } }}
+      />,
+    );
+    act(() => {
+      actions?.handleStartSession("ctm", verify);
+    });
+    expect(update).not.toHaveBeenCalled();
   });
 });

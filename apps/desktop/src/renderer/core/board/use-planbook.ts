@@ -39,9 +39,9 @@ async function loadRange(
   anchor: string,
   today: string,
   first: CycleMonth,
+  verifiedOn: Record<string, string>,
 ): Promise<LoadResult<PlanbookResult>> {
-  const range =
-    view === "day" ? { start: anchor, end: anchor } : planWeekRange([first], anchor);
+  const range = view === "day" ? { start: anchor, end: anchor } : planWeekRange([first], anchor);
   const months = [...new Set([range.start.slice(0, 7), range.end.slice(0, 7)])];
   // The week's 复盘 lookup looks up to seven days past `end`, which leaves the
   // fetched months only when the week ends on a month's last day. That month is
@@ -89,6 +89,7 @@ async function loadRange(
     overview: overview?.data ?? null,
     courses: courses?.data ?? [],
     anki: anki.data,
+    verifiedOn,
   };
   return {
     ok: true,
@@ -99,7 +100,12 @@ async function loadRange(
   };
 }
 
-async function loadPlanbook(view: PlanbookView, anchor: string, today: string): Promise<LoadResult<PlanbookResult>> {
+async function loadPlanbook(
+  view: PlanbookView,
+  anchor: string,
+  today: string,
+  verifiedOn: Record<string, string>,
+): Promise<LoadResult<PlanbookResult>> {
   const month = anchor.slice(0, 7);
   const first = await client.data({ kind: "cycle.month", month });
   if (!first.ok) return first;
@@ -116,7 +122,7 @@ async function loadPlanbook(view: PlanbookView, anchor: string, today: string): 
     };
     return { ok: true, data: { view: "month", month, days: buildMonth(input, month) } };
   }
-  return loadRange(view, anchor, today, first.data);
+  return loadRange(view, anchor, today, first.data, verifiedOn);
 }
 
 /**
@@ -131,7 +137,19 @@ const DISABLED = new Promise<LoadResult<PlanbookResult>>(() => {});
  * `anchor` is the day a day view shows, any day inside the wanted week, or any
  * day of the wanted month. Reloads when `view`/`anchor` change. `enabled`
  * false makes no request at all — the state simply stays `loading`.
+ * `verifiedOn` marks a started weekly verify done on its day (and reloads when it changes).
  */
-export function usePlanbook(view: PlanbookView, anchor: string, enabled = true): BoardResource<PlanbookResult> {
-  return useBoardResource(() => (enabled ? loadPlanbook(view, anchor, todayKey()) : DISABLED), [view, anchor, enabled]);
+export function usePlanbook(
+  view: PlanbookView,
+  anchor: string,
+  enabled = true,
+  verifiedOn: Record<string, string> = NO_VERIFIES,
+): BoardResource<PlanbookResult> {
+  const verifiedKey = JSON.stringify(verifiedOn);
+  return useBoardResource(
+    () => (enabled ? loadPlanbook(view, anchor, todayKey(), verifiedOn) : DISABLED),
+    [view, anchor, enabled, verifiedKey],
+  );
 }
+
+const NO_VERIFIES: Record<string, string> = {};

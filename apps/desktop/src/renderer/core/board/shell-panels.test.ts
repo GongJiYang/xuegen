@@ -170,7 +170,9 @@ describe("shellPanels: the 书房 section", () => {
     const panels = shellPanels(input(ready([EPP]), onDraftCards));
     panels.reading.onShelfCards("epp");
     expect(onDraftCards).toHaveBeenCalledTimes(1);
-    expect(onDraftCards).toHaveBeenCalledWith(withActionMarker(strings.reading.shelfCardsPrompt("Epp", "epp", 2), "cards"));
+    expect(onDraftCards).toHaveBeenCalledWith(
+      withActionMarker(strings.reading.shelfCardsPrompt("Epp", "epp", 2), "cards"),
+    );
     expect(onDraftCards.mock.calls[0]?.[0]).toContain("《Epp》");
     expect(onDraftCards.mock.calls[0]?.[0]).toContain("（epp）");
     expect(onDraftCards.mock.calls[0]?.[0]).toContain("2 句待做卡");

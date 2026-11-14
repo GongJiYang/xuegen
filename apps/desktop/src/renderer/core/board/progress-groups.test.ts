@@ -20,7 +20,16 @@ const OVERVIEW: SubjectsOverview = {
   date: "2026-11-06",
   cycle: { cycle: "C1", week: 1, weeks: 7, aux: "（空）；（空）——路线原定数据结构与算法" },
   subjects: [
-    { slug: "ai", title: "AI", layer: "C", route: "路线外", main: false, defaultStyle: null, courses: ["mi", "gone"], materials: [] },
+    {
+      slug: "ai",
+      title: "AI",
+      layer: "C",
+      route: "路线外",
+      main: false,
+      defaultStyle: null,
+      courses: ["mi", "gone"],
+      materials: [],
+    },
     {
       slug: "dm",
       title: "离散",
@@ -42,9 +51,20 @@ const OVERVIEW: SubjectsOverview = {
       main: false,
       defaultStyle: null,
       courses: [],
-      materials: [{ type: "文章", mark: "done", status: "已摄取", role: "参考", title: "Command", course: null }],
+      materials: [
+        { type: "文章", mark: "done", status: "已摄取", role: "参考", title: "Command", course: null },
+      ],
     },
-    { slug: "empty", title: "空科目", layer: "A", route: "C2 主项", main: false, defaultStyle: null, courses: [], materials: [] },
+    {
+      slug: "empty",
+      title: "空科目",
+      layer: "A",
+      route: "C2 主项",
+      main: false,
+      defaultStyle: null,
+      courses: [],
+      materials: [],
+    },
   ],
 };
 
@@ -58,19 +78,29 @@ describe("courseMark", () => {
 });
 
 describe("groupProgress", () => {
-  const courses = [course("epp", 0, 4, "2026-11-05"), course("mi", 0, 4, "2026-10-18"), course("loose", 0, 1, null)];
+  const courses = [
+    course("epp", 0, 4, "2026-11-05"),
+    course("mi", 0, 4, "2026-10-18"),
+    course("loose", 0, 1, null),
+  ];
   const groups = groupProgress(OVERVIEW, courses, "2026-11-06");
 
   it("puts the main subjects first with their courses and unplanned count", () => {
     expect(groups.cycle).toEqual({ cycle: "C1", week: 1, weeks: 7 });
     expect(groups.auxEmpty).toBe(true);
-    expect(groups.main.map((group) => [group.title, group.courses.map((item) => [item.course.slug, item.mark]), group.unplanned])).toEqual([
-      ["离散", [["epp", "now"]], 1],
-    ]);
+    expect(
+      groups.main.map((group) => [
+        group.title,
+        group.courses.map((item) => [item.course.slug, item.mark]),
+        group.unplanned,
+      ]),
+    ).toEqual([["离散", [["epp", "now"]], 1]]);
   });
 
   it("lists other subjects with courses, then the courses no subject claims", () => {
-    expect(groups.other.map((group) => [group.title, group.courses.map((item) => [item.course.slug, item.mark])])).toEqual([
+    expect(
+      groups.other.map((group) => [group.title, group.courses.map((item) => [item.course.slug, item.mark])]),
+    ).toEqual([
       ["AI", [["mi", "warn"]]],
       [strings.progress.unassigned, [["loose", "plan"]]],
     ]);

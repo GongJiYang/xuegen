@@ -1,0 +1,166 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>总控右栏「动态」+ 改动标在面板上 · 设计稿</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--card:#1c1c1b;--a3:#0f2a3d;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1500px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:34px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:96ch}.note b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper);position:relative}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex;min-height:560px}
+.main{flex:1;min-width:0;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.blk{background:var(--card);border:1px solid var(--g6);border-radius:8px;padding:14px 16px}
+.bh{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}.bh h2{font-size:16px;margin:0}
+.lnk{color:var(--a11);font-size:12px;cursor:pointer}
+.tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--g6);border-radius:8px;padding:11px 12px}
+.cap{font-size:12px;color:var(--g11)}.big{font-size:18px;line-height:26px;font-weight:600;margin:2px 0}.sub{font-size:12px;color:var(--g11)}
+/* week grid */
+.wk{display:grid;grid-template-columns:78px repeat(7,minmax(0,1fr));font-size:12px;border:1px solid var(--g6);border-radius:6px;overflow:hidden}
+.wk>div{padding:6px 7px;border-right:1px solid var(--g3);border-bottom:1px solid var(--g3);min-height:38px}
+.dh b{display:block}.dh span{color:var(--g11);font-size:11px}.dh.today{background:var(--a3)}.dh.today b{color:var(--a11)}
+.lh b{display:block}.lh span{color:var(--g11);font-size:11px}
+.ci{line-height:15px;margin-bottom:3px}
+/* change marks */
+.ci.new{outline:1.5px solid var(--a9);outline-offset:2px;border-radius:3px;padding:0 2px;animation:flash 1.6s ease-out 1}
+.ci.new small{display:block;color:var(--a11);font-size:10px;line-height:13px}
+.ci.gone{color:var(--g8);text-decoration:line-through;text-decoration-color:var(--g7)}
+.ci.gone small{display:block;text-decoration:none;color:var(--g8);font-size:10px}
+@keyframes flash{0%{background:rgba(26,163,255,.35)}100%{background:transparent}}
+.banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--a3);border:1px solid #1d4a6b;border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:10px}
+.banner b{color:var(--a11)}.banner .chg{color:var(--g12)}.banner .acts{margin-left:auto;display:flex;gap:14px}
+.btn{font-size:12px;padding:2px 10px;border:1px solid var(--g7);border-radius:4px;color:var(--g12)}
+/* activity column */
+.act{width:340px;border-left:1px solid var(--g6);display:flex;flex-direction:column}
+.act-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px}.act-h b{font-size:13px}.act-h span{font-size:12px;color:var(--g11)}
+.feed{flex:1;padding:0 12px;display:flex;flex-direction:column;gap:8px}
+.card{border:1px solid var(--g6);border-radius:8px;padding:10px 12px;background:var(--g2)}
+.card.old{opacity:.6}
+.ask{font-size:13px;color:var(--g12)}.ask::before{content:"你 · ";color:var(--g8)}
+.res{font-size:12px;color:var(--g11);margin-top:6px}
+.res .n{color:var(--a11);font-weight:600}
+.chips{display:flex;flex-direction:column;gap:3px;margin-top:6px;font-size:12px}
+.chips span{color:var(--g12)}.chips span i{font-style:normal;color:var(--g8)}
+.foot{display:flex;gap:14px;margin-top:8px;font-size:12px}
+.busy{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--g11);margin-top:6px}
+.busy .d{width:6px;height:6px;border-radius:50%;background:var(--a9);animation:br .9s ease-in-out infinite alternate}
+@keyframes br{to{opacity:.4}}
+.steps{font-size:11px;color:var(--g8);margin-top:4px}
+.compose{margin:12px;border:1px solid var(--g7);border-radius:8px;padding:10px 12px;color:var(--g8);font-size:13px}
+/* reader drawer */
+.reader{position:absolute;top:40px;right:0;bottom:0;width:min(720px,62%);background:var(--paper);border-left:1px solid var(--g7);box-shadow:-18px 0 40px rgba(0,0,0,.45);padding:18px 28px;overflow:hidden}
+.reader h4{margin:0 0 4px;font-size:15px}.reader .sub{margin-bottom:14px}
+.reader p,.reader li{font-size:14px;line-height:23px;color:var(--g12);max-width:62ch}
+.reader .close{position:absolute;top:16px;right:22px;font-size:12px;color:var(--a11)}
+.dim{position:absolute;inset:40px 0 0 0;background:rgba(0,0,0,.25)}
+table.spec{border-collapse:collapse;font-size:13px;margin-top:8px;max-width:1100px}
+table.spec td{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top}table.spec td:first-child{color:var(--g11);white-space:nowrap}
+</style>
+<body><div class="doc">
+<h1>总控右栏「动态」+ 改动直接标在面板上 · 设计稿</h1>
+<p class="lead">用户 11-14：总控里最常做的是改排期；学根的回答不是每次都要看，窄栏里也难读。改成：右栏只放「动态」小卡（你说了什么 → 改了几处），回答默认收起；改了什么直接标在周表格 / 月历上；要看全文时从右侧拉出一个宽阅读层。核实相关的功能留给将来的领域总控，这一版不加。</p>
+
+<h3>① 平时：右栏是动态卡，回答收起</h3>
+<p class="note">每轮对话一张卡：第一行是你说的话（一行，超出省略），下面是结果——<b>改了排期</b>的写「改了 N 处」并逐条列出（最多 4 条，多的「还有 2 处」）；<b>没改东西</b>的（问答、简报）只写回答的第一句。「看回答」打开右侧宽阅读层（见③）。更早的卡变淡，往上滚可看；今天以前的收进「更早的对话」（现有的折叠照旧）。</p>
+<div class="win">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="tab">离散 D4</div><div class="tab">CTM D2</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>上下文 14%</span><span>收起聊天</span><span>⋯</span></div></div>
+  <div class="shell">
+    <div class="main">
+      <div class="tiles">
+        <div class="tile"><div class="cap">周期</div><div class="big">C1 · 第 2 周</div><div class="sub">预计 12-29 收尾</div></div>
+        <div class="tile"><div class="cap">今天</div><div class="big">1 / 3 项</div><div class="sub">主攻日 · 离散 D4</div></div>
+        <div class="tile"><div class="cap">本周</div><div class="big">1 / 17 项</div><div class="sub">还剩 16 项</div></div>
+        <div class="tile"><div class="cap">书房</div><div class="big">3 本在读</div><div class="sub">Epp 预计 02-01 读完</div></div>
+        <div class="tile"><div class="cap">Anki</div><div class="big">42 张</div><div class="sub">今天到期</div></div>
+        <div class="tile"><div class="cap">卡片</div><div class="big">全部已同步</div><div class="sub">共 501 张</div></div>
+      </div>
+      <div class="blk" style="flex:1"><div class="bh"><h2>今天 · 本周</h2><span class="sub">（面板其余部分与 panel-v2 相同，此处省略）</span></div></div>
+    </div>
+    <div class="act">
+      <div class="act-h"><b>动态</b><span>今天 · 3 次</span></div>
+      <div class="feed">
+        <div class="card old"><div class="ask">今天有什么要做的</div><div class="res">主攻日：离散 D4，读 Epp pp.28–36，Anki 42 张。</div><div class="foot"><span class="lnk">看回答</span></div></div>
+        <div class="card old"><div class="ask">C 语言先停一周</div><div class="res"><span class="n">改了 4 处</span> · 已撤销</div></div>
+        <div class="card"><div class="ask">周二有事，离散和 CTM 往后挪一天</div>
+          <div class="res"><span class="n">改了 3 处</span>排期</div>
+          <div class="chips"><span>离散 D4 <i>11-16 →</i> 11-17</span><span>CTM D2 <i>11-17 →</i> 11-18</span><span>离散 D5 <i>11-18 →</i> 11-19</span></div>
+          <div class="foot"><span class="lnk">在周表格里看</span><span class="lnk">看回答</span><span class="lnk">撤销</span></div></div>
+      </div>
+      <div class="compose">问学根，或说要怎么改计划…</div>
+    </div>
+  </div>
+</div>
+
+<h3>② 正在改：卡片上一行进度，面板不动</h3>
+<p class="note">发出去后卡片立刻出现，只显示一行进度（「正在改排期 · 第 3 步」，步骤来自现有的工具调用计数），可展开看它读了 / 改了哪些页面（现有的「学根做了 N 步操作」折叠）。回答没完时面板保持原样，不闪；回答完、数据重新加载后才标改动（③）。停止按钮仍在输入框里。</p>
+<div class="win" style="max-width:420px">
+  <div class="act" style="width:100%;border-left:0">
+    <div class="feed" style="padding-top:12px">
+      <div class="card"><div class="ask">周二有事，离散和 CTM 往后挪一天</div>
+        <div class="busy"><span class="d"></span>正在改排期 · 第 3 步</div>
+        <div class="steps">读了 周期页 C1、离散课程页 · 正在改 CTM 课程页</div></div>
+    </div>
+    <div class="compose">学根正在回答，可以继续输入…</div>
+  </div>
+</div>
+
+<h3>③ 改完：改动标在周表格上</h3>
+<p class="note"><b>怎么知道改了什么</b>：发话前记下当时的周 / 月计划（前端已有的计划本数据），回答完重新加载后两边比较——课次换了日子、新出现、被删掉，逐条列出。这一步纯前端，不靠模型自报。<br>
+<b>标法</b>：挪到的新位置描强调色框、闪一下，小字「从 11-16 挪来」；原位置留淡灰删除线，小字「→ 11-17」；新加的课小字「新」；删掉的只留淡灰删除线。周表格上方一条横幅汇总，「知道了」后标记消失（切到别的周 / 月再回来也还在，直到点「知道了」或下一次改动）。<br>
+<b>撤销</b>：把这次改动前的课程页 / 周期页恢复回去（需要后端：总控改文件前打快照，jj 已在用；单独派 Devin）。<br>
+<b>阅读层</b>：宽 720px（窗口窄时占 62%），正文行宽 62 个字，盖在面板上、可滚动，Esc 或点外面关闭；不再挤在 340px 的窄栏里。</p>
+<div class="win">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="tab">离散 D4</div><div class="gap"></div><div class="meta"><span>收起聊天</span><span>⋯</span></div></div>
+  <div class="shell">
+    <div class="main">
+      <div class="blk">
+        <div class="bh"><h2>本周</h2><span class="sub">C1 W2 · 11-13 – 11-19</span></div>
+        <div class="banner"><b>学根刚改了 3 处</b><span class="chg">离散 D4 11-16→11-17 · CTM D2 11-17→11-18 · 离散 D5 11-18→11-19</span><span class="acts"><span class="btn">撤销这次改动</span><span class="lnk">看回答</span><span class="lnk">知道了</span></span></div>
+        <div class="wk">
+          <div></div><div class="dh"><b>五 11-13</b><span>整合</span></div><div class="dh"><b>六 11-14</b><span>低强度</span></div><div class="dh today"><b>日 11-15</b><span>今天 · 休息</span></div><div class="dh"><b>一 11-16</b><span>主攻</span></div><div class="dh"><b>二 11-17</b><span>主攻</span></div><div class="dh"><b>三 11-18</b><span>主攻</span></div><div class="dh"><b>四 11-19</b><span>主攻</span></div>
+          <div class="lh"><b>主课</b><span>要收课</span></div>
+          <div><div class="ci">✓ 离散 周核实</div><div class="ci">✓ CTM 周核实</div></div><div></div><div></div>
+          <div><div class="ci gone">离散 D4<small>→ 11-17</small></div></div>
+          <div><div class="ci gone">CTM D2<small>→ 11-18</small></div><div class="ci new">○ 离散 D4<small>从 11-16 挪来</small></div></div>
+          <div><div class="ci gone">离散 D5<small>→ 11-19</small></div><div class="ci new">○ CTM D2<small>从 11-17 挪来</small></div></div>
+          <div><div class="ci">○ CTM D3</div><div class="ci new">○ 离散 D5<small>从 11-18 挪来</small></div></div>
+          <div class="lh"><b>导读课</b><span>要收课</span></div><div></div><div></div><div></div><div class="ci">○ C 语言 D2</div><div class="ci">○ 数据结构 D2</div><div class="ci">○ C 语言 D3</div><div class="ci">○ 数据结构 D3</div>
+        </div>
+      </div>
+    </div>
+    <div class="act">
+      <div class="act-h"><b>动态</b><span>今天 · 3 次</span></div>
+      <div class="feed"><div class="card"><div class="ask">周二有事，离散和 CTM 往后挪一天</div><div class="res"><span class="n">改了 3 处</span>排期</div><div class="foot"><span class="lnk">看回答</span><span class="lnk">撤销</span></div></div></div>
+      <div class="compose">问学根，或说要怎么改计划…</div>
+    </div>
+  </div>
+</div>
+
+<h3>④「看回答」：从右侧拉出宽阅读层</h3>
+<p class="note">动态卡或横幅上点「看回答」，回答全文在宽阅读层里显示（同一套消息渲染：表格、公式、callout 都照旧）。</p>
+<div class="win" style="height:470px">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="gap"></div><div class="meta"><span>⋯</span></div></div>
+  <div class="dim"></div>
+  <div class="reader"><span class="close">关闭 · Esc</span>
+    <h4>周二有事，离散和 CTM 往后挪一天</h4><div class="sub">11-15 14:20 · 学根 · 3 步操作</div>
+    <p>好，周二（11-17）空出来。离散和 CTM 都往后顺延一天，周四的 CTM D3 不动，离散 D5 挪到周四和它同一天——周四会是两节主课，大约多 45 分钟。</p>
+    <p><b>这次改了</b></p>
+    <ul><li>离散：D4 11-16 → 11-17，D5 11-18 → 11-19</li><li>CTM：D2 11-17 → 11-18</li><li>周期页 C1：11-17 备注「用户有事」</li></ul>
+    <p>如果周四两节太满，可以把离散 D5 放到下周一，说一声就行。</p>
+  </div>
+</div>
+
+<h3>要做的范围（确认后再写代码）</h3>
+<table class="spec">
+<tr><td>右栏动态卡</td><td>总控会话里替换现在的对话流；课程会话、自由会话不变。卡片数据来自现有消息（用户话 + 学根回答第一句 + 工具步数）。Claude 写。</td></tr>
+<tr><td>改动比较</td><td>纯函数 <code>planDiff(before, after)</code>（core/board，带测试）：按课程 + 课次比对日子，得出「挪了 / 新加 / 删掉」。Claude 写。</td></tr>
+<tr><td>标记与横幅</td><td>周表格、月历、今天卡上的标记；横幅「知道了」。Claude 写。</td></tr>
+<tr><td>宽阅读层</td><td>复用现有消息渲染，放进右侧抽屉。Claude 写。</td></tr>
+<tr><td>撤销这次改动</td><td>后端：总控每轮开始前对库打快照，撤销时把这一轮改过的文件恢复（之后又被改过就拒绝，照收课撤销的规则）。派 Devin，前端按钮等它好了再接。</td></tr>
+<tr><td>不做</td><td>核实相关（留给领域总控）；课程会话的界面不动。</td></tr>
+</table>
+</div></body></html>

@@ -21,9 +21,9 @@ describe("openingAction", () => {
 
 describe("startedTodayMap", () => {
   it("keeps only the courses whose day is today", () => {
-    expect(
-      startedTodayMap({ ctm: "2026-11-04", algebra: "2026-11-03" }, "2026-11-04"),
-    ).toEqual({ ctm: true });
+    expect(startedTodayMap({ ctm: "2026-11-04", algebra: "2026-11-03" }, "2026-11-04")).toEqual({
+      ctm: true,
+    });
   });
 
   it("is empty when nothing was started", () => {

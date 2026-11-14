@@ -55,6 +55,10 @@ export interface ControlCardInput {
   onOpenTool(tool: ToolId): void;
   /** 「让总控说说」. */
   onAskBrief(): void;
+  /** 陪读: open a 自由 session and send the (marked) reading prompt. */
+  onAccompany(prompt: string): void;
+  /** settings `verifiedOn`: a course whose 周核实 started today reads as done. */
+  verifiedOn: Record<string, string>;
   /** Reload the course list and the calendar month after a successful write. */
   refresh(): void;
 }
@@ -90,8 +94,18 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         queue: input.queue.state.status === "ready" ? input.queue.state.value : [],
         shelf: input.shelf.today.state.status === "ready" ? input.shelf.today.state.value : null,
         anki: input.anki.state.status === "ready" ? input.anki.state.value : null,
+        verifiedOn: input.verifiedOn,
       }),
-    [today, input.today.state, input.tomorrow.state, month.state, input.queue.state, input.shelf.today.state, input.anki.state],
+    [
+      today,
+      input.today.state,
+      input.tomorrow.state,
+      month.state,
+      input.queue.state,
+      input.shelf.today.state,
+      input.anki.state,
+      input.verifiedOn,
+    ],
   );
 
   const write = (entry: Pending): void => {
@@ -172,6 +186,8 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         setExtracting({ slug: action.slug, pages: action.pages });
         setExtractError(null);
         return;
+      case "accompany":
+        return input.onAccompany(action.prompt);
       default:
         return assertNever(action);
     }
@@ -229,5 +245,12 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
           },
         };
 
-  return { view: shown, onAction, onAskBrief: input.onAskBrief, busy: input.streaming || writing || saving, error, extract };
+  return {
+    view: shown,
+    onAction,
+    onAskBrief: input.onAskBrief,
+    busy: input.streaming || writing || saving,
+    error,
+    extract,
+  };
 }

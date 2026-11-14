@@ -51,6 +51,8 @@ export interface ControlPanelInput {
   enabled: boolean;
   /** The date the 今天 block shows (a clicked cell), or null for today. */
   shownDay: string | null;
+  /** settings `verifiedOn` (slug → the day its 周核实 last started). */
+  verifiedOn: Record<string, string>;
 }
 
 function readyValue<T>(state: AsyncState<T>): T | null {
@@ -59,10 +61,15 @@ function readyValue<T>(state: AsyncState<T>): T | null {
 
 export function useControlPanel(input: ControlPanelInput): ControlPanelData {
   const today = todayKey();
-  const day = usePlanbook("day", today, input.enabled);
+  const day = usePlanbook("day", today, input.enabled, input.verifiedOn);
   // A clicked cell's day loads on its own; today's day keeps feeding the tiles.
-  const other = usePlanbook("day", input.shownDay ?? today, input.enabled && input.shownDay !== null);
-  const week = usePlanbook("week", today, input.enabled);
+  const other = usePlanbook(
+    "day",
+    input.shownDay ?? today,
+    input.enabled && input.shownDay !== null,
+    input.verifiedOn,
+  );
+  const week = usePlanbook("week", today, input.enabled, input.verifiedOn);
   const shelfItems: ShelfListItem[] | null = readyValue(input.shelf.list.state);
   const overview = readyValue(input.overview.state);
   const anki = readyValue(input.anki.state);

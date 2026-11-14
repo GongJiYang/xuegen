@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { useBodyScaleShortcuts } from "./use-body-scale-shortcuts.js";
 
 function Harness({
@@ -32,6 +32,8 @@ function FontHarness({
 }
 
 describe("useBodyScaleShortcuts", () => {
+  afterEach(cleanup);
+
   it("steps the body scale along the skin's ladder", () => {
     const update = vi.fn();
     render(<Harness bodyScale={1} update={update} />);
@@ -53,6 +55,7 @@ describe("useBodyScaleShortcuts", () => {
     render(<FontHarness bodyFont="song" bodyScale={2} update={smooth} />);
     fireEvent.keyDown(window, { key: "0", metaKey: true });
     expect(smooth).toHaveBeenCalledWith({ bodyScale: 1.5 });
+    cleanup();
 
     const pixel = vi.fn();
     render(<FontHarness bodyFont="pixel" bodyScale={1} update={pixel} />);
@@ -66,6 +69,16 @@ describe("useBodyScaleShortcuts", () => {
 
     fireEvent.keyDown(window, { key: "=", metaKey: true, altKey: true });
     fireEvent.keyDown(window, { key: "=" });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("skips a key another shortcut already handled", () => {
+    const update = vi.fn();
+    render(<Harness bodyScale={1.2} update={update} />);
+    const claim = (event: KeyboardEvent): void => event.preventDefault();
+    window.addEventListener("keydown", claim, true);
+    fireEvent.keyDown(window, { key: "0", metaKey: true });
+    window.removeEventListener("keydown", claim, true);
     expect(update).not.toHaveBeenCalled();
   });
 });

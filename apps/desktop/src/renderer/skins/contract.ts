@@ -54,6 +54,10 @@ import type { UpdateBarState } from "../core/update/use-update.js";
 import type { PlanView } from "../core/board/planbook-nav.js";
 import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
+import type { TermLessonView } from "../core/board/terms.js";
+import type { ActivityCard, UndoState } from "../core/board/activity-feed.js";
+import type { PlanMarks } from "../core/board/plan-diff.js";
+import type { ReaderView } from "../core/board/use-reader.js";
 
 /** How a skin draws a piece of classified content. */
 export interface ContentRenderers {
@@ -104,9 +108,35 @@ export interface SessionsView {
   onNew(): void;
 }
 
+/** One title-bar session tab (`docs/desktop/mockups/tabs.html`). */
+export interface SessionTabView {
+  key: string;
+  /** 「总控 · C1」 / 「离散 D4」. */
+  label: string;
+  active: boolean;
+  /** 学根 is answering in this session (only ever the active tab). */
+  busy: boolean;
+}
+
+/**
+ * The title bar's session tabs: 「总控」 first, then today's course sessions in
+ * opening order, then a transcript opened from the list while it is open. The
+ * skin keeps the session list behind a 「＋」 after the tabs. Picking a tab
+ * switches through the same switch guard as the session list.
+ */
+export interface SessionTabsView {
+  items: SessionTabView[];
+  onPick(key: string): void;
+}
+
 export interface ShellProps {
   /** The whole application body (thread, composer, panels), to place in a layout. */
   children: React.ReactNode;
+  /**
+   * The session tabs, or null outside every study cycle (then the skin keeps
+   * the plain title + session list). Skins without a tab strip may ignore it.
+   */
+  tabs: SessionTabsView | null;
   /**
    * What the conversation is about: the active course's title while studying a
    * course (each course has its own session), otherwise null for a free chat.
@@ -290,6 +320,46 @@ export interface ThreadProps {
   activity: Activity | null;
   /** The lesson's pinned 今日要点 box and latest questions (core's `pinBoard`), or null. Skins may ignore it. */
   pin: PinBoard | null;
+  /**
+   * 总控 only: draw the conversation as a feed of turn cards plus the wide
+   * reader instead of the message list (user 11-14). null elsewhere; skins may
+   * ignore it and keep the plain transcript.
+   */
+  feed?: ControlFeedView | null;
+}
+
+/** The 总控 right column as cards (core's `activityCards`) and the wide reader. */
+export interface ControlFeedView {
+  cards: ActivityCard[];
+  /** 「今天 · 3 次」. */
+  caption: string;
+  onShowAnswer(cardId: string): void;
+  /** Page the panel's right block to the week of the card's first change. */
+  onShowInWeek(cardId: string): void;
+  /** 撤销这次改动 for the card's turn (shown while its `undo` is available). */
+  onUndo(cardId: string): void;
+  reader: ReaderView | null;
+  /** 上一个 / 下一个 term of the same course while a 术语 page is open; null otherwise. */
+  readerNav: ReaderNav | null;
+  onCloseReader(): void;
+}
+
+export interface ReaderNav {
+  /** 「离散术语 3 / 12」. */
+  position: string;
+  onPrev: (() => void) | null;
+  onNext: (() => void) | null;
+}
+
+/** The latest 总控 answer's schedule changes on the panel: banner lines and grid marks. */
+export interface PlanChangesView {
+  lines: string[];
+  marks: PlanMarks;
+  onDismiss(): void;
+  onShowAnswer(): void;
+  /** null when the turn committed nothing undoable. */
+  undo: UndoState | null;
+  onUndo(): void;
 }
 
 export interface CourseIntroCardProps {
@@ -807,6 +877,12 @@ export interface ControlPanelProps {
   onBackToToday(): void;
   /** Open the 新卡片 dialog (the cards tool: deck table and the new-card form). */
   onOpenCards(): void;
+  /** 术语: recent lessons' concept pages (null while loading, "failed" on an error). */
+  terms: TermLessonView[] | null | "failed";
+  /** Open a 术语's page in the reader. */
+  onOpenTerm(path: string, title: string): void;
+  /** What the latest 总控 answer moved, until 「知道了」; null when nothing. */
+  changes: PlanChangesView | null;
 }
 
 /** The 总控 今日卡 above the 总控 session's transcript. */

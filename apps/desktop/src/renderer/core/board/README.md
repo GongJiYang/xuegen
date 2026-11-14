@@ -28,10 +28,13 @@
 | `progress-groups.ts` | 把科目骨架（subjects.list）和课程列表组合成总进度的主项 / 路线外 / 已学专题，并给课程打记号（纯函数）。 |
 | `use-subjects.ts` | 读当天的 subjects.list。 |
 | `default-style.ts` | `defaultStyleLabel` 纯函数：活动课程的科目页写了默认风格时「默认」单选显示「默认 · X」。 |
-| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 书房行 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）；「没学」用 `mergeOverdue` 一门课一行。 |
+| `control-card.ts` | `controlCard` 纯函数：周期日 + 日历讲后读 + 书房行 + 阅读队列 → 总控今日卡的行（本地数据，不调模型）；「没学」用 `mergeOverdue` 一门课一行。按三组抽成 `lessonGroup` / `readGroup` / `reviewRows`，只负责拼行；`afterReadTitle` 与 `control-card-pending.ts` 的名字在此再导出。 |
+| `control-card-rows.ts` | 今日卡的阅读行：讲后读标题解析与「课后读」行（`afterReadEntry`、`afterReadTitle`）、`readingDue`、书房行（`bookRow`、`shelfRows`）。 |
+| `control-card-pending.ts` | 今日卡的行后处理：「读完了」/「读完这段」的十秒撤销窗口（`withPendingRead`、`withPendingShelf`）、`withExtractCount` 摘句计数、`parsePageInput` 页码解析。 |
 | `consistency-fixture.ts` / `consistency.test.ts` | 跨处一致性夹具与测试：同一天的数据（`CycleDay` / `CycleMonth` / `CycleOverview` / `AnkiStatus` / `ShelfToday` / 日历月）同时喂给今日卡、右侧今天面板、总进度、日历当天详情的视图函数，断言完成状态、Anki 张数、讲后读文字、带读叫法四处一致（`CHECK-PROCESS-1111.md` 第 2 项）。 |
 | `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `course.afterRead` 后刷新课程与日历；「读完这段」（10 秒可撤销）写 `shelf.done`；摘几句写 `shelf.extract`。 |
-| `planbook.ts` | 周计划本（PLANBOOK-1111）纯函数：`buildWeek` / `buildDay` / `buildMonth`——把周期课次、日历讲后读、书房 schedule、Anki 张数合成日 / 周 / 月视图模型（lane / mark / short / goals / overdue / reviewDate）。 |
+| `planbook.ts` | 周计划本（PLANBOOK-1111）纯函数：`buildWeek` / `buildDay` / `buildMonth`——把周期课次、日历讲后读、书房 schedule、Anki 张数合成日 / 周 / 月视图模型（lane / mark / short / goals / overdue / reviewDate）；逐日格子的条目函数在 `planbook-items.ts`。 |
+| `planbook-items.ts` | 计划本的逐日条目：`markOf`、`lessonItems`、`afterReadItems`、`selfItemsByDate`、`verifyItems`、`mainCourseSlugs`、`weekGoals`、`missedLessons`（纯函数，`planbook.ts` 的 `planDay` 用）。 |
 | `planbook-range.ts` | 计划本的日历计算：`planWeekRange`（周期周，C1 周五起；出周期退回周一–周日）/ `addDays` / `weekdayOf` / `mondayIndex` / `slotOf`，供 `planbook.ts` 与 `planbook-nav.ts` 复用（`planbook.ts` 原样再导出）。 |
 | `planbook-nav.ts` | 排程本翻页与标题纯函数：`PlanView` / `shiftAnchor`（日 ±1、周 ±7、月到上/下月 1 日）/ `rangeLabel`（「11-11 周三」「C1 W1 · 11-06 – 11-12」「2026 年 11 月」）/ `isTodayInView`（「今天」按钮置灰）。 |
 | `use-planbook.ts` | `usePlanbook(view, anchor, enabled)`：按视图拉 `cycle.month`（一或两个月）、`calendar.month`、带 `from`/`to` 的 `shelf.list`、`cycle.overview`、`courses.list`、`anki.status`，组装 `PlanbookInput` 调 `planbook.ts`；`enabled` false 不发请求。 |

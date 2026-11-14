@@ -13,7 +13,9 @@ function day(date: string): PlanDay {
     weekday: "周三",
     type: "深度",
     isToday: date === TODAY,
-    items: [{ lane: "main", text: "离散 D3 · Ch2 有效论证", short: "离散 D3", mark: "now", slug: "dm", id: "D3" }],
+    items: [
+      { lane: "main", text: "离散 D3 · Ch2 有效论证", short: "离散 D3", mark: "now", slug: "dm", id: "D3" },
+    ],
     ankiDue: null,
   };
 }
@@ -31,7 +33,9 @@ function week(): PlanWeek {
   };
 }
 
-function plan(overrides: Partial<ControlPlan["plan"]> & { data: ControlPlan["plan"]["data"] }): ControlPlan["plan"] {
+function plan(
+  overrides: Partial<ControlPlan["plan"]> & { data: ControlPlan["plan"]["data"] },
+): ControlPlan["plan"] {
   return {
     view: "day",
     anchor: TODAY,
@@ -42,6 +46,8 @@ function plan(overrides: Partial<ControlPlan["plan"]> & { data: ControlPlan["pla
     todayDisabled: true,
     label: "11-11 周三",
     openDay: vi.fn(),
+    showWeek: vi.fn(),
+    reload: vi.fn(),
     ...overrides,
   };
 }

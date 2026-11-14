@@ -122,6 +122,14 @@ export function Gallery({
 }: GalleryProps) {
   const shellProps: ShellProps = {
     children: null,
+    tabs: {
+      items: [
+        { key: "control", label: "总控 · C1", active: false, busy: false },
+        { key: "course:discrete-math-epp", label: "离散 D4", active: true, busy: true },
+        { key: "course:ctm", label: "CTM D1", active: false, busy: false },
+      ],
+      onPick: () => undefined,
+    },
     sessionTitle: "CTM 7 周学习计划",
     control: null,
     contextUsage: contextUsageView({ tokens: 52_000, contextWindow: 128_000, percent: 40.6 }, false, () => {}),

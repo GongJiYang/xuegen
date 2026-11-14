@@ -3,18 +3,19 @@ import { describe, expect, it } from "vitest";
 import { strings } from "./strings.js";
 
 describe("strings.planbook.lanePrefix", () => {
-  it("讲后读 / 带读 / 自读 带行名，主项课不带", () => {
+  it("课后读 / 导读课 / 自读 带行名，主课不带", () => {
     expect(strings.planbook.lanePrefix("main")).toBe("");
-    expect(strings.planbook.lanePrefix("after")).toBe("讲后读 · ");
-    expect(strings.planbook.lanePrefix("guide")).toBe("带读 · ");
+    expect(strings.planbook.lanePrefix("after")).toBe("课后读 · ");
+    expect(strings.planbook.lanePrefix("guide")).toBe("导读课 · ");
     expect(strings.planbook.lanePrefix("self")).toBe("自读 · ");
   });
 });
 
 describe("strings.planbook.ankiToday", () => {
-  it("今天的 Anki 格只写日期和张数（设计稿「今天 42 张」）", () => {
-    expect(strings.planbook.ankiToday(42)).toBe("今天 42 张");
-    expect(strings.planbook.ankiToday(0)).toBe("今天 0 张");
+  it("今天的 Anki 格只写张数，后面跟「打开 →」（面板 v2「42 张 · 打开 →」）", () => {
+    expect(strings.planbook.ankiToday(42)).toBe("42 张 ·");
+    expect(strings.planbook.ankiToday(0)).toBe("0 张 ·");
+    expect(strings.planbook.ankiOpen).toBe("打开 →");
   });
 });
 

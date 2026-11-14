@@ -2,10 +2,20 @@
 // Exercises the data channel end to end by pointing XUEGEN_HOME at a temporary
 // wiki.json and vault, then invoking the same handler the IPC layer calls.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { handleDataRequest, withToday } from "./handler.js";
+
+const hasJj = (() => {
+  try {
+    execFileSync("jj", ["--version"], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 describe("withToday", () => {
   it("appends --today for a pinned day", () => {
@@ -90,6 +100,63 @@ describe("handleDataRequest", () => {
       expect(data[0]?.slug).toBe("demo");
       expect(data[0]?.title).toBe("Demo");
     }
+  });
+
+  it("terms.list returns the concept links stored in course records", async () => {
+    touch(
+      join(vault, "wiki", "courses", "demo.md"),
+      [
+        "<!-- xuegen:course-state -->",
+        "",
+        "# Demo",
+        "",
+        "## Learning Record",
+        "",
+        "### 2026-10-21-01（收课：D1 · 第一章）",
+        "",
+        "完成：D1",
+        "",
+        "- 存库：新建 1 个概念页 [[knowledge/concepts/demo/010-alpha|甲页]]",
+        "",
+      ].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "knowledge", "concepts", "demo", "010-alpha.md"),
+      ["# 甲概念", "", "## Definition", "", "甲的定义。", ""].join("\n"),
+    );
+    const result = await handleDataRequest({ kind: "terms.list", since: "2026-10-01" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual([
+        {
+          course: "demo",
+          courseTitle: "Demo",
+          date: "2026-10-21",
+          lesson: "D1",
+          terms: [
+            {
+              title: "甲页",
+              path: join(vault, "wiki", "knowledge", "concepts", "demo", "010-alpha.md"),
+              definition: "甲的定义",
+              exists: true,
+            },
+          ],
+        },
+      ]);
+    }
+    // A later --since proves the flag reaches the script: the group is filtered out.
+    const later = await handleDataRequest({ kind: "terms.list", since: "2026-11-01" });
+    expect(later).toEqual({ ok: true, data: [] });
+  });
+
+  it("terms.list returns vault-missing when wiki.json is absent", async () => {
+    rmSync(join(home, "wiki.json"));
+    const result = await handleDataRequest({ kind: "terms.list" });
+    expect(result).toEqual({
+      ok: false,
+      code: "vault-missing",
+      error: expect.stringContaining("未配置知识库"),
+    });
   });
 
   it("calendar.month aggregates the course record", async () => {
@@ -334,6 +401,93 @@ describe("handleDataRequest", () => {
       code: "vault-missing",
       error: expect.stringContaining("未配置知识库"),
     });
+  });
+
+  it("wiki.read returns vault-missing when wiki.json is absent", async () => {
+    rmSync(join(home, "wiki.json"));
+    const result = await handleDataRequest({
+      kind: "wiki.read",
+      path: join(vault, "wiki", "knowledge", "a.md"),
+    });
+    expect(result).toEqual({
+      ok: false,
+      code: "vault-missing",
+      error: expect.stringContaining("未配置知识库"),
+    });
+  });
+
+  it("plan.undoable and plan.undo return vault-missing when wiki.json is absent", async () => {
+    rmSync(join(home, "wiki.json"));
+    const missing = {
+      ok: false,
+      code: "vault-missing",
+      error: expect.stringContaining("未配置知识库"),
+    };
+    expect(await handleDataRequest({ kind: "plan.undoable", since: "2026-11-14T16:00:00+08:00" })).toEqual(
+      missing,
+    );
+    expect(await handleDataRequest({ kind: "plan.undo", since: "2026-11-14T16:00:00+08:00" })).toEqual(
+      missing,
+    );
+  });
+
+  it("plan.undoable passes the vault and --since through to plan-undo.mjs list", async () => {
+    // The vault here is not a jj repo, so a valid --since reaches the script's
+    // jj check; a malformed one fails earlier inside the script itself — both
+    // prove the arguments arrive.
+    const badSince = await handleDataRequest({ kind: "plan.undoable", since: "不是时间" });
+    expect(badSince.ok).toBe(false);
+    if (!badSince.ok) {
+      expect(badSince.code).toBe("script-failed");
+      expect(badSince.error).toContain("--since 不是合法的 ISO 时间：不是时间");
+    }
+    const notJj = await handleDataRequest({ kind: "plan.undoable", since: "2026-11-14T16:00:00+08:00" });
+    expect(notJj.ok).toBe(false);
+    if (!notJj.ok) expect(notJj.error).toContain("撤销需要库在 jj 下");
+  });
+
+  it("plan.undo passes --since and resolveWorkspace() as --workspace to the script", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "xuegen-data-ws-"));
+    const previous = process.env.XUEGEN_DESKTOP_CWD;
+    process.env.XUEGEN_DESKTOP_CWD = workspace;
+    try {
+      // A corrupt journal proves the workspace reached recoverInternal (the
+      // script would otherwise read the real ~/learning workspace).
+      mkdirSync(join(workspace, ".close"), { recursive: true });
+      writeFileSync(join(workspace, ".close", "journal.json"), "{broken", "utf8");
+      const journal = await handleDataRequest({ kind: "plan.undo", since: "2026-11-14T16:00:00+08:00" });
+      expect(journal.ok).toBe(false);
+      if (!journal.ok) expect(journal.error).toContain("收课提交日志损坏");
+      rmSync(join(workspace, ".close"), { recursive: true });
+      const badSince = await handleDataRequest({ kind: "plan.undo", since: "不是时间" });
+      expect(badSince.ok).toBe(false);
+      if (!badSince.ok) expect(badSince.error).toContain("--since 不是合法的 ISO 时间：不是时间");
+      const notJj = await handleDataRequest({ kind: "plan.undo", since: "2026-11-14T16:00:00+08:00" });
+      expect(notJj.ok).toBe(false);
+      if (!notJj.ok) expect(notJj.error).toContain("撤销需要库在 jj 下");
+    } finally {
+      if (previous === undefined) delete process.env.XUEGEN_DESKTOP_CWD;
+      else process.env.XUEGEN_DESKTOP_CWD = previous;
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(hasJj)("plan.undoable/plan.undo run end to end on a jj vault", async () => {
+    execFileSync("jj", ["git", "init"], { cwd: vault, stdio: "pipe" });
+    const undoable = await handleDataRequest({ kind: "plan.undoable", since: "2026-11-14T16:00:00+08:00" });
+    expect(undoable).toEqual({ ok: true, data: [] });
+    const workspace = mkdtempSync(join(tmpdir(), "xuegen-data-ws-"));
+    const previous = process.env.XUEGEN_DESKTOP_CWD;
+    process.env.XUEGEN_DESKTOP_CWD = workspace;
+    try {
+      const undo = await handleDataRequest({ kind: "plan.undo", since: "2026-11-14T16:00:00+08:00" });
+      expect(undo.ok).toBe(false);
+      if (!undo.ok) expect(undo.error).toContain("这一轮没有提交过计划改动");
+    } finally {
+      if (previous === undefined) delete process.env.XUEGEN_DESKTOP_CWD;
+      else process.env.XUEGEN_DESKTOP_CWD = previous;
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   it("anki.status reports not running when Anki is unreachable", async () => {

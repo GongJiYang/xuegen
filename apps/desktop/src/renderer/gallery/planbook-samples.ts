@@ -145,7 +145,7 @@ export const SAMPLE_PLANBOOK_DAY_TODAY: PlanbookProps = {
   state: "ready",
   day: SAMPLE_PLAN_DAY_TODAY,
   todayDisabled: true,
-  tomorrow: "明天：周四 · 主攻日 · CTM D1 + 带读 数据结构",
+  tomorrow: "明天：周四 · 主攻日 · CTM D1 + 导读课 数据结构",
 };
 
 export const SAMPLE_PLANBOOK_DAY_OTHER: PlanbookProps = {

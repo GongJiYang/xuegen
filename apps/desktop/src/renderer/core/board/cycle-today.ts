@@ -87,8 +87,17 @@ export function tomorrowLine(day: CycleDay): string | null {
   if (day.type === null) return null;
   const lesson = day.lessons.find((item) => day.roles[item.course] !== "aux");
   const auxLesson = day.lessons.find((item) => day.roles[item.course] === "aux");
-  const aux = auxLesson ? cycleName(day, auxLesson.course) : day.aux ? (day.subjects[day.aux] ?? day.aux) : null;
-  return strings.cycle.tomorrow(day.weekday, day.type, lesson ? `${cycleName(day, lesson.course)} ${lesson.id}` : null, aux);
+  const aux = auxLesson
+    ? cycleName(day, auxLesson.course)
+    : day.aux
+      ? (day.subjects[day.aux] ?? day.aux)
+      : null;
+  return strings.cycle.tomorrow(
+    day.weekday,
+    day.type,
+    lesson ? `${cycleName(day, lesson.course)} ${lesson.id}` : null,
+    aux,
+  );
 }
 
 /**
@@ -110,7 +119,12 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
     ? {
         kind: "lesson",
         // `done` rides along so the window can show ✓ + 「回到这节课 →」.
-        lesson: { course: lesson.course, id: lesson.id, content: lesson.content, ...(lesson.done === true ? { done: true } : {}) },
+        lesson: {
+          course: lesson.course,
+          id: lesson.id,
+          content: lesson.content,
+          ...(lesson.done === true ? { done: true } : {}),
+        },
         name: cycleName(day, lesson.course),
         carriedFrom: carried ? carried.date : null,
       }
@@ -156,10 +170,14 @@ export function cycleTodayView(day: CycleDay, tomorrow: CycleDay | null): CycleT
 
 /** The 整合 day's rows: each cycle course's 本周 done/total, in template order. */
 export function weekChecks(day: CycleDay, courses: CourseSummary[]): WeekCheck[] {
-  return Object.keys(day.names).filter((slug) => day.roles[slug] !== "aux").flatMap((slug) => {
-    const course = courses.find((item) => item.slug === slug);
-    return course ? [{ slug, name: cycleName(day, slug), done: course.week.done, total: course.week.total }] : [];
-  });
+  return Object.keys(day.names)
+    .filter((slug) => day.roles[slug] !== "aux")
+    .flatMap((slug) => {
+      const course = courses.find((item) => item.slug === slug);
+      return course
+        ? [{ slug, name: cycleName(day, slug), done: course.week.done, total: course.week.total }]
+        : [];
+    });
 }
 
 /** Cards due in Anki today, or null when Anki is not running. */

@@ -84,7 +84,7 @@ export function useBoardResource<T>(loader: Loader<T>, deps: readonly unknown[])
   }, deps);
 
   const mutate = useCallback(
-    async <R,>(write: () => Promise<LoadResult<R>>): Promise<LoadResult<R>> => {
+    async <R>(write: () => Promise<LoadResult<R>>): Promise<LoadResult<R>> => {
       const result = await write();
       if (result.ok) load();
       return result;

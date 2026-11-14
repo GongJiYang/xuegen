@@ -19,6 +19,7 @@ describe("useSettings", () => {
       disabledSkills: [],
       courseSessions: {},
       courseStartedOn: {},
+      verifiedOn: {},
       controlSessions: {},
       controlBriefOn: {},
     });
@@ -33,6 +34,7 @@ describe("useSettings", () => {
       disabledSkills: [],
       courseSessions: {},
       courseStartedOn: {},
+      verifiedOn: {},
       controlSessions: {},
       controlBriefOn: {},
     });

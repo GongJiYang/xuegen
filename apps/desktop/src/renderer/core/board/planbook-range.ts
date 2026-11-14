@@ -55,9 +55,7 @@ export interface PlanWeekRange {
 export function planWeekRange(cycleMonths: CycleMonth[], anchor: string): PlanWeekRange {
   const slot = slotOf(cycleMonths, anchor);
   if (slot !== null) {
-    const cycle = cycleMonths
-      .flatMap((month) => month.cycles)
-      .find((bounds) => bounds.cycle === slot.cycle);
+    const cycle = cycleMonths.flatMap((month) => month.cycles).find((bounds) => bounds.cycle === slot.cycle);
     if (cycle !== undefined) {
       const start = addDays(cycle.start, (slot.week - 1) * 7);
       return { start, end: addDays(start, 6), cycle: slot.cycle, week: slot.week };

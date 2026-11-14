@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { checkpointPhase, needsRefresh, sessionDay, staleCourseSession, startsFresh } from "./session-freshness.js";
+import {
+  checkpointPhase,
+  needsRefresh,
+  sessionDay,
+  staleCourseSession,
+  startsFresh,
+} from "./session-freshness.js";
 
 /** The session-file stamp for a local day at local noon, in the file-name format. */
 function stampFor(localDay: string): string {

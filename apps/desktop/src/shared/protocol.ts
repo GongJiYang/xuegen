@@ -299,6 +299,12 @@ export interface DesktopSettings {
    * opening message; one not yet opened today starts the day's lesson.
    */
   courseStartedOn: Record<string, string>;
+  /**
+   * The day each course last had its 周核实 started (slug → YYYY-MM-DD).
+   * The 今日卡 shows a verified course's row as done (「回到核实 →」), and
+   * a second click only switches back.
+   */
+  verifiedOn: Record<string, string>;
   /** The 总控 session file of each study cycle, keyed by cycle id (`C1`). */
   controlSessions: Record<string, string>;
   /** The local day (`YYYY-MM-DD`) the 总控 brief was last asked for, keyed by cycle id. */
@@ -368,6 +374,7 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   disabledSkills: [],
   courseSessions: {},
   courseStartedOn: {},
+  verifiedOn: {},
   controlSessions: {},
   controlBriefOn: {},
 };
@@ -569,6 +576,7 @@ export function normalizeDesktopSettings(value: unknown): DesktopSettings {
     disabledSkills: normalizeDisabledSkills(record.disabledSkills),
     courseSessions: normalizeCourseSessions(record.courseSessions),
     courseStartedOn: normalizeCourseStartedOn(record.courseStartedOn),
+    verifiedOn: normalizeCourseStartedOn(record.verifiedOn),
     controlSessions: normalizeCourseSessions(record.controlSessions),
     controlBriefOn: normalizeCourseStartedOn(record.controlBriefOn),
   };

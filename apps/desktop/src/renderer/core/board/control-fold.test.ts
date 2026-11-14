@@ -16,7 +16,11 @@ const NOTE_AT_5: ThreadNote = { beforeIndex: 5, text: "note" };
 
 describe("foldEarlier", () => {
   it("leaves a transcript of only today's messages untouched", () => {
-    const messages = [message("a", "2026-11-08T09:00:00Z"), message("b", "2026-11-08T10:00:00Z"), message("c")];
+    const messages = [
+      message("a", "2026-11-08T09:00:00Z"),
+      message("b", "2026-11-08T10:00:00Z"),
+      message("c"),
+    ];
     const systemNotes = [NOTE_AT_2];
     expect(foldEarlier({ messages, systemNotes, today: TODAY, localDay, open: false })).toEqual({
       messages,

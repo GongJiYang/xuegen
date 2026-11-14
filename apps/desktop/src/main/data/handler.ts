@@ -17,7 +17,9 @@ import { ankiUrlOverride, fetchAnkiStatus } from "./anki.js";
 import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
 import { listReadingSources } from "./sources.js";
 import { listSessions } from "./sessions.js";
-import { resolveHome } from "../../agent/environment.js";
+import { readWikiPage } from "./wiki-page.js";
+import { planCommitsOf, planUndoResultOf } from "./plan-undo.js";
+import { resolveHome, resolveWorkspace } from "../../agent/environment.js";
 import { todayOverride } from "../today.js";
 
 /**
@@ -163,6 +165,13 @@ async function handleScriptRequest(
       }
       return { ok: true, data: { label: request.label, reading, book } };
     }
+    case "terms.list":
+      return runScript("course/course-terms.mjs", [
+        "list",
+        vault.vault,
+        "--json",
+        ...(request.since ? ["--since", request.since] : []),
+      ]);
     case "reading.today":
       return runScript("reading/reading-queue.mjs", withToday([
         "today",
@@ -294,6 +303,32 @@ async function handleScriptRequest(
       return runScript("cycle-plan/cycle.mjs", ["overview", vault.vault, "--date", request.date, "--json"]);
     case "subjects.list":
       return runScript("cycle-plan/subjects.mjs", ["list", vault.vault, "--date", request.date, "--json"]);
+    case "plan.undoable": {
+      const result = await runScript("course/plan-undo.mjs", [
+        "list",
+        vault.vault,
+        "--since",
+        request.since,
+        "--json",
+      ]);
+      if (!result.ok) return result;
+      return { ok: true, data: planCommitsOf(result.data) };
+    }
+    case "plan.undo": {
+      const result = await runScript("course/plan-undo.mjs", [
+        "undo",
+        vault.vault,
+        "--since",
+        request.since,
+        "--workspace",
+        resolveWorkspace(),
+        "--json",
+      ]);
+      if (!result.ok) return result;
+      return { ok: true, data: planUndoResultOf(result.data) };
+    }
+    case "wiki.read":
+      return readWikiPage(vault.vault, request.path);
     default:
       return assertNever(request);
   }

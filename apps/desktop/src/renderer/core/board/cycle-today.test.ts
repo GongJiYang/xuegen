@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { CourseSummary, CycleDay } from "@shared/data-protocol.js";
-import { ankiDueCount, cycleHeadline, cycleTodayView, mergeOverdue, tomorrowLine, weekChecks } from "./cycle-today.js";
+import {
+  ankiDueCount,
+  cycleHeadline,
+  cycleTodayView,
+  mergeOverdue,
+  tomorrowLine,
+  weekChecks,
+} from "./cycle-today.js";
 
 const NAMES = { epp: "离散", ctm: "CTM" };
 const D2 = { course: "epp", id: "D2", content: "真值表" };
@@ -43,11 +50,19 @@ describe("cycleHeadline", () => {
     expect(cycleHeadline(day({}))).toBe("第 1 周 · 周一 · 主攻日");
   });
   it("marks an extra lesson on a non-深度 day", () => {
-    const friday = day({ weekday: "周五", type: "整合", subject: null, course: null, lessons: [{ course: "epp", id: "D1", content: "Ch1" }] });
+    const friday = day({
+      weekday: "周五",
+      type: "整合",
+      subject: null,
+      course: null,
+      lessons: [{ course: "epp", id: "D1", content: "Ch1" }],
+    });
     expect(cycleHeadline(friday)).toBe("第 1 周 · 周五 · 整合日（加课）");
   });
   it("is null outside every cycle", () => {
-    expect(cycleHeadline(day({ cycle: null, week: null, type: null, subject: null, course: null }))).toBeNull();
+    expect(
+      cycleHeadline(day({ cycle: null, week: null, type: null, subject: null, course: null })),
+    ).toBeNull();
   });
 });
 
@@ -66,7 +81,12 @@ describe("cycleTodayView", () => {
       name: "离散",
       carriedFrom: null,
     });
-    expect(cycleTodayView(day({ lessons: [D2] }), null)?.focus).toEqual({ kind: "lesson", lesson: D2, name: "离散", carriedFrom: null });
+    expect(cycleTodayView(day({ lessons: [D2] }), null)?.focus).toEqual({
+      kind: "lesson",
+      lesson: D2,
+      name: "离散",
+      carriedFrom: null,
+    });
   });
   it("carries the aux lesson's done flag too, so the 带读 row can show ✓", () => {
     const monday = day({
@@ -143,19 +163,33 @@ describe("cycleTodayView", () => {
     ]);
   });
   it("uses verify / light / rest when a day has no lesson", () => {
-    expect(cycleTodayView(day({ type: "整合", subject: null, course: null }), null)?.focus).toEqual({ kind: "verify" });
-    expect(cycleTodayView(day({ type: "低强度", subject: null, course: null }), null)?.focus).toEqual({ kind: "light" });
+    expect(cycleTodayView(day({ type: "整合", subject: null, course: null }), null)?.focus).toEqual({
+      kind: "verify",
+    });
+    expect(cycleTodayView(day({ type: "低强度", subject: null, course: null }), null)?.focus).toEqual({
+      kind: "light",
+    });
     const rest = cycleTodayView(day({ type: "休息", subject: null, course: null }), null);
     expect(rest?.focus).toEqual({ kind: "rest" });
     expect(rest?.showAnki).toBe(false);
   });
   it("adds tomorrow's line", () => {
-    const tomorrow = day({ date: "2026-11-10", weekday: "周二", subject: "programming-paradigms", course: "ctm", lessons: [{ course: "ctm", id: "D1", content: "阶梯" }] });
+    const tomorrow = day({
+      date: "2026-11-10",
+      weekday: "周二",
+      subject: "programming-paradigms",
+      course: "ctm",
+      lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
+    });
     expect(cycleTodayView(day({}), tomorrow)?.tomorrow).toBe("明天：周二 · 主攻日 · CTM D1");
-    expect(tomorrowLine(day({ weekday: "周六", type: "低强度", subject: null, course: null }))).toBe("明天：周六 · 低强度日");
+    expect(tomorrowLine(day({ weekday: "周六", type: "低强度", subject: null, course: null }))).toBe(
+      "明天：周六 · 低强度日",
+    );
   });
   it("is null outside every cycle", () => {
-    expect(cycleTodayView(day({ cycle: null, week: null, type: null, subject: null, course: null }), null)).toBeNull();
+    expect(
+      cycleTodayView(day({ cycle: null, week: null, type: null, subject: null, course: null }), null),
+    ).toBeNull();
   });
 });
 
@@ -181,13 +215,27 @@ describe("mergeOverdue", () => {
 
 describe("weekChecks and ankiDueCount", () => {
   it("lists each cycle course's 本周 count in template order", () => {
-    expect(weekChecks(day({ type: "整合", subject: null }), [course("ctm", 1, 3), course("epp", 2, 3), course("other", 0, 1)])).toEqual([
+    expect(
+      weekChecks(day({ type: "整合", subject: null }), [
+        course("ctm", 1, 3),
+        course("epp", 2, 3),
+        course("other", 0, 1),
+      ]),
+    ).toEqual([
       { slug: "epp", name: "离散", done: 2, total: 3 },
       { slug: "ctm", name: "CTM", done: 1, total: 3 },
     ]);
   });
   it("sums the due decks, null when Anki is closed", () => {
-    expect(ankiDueCount({ running: true, due: [{ deck: "A", count: 30 }, { deck: "B", count: 7 }] })).toBe(37);
+    expect(
+      ankiDueCount({
+        running: true,
+        due: [
+          { deck: "A", count: 30 },
+          { deck: "B", count: 7 },
+        ],
+      }),
+    ).toBe(37);
     expect(ankiDueCount({ running: true })).toBe(0);
     expect(ankiDueCount({ running: false })).toBeNull();
   });
@@ -211,7 +259,9 @@ describe("aux lessons", () => {
     expect(view?.focus).toMatchObject({ kind: "lesson", lesson: { course: "discrete-math-epp" } });
     expect(view?.aux?.lesson.id).toBe("D1");
     expect(view?.missed.map((item) => item.name)).not.toContain("Effective C");
-    expect(weekChecks(monday, [course("effc", 1, 3), course("discrete-math-epp", 2, 3)]).map((item) => item.slug)).toEqual(["discrete-math-epp"]);
+    expect(
+      weekChecks(monday, [course("effc", 1, 3), course("discrete-math-epp", 2, 3)]).map((item) => item.slug),
+    ).toEqual(["discrete-math-epp"]);
   });
   it("names the aux subject in the tomorrow line", () => {
     const tuesday = day({
@@ -224,6 +274,6 @@ describe("aux lessons", () => {
       lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
       roles: { epp: "main", ctm: "main" },
     });
-    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 带读 数据结构");
+    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 导读课 数据结构");
   });
 });

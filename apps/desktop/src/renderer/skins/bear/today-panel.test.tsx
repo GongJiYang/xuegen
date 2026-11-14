@@ -78,7 +78,11 @@ describe("Bear 今天 panel", () => {
 
   it("leads a cycle day with the carried lesson, the missed lesson and the Anki row", async () => {
     const onStudyCourse = vi.fn();
-    render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: SAMPLE_CYCLE_DAY }, onStudyCourse })} />);
+    render(
+      <TodayPanel
+        {...baseProps({ cycleToday: { status: "ready", value: SAMPLE_CYCLE_DAY }, onStudyCourse })}
+      />,
+    );
     expect(screen.getByText("第 1 周 · 周三 · 主攻日")).toBeTruthy();
     expect(screen.getByText("离散 D2")).toBeTruthy();
     expect(screen.getByText(strings.cycle.carried("2026-11-09"))).toBeTruthy();
@@ -129,7 +133,9 @@ describe("Bear 今天 panel", () => {
     const onStudyCourse = vi.fn();
     const done = {
       ...SAMPLE_CYCLE_DAY,
-      lessons: [{ course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误", done: true }],
+      lessons: [
+        { course: "discrete-math-epp", id: "D3", content: "Ch2 §2.3：有效论证、推理规则、谬误", done: true },
+      ],
       overdue: [],
     };
     render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: done }, onStudyCourse })} />);
@@ -162,7 +168,11 @@ describe("Bear 今天 panel", () => {
 
   it("opens 总控 from the cycle view", async () => {
     const onOpenControl = vi.fn();
-    render(<TodayPanel {...baseProps({ cycleToday: { status: "ready", value: SAMPLE_CYCLE_DAY }, onOpenControl })} />);
+    render(
+      <TodayPanel
+        {...baseProps({ cycleToday: { status: "ready", value: SAMPLE_CYCLE_DAY }, onOpenControl })}
+      />,
+    );
     await userEvent.click(screen.getByRole("button", { name: strings.control.open }));
     expect(onOpenControl).toHaveBeenCalledTimes(1);
   });

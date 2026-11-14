@@ -4,7 +4,16 @@ import type { AsyncState } from "./state.js";
 import { defaultStyleLabel } from "./default-style.js";
 
 function subject(partial: Partial<SubjectInfo> & { slug: string }): SubjectInfo {
-  return { title: partial.slug, layer: "", route: "", main: false, courses: [], materials: [], defaultStyle: null, ...partial };
+  return {
+    title: partial.slug,
+    layer: "",
+    route: "",
+    main: false,
+    courses: [],
+    materials: [],
+    defaultStyle: null,
+    ...partial,
+  };
 }
 
 function ready(subjects: SubjectInfo[]): AsyncState<SubjectsOverview> {
@@ -13,7 +22,9 @@ function ready(subjects: SubjectInfo[]): AsyncState<SubjectsOverview> {
 
 describe("defaultStyleLabel", () => {
   it("is 「默认」 with no active course", () => {
-    expect(defaultStyleLabel(ready([subject({ slug: "dm", courses: ["epp"], defaultStyle: "detailed" })]), null)).toBe("默认");
+    expect(
+      defaultStyleLabel(ready([subject({ slug: "dm", courses: ["epp"], defaultStyle: "detailed" })]), null),
+    ).toBe("默认");
   });
 
   it("names the subject's default style for an active course", () => {

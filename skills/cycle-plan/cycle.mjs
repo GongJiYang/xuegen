@@ -636,7 +636,7 @@ function usage() {
     "  node cycle.mjs overview <vault> [--date YYYY-MM-DD] [--json]",
     "  node cycle.mjs check <vault> [--json]",
     "",
-    "  周期页与 route.md 的日期是计划日期；day / week / month / overview 输出的是按主项课顺延推算的实际日期。",
+    "  周期页与 route.md 的日期是计划日期；day / week / month / overview 输出的是按主课顺延推算的实际日期。",
   ].join("\n");
 }
 

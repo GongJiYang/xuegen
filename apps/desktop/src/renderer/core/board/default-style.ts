@@ -12,7 +12,10 @@ import { strings } from "../strings.js";
 import type { AsyncState } from "./state.js";
 
 /** 「默认 · 细讲」 for a course whose subject page names a default style, else 「默认」. */
-export function defaultStyleLabel(subjects: AsyncState<SubjectsOverview>, activeCourse: string | null): string {
+export function defaultStyleLabel(
+  subjects: AsyncState<SubjectsOverview>,
+  activeCourse: string | null,
+): string {
   if (!activeCourse || subjects.status !== "ready") return strings.data.styles.default;
   const subject = subjects.value.subjects.find((item) => item.courses.includes(activeCourse));
   const style = subject?.defaultStyle ?? null;

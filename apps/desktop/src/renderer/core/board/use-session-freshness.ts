@@ -93,13 +93,26 @@ export function useSessionFreshness(
         : strings.chat.refreshNote
       : null;
     controller.setRefreshNote(note);
-  }, [controller, seenVersion, openSessionFile, activeCourse, isControl, course, controller.messages.length, controller.streaming]);
+  }, [
+    controller,
+    seenVersion,
+    openSessionFile,
+    activeCourse,
+    isControl,
+    course,
+    controller.messages.length,
+    controller.streaming,
+  ]);
 
   const [dismissed, setDismissed] = useState<string | null>(null);
   const stale = staleCourseSession(activeCourse, openSessionFile, settings.courseSessions, today, tz);
   const percent = controller.contextUsage?.percent ?? null;
   const phase = checkpointPhase(activeCourse, openSessionFile, percent, sentFor, doneFor);
-  const key = stale ? `stale:${openSessionFile}` : phase === "offer" || phase === "saved" ? `${phase}:${openSessionFile}` : null;
+  const key = stale
+    ? `stale:${openSessionFile}`
+    : phase === "offer" || phase === "saved"
+      ? `${phase}:${openSessionFile}`
+      : null;
   const dismiss = useCallback(() => setDismissed(key), [key]);
   const notice: NoticeItem | null =
     stale && course && dismissed !== key
@@ -129,7 +142,10 @@ export function useSessionFreshness(
                 run: () =>
                   onContinueFresh(
                     course.slug,
-                    withActionMarker(strings.chat.checkpointResume, "continue", { slug: course.slug, title: course.title }),
+                    withActionMarker(strings.chat.checkpointResume, "continue", {
+                      slug: course.slug,
+                      title: course.title,
+                    }),
                   ),
               },
             }

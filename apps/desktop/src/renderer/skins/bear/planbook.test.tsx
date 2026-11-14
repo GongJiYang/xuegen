@@ -134,7 +134,7 @@ describe("Bear Planbook", () => {
     expect(screen.queryByText(strings.planbook.dayCaption("2026-11-11", "周三", "深度"))).toBeNull();
   });
 
-  it("周视图：格子写短名（PANEL-PLAN 宽屏 1920），讲后读 / 带读 / 自读以行名开头，主项课不加；全文放在 title", () => {
+  it("周视图：格子写短名（PANEL-PLAN 宽屏 1920），课后读 / 导读课 / 自读以行名开头，主课不加；全文放在 title", () => {
     const week: PlanWeek = {
       ...WEEK,
       days: WEEK.days.map((entry) =>
@@ -152,15 +152,16 @@ describe("Bear Planbook", () => {
       ),
     };
     render(<Planbook {...props({ week })} />);
+    // 格子只写短名（行名在左边的 lane 头），全文在 title 上。
     expect(screen.getAllByTitle("CTM D1 · 概念阶梯")[0]?.textContent).toContain("CTM D1");
-    expect(screen.getByText("讲后读 · 离散 pp.…")).toBeTruthy();
-    expect(screen.getByText("带读 · 数据结构 D1")).toBeTruthy();
-    expect(screen.getByText("自读 · Epp pp.1–9").getAttribute("title")).toBe("Epp §1.1–1.4 pp.1–9");
+    expect(screen.getByText("离散 pp.…").getAttribute("title")).toBe("Epp pp.…（D3 课上定）");
+    expect(screen.getByText("数据结构 D1").getAttribute("title")).toBe("数据结构 D1 · §1.1–1.2");
+    expect(screen.getByText("Epp pp.1–9").getAttribute("title")).toBe("Epp §1.1–1.4 pp.1–9");
   });
 
-  it("周视图：今天只有主项课一行加粗（is-now），其它行是普通色", () => {
+  it("周视图：今天只有主课一行加粗（is-now），其它行是普通色", () => {
     const { container } = render(<Planbook {...props({})} />);
-    // 夹具里今天（11-11）是主项课 now + 带读 plan。今天 Anki 格在设计稿里也是
+    // 夹具里今天（11-11）是主课 now + 导读课 plan。今天 Anki 格在设计稿里也是
     // `.p2-it.is-now`，所以只看四道 lane 行（排除 Anki 行）。
     const bold = [...container.querySelectorAll(".bear-pb-lane-row:not(.is-anki) .bear-pb-it.is-now")].map(
       (node) => node.textContent,
@@ -168,11 +169,11 @@ describe("Bear Planbook", () => {
     expect(bold).toEqual([`●${strings.planbook.lanePrefix("main")}离散 D3`]);
   });
 
-  it("周视图：今天的 Anki 格写「今天 42 张」并带「打开 →」按钮", async () => {
+  it("周视图：今天的 Anki 格写「42 张 ·」并带「打开 →」按钮", async () => {
     const onOpenAnki = vi.fn();
     render(<Planbook {...props({ onOpenAnki })} />);
     expect(screen.getByText(strings.planbook.ankiToday(42))).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: strings.control.card.anki }));
+    await userEvent.click(screen.getByRole("button", { name: strings.planbook.ankiOpen }));
     expect(onOpenAnki).toHaveBeenCalledTimes(1);
   });
 
@@ -199,10 +200,10 @@ describe("Bear Planbook", () => {
       />,
     );
     expect(screen.getByText(strings.planbook.dayCaption("2026-11-12", "周四", "深度"))).toBeTruthy();
-    // 主项课不加前缀，其他三行加。
+    // 主课不加前缀，其他三行加（panel v2 的改名：课后读 / 导读课）。
     expect(screen.getByText("CTM D1")).toBeTruthy();
-    expect(screen.getByText("讲后读 · Ch1 §1.3 · CTM")).toBeTruthy();
-    expect(screen.getByText("带读 · 数据结构 D1")).toBeTruthy();
+    expect(screen.getByText("课后读 · Ch1 §1.3 · CTM")).toBeTruthy();
+    expect(screen.getByText("导读课 · 数据结构 D1")).toBeTruthy();
     expect(screen.getByText("自读 · Epp Ch1 pp.10–18")).toBeTruthy();
     expect(screen.getByText(strings.planbook.otherDayNote)).toBeTruthy();
     expect(screen.queryByTestId("today-card")).toBeNull();

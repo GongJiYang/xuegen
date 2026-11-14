@@ -167,6 +167,8 @@ function input(overrides: Partial<ControlPlanbookInput> = {}): ControlPlanbookIn
     studyCourse: vi.fn(),
     startSession: vi.fn(),
     openTool: vi.fn(),
+    setActiveCourse: vi.fn(),
+    verifiedOn: {},
     ...overrides,
   };
 }

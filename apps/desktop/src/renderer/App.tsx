@@ -31,6 +31,7 @@ import { isControlSession, useControlSession } from "./core/board/use-control-se
 import { useControlPlanbook } from "./core/board/use-control-planbook.js";
 import { useChatColumn } from "./core/board/use-chat-column.js";
 import { useSessionList } from "./core/board/use-session-list.js";
+import { useSessionTabs } from "./core/board/use-session-tabs.js";
 import { controlView } from "./core/board/bot-state.js";
 import { useShellPanels } from "./core/board/use-shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
@@ -171,6 +172,19 @@ export function App() {
     studyCourse,
     startSession: handleStartSession,
     openTool,
+    setActiveCourse,
+    verifiedOn: settings.verifiedOn,
+  });
+  const tabs = useSessionTabs({
+    controller,
+    settings,
+    control,
+    cycle,
+    cycleId,
+    sessionList,
+    courseTitles,
+    currentTitle: activeCourse ? (courseTitles[activeCourse] ?? activeCourse) : null,
+    setActiveCourse,
   });
   const chat = useChatColumn();
   const activity = useTurnActivity(controller.messages, controller.streaming, controller.thinking);
@@ -309,6 +323,7 @@ export function App() {
   const notices = [...(notice ? [notice] : []), ...controller.notices, ...(freshness.notice ? [freshness.notice] : [])];
 
   const shellProps: ShellProps = {
+    tabs,
     sessionTitle:
       control.isControl && cycleId
         ? // The planbook owns this session's left side, so the title says so:
@@ -332,7 +347,7 @@ export function App() {
           intro={intro}
           systemNotes={fold.systemNotes}
           activity={activity}
-          pin={pinBoard(controller.messages)}
+          pin={pinBoard(controller.messages)} feed={planbook.feed}
           renderMessage={(message, thinking) => (
             <MessageRenderer slots={skin.slots} content={skin.content} message={message} thinking={thinking} onRetry={controller.retry}
               onExerciseAnswer={handleExerciseAnswer} onExerciseHint={handleExerciseHint} onExerciseSkip={handleExerciseSkip} />

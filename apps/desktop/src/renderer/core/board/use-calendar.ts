@@ -73,7 +73,7 @@ export function monthGrid(month: string): CalendarCell[] {
   }
   while (cells.length % 7 !== 0) {
     const last = cells[cells.length - 1];
-    const next = new Date(`${(last?.date ?? `${month}-01`)}T00:00:00`);
+    const next = new Date(`${last?.date ?? `${month}-01`}T00:00:00`);
     next.setDate(next.getDate() + 1);
     cells.push({ date: dateKey(next), day: next.getDate(), out: true });
   }
