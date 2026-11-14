@@ -139,7 +139,7 @@ export function App() {
     handleStudy, handleContinueFresh, openIsControl);
   const agentReady = controller.agentStatus === "ready" && !controller.disabled;
   const control = useControlSession(controller, settings, update, cycleId, setActiveCourse,
-    () => setFocusRequest((value) => value + 1), agentReady);
+    () => setFocusRequest((value) => value + 1), agentReady, cycle.today.state.status === "loading");
   const studyCourse = (slug: string): void => {
     const course = courses.state.status === "ready" ? courses.state.value.find((item) => item.slug === slug) : undefined;
     if (course) handleStudy(course);
@@ -300,10 +300,10 @@ export function App() {
   const shellProps: ShellProps = {
     tabs,
     sessionTitle:
-      control.isControl && cycleId
+      control.cycle
         ? // The planbook owns this session's left side, so the title says so:
           // 「总控 · C1 · 计划本」 (design `plan2.jsx`).
-          strings.control.title(cycleId) + strings.planbook.titleSuffix
+          strings.control.title(control.cycle) + strings.planbook.titleSuffix
         : activeCourse
           ? (courseTitles[activeCourse] ?? activeCourse)
           : null,

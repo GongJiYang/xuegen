@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.13.1 — 2026-11-14
+
+- Fix: reopening 学根 no longer flashes the 总控 session as a plain chat (「自由提问」, the old transcript filling the page) while today's cycle data is still loading. A restored session that settings remember as a cycle's 总控 session is shown as 总控 immediately (`use-control-session.ts`).
+
 ## v0.13.0 — 2026-11-14
 
 - Desktop: 开下一周期 — from the planned last week of a cycle the 总控 panel's 本周 block shows a banner; its five-step wizard (accept the cycle → pick at most two mains → one main material each → 书房 → first-week preview) hands every answer to the 总控 in one folded message (`next-cycle.ts`, `use-next-cycle.ts`, Bear `next-cycle.tsx`). The 总控 writes through the new `cycle_open` transaction (stage → check → the user agrees → one jj 「开周期」 commit), which 「撤销这次改动」 can undo. Data: `cycle.mjs accept / preview` (`cycle.accept`, `cycle.preview`), `skills/cycle-plan/cycle-open.mjs`; `plan-undo.mjs` recognises 「开周期」 commits.

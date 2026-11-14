@@ -18,6 +18,8 @@ import { withActionMarker } from "../chat/action-marker.js";
 export interface ControlSession {
   /** True while the open session is this cycle's 总控 session. */
   isControl: boolean;
+  /** The cycle of the open 总控 session (while the cycle data loads: the one settings remember it for). */
+  cycle: string | null;
   /** Open the 总控 session, or focus the composer when it is already open. Does nothing outside a cycle. */
   openControl(): void;
   /** 「让总控说说」: send the daily-brief prompt, folded as 「今日简报」. */
@@ -33,6 +35,15 @@ export function isControlSession(
   return cycleId !== null && sessionFile !== null && settings.controlSessions[cycleId] === sessionFile;
 }
 
+/** The cycle whose remembered 总控 session `sessionFile` is, or null. */
+export function controlCycleOf(
+  settings: Pick<DesktopSettings, "controlSessions">,
+  sessionFile: string | null,
+): string | null {
+  if (sessionFile === null) return null;
+  return Object.entries(settings.controlSessions).find(([, file]) => file === sessionFile)?.[0] ?? null;
+}
+
 export function useControlSession(
   controller: ChatController,
   settings: DesktopSettings,
@@ -42,8 +53,15 @@ export function useControlSession(
   requestFocus: () => void,
   /** The agent can open a session (ready, not disabled). */
   ready: boolean,
+  /**
+   * The cycle data is still loading. A relaunch restores the last session long
+   * before `cycle.mjs day` answers on a real vault; without this the 总控
+   * session flashes as a plain chat transcript until `cycleId` arrives.
+   */
+  cycleLoading = false,
 ): ControlSession {
-  const isControl = isControlSession(settings, cycleId, controller.sessionFile);
+  const guessed = cycleLoading ? controlCycleOf(settings, controller.sessionFile) : null;
+  const isControl = isControlSession(settings, cycleId, controller.sessionFile) || guessed !== null;
 
   const openControl = useCallback(() => {
     if (cycleId === null) return;
@@ -94,5 +112,5 @@ export function useControlSession(
     void Promise.resolve().then(openControl);
   }, [ready, cycleId, controller.streaming, openControl]);
 
-  return { isControl, openControl, askBrief };
+  return { isControl, cycle: isControl ? (cycleId ?? guessed) : null, openControl, askBrief };
 }

@@ -147,7 +147,7 @@ function input(overrides: Partial<ControlPlanbookInput> = {}): ControlPlanbookIn
       systemNotes: [],
       send: vi.fn(),
     } as unknown as ControlPlanbookInput["controller"],
-    control: { isControl: true, openControl: vi.fn(), askBrief: vi.fn() },
+    control: { isControl: true, cycle: "C1", openControl: vi.fn(), askBrief: vi.fn() },
     fold: { messages: [], systemNotes: [], older: null, open: false, toggle: vi.fn() },
     courses: resource([]),
     calendar: {

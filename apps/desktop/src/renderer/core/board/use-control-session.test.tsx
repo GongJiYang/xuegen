@@ -48,13 +48,15 @@ function Harness({
   settings = DEFAULT_DESKTOP_SETTINGS,
   cycleId,
   ready,
+  cycleLoading = false,
 }: {
   controller: ChatController;
   settings?: DesktopSettings;
   cycleId: string | null;
   ready: boolean;
+  cycleLoading?: boolean;
 }) {
-  const control = useControlSession(controller, settings, vi.fn(), cycleId, vi.fn(), vi.fn(), ready);
+  const control = useControlSession(controller, settings, vi.fn(), cycleId, vi.fn(), vi.fn(), ready, cycleLoading);
   useEffect(() => {
     captured = control;
   });
@@ -95,6 +97,21 @@ describe("useControlSession", () => {
     render(<Harness controller={onCourse} cycleId="C1" ready />);
     await act(async () => {});
     expect(onCourse.openSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("a restored 总控 session counts as 总控 while the cycle data is still loading", () => {
+    const settings: DesktopSettings = {
+      ...DEFAULT_DESKTOP_SETTINGS,
+      controlSessions: { C1: "/sessions/c1.jsonl" },
+    };
+    const controller = fakeController({ sessionFile: "/sessions/c1.jsonl" });
+    const { rerender } = render(<Harness controller={controller} settings={settings} cycleId={null} ready={false} />);
+    expect(captured?.isControl).toBe(false);
+    rerender(<Harness controller={controller} settings={settings} cycleId={null} ready={false} cycleLoading />);
+    expect([captured?.isControl, captured?.cycle]).toEqual([true, "C1"]);
+    const course = fakeController({ sessionFile: "/sessions/course.jsonl" });
+    rerender(<Harness controller={course} settings={settings} cycleId={null} ready={false} cycleLoading />);
+    expect([captured?.isControl, captured?.cycle]).toEqual([false, null]);
   });
 
   it("askBrief sends the brief prompt folded as 今日简报", () => {
