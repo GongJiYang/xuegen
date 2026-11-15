@@ -8,13 +8,31 @@
  */
 
 import { Fragment, useState } from "react";
-import type { ControlCardExtract, ControlCardProps } from "../contract.js";
+import type { ControlCardExtract, ControlCardProps, ControlLessonMenu } from "../contract.js";
 import type { ControlCardGroup, ControlCardMark, ControlCardRow } from "../../core/board/control-card.js";
 import { strings } from "../../core/strings.js";
+import { LessonMenuButton } from "./lesson-menu.js";
 
 const MARK: Record<ControlCardMark, string> = { now: "●", warn: "!", plan: "○", faint: "◌", done: "✓" };
 
 const GROUPS: ControlCardGroup[] = ["lesson", "read", "review"];
+
+/** How many lesson names the fold line spells out before it trails off with 「…」. */
+const FOLD_NAMES = 3;
+
+/**
+ * The fold line's lesson names (「C 语言 D1、CTM D3、CTM D4」): every missed row's
+ * lessons in order, cut to the first three. A lesson-less row counts as one.
+ */
+function foldNames(rows: ControlCardRow[]): string {
+  const names = rows.flatMap((row) =>
+    row.lessons && row.lessons.length > 0
+      ? row.lessons.map((lesson) => `${lesson.name} ${lesson.id}`)
+      : [row.text],
+  );
+  const shown = names.slice(0, FOLD_NAMES).join("、");
+  return names.length > FOLD_NAMES ? `${shown}…` : shown;
+}
 
 /**
  * A 阅读 row is ticked, not opened (panel v2): its left control is a checkbox.
@@ -94,11 +112,15 @@ function ExtractForm({ extract }: { extract: ControlCardExtract }) {
 /** One row: mark or checkbox, text with its sub line, then the right-hand button(s). */
 function Row({
   row,
+  rows,
+  menu,
   busy,
   onAction,
   extract,
 }: {
   row: ControlCardRow;
+  rows: ControlCardRow[];
+  menu: ControlLessonMenu | null | undefined;
   busy: boolean;
   onAction: ControlCardProps["onAction"];
   extract: ControlCardProps["extract"];
@@ -153,6 +175,9 @@ function Row({
               {row.button}
             </button>
           )}
+          {menu && row.group === "lesson" && (
+            <LessonMenuButton row={row} rows={rows} menu={menu} busy={busy} />
+          )}
         </span>
       </li>
       {extract !== null && row.action?.kind === "extract" && row.action.slug === extract.slug && (
@@ -162,7 +187,19 @@ function Row({
   );
 }
 
-export function ControlCard({ view, onAction, onAskBrief, busy, error, extract, older }: ControlCardProps) {
+export function ControlCard({
+  view,
+  onAction,
+  onAskBrief,
+  busy,
+  error,
+  extract,
+  older,
+  lessonMenu,
+}: ControlCardProps) {
+  // null = follow the default: open only when today holds no other 上课 row.
+  const [missedOpen, setMissedOpen] = useState<boolean | null>(null);
+  const card = strings.control.card;
   return (
     <>
       <section className="bear-cc" aria-label={view.headline}>
@@ -176,27 +213,69 @@ export function ControlCard({ view, onAction, onAskBrief, busy, error, extract, 
           {view.rows
             .filter((row) => row.group === undefined)
             .map((row, index) => (
-              <Row key={`free-${index}`} row={row} busy={busy} onAction={onAction} extract={extract} />
+              <Row
+                key={`free-${index}`}
+                row={row}
+                rows={view.rows}
+                menu={lessonMenu}
+                busy={busy}
+                onAction={onAction}
+                extract={extract}
+              />
             ))}
           {GROUPS.map((group) => {
             const rows = view.rows.filter((row) => row.group === group);
             if (rows.length === 0) return null;
-            const head = strings.control.card.groups[group];
+            const head = card.groups[group];
+            // A 上课 row kept from its own day folds under 「之前没上的 N 节」.
+            const shown = group === "lesson" ? rows.filter((row) => !row.missed) : rows;
+            const missed = group === "lesson" ? rows.filter((row) => row.missed) : [];
+            const open = missedOpen ?? shown.length === 0;
+            const count = missed.reduce((total, row) => total + (row.lessons?.length ?? 1), 0);
             return (
               <Fragment key={group}>
                 <li className="bear-cc-gh">
                   <b>{head.title}</b>
                   <span>{head.note}</span>
                 </li>
-                {rows.map((row, index) => (
+                {shown.map((row, index) => (
                   <Row
                     key={`${group}-${index}`}
                     row={row}
+                    rows={view.rows}
+                    menu={lessonMenu}
                     busy={busy}
                     onAction={onAction}
                     extract={extract}
                   />
                 ))}
+                {missed.length > 0 && (
+                  <li className="bear-cc-fold">
+                    <button
+                      type="button"
+                      className="bear-cc-fold-btn"
+                      aria-expanded={open}
+                      onClick={() => setMissedOpen(!open)}
+                    >
+                      <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+                      <b>{card.missedFold(count)}</b>
+                      <span className="bear-cc-fold-names">{foldNames(missed)}</span>
+                      <span className="bear-cc-fold-act">{open ? card.missedClose : card.missedOpen}</span>
+                    </button>
+                  </li>
+                )}
+                {open &&
+                  missed.map((row, index) => (
+                    <Row
+                      key={`missed-${index}`}
+                      row={row}
+                      rows={view.rows}
+                      menu={lessonMenu}
+                      busy={busy}
+                      onAction={onAction}
+                      extract={extract}
+                    />
+                  ))}
               </Fragment>
             );
           })}

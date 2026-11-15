@@ -116,15 +116,21 @@ export interface ModelListPayload {
  * The session's permission role, chosen by the interface when it opens a
  * session and enforced by the agent's tool guard
  * (docs/platform/ROUTE-1109.md 阶段 2). `control` is the 总控 session, `course`
- * one course's session, `free` everything else.
+ * one course's session, `domain` one subject's read-only 领域 session
+ * (docs/desktop/mockups/domain.html ③), `free` everything else.
  */
-export type SessionRole = { kind: "control" } | { kind: "course"; slug: string } | { kind: "free" };
+export type SessionRole =
+  | { kind: "control" }
+  | { kind: "course"; slug: string }
+  | { kind: "domain"; subject: string }
+  | { kind: "free" };
 
 /** Runtime guard for a `SessionRole` crossing a process boundary. */
 export function isSessionRole(value: unknown): value is SessionRole {
   if (!isRecord(value)) return false;
   if (value.kind === "control" || value.kind === "free") return true;
-  return value.kind === "course" && typeof value.slug === "string" && /^[a-z0-9-]+$/.test(value.slug);
+  if (value.kind === "course") return typeof value.slug === "string" && /^[a-z0-9-]+$/.test(value.slug);
+  return value.kind === "domain" && typeof value.subject === "string" && /^[a-z0-9][a-z0-9-]*$/.test(value.subject);
 }
 
 /** The role a message carries, or `free` when it is absent or malformed. */

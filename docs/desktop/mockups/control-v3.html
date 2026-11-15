@@ -1,0 +1,207 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>总控 v3 · 优化 + 「学过了」 · 设计稿</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--card:#1c1c1b;--a3:#0f2a3d;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615;--warn:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1500px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:100ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper);position:relative}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.tab .k{font-size:10px;color:var(--g8);border:1px solid var(--g7);border-radius:3px;padding:0 4px}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex;min-height:600px}
+.main{flex:1;min-width:0;padding:14px 22px 22px;display:flex;flex-direction:column;gap:18px}
+/* status strip */
+.strip{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 22px;padding:2px 0 12px;border-bottom:1px solid var(--g6);font-size:13px;color:var(--g11)}
+.strip b{color:var(--g12);font-weight:600}.strip .sep{color:var(--g7)}
+.strip .lnk{margin-left:auto}
+.lnk{color:var(--a11);font-size:12px;cursor:pointer}
+/* section */
+.sec h2{font-size:15px;margin:0;display:flex;align-items:baseline;gap:10px}
+.sec h2 .sub{font-weight:400}
+.sec h2 .lnk{margin-left:auto}
+.cap{font-size:12px;color:var(--g11)}.sub{font-size:12px;color:var(--g11)}
+.grp{margin-top:12px}
+.gh{font-size:12px;color:var(--g11);display:flex;gap:8px;align-items:baseline;padding-bottom:4px;border-bottom:1px solid var(--g4)}
+.gh b{color:var(--g12);font-size:13px}
+.row{display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:1px solid var(--g3);border-radius:4px}
+.row .mk{width:16px;text-align:center;color:var(--g8)}
+.row .t{flex:1;min-width:0}.row .t .s{font-size:12px;color:var(--g11)}
+.row .go{font-size:13px;color:var(--g12)}
+.row .more{font-size:16px;color:var(--g8);width:26px;text-align:center;border-radius:4px}
+.row.hover{background:var(--g3)}.row.hover .more{color:var(--g12);background:var(--g4)}
+.row.done .t{color:var(--g11)}.row.done .mk{color:var(--done)}
+.row.self .mk{color:var(--done)}
+.tag{font-size:11px;color:var(--g11);border:1px solid var(--g7);border-radius:3px;padding:0 5px;margin-left:6px}
+.fold{font-size:12px;color:var(--g11);padding:8px 6px;display:flex;gap:8px;align-items:center}
+.fold b{color:var(--g12);font-weight:500}
+.menu{position:absolute;width:250px;background:var(--g2);border:1px solid var(--g7);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.5);padding:4px;font-size:13px;z-index:3}
+.menu div{padding:7px 10px;border-radius:5px}.menu div small{display:block;color:var(--g11);font-size:11px;line-height:15px}
+.menu .on{background:var(--a3)}
+.menu hr{border:0;border-top:1px solid var(--g6);margin:4px 0}
+/* sheet */
+.sheet{position:absolute;left:50%;top:120px;transform:translateX(-50%);width:460px;background:var(--g2);border:1px solid var(--g7);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.6);padding:18px 20px;z-index:4}
+.sheet h4{margin:0 0 4px;font-size:15px}
+.sheet .opt{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--g4);font-size:13px}
+.sheet .opt .box{width:14px;height:14px;border:1px solid var(--a11);border-radius:3px;margin-top:3px;background:var(--a9)}
+.sheet .opt .box.off{background:none;border-color:var(--g7)}
+.sheet .ft{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.btn{font-size:13px;padding:5px 14px;border:1px solid var(--g7);border-radius:5px;color:var(--g12)}
+.btn.pri{background:var(--a9);border-color:var(--a9);color:#04121d;font-weight:600}
+.dim{position:absolute;inset:40px 0 0 0;background:rgba(0,0,0,.35);z-index:2}
+/* week mini */
+.wk{display:grid;grid-template-columns:78px repeat(7,minmax(0,1fr));font-size:12px;border:1px solid var(--g6);border-radius:6px;overflow:hidden;margin-top:10px}
+.wk>div{padding:6px 7px;border-right:1px solid var(--g3);border-bottom:1px solid var(--g3);min-height:34px}
+.dh b{display:block}.dh span{color:var(--g11);font-size:11px}.dh.today{background:var(--a3)}.dh.today b{color:var(--a11)}
+.lh b{display:block}.lh span{color:var(--g11);font-size:11px}
+.ci{line-height:15px}.ci.ok{color:var(--g11)}.ci.ok::before{content:"✓ ";color:var(--done)}
+/* domain strip */
+.dom{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{border:1px solid var(--g6);border-radius:6px;padding:7px 12px;font-size:13px;background:var(--g2)}
+.chip span{color:var(--g11);font-size:12px;margin-left:6px}
+.chip.empty{color:var(--g8)}
+/* activity */
+.act{width:340px;border-left:1px solid var(--g6);display:flex;flex-direction:column}
+.act-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px}.act-h b{font-size:13px}.act-h span{font-size:12px;color:var(--g11)}
+.feed{flex:1;padding:0 12px;display:flex;flex-direction:column;gap:8px}
+.card{border:1px solid var(--g6);border-radius:8px;padding:10px 12px;background:var(--g2)}
+.card .r{font-size:13px;color:var(--g12)}.card .r .n{color:var(--a11);font-weight:600}
+.card .q{font-size:12px;color:var(--g8);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .q::before{content:"你：";}
+.card .ln{font-size:12px;color:var(--g11);margin-top:4px}
+.card .foot{display:flex;gap:14px;margin-top:6px;font-size:12px}
+.card.old{opacity:.6}
+.compose{margin:12px;border:1px solid var(--g7);border-radius:8px;padding:10px 12px;color:var(--g8);font-size:13px}
+table.spec{border-collapse:collapse;font-size:13px;margin-top:8px;max-width:1150px}
+table.spec td,table.spec th{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top;text-align:left}table.spec td:first-child{color:var(--g11);white-space:nowrap}
+table.spec th{color:var(--g11);font-weight:500}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+</style>
+<body><div class="doc">
+<h1>总控 v3：腾出地方给「今天」，加「学过了」· 设计稿</h1>
+<p class="lead">起因：①用户 11-15 要能在总控里把已经学过的课直接勾掉（「强制结课」）；②现在首屏有一半是六个数字格，「今天」还套在两层框里，要往下滚才看到周表格；③拖欠的课排在今天的课前面，一打开就是三行「原排 11-11」。<b>这一版只动布局和入口，数据和流程不变</b>；右栏动态卡沿用 11-14 批准的样子，只把结果放到第一行。</p>
+
+<h3>① 平时：状态一行，今天先列今天的，拖欠的收起</h3>
+<p class="note">六格 → 顶部一行（点任意一项跳到对应区块，Anki / 卡片仍可点开）。「今天」去掉外框，直接是页面的第一块；<b>今天排的</b>在上，<b>之前没上的</b>收成一行「之前没上的 3 节 · 展开」，展开后和现在一样逐行。每行右边除了「开课 →」多一个「⋯」，悬停出现。周表格紧接着出现在首屏下半部分。最下面新加「领域」一行：每个科目一个入口，打开领域总控（见 domain.html）。</p>
+<div class="win">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="tab">CTM D2</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>上下文 21%</span><span>收起聊天</span><span>⋯</span></div></div>
+  <div class="shell">
+    <div class="main">
+      <div class="strip">
+        <span><b>C1 · 第 2 周</b> 预计 12-29 收尾</span><span class="sep">·</span>
+        <span>今天 <b>0 / 4</b></span><span class="sep">·</span>
+        <span>本周 <b>3 / 17</b></span><span class="sep">·</span>
+        <span>书房 <b>3 本</b>在读</span><span class="sep">·</span>
+        <span>Anki <b>42</b> 张到期</span><span class="sep">·</span>
+        <span>卡片已同步</span>
+        <span class="lnk">让总控说说今天</span>
+      </div>
+      <div class="sec">
+        <h2>今天 <span class="sub">11-15 周日 · 低强度日</span><span class="lnk">打印</span></h2>
+        <div class="grp"><div class="gh"><b>上课</b>进会话讲，讲完在会话里收课才算完成</div>
+          <div class="row"><span class="mk">○</span><div class="t">离散 D5 · §2.1 逻辑形式与逻辑等价<div class="s">今天排的</div></div><span class="go">开课 →</span><span class="more">⋯</span></div>
+          <div class="fold">▸ <b>之前没上的 3 节</b>导读课 · C 语言 D1、数据结构 D1，CTM D3 <span class="lnk">展开</span></div>
+        </div>
+        <div class="grp"><div class="gh"><b>阅读</b>读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+          <div class="row"><span class="mk">☐</span><div class="t">课后读 · CTM Ch1–2 核心页 · pp.9–22、42–50<div class="s">今天读</div></div><span class="lnk">陪读 →</span></div>
+          <div class="row"><span class="mk">☐</span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+        </div>
+        <div class="grp"><div class="gh"><b>复习</b>在 Anki 里刷，学根不记</div>
+          <div class="row"><span class="mk">○</span><div class="t">Anki · 今天 42 张</div><span class="go">打开 Anki →</span></div>
+        </div>
+      </div>
+      <div class="sec">
+        <h2>本周 <span class="sub">11-09 – 11-15</span><span class="lnk">月 · 周</span></h2>
+        <div class="wk">
+          <div></div><div class="dh"><b>周一</b><span>11-09</span></div><div class="dh"><b>周二</b><span>11-10</span></div><div class="dh"><b>周三</b><span>11-11</span></div><div class="dh"><b>周四</b><span>11-12</span></div><div class="dh"><b>周五</b><span>11-13</span></div><div class="dh"><b>周六</b><span>11-14</span></div><div class="dh today"><b>周日</b><span>11-15</span></div>
+          <div class="lh"><b>主课</b><span>离散 · CTM</span></div><div class="ci ok">离散 D1</div><div class="ci ok">CTM D1</div><div class="ci ok">离散 D2</div><div class="ci">离散 D3</div><div class="ci">整合日</div><div class="ci ok">CTM D2</div><div class="ci">离散 D5</div>
+        </div>
+      </div>
+      <div class="sec">
+        <h2>领域 <span class="sub">忘了的词去这里问；只读，不改计划</span></h2>
+        <div class="dom">
+          <div class="chip">编程范式<span>12 页 · 41 个词</span></div>
+          <div class="chip">离散数学<span>9 页 · 33 个词</span></div>
+          <div class="chip">数据结构与算法<span>3 页</span></div>
+          <div class="chip">C 与系统编程<span>2 页</span></div>
+          <div class="chip empty">另外 4 个 ▾</div>
+        </div>
+      </div>
+    </div>
+    <div class="act">
+      <div class="act-h"><b>动态</b><span>今天 · 2 次</span></div>
+      <div class="feed">
+        <div class="card old"><div class="r">D5 现在排在 11-19（周四）</div><div class="q">D5 现在排在哪天？一句话回答</div><div class="foot"><span class="lnk">看回答</span></div></div>
+        <div class="card"><div class="r"><span class="n">改了 1 处</span>排期 · 离散 D5 11-18 → 11-19</div><div class="q">把离散 D5 从 11-18 挪到 11-19</div><div class="foot"><span class="lnk">看回答</span><span class="lnk">在周表格里看</span><span class="lnk">撤销这次改动</span></div></div>
+      </div>
+      <div class="compose">问学根，或输入 / 查看功能</div>
+    </div>
+  </div>
+</div>
+
+<h3>② 点「⋯」：学过了 / 挪日子 / 问这节讲什么</h3>
+<p class="note">菜单里三项都只是<b>替你把话发给总控</b>（右栏出一张动态卡，原话折叠，和现在的「交给总控」一样），不在界面里直接改文件。「学过了，直接勾掉」只出现在还没完成的上课行；阅读行本来就能勾，不出这一项。</p>
+<div class="win" style="height:400px">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="gap"></div></div>
+  <div class="main" style="padding-right:380px">
+    <div class="sec"><div class="grp"><div class="gh"><b>上课</b>之前没上的 3 节（已展开）</div>
+      <div class="row"><span class="mk">○</span><div class="t">导读课 · C 语言 D1 · Ch1 起步<div class="s">原排 11-11</div></div><span class="go">开课 →</span><span class="more">⋯</span></div>
+      <div class="row"><span class="mk">○</span><div class="t">导读课 · 数据结构 D1 · §1.1–1.2 概览<div class="s">原排 11-12</div></div><span class="go">开课 →</span><span class="more">⋯</span></div>
+      <div class="row hover"><span class="mk">○</span><div class="t">CTM D3 · Ch3 §3.1–3.4 声明性、迭代与递归<div class="s">原排 11-14</div></div><span class="go">开课 →</span><span class="more">⋯</span></div>
+    </div></div>
+  </div>
+  <div class="menu" style="right:200px;top:210px">
+    <div class="on">学过了，直接勾掉<small>记成「你自报学过」，不出验收题</small></div>
+    <div>挪到别的日子…<small>交给总控改排期</small></div>
+    <hr>
+    <div>这节讲什么<small>在右栏回答，不改任何东西</small></div>
+  </div>
+</div>
+
+<h3>③ 选「学过了」：先确认勾哪几节</h3>
+<p class="note">弹框默认勾上点的那一节；同一门课、更早的没完成的课次也列出来（默认不勾），方便一次勾几节。<b>交给总控</b>后：总控按清单走「计划暂存 → 勾掉、写一条『用户自报』学习记录 → 校验 → 提交」，不再问一遍；右栏动态卡写结果并带「撤销这次改动」。说明文字写清楚「自报不算验收」，避免以后误以为考过了。</p>
+<div class="win" style="height:400px">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="gap"></div></div>
+  <div class="dim"></div>
+  <div class="sheet">
+    <h4>勾掉学过的课</h4>
+    <div class="sub" style="margin-bottom:10px">会在课程页记一条「你自报学过」，不出验收题；以后想补验收，开这节课说一声就行。</div>
+    <div class="opt"><span class="box"></span><div>CTM D3 · Ch3 §3.1–3.4 声明性、迭代与递归<div class="sub">原排 11-14</div></div></div>
+    <div class="opt"><span class="box off"></span><div>CTM D4 · Ch3 §3.5–3.7、§3.9 效率、高阶编程<div class="sub">排在 11-17 · 还没到</div></div></div>
+    <div class="cap" style="margin-top:10px">勾掉以后，后面的课不会自动提前；要提前，在右边跟总控说。</div>
+    <div class="ft"><span class="btn">取消</span><span class="btn pri">交给总控 · 勾 1 节</span></div>
+  </div>
+</div>
+
+<h3>④ 勾完：行变 ✓，动态卡可撤销</h3>
+<div class="cols">
+<div class="win"><div class="main">
+  <div class="sec"><div class="grp"><div class="gh"><b>上课</b></div>
+    <div class="row self"><span class="mk">✓</span><div class="t">CTM D3 · Ch3 §3.1–3.4<span class="tag">自报</span><div class="s">11-15 勾掉 · 没出验收题</div></div><span class="lnk">补验收 →</span></div>
+  </div></div></div></div>
+<div class="win"><div class="feed" style="padding:12px">
+  <div class="card"><div class="r"><span class="n">勾掉 1 节</span> · CTM D3（自报）</div><div class="q">CTM D3 我学过了，直接勾掉</div><div class="ln">本周 4 / 17 · 后面的课日期没变</div><div class="foot"><span class="lnk">看回答</span><span class="lnk">撤销这次改动</span></div></div>
+</div></div>
+</div>
+
+<h3>改了什么（对照现在）</h3>
+<table class="spec">
+<tr><th>位置</th><th>现在</th><th>v3</th><th>为什么</th></tr>
+<tr><td>首屏顶部</td><td>六个数字格，两行，约 210px</td><td>一行状态，约 36px；点了跳到对应区块</td><td>格子里的数字大多不用每次看；腾出地方给今天和周表格</td></tr>
+<tr><td>今天</td><td>外框里再套一个框；拖欠的排最前</td><td>去掉一层框；今天排的在上，拖欠的收成一行</td><td>打开总控先看到今天要做的，不是一串「原排」</td></tr>
+<tr><td>上课行</td><td>只有「开课 →」</td><td>悬停多一个「⋯」：学过了 / 挪日子 / 这节讲什么</td><td>强制结课的入口；挪日子以前只能打字说</td></tr>
+<tr><td>自报勾掉的行</td><td>—</td><td>✓ +「自报」小标签，右侧「补验收 →」</td><td>和真正验收过的分开，不混</td></tr>
+<tr><td>动态卡</td><td>第一行是你说的话（粗），结果在下</td><td>第一行是结果，你说的话变小灰字</td><td>回头看时关心的是改了什么</td></tr>
+<tr><td>领域</td><td>没有</td><td>页面底部一行科目入口</td><td>领域总控的入口（另见 domain.html）</td></tr>
+<tr><td>不变</td><td colspan="3">周 / 月表格、书房、卡片区、横幅与改动标记、标签页、快捷键（⌘0 回总控）都照旧；窄窗口（≤ 900px）状态一行折成两行</td></tr>
+</table>
+<h3>要你定</h3>
+<table class="spec">
+<tr><td>1</td><td>六格改成一行，可以吗？（书房「预计 02-02 读完」、卡片「共 501 张」这类副文字会只在点开后看到）</td></tr>
+<tr><td>2</td><td>拖欠的课默认收起，可以吗？还是一直展开、只是排到今天的后面？</td></tr>
+<tr><td>3</td><td>「学过了」弹框里，要不要列出同一门课后面还没到的课次（如 D4）？列出来能一次勾几节，但也容易误勾。</td></tr>
+</table>
+</div></body></html>

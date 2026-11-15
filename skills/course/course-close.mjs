@@ -11,7 +11,7 @@
 //   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]
 //   node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
 //   node course-close.mjs check   <暂存目录> [--json]
-//   node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好] [--json]
+//   node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]
 //   node course-close.mjs abort   <暂存目录>
 //   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
@@ -36,7 +36,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail } from "./close/fail.mjs";
-import { isOwned, isSafeRelPath } from "./close/rules.mjs";
+import { addedCompletedIds, checkSelfReport, isOwned, isSafeRelPath } from "./close/rules.mjs";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
 import {
   diffEntries,
@@ -62,6 +62,7 @@ import {
   saveManifest,
   stageInternal,
   shiftStaged,
+  walkStaged,
   workspaceOf,
 } from "./close/staging.mjs";
 
@@ -134,10 +135,8 @@ function cmdCommit(stagingArg, rawLabel, json) {
   const staging = resolve(stagingArg ?? fail("commit 需要 <暂存目录>"));
   recoverInternal(workspaceOf(staging));
   const manifest = loadManifest(staging);
-  // 提交名按暂存种类分：计划暂存一律记「计划」，--label 不给也不许改。
   const kind = manifest.kind ?? "close";
-  if (kind === "plan" && rawLabel !== undefined) fail("计划暂存的提交一律记「计划」，不接受 --label");
-  const label = kind === "plan" ? "计划" : commitLabel(rawLabel);
+  const label = kind === "plan" ? planCommitLabel(staging, manifest, rawLabel) : commitLabel(rawLabel);
   const out = commitInternal(staging, label);
   if (json) {
     process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
@@ -161,6 +160,54 @@ function commitLabel(raw) {
   if (raw === undefined) return "收课";
   if (!COMMIT_LABELS.includes(raw)) fail("--label 只能是 收课、存档点 或 偏好");
   return raw;
+}
+
+/** 暂存里本科目 `wiki/courses/<slug>/records/*.md` 的全文（自报时用来核对「原样挪走」）。 */
+function stagedArchiveTexts(staging, slug) {
+  const prefix = `wiki/courses/${slug}/records/`;
+  return walkStaged(staging)
+    .filter((entry) => !entry.symlink && entry.path.startsWith(prefix) && entry.path.endsWith(".md"))
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .map((entry) => readFileSync(join(staging, entry.path), "utf8"));
+}
+
+/**
+ * 计划暂存的提交名与「自报」校验：不带 --label 记「计划」，但那时课程页不许新加
+ * 完成 id——勾掉课次只能走自报（jj 记「自报 <slug> <日期>」，plan-undo 能撤）。
+ * --label 自报 由 checkSelfReport 保证既勾了新课次、又新加了一条标题含「自报」的
+ * Learning Record 记录，且旧记录原样没动（按归档规则整块挪进 records 的除外）；暂存里
+ * 没有课程页时无法证明这些，直接拒（不许记一个空的自报提交）。
+ * 只改科目页/index/log 的计划照旧记「计划」。
+ * 所有 fail 都在 commitInternal 之前：库不动、暂存留着。
+ */
+function planCommitLabel(staging, manifest, rawLabel) {
+  if (rawLabel !== undefined && rawLabel !== "自报") {
+    fail("计划暂存的提交只能不带 --label（记「计划」）或 --label 自报");
+  }
+  const rel = `wiki/courses/${manifest.slug}.md`;
+  const stagedFile = join(staging, rel);
+  if (!existsSync(stagedFile) || !statSync(stagedFile).isFile()) {
+    // 没有课程页就没有「新勾的课次」可证明，自报在这里一定不成立。
+    if (rawLabel === "自报") fail("自报要改课程页：暂存里没有课程页");
+    return "计划";
+  }
+  const stagedText = readFileSync(stagedFile, "utf8");
+  const vaultFile = join(manifest.vault, rel);
+  const baseText =
+    existsSync(vaultFile) && statSync(vaultFile).isFile() ? readFileSync(vaultFile, "utf8") : null;
+  if (rawLabel === "自报") {
+    // 技能规定：学习记录超过 2 条时，自报要把最早那条原样挪进当月 records。那些块会从
+    // 课程页消失，所以把暂存里本科目 records 文件的全文一并交给 checkSelfReport 比对。
+    const archivedTexts = stagedArchiveTexts(staging, manifest.slug);
+    const problems = checkSelfReport(baseText, stagedText, archivedTexts);
+    if (problems.length > 0) fail(problems.join("；"));
+    return "自报";
+  }
+  const added = addedCompletedIds(baseText, stagedText);
+  if (added.length > 0) {
+    fail(`这次改动勾掉了课次 ${added.join("、")}：按用户自报勾选要用 --label 自报，并写一条自报记录`);
+  }
+  return "计划";
 }
 
 function cmdAbort(stagingArg) {
@@ -482,7 +529,7 @@ function usage() {
     "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]",
     "  node course-close.mjs add     <暂存目录> <库内相对路径> [--json]",
     "  node course-close.mjs check   <暂存目录> [--json]",
-    "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好] [--json]",
+    "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
     "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
@@ -492,7 +539,8 @@ function usage() {
     "",
     "  --kind plan：计划暂存。--new（只能配 --kind plan）开新建课程暂存：课程页必须不存在，",
     "  暂存里不放课程页，只复制 index/log/科目页。schedule 只在计划暂存上跑，把排期写进暂存课程页。",
-    "  plan 暂存的 commit 一律记「计划 <slug> <日期>」，不接受 --label；undo 仍只认「收课」。",
+    "  plan 暂存的 commit 不带 --label 记「计划 <slug> <日期>」（课程页不许新加完成 id）；undo 仍只认「收课」。",
+    "  plan 暂存勾掉课次要用 --label 自报（jj 记「自报 <slug> <日期>」），学习记录要有标题含「自报」的新记录。",
     "  收课暂存可以用 add 把本科目页复制进来，但只能改它的「## 讲解偏好」一节（≤ 15 行）；",
     "  课上记「以后讲<科目>都…」用 --label 偏好；undo 不撤偏好提交。",
   ].join("\n");

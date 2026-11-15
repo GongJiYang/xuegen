@@ -180,6 +180,7 @@ export const strings = {
     "undo-close": "撤销收课",
     accompany: "陪读",
     "next-cycle": "开下一周期",
+    domain: "问领域",
     legacy: "旧指令",
   },
   /** The buttons a course session shows beside the composer. */
@@ -304,10 +305,33 @@ export const strings = {
       checkedLabel: "已记下",
       /** The three groups of the 今天 list (panel v2): how each kind of row gets done. */
       groups: {
-        lesson: { title: "上课", note: "主课、导读课、周核实：进会话讲，讲完在会话里点「收课」才算完成" },
-        read: { title: "阅读", note: "读完勾一下就记下（10 秒内可撤销）；想让学根陪着读，点「陪读 →」" },
+        lesson: { title: "上课", note: "进会话讲，讲完在会话里收课才算完成" },
+        read: { title: "阅读", note: "读完勾一下就记下；想让学根陪着读，点「陪读 →」" },
         review: { title: "复习", note: "在 Anki 里刷，学根不记" },
       } as Record<"lesson" | "read" | "review", { title: string; note: string }>,
+      /** The 「⋯」 menu on a not-done 上课 row (总控 v3, user 11-15). */
+      menu: {
+        label: (text: string): string => `${text} · 更多`,
+        done: "学过了，直接勾掉",
+        doneSub: "记成「你自报学过」，不出验收题",
+        move: "挪到别的日子…",
+        moveSub: "交给总控改排期",
+        ask: "这节讲什么",
+        askSub: "在右边回答，不改任何东西",
+      },
+      /** The 学过了 dialog: which lessons to tick, then hand them to 总控. */
+      selfReport: {
+        title: "勾掉学过的课",
+        note: "会在课程页记一条「你自报学过」，不出验收题；以后想补验收，开这节课说一声就行。",
+        later: "勾掉以后，后面的课不会自动提前；要提前，在右边跟总控说。",
+        planned: (date: string): string => `排在 ${date}`,
+        cancel: "取消",
+        submit: (count: number): string => (count === 0 ? "先选要勾的课" : `交给总控 · 勾 ${count} 节`),
+      },
+      /** The 「之前没上的」 fold over the missed 上课 rows. */
+      missedFold: (count: number): string => `之前没上的 ${count} 节`,
+      missedOpen: "展开",
+      missedClose: "收起",
       /** 陪读: a 自由 session that reads the block with the learner; marks nothing done. */
       accompany: "陪读 →",
       accompanyBookPrompt: (
@@ -389,6 +413,12 @@ export const strings = {
     tabBusy: "学根正在回答",
     /** 「＋」 popover heading for the tabs that did not fit in the strip. */
     foldedTabs: "放不下的标签",
+    /** 「＋」 popover: the courses to open, above the session list (user 11-15). */
+    openCourse: "开一门课",
+    otherCourses: (n: number): string => `其他课程 ${n} 门`,
+    todayLesson: (id: string): string => `今天 ${id}`,
+    missedLesson: (id: string, date: string): string => `${id} · 原排 ${date}`,
+    auxPrefix: "导读课 · ",
   },
   update: {
     available: (version: string, count: number): string =>
@@ -478,6 +508,7 @@ export const strings = {
   /** The 总控 right column as a feed of cards, and the wide reader. */
   feed: {
     title: "动态",
+    askPrefix: "你：",
     countToday: (count: number): string => `今天 · ${count} 次`,
     changed: (count: number): string => `改了 ${count} 处`,
     changedSuffix: "排期",
@@ -497,6 +528,34 @@ export const strings = {
     readerNext: "下一个 →",
     readerPosition: (course: string, at: number, total: number): string => `${course}术语 ${at} / ${total}`,
     readerNavHint: "← → 键翻页",
+  },
+  /** 领域总控 v0（domain.html, user 11-15）. */
+  domain: {
+    tabTitle: (title: string): string => `领域 · ${title}`,
+    readOnly: "只读",
+    switchSubject: "换科目",
+    find: "找词：中文、英文都行",
+    all: (count: number): string => `全部 ${count}`,
+    found: (count: number): string => `找到 ${count}`,
+    otherGroup: "其他",
+    summaryCrumb: (title: string): string => `${title} · 领域小结`,
+    summaryTitle: "到目前为止学了什么",
+    noSummary: "还没有小结——上过几节课后，收课时会写。",
+    noTerms: "还没有词——上课收课时存的概念页会出现在这里。",
+    entryCrumb: (label: string): string => `概念页 · ${label}`,
+    back: "← 回到小结",
+    loading: "正在读词表…",
+    failed: "读不到词表。",
+    pageLoading: "正在读这一页…",
+    askTitle: (title: string): string => `问${title}`,
+    askNote: "只按这个科目的知识页和学习记录回答",
+    stripTitle: "领域",
+    stripNote: "忘了的词去这里问；只读，不改计划",
+    chip: (pages: number, terms: number): string =>
+      terms > 0 ? `${pages} 页 · ${terms} 个词` : `${pages} 页`,
+    moreSubjects: (count: number): string => `另外 ${count} 个`,
+    openPrompt: (title: string, subject: string): string =>
+      `/skill:domain 打开「${title}」领域（${subject}）：先用一句话说这个领域现在有几页概念页、多少个词，然后等我问。`,
   },
   planbook: {
     views: { day: "日", week: "周", month: "月" },
@@ -563,6 +622,8 @@ export const strings = {
     /** The day view's caption: 「11-11 周三 · 主攻日」, or just 「11-11 周三」 outside a cycle. */
     dayCaption: (date: string, weekday: string, type: CycleDayType | null): string =>
       `${date.slice(5)} ${weekday}${type !== null ? ` · ${CYCLE_DAY_TYPE[type]}` : ""}`,
+    /** A day type as the user calls it (「主攻日」, never the data word 「深度」, user 11-11). */
+    dayTypeName: (type: CycleDayType): string => CYCLE_DAY_TYPE[type],
     /** The month grid's weekday headers, Monday first. */
     weekdays: ["一", "二", "三", "四", "五", "六", "日"],
   },
@@ -933,6 +994,17 @@ export const strings = {
       anki: "Anki",
       cards: "卡片",
     } as Record<"cycle" | "today" | "week" | "shelf" | "anki" | "cards", string>,
+    /** Text after a tile's value (control-v3 ①: 「Anki 42 张到期」). */
+    tileSuffix: {
+      cycle: "",
+      today: "",
+      week: "",
+      shelf: "",
+      anki: "到期",
+      cards: "",
+    } as Record<"cycle" | "today" | "week" | "shelf" | "anki" | "cards", string>,
+    /** The strip's right-hand link: ask the 总控 for today's brief. */
+    askToday: "让总控说说今天",
     blockToday: "今天",
     blockWeek: "本周",
     blockMonth: "本月",

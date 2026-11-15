@@ -5,8 +5,9 @@
 // 无第三方依赖，不写任何文件。用法：
 //   node course-terms.mjs list <库根> [--json] [--since YYYY-MM-DD]
 import { readFile, readdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { findSection, parseCourse } from "./course-parse.mjs";
 
 const MONTH_FILE_RE = /^\d{4}-\d{2}\.md$/;
@@ -81,7 +82,7 @@ function depositLinks(block) {
  * `## Definition` 下第一个非空段落的第一句：到第一个「。」或换行为止；
  * 去掉 `**`、`` ` ``、`$`，超过 60 字截断加「…」。没有这一节返回 null。
  */
-function definitionOf(lines) {
+export function definitionOf(lines) {
   const start = lines.findIndex((line) => /^##\s+Definition\b/.test(line.trim()));
   if (start === -1) return null;
   for (let index = start + 1; index < lines.length; index += 1) {
@@ -131,7 +132,8 @@ async function courseBlocks(coursesDir, slug, course) {
  * 遍历 wiki/courses/*.md，把含存库链接的记录块按「课程 + 日期 + 课次」合并成组，
  * 组内术语按 path 去重、保持出现顺序；返回按日期倒序、同日按课程 slug 升序的数组。
  */
-async function collect(root, coursesDir) {
+export async function collectTerms(root) {
+  const coursesDir = join(root, "wiki", "courses");
   const names = await readdir(coursesDir);
   const slugs = names
     .filter((name) => name.endsWith(".md") && !name.startsWith("."))
@@ -174,46 +176,57 @@ async function collect(root, coursesDir) {
     .sort((a, b) => b.date.localeCompare(a.date) || a.course.localeCompare(b.course));
 }
 
-const [command, ...args] = process.argv.slice(2);
-if (!command) fail("用法：node course-terms.mjs list <库根> [--json] [--since YYYY-MM-DD]");
-if (command !== "list") fail(`未知命令：${command}`);
-
-const positional = [];
-let since = null;
-for (let i = 0; i < args.length; i += 1) {
-  const arg = args[i];
-  if (arg === "--json") continue;
-  if (arg === "--since") {
-    since = args[i + 1] ?? "";
-    i += 1;
-    continue;
+/** 主模块判定必须比真实路径，否则经符号链接调用时静默不执行；被 domain.mjs 导入时不进 CLI。 */
+function isMain() {
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1] ?? "");
+  } catch {
+    return false;
   }
-  if (arg.startsWith("--")) fail(`未知参数：${arg}`);
-  positional.push(arg);
 }
-if (since !== null && !DATE_SHAPE.test(since)) fail(`--since 日期非法：${since || "缺值"}`);
-if (positional.length === 0) fail("list 需要库根目录");
-if (positional.length > 1) fail(`多余参数：${positional.slice(1).join(" ")}`);
 
-const root = resolve(positional[0]);
-if (!existsSync(root)) fail(`库根不存在：${root}`);
-const coursesDir = join(root, "wiki", "courses");
-if (!existsSync(coursesDir)) fail(`库内缺少 wiki/courses 目录：${coursesDir}`);
+if (isMain()) {
+  const [command, ...args] = process.argv.slice(2);
+  if (!command) fail("用法：node course-terms.mjs list <库根> [--json] [--since YYYY-MM-DD]");
+  if (command !== "list") fail(`未知命令：${command}`);
 
-const groups = (await collect(root, coursesDir)).filter(
-  (group) => since === null || group.date >= since,
-);
-if (args.includes("--json")) {
-  process.stdout.write(`${JSON.stringify(groups, null, 2)}\n`);
-} else if (groups.length === 0) {
-  process.stdout.write("（没有存库记录）\n");
-} else {
-  for (const group of groups) {
-    process.stdout.write(
-      `${group.date || "日期未知"}｜${group.courseTitle}｜${group.lesson ?? "课次未知"}｜${group.terms.length} 个术语\n`,
-    );
-    for (const term of group.terms) {
-      process.stdout.write(`  - ${term.title}${term.exists ? "" : "（页面不存在）"}${term.definition ? ` — ${term.definition}` : ""}\n`);
+  const positional = [];
+  let since = null;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--json") continue;
+    if (arg === "--since") {
+      since = args[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("--")) fail(`未知参数：${arg}`);
+    positional.push(arg);
+  }
+  if (since !== null && !DATE_SHAPE.test(since)) fail(`--since 日期非法：${since || "缺值"}`);
+  if (positional.length === 0) fail("list 需要库根目录");
+  if (positional.length > 1) fail(`多余参数：${positional.slice(1).join(" ")}`);
+
+  const root = resolve(positional[0]);
+  if (!existsSync(root)) fail(`库根不存在：${root}`);
+  const coursesDir = join(root, "wiki", "courses");
+  if (!existsSync(coursesDir)) fail(`库内缺少 wiki/courses 目录：${coursesDir}`);
+
+  const groups = (await collectTerms(root)).filter(
+    (group) => since === null || group.date >= since,
+  );
+  if (args.includes("--json")) {
+    process.stdout.write(`${JSON.stringify(groups, null, 2)}\n`);
+  } else if (groups.length === 0) {
+    process.stdout.write("（没有存库记录）\n");
+  } else {
+    for (const group of groups) {
+      process.stdout.write(
+        `${group.date || "日期未知"}｜${group.courseTitle}｜${group.lesson ?? "课次未知"}｜${group.terms.length} 个术语\n`,
+      );
+      for (const term of group.terms) {
+        process.stdout.write(`  - ${term.title}${term.exists ? "" : "（页面不存在）"}${term.definition ? ` — ${term.definition}` : ""}\n`);
+      }
     }
   }
 }

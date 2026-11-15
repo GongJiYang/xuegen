@@ -169,6 +169,8 @@ function input(overrides: Partial<ControlPlanbookInput> = {}): ControlPlanbookIn
     openTool: vi.fn(),
     setActiveCourse: vi.fn(),
     verifiedOn: {},
+    // The 领域 row reads the subject list; a fake keeps this assembly test free of requests.
+    domainSession: { current: null, subjects: null, open: vi.fn() },
     ...overrides,
   };
 }

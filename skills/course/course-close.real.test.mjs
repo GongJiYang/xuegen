@@ -336,7 +336,12 @@ test(
       await writeFile(lessonsFile, JSON.stringify(lessons, null, 2));
 
       // 真改一次计划：起点后移到表里第二个上课日（内容不变，日期整体顺延）。
-      const start = schedule.rows.filter((row) => row.kind === "new")[1].date;
+      // 表里的日期不一定都落在 days 上（用 --extra 加的日子、休息日重排过），
+      // 所以从第二行起找第一个星期在 schedule.days 里的行当起点。
+      const newRows = schedule.rows.filter((row) => row.kind === "new");
+      const startRow = newRows.slice(1).find((row) => schedule.days.has(weekday(row.date)));
+      if (!startRow) assert.fail("排期表里没有可用的上课日");
+      const start = startRow.date;
       const end = nthStudyDay(start, lessons.length, schedule.days);
       assert.ok(end <= "2027-06-30", `算出的 --end 不合理：${end}`);
 
@@ -387,7 +392,7 @@ test(
         [pageRel(slug)],
         "这次的改动只有课程页的排期表",
       );
-      // 计划暂存不接受 --label（一律记「计划」）。
+      // 计划暂存的 --label 只收「自报」，别的值拒绝（不带 label 记「计划」）。
       const rejected = await run(process.execPath, [SCRIPT, "commit", staging, "--label", "存档点", "--json"], {
         encoding: "utf8",
         env: { ...process.env, ...fixture.env },
@@ -395,8 +400,8 @@ test(
         () => null,
         (error) => error,
       );
-      assert.ok(rejected, "计划暂存带 --label 应被拒绝");
-      assert.match(String(rejected.stderr), /不接受 --label/);
+      assert.ok(rejected, "计划暂存带 --label 存档点应被拒绝");
+      assert.match(String(rejected.stderr), /计划暂存的提交只能不带 --label（记「计划」）或 --label 自报/);
 
       const committed = await cliJson(fixture, ["commit", staging]);
       assert.equal(committed.committed, true);

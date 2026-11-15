@@ -185,11 +185,11 @@ export function recoverInternal(workspace) {
   const board = refreshBoard(journal.vault);
   const jjResult = jjCommit(
     journal.vault,
-    // journal.label 由 commitInternal 写入（计划暂存为「计划」）；旧 journal 没有它，照旧记「收课」。
+    // journal.label 由 commitInternal 写入（计划暂存为「计划」或「自报」）；旧 journal 没有它，照旧记「收课」。
     `${journal.label ?? "收课"} ${journal.slug} ${localDate()}`,
     [...journal.files.map((entry) => entry.path), ...board.paths],
   );
-  process.stderr.write(`已补完上次中断的收课：${journal.slug}\n`);
+  process.stderr.write(`已补完上次中断的${journal.label ?? "收课"}：${journal.slug}\n`);
   // 文件已经补完；jj 失败只报（设计：jj 失败不回滚，文件已原子落盘）。
   if (jjResult.startsWith("failed")) process.stderr.write(`course-close: jj ${jjResult}\n`);
   if (!board.ok) process.stderr.write(`course-close: ${board.error}\n`);

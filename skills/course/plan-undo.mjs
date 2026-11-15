@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // 撤销总控这一轮的计划改动：--since（ISO 时间）之后所有「计划 <slug> <日期>」、
-// 「顺延 <slug> <日期>」与「开周期 <cN> <日期>」jj 提交一起撤回——新建的页保留，
-// 其余文件恢复到最早那次计划提交之前，再记一条「撤销计划 …」提交。与 cmdUndo
-// （收课撤销）同一套规则：只读锁先放后锁、看板重画、之后又被改过就拒绝。
+// 「顺延 <slug> <日期>」「开周期 <cN> <日期>」与「自报 <slug> <日期>」jj 提交一起撤回——
+// 新建的页保留，其余文件恢复到最早那次计划提交之前，再记一条「撤销计划 …」提交。
+// 与 cmdUndo（收课撤销）同一套规则：只读锁先放后锁、看板重画、之后又被改过就拒绝。
 // 开周期提交的文件不锁回（cN 不是课程 slug），只锁课程页。无第三方依赖。
 //   node plan-undo.mjs list <库根> --since <ISO> [--json]
 //   node plan-undo.mjs undo <库根> --since <ISO> --workspace <工作区> [--json]
@@ -13,8 +13,8 @@ import { fail } from "./close/fail.mjs";
 import { diffEntries, isJjRepo, jj, jjCommit } from "./close/jj.mjs";
 import { restoreFiles as restoreFromRev } from "./close/restore.mjs";
 
-// 「计划/顺延 <slug> <YYYY-MM-DD>」「开周期 <cN> <YYYY-MM-DD>」：glob 粗筛后再用精确正则，与 cmdUndo 同理。
-const PLAN_DESC = /^(计划|顺延|开周期) (\S+) (\d{4}-\d{2}-\d{2})\s*$/;
+// 「计划/顺延/自报 <slug> <YYYY-MM-DD>」「开周期 <cN> <YYYY-MM-DD>」：glob 粗筛后再用精确正则，与 cmdUndo 同理。
+const PLAN_DESC = /^(计划|顺延|开周期|自报) (\S+) (\d{4}-\d{2}-\d{2})\s*$/;
 // 描述（JSON 转义）、commit_id、提交时间（ISO 带时区，Date.parse 可解；
 // jj 的提交时间只存到秒，比较时 since 也下取整到秒，否则同一秒内的提交会被漏掉）。
 const LOG_TEMPLATE =
@@ -28,7 +28,7 @@ function sinceMs(flags) {
   return Math.floor(ms / 1000) * 1000;
 }
 
-/** 当前历史（::@）上时间 ≥ since 的「计划/顺延」提交，从旧到新。 */
+/** 当前历史（::@）上时间 ≥ since 的「计划/顺延/开周期/自报」提交，从旧到新。 */
 function planCommits(vault, since) {
   let listed;
   try {
@@ -36,7 +36,7 @@ function planCommits(vault, since) {
       [
         "log",
         "-r",
-        '(description(glob:"计划 *") | description(glob:"顺延 *") | description(glob:"开周期 *")) & ::@',
+        '(description(glob:"计划 *") | description(glob:"顺延 *") | description(glob:"开周期 *") | description(glob:"自报 *")) & ::@',
         "--no-graph",
         "-T",
         LOG_TEMPLATE,
@@ -218,7 +218,7 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "撤销总控这一轮的计划改动（plan-undo）：--since 之后的「计划」「顺延」「开周期」提交一起撤回",
+    "撤销总控这一轮的计划改动（plan-undo）：--since 之后的「计划」「顺延」「开周期」「自报」提交一起撤回",
     "",
     "用法：",
     "  node plan-undo.mjs list <库根> --since <ISO> [--json]",

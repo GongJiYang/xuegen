@@ -270,3 +270,23 @@ describe("sandboxConfigFor — 路径里的 glob 字符", () => {
     }
   });
 });
+
+describe("sandboxConfigFor — 领域会话只读", () => {
+  const domainRole: SessionRole = { kind: "domain", subject: "programming-paradigms" };
+
+  it("domain 的 allowWrite 只有工作区与临时目录，不含库里任何路径", () => {
+    const config = sandboxConfigFor(domainRole, roots, canon);
+    const allowWrite = pathsOf(config.filesystem.allowWrite);
+    expect(allowWrite).toEqual(expect.arrayContaining([W, ...rulePaths(roots, canon).tmp]));
+    expect(allowWrite.every((path) => !within(path, V))).toBe(true);
+
+    // 库内每条规则路径的样本在沙盒里都不可写（课程页、概念页、log.md、摘录……
+    // 一个不放；临时目录规则在库外，本来就允许）。
+    for (const sample of samples(rulePaths(roots, canon)).filter((s) => within(s.path, V))) {
+      expect(sandboxAllowsWrite(config, sample.path), sample.path).toBe(false);
+    }
+    // denyRead（凭据）与 denyWrite（受保护位置）照旧。
+    expect(pathsOf(config.filesystem.denyRead)).toEqual(deniedReadPaths(roots, canon));
+    expect(pathsOf(config.filesystem.denyWrite)).toEqual(expect.arrayContaining([R, H, `${V}/wiki/courses`]));
+  });
+});

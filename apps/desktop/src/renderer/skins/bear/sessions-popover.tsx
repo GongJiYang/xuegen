@@ -15,6 +15,8 @@ import {
 } from "@animate-ui/react/primitives/radix-ui/popover";
 import type { SessionsView, SessionTabsView } from "../contract.js";
 import type { ControlView } from "../../core/board/bot-state.js";
+import type { OpenCourseRow } from "../../core/board/open-courses.js";
+import { useState } from "react";
 import type { SessionRow } from "../../core/board/session-list.js";
 import { strings } from "../../core/strings.js";
 import { ControlBot } from "./control-bot.js";
@@ -32,6 +34,48 @@ export function SessionRowButton({ row, onOpen }: { row: SessionRow; onOpen(file
       <span className="bear-sessions-name">{row.title}</span>
       <span className="bear-sessions-count">{strings.sessions.count(row.count)}</span>
     </button>
+  );
+}
+
+/** One 「开一门课」 row: the course's label, with its lesson line when there is one. */
+function CourseRow({ row, onOpen }: { row: OpenCourseRow; onOpen(slug: string): void }) {
+  return (
+    <button type="button" className="bear-sessions-row bear-sessions-course" onClick={() => onOpen(row.slug)}>
+      <span className="bear-sessions-name">{row.label}</span>
+      {row.sub !== null && <span className="bear-sessions-count">{row.sub}</span>}
+    </button>
+  );
+}
+
+/**
+ * The courses the 「＋」 popover can open: today's cycle courses first (main, then
+ * aux), the rest behind 「其他课程 N 门」 so the list stays short.
+ */
+function OpenCourses({ rows, onOpen }: { rows: OpenCourseRow[]; onOpen(slug: string): void }) {
+  const [more, setMore] = useState(false);
+  const cycle = rows.filter((row) => row.group === "cycle");
+  const other = rows.filter((row) => row.group === "other");
+  return (
+    <section className="bear-sessions-courses">
+      <h5 className="bear-sessions-day">{strings.sessions.openCourse}</h5>
+      {cycle.map((row) => (
+        <CourseRow key={row.slug} row={row} onOpen={onOpen} />
+      ))}
+      {other.length > 0 && (
+        <button
+          type="button"
+          className="bear-sessions-more"
+          aria-expanded={more}
+          onClick={() => setMore(!more)}
+        >
+          {strings.sessions.otherCourses(other.length)} {more ? "▾" : "▸"}
+        </button>
+      )}
+      {more &&
+        other.map((row) => (
+          <CourseRow key={row.slug} row={row} onOpen={onOpen} />
+        ))}
+    </section>
   );
 }
 
@@ -73,6 +117,9 @@ export function SessionsButton({
               {strings.sessions.newSession}
             </button>
           </div>
+          {sessions.courses !== undefined && sessions.courses.length > 0 && (
+            <OpenCourses rows={sessions.courses} onOpen={(slug) => sessions.onOpenCourse?.(slug)} />
+          )}
           {overflow !== null && (
             <section className="bear-sessions-tabs">
               <h5 className="bear-sessions-day">{strings.sessions.foldedTabs}</h5>

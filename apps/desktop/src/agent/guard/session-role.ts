@@ -56,6 +56,8 @@ export function roleFromHints(hints: SessionRoleHints): SessionRole {
     const text = raw.replace(STYLE_PREFIX, "");
     const marker = MARKER.exec(text);
     if (!marker) continue;
+    // 领域会话的标记同样带一个 slug 位（科目 id），先于通用的课程分支判。
+    if (marker[1] === "domain" && marker[2] !== undefined) return { kind: "domain", subject: marker[2] };
     if (marker[2] !== undefined) return { kind: "course", slug: marker[2] };
     // The 今日简报 only ever goes to the 总控 session.
     if (marker[1] === "brief") return { kind: "control" };

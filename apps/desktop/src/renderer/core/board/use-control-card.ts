@@ -24,9 +24,11 @@ import {
   withPendingRead,
   withPendingShelf,
   type ControlCardRow,
+  type LessonRef,
 } from "./control-card.js";
 import { useBoardResource, type BoardResource } from "./use-resource.js";
 import { todayKey } from "../today.js";
+import { askLessonPrompt, moveLessonPrompt, selfReportPrompt } from "./control-prompts.js";
 import type { ShelfResource } from "./use-shelf.js";
 
 /** How long 「读完了」/「读完这段」 can be undone before the write runs. */
@@ -57,6 +59,8 @@ export interface ControlCardInput {
   onAskBrief(): void;
   /** 陪读: open a 自由 session and send the (marked) reading prompt. */
   onAccompany(prompt: string): void;
+  /** Send 总控 a message (the 「⋯」 menu's items); absent hides the menu. */
+  onAsk?: (text: string) => void;
   /** settings `verifiedOn`: a course whose 周核实 started today reads as done. */
   verifiedOn: Record<string, string>;
   /** Reload the course list and the calendar month after a successful write. */
@@ -252,8 +256,19 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
           },
         };
 
+  const ask = input.onAsk;
+  const lessonMenu =
+    ask === undefined
+      ? null
+      : {
+          onSelfReport: (slug: string, name: string, ids: string[]) => ask(selfReportPrompt(slug, name, ids)),
+          onMove: (lesson: LessonRef) => ask(moveLessonPrompt(lesson)),
+          onAsk: (lesson: LessonRef) => ask(askLessonPrompt(lesson)),
+        };
+
   return {
     view: shown,
+    lessonMenu,
     onAction,
     onAskBrief: input.onAskBrief,
     busy: input.streaming || writing || saving,

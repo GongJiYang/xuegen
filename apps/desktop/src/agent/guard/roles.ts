@@ -95,6 +95,8 @@ export function roleLabel(role: SessionRole): string {
       return "总控会话";
     case "course":
       return `课程会话（${role.slug}）`;
+    case "domain":
+      return `领域会话（${role.subject}）`;
     case "free":
       return "自由会话";
   }
@@ -118,6 +120,11 @@ export function decide(
     PATH_ARG_TOOLS.has(tool) && typeof input.path === "string" && input.path !== ""
       ? input.path
       : null;
+  // 领域会话只读（docs/desktop/mockups/domain.html ③）：写工具、专用工具与清单外
+  // 工具一律拒；读工具照旧走 decideRead，bash 照旧走 decideBash（写保护靠沙盒）。
+  if (role.kind === "domain" && !READ_TOOLS.has(tool) && !BASH_TOOLS.has(tool)) {
+    return deny(`${roleLabel(role)}只读：不改计划、不写库；要改请回总控或那门课的会话。`);
+  }
   if (READ_TOOLS.has(tool)) return decideRead(role, tool, path, roots, canon);
   if (WRITE_TOOLS.has(tool)) return decideWrite(role, tool, path, roots, canon, exists);
   if (BASH_TOOLS.has(tool)) return decideBash(roleLabel(role), input.command, roots, canon);
@@ -258,6 +265,11 @@ function hardDenyReason(target: string, roots: Roots, rules: RulePaths): string 
 
 /** The role's writable set inside the vault (workspace and temp already excluded for 库内). */
 function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: RulePaths): boolean {
+  // 领域会话只读：连「任何会话都能写」的位置与工作区草稿也不放（decide 已先一步
+  // 拦下 write/edit，这里是兜底与穷尽，不依赖调用顺序）。经 `kind` 判而不是
+  // `role.kind`：直接判会把 switch 处的类型收窄掉，`case "domain"` 反而报错。
+  const kind: SessionRole["kind"] = role.kind;
+  if (kind === "domain") return false;
   // 库外的工作区与临时目录是每个角色的草稿空间（库内的目标已经在 decideWrite 里
   // 被挡在草稿位置之外了，见 `isOutsideVaultScratch`）。
   if (isOutsideVaultScratch(target, roots, rules)) return true;
@@ -291,6 +303,8 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
       // 阶段 3：课程页（含 records、snapshots、<slug>-*.png）与概念页只经
       // `course_close` 收课写入；直接写的只剩本科目页（「讲解偏好」）。
       return withinAny(target, rules.subjects);
+    case "domain":
+      return false;
     case "free":
       // Free questions still整理 into 知识 when the user asks; nothing
       // plan-level is writable from here.
@@ -300,6 +314,9 @@ function writeAllowed(role: SessionRole, target: string, roots: Roots, rules: Ru
 
 /** A specific denial for writes that named a place the role cannot touch. */
 function writeDenyReason(role: SessionRole, target: string, rules: RulePaths): string {
+  if (role.kind === "domain") {
+    return `${roleLabel(role)}只读：不改计划、不写库；要改请回总控或那门课的会话。`;
+  }
   // 阶段 3：课程会话写课程页/概念页只走收课事务（这条挡在其它原因之前；能走到
   // 这里的 `wiki/knowledge` 路径只剩概念页，共享子目录已在 writeAllowed 放行）。
   if (role.kind === "course" && (withinAny(target, rules.courses) || withinAny(target, rules.knowledge))) {

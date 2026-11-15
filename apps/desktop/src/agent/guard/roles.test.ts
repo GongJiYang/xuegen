@@ -843,3 +843,55 @@ describe("decide — calendar_write：三个角色都放行（阶段 4a）", () 
     }
   });
 });
+
+describe("decide — domain：只读（领域总控 v0，domain.html ③）", () => {
+  const domain: SessionRole = { kind: "domain", subject: "programming-paradigms" };
+
+  it("reads pages like any role (same credential rules)", () => {
+    const concept = decide(domain, "read", { path: "wiki/knowledge/concepts/programming-paradigms/010-closure.md" }, roots, canon, nothing);
+    expect(concept.allow, concept.reason).toBe(true);
+    // 凭据规则照旧生效。
+    const credential = decide(domain, "read", { path: "/home/.xuegen/auth.json" }, roots, canon, nothing);
+    expect(credential.allow).toBe(false);
+  });
+
+  it("denies write and edit everywhere — even the positions every other session may write", () => {
+    for (const tool of ["write", "edit"]) {
+      for (const path of [
+        "wiki/knowledge/concepts/programming-paradigms/010-closure.md",
+        "wiki/knowledge/extracts/epp/2026-11-15-x.md",
+        "wiki/knowledge/flashcards/discrete-math/010-variables.md",
+        "wiki/calendar/2026-11-15.md",
+        "wiki/log.md",
+        "clippings/新文章.md",
+        `${W}/notes/x.md`,
+        "/private/tmp/x.md",
+      ]) {
+        const decision = decide(domain, tool, { path }, roots, canon, nothing);
+        expect(decision.allow, `${tool} ${path}`).toBe(false);
+        expect(decision.reason, `${tool} ${path}`).toContain("只读");
+        expect(decision.reason, `${tool} ${path}`).toContain("programming-paradigms");
+      }
+    }
+  });
+
+  it("denies every dedicated tool, naming the read-only rule", () => {
+    for (const tool of ["course_plan", "course_close", "cycle_open", "calendar_write"]) {
+      const decision = decide(domain, tool, { action: "stage" }, roots, canon, nothing);
+      expect(decision.allow, tool).toBe(false);
+      expect(decision.reason, tool).toContain("只读");
+    }
+  });
+
+  it("denies tools the lists do not cover (mcp__*, future tools)", () => {
+    const decision = decide(domain, "mcp__obsidian__search", { query: "closure" }, roots, canon, nothing);
+    expect(decision.allow).toBe(false);
+    expect(decision.reason).toContain("只读");
+  });
+
+  it("lets read-only bash commands through decideBash like other roles", () => {
+    expect(decide(domain, "bash", { command: "cat wiki/subjects/programming-paradigms.md" }, roots, canon, nothing).allow).toBe(true);
+    // bash 的文本级规则照旧：凭据照样拦。
+    expect(decide(domain, "bash", { command: "cat ~/.ssh/id_ed25519" }, roots, canon, nothing).allow).toBe(false);
+  });
+});

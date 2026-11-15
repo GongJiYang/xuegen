@@ -122,3 +122,40 @@ export function resumePrompt(book: AskBook): string {
     title: book.short,
   });
 }
+
+/** A 上课 row's lesson as the 「⋯」 menu passes it on. */
+export interface AskLesson {
+  slug: string;
+  name: string;
+  id: string;
+  content: string;
+  date: string;
+}
+
+/** 学过了: tick the chosen lessons as self-reported (cycle-plan 「学过了，直接勾掉」). */
+export function selfReportPrompt(slug: string, name: string, ids: readonly string[]): string {
+  const list = ids.join("、");
+  const text =
+    `/skill:cycle-plan ${name}（${slug}）的 ${list} 我已经学过了，按「学过了，直接勾掉」勾掉：` +
+    "记成用户自报、不出验收题，这几节就是我点名的，不用再问我。";
+  return withActionMarker(text, "ask", { slug, title: `${name} 学过了 ${list}` });
+}
+
+/** 挪到别的日子: 总控 asks for the day first, then changes the plan. */
+export function moveLessonPrompt(lesson: AskLesson): string {
+  const text =
+    `/skill:course 把 ${lesson.name}（${lesson.slug}）${lesson.id}「${lesson.content}」（现在排在 ${lesson.date}）挪到别的日子：` +
+    "先问我挪到哪天，说定后按「改计划」改。";
+  return withActionMarker(`${text}\n${strings.panel.askConfirm}`, "ask", {
+    slug: lesson.slug,
+    title: `${lesson.name} ${lesson.id} 挪日子`,
+  });
+}
+
+/** 这节讲什么: a short answer from the course page and the book; nothing is written. */
+export function askLessonPrompt(lesson: AskLesson): string {
+  const text =
+    `${lesson.name}（${lesson.slug}）${lesson.id}「${lesson.content}」这节讲什么？` +
+    "看课程页的排期与完成条件，用三五句说清要学会什么、为什么排在这里；只回答，不改任何文件。";
+  return withActionMarker(text, "ask", { slug: lesson.slug, title: `${lesson.name} ${lesson.id} 讲什么` });
+}

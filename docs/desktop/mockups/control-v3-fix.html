@@ -1,0 +1,250 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>总控 v3 / 领域页 · 返修稿（11-15）</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a3:#0f2a3d;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615;--hl:#3a2f12;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1560px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper)}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex}
+.main{flex:1;min-width:0;padding:16px 28px 28px;display:flex;flex-direction:column;gap:24px}
+.lnk{color:var(--a11);font-size:12px;font-weight:500}
+.sub,.cap{font-size:12px;line-height:16px;color:var(--g11)}
+/* 改动标记：黄色虚框 + 角标号，对应下面的表 */
+.chg{outline:1px dashed var(--hlb);outline-offset:3px;border-radius:3px;position:relative}
+.chg::after{content:attr(data-n);position:absolute;top:-10px;right:-10px;background:var(--hlb);color:#1a1405;font-size:11px;line-height:16px;font-weight:700;border-radius:8px;padding:0 5px}
+.ask{outline-color:#ff8a8a}.ask::after{background:#ff8a8a}
+/* strip */
+.strip{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:0 0 12px;border-bottom:1px solid var(--g6);font-size:14px;color:var(--g11)}
+.strip b{color:var(--g12);font-weight:600}.strip .sep{color:var(--g7)}
+.strip .acts{margin-left:auto;display:flex;gap:16px}
+/* sections (no frames) */
+.sec h2{font-size:16px;line-height:24px;margin:0 0 8px;display:flex;align-items:baseline;gap:10px;font-weight:600}
+.sec h2 .lnk{margin-left:auto}
+.today{max-width:1064px}
+.gh{font-size:12px;color:var(--g11);display:flex;gap:8px;align-items:baseline;padding:12px 0 4px;border-bottom:1px solid var(--g4)}
+.gh b{color:var(--g12);font-size:14px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid var(--g3)}
+.row .mk{width:16px;text-align:center;color:var(--g8)}.row .mk.now{color:var(--a9)}
+.row .t{flex:1;min-width:0}.row .t .s{font-size:12px;line-height:16px;color:var(--g11)}
+.row.now .t{font-size:16px;font-weight:500}
+.row .go{font-size:14px;color:var(--g12)}.row.now .go{background:var(--g4);padding:2px 8px;border-radius:4px;font-weight:500}
+.box{width:14px;height:14px;border:1px solid var(--g7);border-radius:3px;display:inline-block}
+.fold{font-size:12px;color:var(--g11);padding:8px 4px;display:flex;gap:8px;align-items:center}.fold b{color:var(--g12);font-weight:500}.fold .lnk{margin-left:auto}
+.tmr{font-size:14px;margin-top:14px}
+/* week grid (unchanged structure) */
+.ctl{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--g11);margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--g7);border-radius:4px;overflow:hidden}.seg span{padding:2px 10px;font-size:13px}.seg .on{background:var(--g12);color:#111}
+.ctl .nav{margin-left:auto;display:flex;gap:10px}
+.wk{display:grid;grid-template-columns:88px repeat(7,minmax(0,1fr));font-size:12px;line-height:16px}
+.wk>div{padding:8px;border-bottom:1px solid var(--g6)}
+.wk>div.c{border-left:1px solid var(--g6);min-height:44px;color:var(--g11)}
+.dh b{display:block;font-weight:500;font-size:14px;line-height:20px}.dh span{color:var(--g11)}
+.dh.today,.c.today{background:var(--g3)}.dh.today b{color:var(--a11)}
+.lh b{display:block;font-weight:500;font-size:14px;line-height:20px}.lh span{color:var(--g11)}
+.c .now{color:var(--g12);font-weight:500}.c .ok::before{content:"✓ ";color:var(--done)}
+.c small{display:block;color:var(--g11);font-size:12px;line-height:16px}
+.legend{font-size:12px;color:var(--g11);margin-top:8px}
+/* terms / domain / row3 */
+.tf{display:flex;gap:4px;margin-bottom:8px}.tf span{font-size:12px;line-height:16px;padding:0 8px;border:1px solid var(--g6);border-radius:999px;color:var(--g11)}.tf .on{border-color:#1d4a6b;color:var(--a11)}
+.tr{display:grid;grid-template-columns:9em 1fr;gap:12px;padding:8px 0;border-top:1px solid var(--g4);font-size:14px}
+.tr .l{font-size:12px;line-height:16px;color:var(--g11)}.tr u{text-decoration:none;border-bottom:1px solid var(--g7);margin-right:12px}
+.dom{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--g6);border-radius:8px;padding:8px 12px;font-size:14px;line-height:20px;background:var(--g2)}
+.chip span{color:var(--g11);font-size:12px;line-height:16px;margin-left:8px}
+.r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.r3 p{margin:4px 0;font-size:12px;color:var(--g11)}
+.bar3{height:3px;background:var(--g4);border-radius:4px;margin:6px 0}.bar3 i{display:block;height:100%;background:var(--a9);border-radius:4px}
+/* activity */
+.act{width:340px;border-left:1px solid var(--g6);display:flex;flex-direction:column;min-height:900px}
+.act-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px}.act-h b{font-size:13px}.act-h span{font-size:12px;color:var(--g11)}
+.compose{margin:auto 12px 12px;border:1px solid var(--g7);border-radius:8px;padding:10px 12px;color:var(--g11);font-size:13px}
+/* domain */
+.dshell{display:flex;height:620px}
+.gl{width:280px;border-right:1px solid var(--g6);padding:16px 12px;overflow:hidden}
+.subj{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:16px;line-height:24px;font-weight:600}.subj span{font-size:12px;line-height:16px;color:var(--g11);font-weight:400}
+.find{margin-top:12px;border:1px solid var(--g7);border-radius:8px;padding:6px 12px;font-size:14px;color:var(--g11)}
+.lg{font-size:12px;line-height:16px;color:var(--g11);padding:16px 8px 4px}
+.it{padding:4px 8px;border-radius:4px;font-size:14px;line-height:20px}.it small{display:block;color:var(--g11);font-size:12px;line-height:16px}.it.on{background:var(--a3)}.it.on small{color:var(--a11)}
+.rd{flex:1;min-width:0;padding:24px 32px;overflow:hidden}
+.crumb{font-size:12px;color:var(--g11);margin-bottom:6px}
+.rd h2{font-size:18px;margin:0 0 12px}
+.body{max-width:42em;font-family:"Songti SC",serif;font-size:15px;line-height:1.75}
+.body h4{font-size:16px;margin:18px 0 6px}
+.pre{font:13px/20px Menlo,monospace;background:var(--g2);border-radius:6px;padding:10px 14px;overflow-x:auto;white-space:pre;max-width:42em}
+.scroll{font-size:11px;color:var(--g11);font-family:-apple-system,sans-serif}
+table.t{border-collapse:collapse;width:100%;max-width:42em;font-size:12px;line-height:16px;font-family:-apple-system,sans-serif}
+table.t td,table.t th{border:1px solid var(--g6);padding:6px 8px;text-align:left;vertical-align:top}
+.dask{width:360px;border-left:1px solid var(--g6);padding:14px 16px;font-size:13px}
+/* compare + spec */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cmp figure{margin:0}.cmp img{width:100%;border:1px solid var(--g7);border-radius:6px}
+.cmp figcaption{font-size:12px;color:var(--g11);margin-bottom:4px}
+table.spec{border-collapse:collapse;font-size:13px;margin-top:8px;width:100%}
+table.spec td,table.spec th{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top;text-align:left}
+table.spec th{color:var(--g11);font-weight:500}
+table.spec td:first-child{white-space:nowrap;color:var(--hlb);font-weight:700}
+table.spec tr.ask td:first-child{color:#ff8a8a}
+.src{display:inline-block;font-size:11px;padding:0 6px;border-radius:3px;border:1px solid var(--g7);color:var(--g11);white-space:nowrap}
+.src.me{border-color:#ff8a8a;color:#ff8a8a}
+</style>
+<body><div class="doc">
+<h1>总控 v3 / 领域页 · 返修稿（11-15，等你批）</h1>
+<p class="lead">起因：你说现在的总控「之前的规范全忘了」。我对照 <b>control-v3.html、domain.html</b>（你批过的）和 <b>BEAR-VISUAL-PLAN</b>（最小 12px、可读文字 ≥ 4.5:1、字号行高成对、分组靠间距不套框、对用户只说「主攻日」）实测后列出要改的地方。<b>黄色虚框 = 照原稿或规则改回来</b>；<b>红色虚框 = 原稿没画、是我定的，要你点头</b>。窗口按 1920 宽画（你平时用的宽度），右栏聊天 340px。</p>
+<p class="note"><b>先认错：</b>这一轮我已经先派了两张单子（A：一栏 + 去外框；B：状态行），没先给你看稿。A、B 都是照 control-v3 改，但 B 里有一处是我自己定的（下面 ② 号，红框）。C、D、E 三张已暂停，等你批了这份稿再派；你不同意的地方我让 DeepSeek 改回去。</p>
+
+<h3>改前（现在的真机，1920 宽）</h3>
+<div class="cmp">
+  <figure><figcaption>总控 · 返修前（今天挤在左边 420px，三个蓝链接堆在角上，区块都套框，周表头写「深度」）</figcaption><img src="fix-1115/now-control.png"></figure>
+  <figure><figcaption>领域页 · 返修前（正文只有 420px 宽、右边空 800px；科目名折行、下拉框又写一遍；表格上「数据表格」）</figcaption><img src="fix-1115/now-home.png"></figure>
+</div>
+
+<h3>① 总控 · 返修后（1920 宽）</h3>
+<div class="win">
+  <div class="bar"><div class="tab on">总控 · C1</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>上下文 22%</span><span>收起聊天</span><span>⋯</span></div></div>
+  <div class="shell">
+    <div class="main">
+      <div class="strip">
+        <span><b>C1 · 第 2 周</b> 预计 12-24 收尾</span><span class="sep chg" data-n="1">·</span>
+        <span>今天 <b>0 / 5 项</b></span><span class="sep">·</span>
+        <span>本周 <b>2 / 21 项</b></span><span class="sep">·</span>
+        <span>书房 <b>3 本在读</b></span><span class="sep">·</span>
+        <span class="chg" data-n="1">Anki <b>42 张</b>到期</span><span class="sep">·</span>
+        <span>卡片 <b>全部已同步</b></span>
+        <span class="acts"><span class="lnk chg ask" data-n="2">技能与设置</span><span class="lnk chg" data-n="3">让总控说说今天</span></span>
+      </div>
+
+      <div class="sec today chg" data-n="4">
+        <h2>今天 <span class="sub chg" data-n="5">11-17 周二 · 主攻日</span><span class="lnk">打印</span></h2>
+        <div class="gh chg" data-n="6"><b>上课</b>进会话讲，讲完在会话里收课才算完成</div>
+        <div class="row now"><span class="mk now">●</span><div class="t">CTM D3 · Ch3 §3.1–3.4：声明性、迭代与递归计算</div><span class="go">开课 →</span></div>
+        <div class="row"><span class="mk">○</span><div class="t">导读课 · 数据结构 D2 · §1.3 背包、队列和栈</div><span class="go">开课 →</span></div>
+        <div class="fold">▸ <b>之前没上的 2 节</b>C 语言 D1、离散 D4<span class="lnk">展开</span></div>
+        <div class="gh chg" data-n="6"><b>阅读</b>读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+        <div class="row"><span class="mk"><span class="box"></span></span><div class="t">课后读 · 离散 §1.1–1.4、§2.1–2.2、§2.3<div class="s">原排 11-10 起 · 3 段</div></div><span class="lnk">陪读 →</span></div>
+        <div class="row"><span class="mk"><span class="box"></span></span><div class="t">课后读 · CTM Ch1 pp.9–11、pp.14–16、p.20、p.22 与 Ch2 pp.42–47、pp.49–50<div class="s">原排 11-16</div></div><span class="lnk">陪读 →</span></div>
+        <div class="row"><span class="mk"><span class="box"></span></span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+        <div class="gh"><b>复习</b>在 Anki 里刷，学根不记</div>
+        <div class="row"><span class="mk">○</span><div class="t">Anki · 今天 42 张</div><span class="go">打开 Anki →</span></div>
+        <div class="tmr chg ask" data-n="7">明天：周三 · 主攻日 · 离散 D5 + 导读课 C 语言</div>
+      </div>
+
+      <div class="sec">
+        <h2>本周</h2>
+        <div class="ctl"><span class="seg"><span class="on">周</span><span>月</span></span>C1 W2 · 11-13 – 11-19<span class="nav"><span class="lnk">‹ 上一周</span><span style="color:var(--g8)">本周</span><span class="lnk">下一周 ›</span></span></div>
+        <div class="wk">
+          <div></div>
+          <div class="dh"><b>五 11-13</b><span>整合日</span></div><div class="dh"><b>六 11-14</b><span>低强度日</span></div><div class="dh"><b>日 11-15</b><span>休息日</span></div>
+          <div class="dh chg" data-n="8"><b>一 11-16</b><span>主攻日</span></div>
+          <div class="dh today"><b>二 11-17</b><span>今天 · 主攻日</span></div><div class="dh"><b>三 11-18</b><span>主攻日</span></div><div class="dh"><b>四 11-19</b><span>主攻日</span></div>
+          <div class="lh"><b>主课</b><span>要收课</span></div>
+          <div class="c"><span class="ok">离散 周核实</span><br>○ CTM 周核实</div><div class="c"><span class="ok">CTM D2</span></div><div class="c">休息日</div><div class="c">↷ 离散 D4</div><div class="c today"><span class="now">● CTM D3</span></div><div class="c">○ 离散 D5</div><div class="c">○ CTM D4</div>
+          <div class="lh"><b>课后读</b><span>勾选完成</span></div>
+          <div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div>
+          <div class="c today">↷ 离散 §1.1–1.4、§2.1–2.2、§2.3<small class="chg" data-n="9">原排 11-10</small></div><div class="c">☐ CTM §2.4 pp.60–66</div><div class="c"></div>
+          <div class="lh"><b>导读课</b><span>要收课</span></div>
+          <div class="c"></div><div class="c"></div><div class="c"></div><div class="c">↷ C 语言 D1</div><div class="c today">○ 数据结构 D2</div><div class="c">○ C 语言 D2</div><div class="c">○ 数据结构 D3</div>
+          <div class="lh"><b>自读</b><span>勾选完成</span></div>
+          <div class="c">↷ Epp pp.37–46</div><div class="c">↷ Epp pp.47–56</div><div class="c">↷ Epp pp.57–65</div><div class="c">↷ Epp pp.66–72</div><div class="c today">☐ Epp pp.1–9</div><div class="c">☐ Epp pp.10–18</div><div class="c">☐ Epp pp.19–27</div>
+          <div class="lh"><b>Anki</b><span>只提醒</span></div>
+          <div class="c">Anki</div><div class="c">Anki</div><div class="c"></div><div class="c">Anki</div><div class="c today"><span class="now">○ 42 张 ·</span> <span class="lnk">打开 →</span></div><div class="c">Anki</div><div class="c">Anki</div>
+        </div>
+        <div class="legend">✓ 做完　● 今天　○ 之后　☐ 读完勾选　↷ 挪到了后面　·　点一格看那天</div>
+      </div>
+
+      <div class="sec">
+        <h2>术语 <span class="sub chg" data-n="10">18 个</span><span class="sub" style="margin-left:auto">最近两周存进 wiki 的 · 先背熟再刷 Anki</span></h2>
+        <div class="tf chg" data-n="10"><span class="on">全部 18</span><span>CTM 9</span><span>数据结构 3</span><span>离散 6</span></div>
+        <div class="tr"><span class="l">CTM D2 · 11-14</span><span><u>CTM：抽象机与操作语义</u><u>CTM：闭包与静态作用域</u><u>CTM：语言抽象与函数</u></span></div>
+        <div class="tr"><span class="l">数据结构 D1 · 11-12</span><span><u>基础编程模型</u><u>引用与别名</u><u>API、用例与实现</u></span></div>
+      </div>
+
+      <div class="sec">
+        <h2>领域 <span class="sub">忘了的词去这里问；只读，不改计划</span></h2>
+        <div class="dom"><div class="chip">人工智能与机器学习<span>23 页 · 30 个词</span></div><div class="chip">编程范式<span>16 页 · 19 个词</span></div><div class="chip">离散数学<span>12 页 · 16 个词</span></div><div class="chip">数据结构与算法<span>9 页 · 12 个词</span></div><div class="chip chg" data-n="11">另外 4 个 ▾</div></div>
+      </div>
+
+      <div class="r3 chg ask" data-n="12">
+        <div class="sec"><h2>总进度 <span class="sub">只算主课</span></h2><p style="color:var(--g12);font-size:14px">离散数学 <span style="float:right" class="sub">4 / 14</span></p><div class="bar3"><i style="width:28%"></i></div><p>下一节 D5 · 11-18</p><p style="color:var(--g12);font-size:14px">CTM <span style="float:right" class="sub">2 / 14</span></p><div class="bar3"><i style="width:14%"></i></div><p>今天 D3</p></div>
+        <div class="sec"><h2>书房 <span class="lnk">加一本书</span></h2><p style="color:var(--g12);font-size:14px">Epp · 离散数学</p><p>第 1 / 81 段 · 预计 02-02 读完</p></div>
+        <div class="sec"><h2>卡片 <span class="lnk">新卡片</span></h2><p>牌组　　　　张数　待同步</p><p style="color:var(--g12)">Mathematics::DiscreteMath　160　—</p><p style="color:var(--g12)">Programming::CTM　60　—</p></div>
+      </div>
+    </div>
+    <div class="act">
+      <div class="act-h"><b>动态</b><span>今天 · 0 次</span></div>
+      <div class="compose">问学根，或输入 / 查看功能</div>
+    </div>
+  </div>
+</div>
+
+<h3>② 领域页 · 返修后（1920 宽）</h3>
+<div class="win">
+  <div class="bar"><div class="tab">总控 · C1</div><div class="tab on">领域 · 人工智能与机器学习</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>上下文 0%</span><span>⋯</span></div></div>
+  <div class="dshell">
+    <div class="gl">
+      <div class="subj chg" data-n="13">人工智能与机器学习 <span>▾ 换科目</span></div>
+      <div class="find">找词：中文、英文都行</div>
+      <div class="cap" style="margin-top:8px">全部 30</div>
+      <div class="lg chg" data-n="14">其他</div>
+      <div class="it on">DeepInfer 拆解框架（总览）</div>
+      <div class="it">模型架构 V4 / V4.1（第0层）</div>
+      <div class="it">图文对<small>Image–Caption</small></div>
+      <div class="it">交错图文<small>Interleaved</small></div>
+      <div class="it">长文档截图<small>Document Grounded</small></div>
+      <div class="it">硬切变<small>Hard Cut</small></div>
+    </div>
+    <div class="rd">
+      <div class="crumb">概念页 · 其他</div>
+      <h2>DeepInfer 拆解框架（总览）</h2>
+      <div class="body chg" data-n="15">
+        <h4>Definition</h4>
+        <p>学习目标：沿一条 Chat Completions 请求的完整生命周期，拆解 DeepSeek 生产推理框架开源版 DeepInfer 与协议转换层 deepseek-recipe 的设计。核心拆解方法不是按层通读资料，而是追踪一条请求走完全程，每到一个环节再查对应层的资料。</p>
+      </div>
+      <div class="pre chg" data-n="16">Chat Completions 请求
+  → recipe: 解析协议 → Conversation
+  → DeepInfer: prefill forward (attention DP / batch) → decode forward (MoE EP + EPLB) → 采样 → 流式返回</div>
+      <div class="scroll">（代码块超宽时出横向滚动条，不再截掉）</div>
+      <h4 style="font-family:'Songti SC',serif;font-size:16px;margin:18px 0 6px">项目现实（关键事实）</h4>
+      <table class="t chg" data-n="17"><tr><th>项目</th><th>定位</th><th>关键事实</th></tr><tr><td>DeepInfer</td><td>DeepSeek 生产推理框架开源版</td><td>起源早期 vLLM 分支；首发支持 DeepSeek-V4.1-Flash</td></tr></table>
+    </div>
+    <div class="dask"><span class="cap">（右边问答栏不在这次返修里）</span></div>
+  </div>
+</div>
+
+<h3>改了什么（逐条，带依据）</h3>
+<table class="spec">
+<tr><th>#</th><th>位置</th><th>现在</th><th>返修后</th><th>依据</th><th>单子</th></tr>
+<tr><td>1</td><td>状态行</td><td>六项挤一起，没分隔；「Anki 42 张」</td><td>各项之间「·」；「Anki 42 张到期」</td><td><span class="src">control-v3 ①</span></td><td>B ✅ 已做</td></tr>
+<tr class="ask"><td>2</td><td>技能与设置</td><td>在「今天」标题右边，和打印、让总控说说挤一起</td><td>挪到状态行最右，「让总控说说今天」左边</td><td><span class="src me">我定的</span> 原稿里没有这个入口，但总控去掉侧栏后它只能放在页面上；也可以改放顶栏「⋯」菜单</td><td>B ✅ 已做（不同意就改）</td></tr>
+<tr><td>3</td><td>让总控说说今天</td><td>今天卡里单独一行</td><td>状态行最右</td><td><span class="src">control-v3 ①</span></td><td>B ✅ 已做</td></tr>
+<tr><td>4</td><td>今天区块</td><td>1920 宽时挤在左边 420px，旁边是周表格；外面套框</td><td>一栏往下（今天 → 本周 → 术语 → 领域 → 三栏），不套框；今天的行最宽约 1064px，文字和「开课 →」不再隔 1300px</td><td><span class="src">control-v3 ①</span> <span class="src">VISUAL-PLAN 三</span>；最宽 1064 是原稿这栏的宽度</td><td>A ✅ 一栏；E 待派（限宽）</td></tr>
+<tr><td>5</td><td>今天标题</td><td>标题下另起一行「C1 · 第 2 周 · 周二 · 主攻日」</td><td>标题旁「11-17 周二 · 主攻日」；点了别的日子不再写两遍</td><td><span class="src">control-v3 ①</span></td><td>A ✅；E 待派（去重）</td></tr>
+<tr><td>6</td><td>分组说明</td><td>「主课、导读课、周核实：进会话讲，讲完在会话里点「收课」才算完成」「…（10 秒内可撤销）…」，窄时折行</td><td>原稿的短句</td><td><span class="src">control-v3 ①</span></td><td>B ✅ 已做</td></tr>
+<tr class="ask"><td>7</td><td>「明天：…」一行；「想改计划，直接在右边跟总控说」一行</td><td>两行都在</td><td>去掉「想改计划…」（右栏输入框已说明）；<b>「明天」这行留着</b></td><td><span class="src me">我定的</span> 原稿两行都没画；「明天」是 11-12 面板 v2 就有的，我觉得有用</td><td>A ✅（去掉「想改计划」）</td></tr>
+<tr><td>8</td><td>周表格表头</td><td>每天写「深度」「整合」「休息」</td><td>「主攻日」「整合日」「休息日」</td><td><span class="src">你 11-11 定：对用户只说「主攻日」</span>；加测试，表格里不许出现「深度」</td><td>C 待派</td></tr>
+<tr><td>9</td><td>周表格小字</td><td>「原排 11-10」10px</td><td>12px</td><td><span class="src">VISUAL-PLAN 二：最小 12px</span>；加测试扫整个 skin.css 不许 &lt; 12px</td><td>C 待派</td></tr>
+<tr><td>10</td><td>术语</td><td>筛选里的个数用暗灰（约 2.7:1）；12px 字配 20/24px 行高</td><td>个数用次要灰（≥ 4.5:1）；行高成对</td><td><span class="src">VISUAL-PLAN 二、四</span></td><td>C 待派</td></tr>
+<tr><td>11</td><td>领域「另外 4 个 ▾」、0 页的领域</td><td>暗灰，看着像点不了</td><td>次要灰（能点）</td><td><span class="src">VISUAL-PLAN 四</span>（原稿这里用了暗灰，按规则改）</td><td>C 待派</td></tr>
+<tr class="ask"><td>12</td><td>总进度 / 书房 / 卡片三栏</td><td>每栏套框</td><td>也去框，靠间距分组（和上面一致）</td><td><span class="src me">我定的</span> 原稿写这三栏「不变」，但只给上面去框会两种样子混在一页；VISUAL-PLAN 说不再每块套卡片</td><td>A ✅ 已做（不同意就加回框）</td></tr>
+<tr><td>13</td><td>领域页科目名</td><td>「人工智能与机器 / 学习」折行，旁边下拉框又写一遍名字</td><td>科目名 + 小字「▾ 换科目」（点它弹系统下拉）</td><td><span class="src">domain.html ①</span></td><td>D 待派</td></tr>
+<tr><td>14</td><td>领域词表分组名、英文名</td><td>暗灰（约 2.7:1）</td><td>次要灰</td><td><span class="src">VISUAL-PLAN 四</span></td><td>D 待派</td></tr>
+<tr><td>15</td><td>领域正文行宽</td><td>64ch ≈ 420px（中文约 30 字一行），右边空 800px</td><td>42em ≈ 630px（约 42 字一行），和 11-14 阅读层一致</td><td><span class="src">domain.html ②</span> <span class="src">11-14 阅读层</span></td><td>D 待派</td></tr>
+<tr><td>16</td><td>代码块</td><td>超宽部分被截掉</td><td>横向滚动</td><td>修 bug</td><td>D 待派</td></tr>
+<tr><td>17</td><td>表格说明</td><td>表格上写「数据表格」</td><td>只给读屏软件，不显示</td><td><span class="src">11-14 阅读层已这样做</span></td><td>D 待派</td></tr>
+</table>
+
+<h3>不改的（原稿写「不变」，说明一下）</h3>
+<p class="note">周表格仍是五行（主课 / 课后读 / 导读课 / 自读 / Anki）、本周目标与复盘、「挪到了后面」两行、周 / 月切换都照旧——control-v3 写的是「不变」。如果你也觉得周表格太满（Anki 一行每格写「Anki」、课后读一格六行字），要另出一版稿，这次不动。上课行的「⋯」悬停才出现是原稿定的（我之前说它是问题，说错了）。领域页右边问答栏、顶栏「只读」字样这次不动。</p>
+
+<h3>要你定（红框 3 处）</h3>
+<table class="spec">
+<tr class="ask"><td>②</td><td>「技能与设置」放状态行最右（现在已这样做）／ 放顶栏「⋯」菜单里 ／ 放回「今天」标题旁？</td></tr>
+<tr class="ask"><td>⑦</td><td>「明天：…」这行留着（推荐）／ 照原稿去掉？</td></tr>
+<tr class="ask"><td>⑫</td><td>三栏也去框（现在已这样做，推荐）／ 照原稿保留框？</td></tr>
+</table>
+</div></body></html>

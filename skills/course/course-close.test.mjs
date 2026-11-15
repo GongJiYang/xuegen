@@ -150,6 +150,16 @@ async function cliJson(args, opts) {
 
 const mode = async (path) => (await stat(path)).mode & 0o777;
 
+/** `check --json` 的完整输出，即使 check 判不通过（退出码 1）也把 stdout 解析出来。 */
+async function cliJsonAllowFail(staging, env) {
+  try {
+    const { stdout } = await cli(["check", staging, "--json"], { env });
+    return JSON.parse(stdout);
+  } catch (error) {
+    return JSON.parse(error.stdout ?? "{}");
+  }
+}
+
 // ══ 纯函数 ══
 
 test("parseDiffEntries：状态词转单字母、重命名给两路径、JSON 转义的制表符与引号不乱", () => {
@@ -1999,8 +2009,9 @@ jjTest("计划 --new：没写课程页就 check → 报「新建课程必须写�
     );
     const newPage = join(fixture.vault, "wiki", "courses", "newcourse.md");
 
-    // 写一份合格课程页（标记、排期段、Relationships 指向科目）
-    const text = coursePage().replace("epp", "newcourse");
+    // 写一份合格课程页（标记、排期段、Relationships 指向科目）。新建课程不该带已勾课次：
+    // 夹具去掉「完成：D1」一行，否则按自报规则这次 commit 要带 --label 自报。
+    const text = coursePage().replace("epp", "newcourse").replace("\n- 完成：D1", "");
     await mkdir(join(staging, "wiki", "courses"), { recursive: true });
     await writeFile(join(staging, "wiki", "courses", "newcourse.md"), text);
     const result = await cliJson(["commit", staging], { env });
@@ -2032,12 +2043,12 @@ test("--new 的边界：课程已存在拒绝；不带 --kind plan 或 --subject
   }
 });
 
-test("计划暂存：commit 不接受 --label；check 通过后 abort 可删", async () => {
+test("计划暂存：commit 不接受「自报」以外的 --label；check 通过后 abort 可删", async () => {
   const fixture = await makeVault();
   try {
     const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
     const rejected = await cli(["commit", staging, "--label", "存档点"], { expectFail: true });
-    assert.match(rejected.stderr, /计划暂存的提交一律记「计划」/);
+    assert.match(rejected.stderr, /计划暂存的提交只能不带 --label（记「计划」）或 --label 自报/);
     assert.equal(existsSync(join(staging, "committed")), false, "被拒的 commit 不标 committed");
     await cli(["abort", staging]);
   } finally {
@@ -2203,6 +2214,228 @@ jjTest("recover：没有 label 的旧 journal → 补完后仍记「收课 …�
     await writeFile(join(fixture.ws, ".close", "journal.json"), `${JSON.stringify(journal, null, 2)}\n`);
     await cliJson(["recover", fixture.vault, "--workspace", fixture.ws], { env });
     assert.equal(latestDescription(jj), `收课 epp ${localDate()}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+// ---- 计划暂存的「自报」提交：用户说学过、直接勾课次（jj 记「自报 <slug> <日期>」）----
+
+/** 在暂存课程页的 ## Relationships 前插一条自报记录并勾掉课次。 */
+function withSelfReport(text, { heading = `### ${localDate()}-02（用户自报）`, done = "D2" } = {}) {
+  return text.replace(
+    "## Relationships",
+    `${heading}\n\n- 用户说学过，直接勾掉。\n- 完成：${done}\n\n## Relationships`,
+  );
+}
+
+jjTest("计划暂存勾了课次不带 label → 拒绝且库、jj、暂存都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withSelfReport(coursePage()));
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+    const rejected = await cli(["commit", staging], { expectFail: true, env });
+    assert.match(rejected.stderr, /这次改动勾掉了课次 D2：按用户自报勾选要用 --label 自报，并写一条自报记录/);
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不变");
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 不多提交");
+    assert.equal(existsSync(join(staging, "committed")), false, "暂存留着，改了还能再提交");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存 --label 自报：没写自报记录、没新勾课次分别被拒，什么都不写", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    // 勾了 D2 但新记录的标题不含「自报」
+    await writeFile(
+      join(staging, "wiki", "courses", "epp.md"),
+      withSelfReport(coursePage(), { heading: `### ${localDate()}-02` }),
+    );
+    const noRecord = await cli(["commit", staging, "--label", "自报"], { expectFail: true, env });
+    assert.match(noRecord.stderr, /自报勾选要在学习记录里加一条标题含「自报」的记录/);
+    // 写了自报记录但「完成：」没有新 id（D1 早已勾过）
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), withSelfReport(coursePage(), { done: "D1" }));
+    const noId = await cli(["commit", staging, "--label", "自报"], { expectFail: true, env });
+    assert.match(noId.stderr, /自报提交没有新勾掉的课次（完成：行没变）/);
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不变");
+    assert.doesNotMatch(jj(["log", "--no-graph", "-T", "description.first_line()"]), /自报/, "jj 没有自报提交");
+    assert.equal(existsSync(join(staging, "committed")), false);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存里没有课程页时 --label 自报 → 拒绝，库、jj、暂存都不动", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    // 只改 log 的暂存（暂存里没有课程页）：自报无从证明「新勾了课次」，不能记成自报。
+    await rm(join(staging, "wiki", "courses"), { recursive: true });
+    await writeFile(join(staging, "wiki", "log.md"), `${LOG}- 只改了 log\n`);
+    const logBefore = jj(["log", "--no-graph", "-T", "commit_id"]);
+    const rejected = await cli(["commit", staging, "--label", "自报"], { expectFail: true, env });
+    assert.match(rejected.stderr, /自报要改课程页：暂存里没有课程页/);
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不变");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "log.md"), "utf8"), LOG, "log 不变");
+    assert.equal(jj(["log", "--no-graph", "-T", "commit_id"]), logBefore, "jj 不多提交");
+    assert.equal(existsSync(join(staging, "committed")), false, "暂存留着");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存给归档记录新加「完成：」行 → check 报 archive-record；收课暂存搬记录不被这条拦", async () => {
+  const fixture = await makeVault();
+  try {
+    const recordRel = `wiki/courses/epp/records/${localDate().slice(0, 7)}.md`;
+    const recordBase = "# 2026-11\n\n### 2026-11-09-01\n\n- 讲了 §1.1。\n";
+    await writeFile(join(fixture.vault, recordRel), recordBase);
+    const plan = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    await writeFile(join(plan.staging, recordRel), `${recordBase}- 完成：D2\n`);
+    const rejected = await cli(["check", plan.staging, "--json"], { expectFail: true });
+    assert.deepEqual(JSON.parse(rejected.stdout).problems.map((p) => [p.path, p.kind, p.detail]), [
+      [recordRel, "archive-record", "归档记录只能原样搬进来，不能新加完成行"],
+    ]);
+    await cli(["abort", plan.staging]);
+
+    // 收课暂存：收课时归档记录连「完成：」行一起搬进库里是正常行为。
+    const close = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    await writeFile(join(close.staging, recordRel), `${recordBase}- 完成：D2\n`);
+    await writeFile(join(close.staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage(), "D2"));
+    const passed = await cliJson(["check", close.staging, "--json"]);
+    assert.equal(passed.ok, true, JSON.stringify(passed.problems));
+    await cli(["abort", close.staging]);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存完整自报 → jj 记「自报 <slug> <日期>」，课程页 0444、看板重画", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const selfReported = withSelfReport(coursePage());
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), selfReported);
+    const result = await cliJson(["commit", staging, "--label", "自报"], { env });
+    assert.equal(result.committed, true);
+    assert.equal(result.jj, "ok");
+    assert.equal(result.board, "ok");
+    assert.equal(latestDescription(jj), `自报 epp ${localDate()}`);
+    assert.equal(await readFile(fixture.page, "utf8"), selfReported, "课程页落盘");
+    assert.equal(await mode(fixture.page), 0o444, "课程页上锁");
+    assert.ok(existsSync(join(fixture.vault, "wiki", "_generated", "courses.md")), "看板已重画");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("计划暂存自报时把最早一条记录原样挪进当月 records → commit 通过；records 里改字或没搬 → 拒", async () => {
+  const fixture = await makeVault();
+  try {
+    const month = localDate().slice(0, 7);
+    const recordRel = `wiki/courses/epp/records/${month}.md`;
+    // 课程页最早的那条记录（stage 会把它当基线旧块）。
+    const oldBlock = "### 2026-11-09-01\n\n- 讲了 §1.1。\n- 完成：D1\n";
+    const archiveHead = `# ${month.slice(0, 4)} 年 ${Number(month.slice(5, 7))} 月收课记录\n\n`;
+    // 技能规定的自报写法：最早那条整块删掉、改写成一行「- 归档：…」，再加一条自报记录勾 D2。
+    const pageAfterMove = withSelfReport(coursePage()).replace(
+      oldBlock,
+      "- 归档：2026 年 11 月的收课记录见 [[courses/epp/records/2026-11]]\n",
+    );
+    assert.ok(!pageAfterMove.includes("### 2026-11-09-01"), "夹具：旧块确实从课程页删掉了");
+    // 库里还没有这个月的 records：在暂存里新建（照真实做法，目录要自己建）。
+    const putRecord = async (staging, text) => {
+      await mkdir(dirname(join(staging, recordRel)), { recursive: true });
+      await writeFile(join(staging, recordRel), text);
+    };
+    /** stage 一份「旧块挪走 + 自报」的计划暂存，records 内容由调用方给。 */
+    const stageMoved = async (env, recordText) => {
+      const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+      await writeFile(join(staging, "wiki", "courses", "epp.md"), pageAfterMove);
+      await putRecord(staging, recordText);
+      return staging;
+    };
+
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+
+    // ① 应拒：被删的那一块根本没进 records（只有一句摘要）。
+    const missingStaging = await stageMoved(env, `${archiveHead}- 只有一句摘要\n`);
+    const missing = await cli(["commit", missingStaging, "--label", "自报"], { expectFail: true, env });
+    assert.match(missing.stderr, /自报不能改旧记录：### 2026-11-09-01/);
+    assert.equal(existsSync(join(missingStaging, "committed")), false, "被拒的 commit 不标 committed");
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不变");
+    await cli(["abort", missingStaging], { env });
+
+    // ② 应拒：进了 records，但那一块被改了一个字。
+    const editedStaging = await stageMoved(env, `${archiveHead}${oldBlock.replace("- 讲了 §1.1。", "- 讲了 §1.1。补")}`);
+    const edited = await cli(["commit", editedStaging, "--label", "自报"], { expectFail: true, env });
+    assert.match(edited.stderr, /自报不能改旧记录：### 2026-11-09-01/);
+    assert.equal(existsSync(join(editedStaging, "committed")), false, "被拒的 commit 不标 committed");
+    assert.equal(await readFile(fixture.page, "utf8"), coursePage(), "库不变");
+    await cli(["abort", editedStaging], { env });
+
+    // ③ 合法：旧块原样追加在当月 records 末尾。块自带的完成行跟着搬，也不算「给归档新加完成行」。
+    const okStaging = await stageMoved(env, `${archiveHead}${oldBlock}`);
+    // 不管过不过都先把 problems 读出来：红了也能看见是哪个 kind 拦的。
+    const check = await cliJsonAllowFail(okStaging, env);
+    assert.equal(check.ok, true, JSON.stringify(check.problems));
+    const result = await cliJson(["commit", okStaging, "--label", "自报"], { env });
+    assert.equal(result.committed, true);
+    assert.equal(latestDescription(jj), `自报 epp ${localDate()}`);
+    assert.equal(await readFile(fixture.page, "utf8"), pageAfterMove, "课程页落盘");
+    assert.equal(await readFile(join(fixture.vault, recordRel), "utf8"), `${archiveHead}${oldBlock}`, "归档落盘");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("label 的错配两边都拦：计划暂存 --label 收课、收课暂存 --label 自报 都拒绝", async () => {
+  const fixture = await makeVault();
+  try {
+    const plan = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws]);
+    const badPlan = await cli(["commit", plan.staging, "--label", "收课"], { expectFail: true });
+    assert.match(badPlan.stderr, /计划暂存的提交只能不带 --label（记「计划」）或 --label 自报/);
+    await cli(["abort", plan.staging]);
+
+    const close = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const badClose = await cli(["commit", close.staging, "--label", "自报"], { expectFail: true });
+    assert.match(badClose.stderr, /--label 只能是 收课、存档点 或 偏好/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("recover：journal 带 label「自报」→ 补完后 jj 最新描述是「自报 …」", async () => {
+  const fixture = await makeVault();
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const newPage = withSelfReport(coursePage());
+    const tmp = join(fixture.vault, "wiki", "courses", ".epp.md.close-tmp-9997");
+    await chmod(join(fixture.vault, "wiki", "courses"), 0o755);
+    await chmod(fixture.page, 0o644);
+    await writeFile(tmp, newPage);
+    const journal = {
+      staging,
+      vault: fixture.vault,
+      slug: "epp",
+      label: "自报",
+      files: [{ path: "wiki/courses/epp.md", tmp }],
+      startedAt: "2026-11-15T00:00:00.000Z",
+    };
+    await writeFile(join(fixture.ws, ".close", "journal.json"), `${JSON.stringify(journal, null, 2)}\n`);
+    const recovered = await cli(["recover", fixture.vault, "--workspace", fixture.ws, "--json"], { env });
+    assert.equal(JSON.parse(recovered.stdout).recovered, "epp");
+    assert.match(recovered.stderr, /已补完上次中断的自报：epp/, "提示用的是实际 label，不是「收课」");
+    assert.equal(await readFile(fixture.page, "utf8"), newPage);
+    assert.equal(latestDescription(jj), `自报 epp ${localDate()}`);
   } finally {
     await cleanup(fixture);
   }

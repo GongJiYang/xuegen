@@ -196,6 +196,27 @@ describe("createGuardExtension", () => {
     expect(entry?.reason).toContain("默认放行");
   });
 
+  it("denies unlisted tools for the read-only domain session and audits the refusal", () => {
+    // cycle_open 与 mcp__* 都不在 GUARDED_TOOLS 里，走不到 decide——领域会话的
+    // 「一律拒」只能在 pass-through 分支拦。
+    const guard = harness(options(), { kind: "domain", subject: "programming-paradigms" });
+    for (const toolName of ["cycle_open", "mcp__obsidian__write"]) {
+      const event: ToolCallEvent = {
+        type: "tool_call",
+        toolCallId: `domain-${toolName}`,
+        toolName,
+        input: {},
+      };
+      const result = guard.call(event) as { block?: boolean; reason?: string } | undefined;
+      expect(result?.block, toolName).toBe(true);
+      expect(result?.reason, toolName).toContain("只读");
+    }
+    const entries = guard.audit();
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.allow).toBe(false);
+    expect(entries[0]?.role).toBe("domain:programming-paradigms");
+  });
+
   it("sends a new clip through, but refuses overwriting an existing one", () => {
     const fresh = harness(options({ exists: () => false }));
     const newClip: ToolCallEvent = {
@@ -390,6 +411,54 @@ describe("createGuardExtension — course_plan 的审计 target（阶段 4a）",
     const [entry] = guard.audit();
     expect(entry?.allow).toBe(false);
     expect(entry?.target).toBe("board");
+  });
+});
+
+describe("createGuardExtension — cycle_open 必须在拦截清单里（11-15 返修）", () => {
+  const open: ToolCallEvent = {
+    type: "tool_call",
+    toolCallId: "23",
+    toolName: "cycle_open",
+    input: { action: "stage", cycle: "c3", staging: "/home/learning/.cycle/c3-20261115-1010" },
+  };
+
+  it("blocks cycle_open from a course session", () => {
+    const guard = harness(options({}), { kind: "course", slug: "ctm" });
+    const result = guard.call({ ...open, input: { ...open.input } }) as
+      | { block?: boolean; reason?: string }
+      | undefined;
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain("总控");
+    expect(guard.audit().at(-1)?.tool).toBe("cycle_open");
+    expect(guard.audit().at(-1)?.allow).toBe(false);
+  });
+
+  it("blocks cycle_open from a free session", () => {
+    const guard = harness(options({}), { kind: "free" });
+    const result = guard.call({ ...open, input: { ...open.input } }) as
+      | { block?: boolean; reason?: string }
+      | undefined;
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain("总控");
+  });
+
+  it("lets a control session stage under <workspace>/.cycle/", () => {
+    const guard = harness(options({}), { kind: "control" });
+    expect(guard.call({ ...open, input: { ...open.input } })).toBeUndefined();
+    expect(guard.audit().at(-1)?.allow).toBe(true);
+  });
+
+  it("still refuses a staging directory outside <workspace>/.cycle/ for control", () => {
+    const guard = harness(options({}), { kind: "control" });
+    const outside: ToolCallEvent = {
+      type: "tool_call",
+      toolCallId: "24",
+      toolName: "cycle_open",
+      input: { action: "stage", cycle: "c3", staging: "/home/learning/.close/c3-20261115-1010" },
+    };
+    const result = guard.call(outside) as { block?: boolean; reason?: string } | undefined;
+    expect(result?.block).toBe(true);
+    expect(result?.reason).toContain(".cycle");
   });
 });
 

@@ -427,3 +427,37 @@ describe("useControlCard 摘几句", () => {
     expect(captured?.extract?.saving).toBe(false);
   });
 });
+
+describe("useControlCard 「⋯」菜单", () => {
+  const LESSON = { slug: "ctm", name: "CTM", id: "D3", content: "Ch3", date: "2026-11-24" };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    clientMock.data.mockImplementation((request: { kind: string }) =>
+      Promise.resolve({ ok: true, data: request.kind === "calendar.month" ? MONTH : {} }),
+    );
+  });
+
+  it("hides the menu when there is no onAsk", async () => {
+    render(<Harness props={input()} />);
+    await act(async () => {});
+    expect(captured?.lessonMenu).toBeNull();
+  });
+
+  it("sends each menu item's prompt through onAsk", async () => {
+    const onAsk = vi.fn();
+    render(<Harness props={input({ onAsk })} />);
+    await act(async () => {});
+    const menu = captured?.lessonMenu;
+    if (!menu) throw new Error("expected a lesson menu");
+
+    act(() => menu.onSelfReport("ctm", "CTM", ["D1"]));
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    expect(onAsk.mock.calls[0]?.[0]).toMatch(/^\/skill:cycle-plan/);
+
+    act(() => menu.onMove(LESSON));
+    expect(onAsk).toHaveBeenCalledTimes(2);
+    act(() => menu.onAsk(LESSON));
+    expect(onAsk).toHaveBeenCalledTimes(3);
+  });
+});

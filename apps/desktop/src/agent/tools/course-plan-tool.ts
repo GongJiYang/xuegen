@@ -56,6 +56,7 @@ export interface CoursePlanParams {
   reviews?: string | undefined;
   elastic?: boolean | undefined;
   today?: string | undefined;
+  label?: "自报" | undefined;
 }
 
 /** One script invocation in a plan action's sequence. */
@@ -88,15 +89,25 @@ export function coursePlanCalls(params: CoursePlanParams, vault: string, cwd: st
   if (params.subject !== undefined && !SLUG_RE.test(params.subject)) {
     throw new Error("subject 只能是小写字母、数字和连字符。");
   }
+  if (params.label !== undefined && params.action !== "commit") {
+    throw new Error("label 只在 commit 用：按用户自报勾掉课次时填「自报」。");
+  }
   switch (params.action) {
     case "stage":
       return [stageCall(params, vault, cwd)];
     case "schedule":
       return [scheduleCall(params)];
     case "check":
-    case "commit":
     case "abort":
       return [{ script: CLOSE_SCRIPT, args: [params.action, needStaging(params), "--json"] }];
+    case "commit": {
+      const staging = needStaging(params);
+      const args =
+        params.label === "自报"
+          ? ["commit", staging, "--label", "自报", "--json"]
+          : ["commit", staging, "--json"];
+      return [{ script: CLOSE_SCRIPT, args }];
+    }
     case "shift":
       return [shiftCall(params, vault, cwd)];
     case "board":
@@ -187,7 +198,8 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
         "总控专用：建课、改计划。stage 开一个计划暂存（新建课程加 new 和 subject）→ " +
         "用编辑工具改暂存目录里的课程页 / 科目页 / index / log → 需要排期时 schedule → check → " +
         "commit（jj 记『计划』，看板自动重画）；abort 放弃；board 只重画看板。课程会话不能用。" +
-        "临时不上课、要把某天的课往后挪：shift（不开暂存、一步提交）。",
+        "临时不上课、要把某天的课往后挪：shift（不开暂存、一步提交）。" +
+        "用户说学过了、要直接勾掉某几节：stage → 改课程页的勾、完成：行并加一条「用户自报」记录 → check → commit（label: 自报）。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -227,6 +239,12 @@ export function createCoursePlanExtension(options: CoursePlanToolOptions): Exten
         ),
         today: Type.Optional(
           Type.String({ description: "shift 用：YYYY-MM-DD，这一天之前没学的新课顺延到它或之后的第一个上课日" }),
+        ),
+        label: Type.Optional(
+          Type.Literal("自报", {
+            description:
+              "commit 用：这次是按用户自报勾掉课次（学过了、直接勾）时填「自报」，jj 记「自报」；学习记录里要有一条标题含「自报」的新记录",
+          }),
         ),
       }),
       async execute(_toolCallId, params): Promise<AgentToolResult<undefined>> {

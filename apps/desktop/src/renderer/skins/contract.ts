@@ -45,9 +45,10 @@ import type { ProgressGroups } from "../core/board/progress-groups.js";
 import type { ControlView } from "../core/board/bot-state.js";
 import type { Activity } from "../core/chat/activity.js";
 import type { PinBoard } from "../core/chat/pin-board.js";
-import type { ControlCardRow, ControlCardView } from "../core/board/control-card.js";
+import type { ControlCardRow, ControlCardView, LessonRef } from "../core/board/control-card.js";
 import type { ShelfPanelView } from "../core/board/shelf-view.js";
 import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
+import type { OpenCourseRow } from "../core/board/open-courses.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
@@ -56,6 +57,7 @@ import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
 import type { TermLessonView } from "../core/board/terms.js";
 import type { ActivityCard, UndoState } from "../core/board/activity-feed.js";
+import type { DomainState } from "../core/board/use-domain.js";
 import type { PlanMarks } from "../core/board/plan-diff.js";
 import type { ReaderView } from "../core/board/use-reader.js";
 import type {
@@ -114,6 +116,10 @@ export interface SessionsView {
   groups: SessionGroup[];
   onPick(file: string): void;
   onNew(): void;
+  /** 「＋」 popover's 开一门课 rows (Bear); absent = not shown. */
+  courses?: OpenCourseRow[];
+  /** Open a course's today session — the same as 「开课 →」 on the 总控 card. */
+  onOpenCourse?: (slug: string) => void;
 }
 
 /** One title-bar session tab (`docs/desktop/mockups/tabs.html`). */
@@ -879,6 +885,10 @@ export interface ControlPanelProps {
   onAsk(message: string): void;
   /** Open the 技能与设置 dialog. */
   onOpenSkills(): void;
+  /** 「让总控说说今天」 at the strip's right end: ask the model for the brief. */
+  onAskBrief(): void;
+  /** True while an answer streams: 「让总控说说今天」 is disabled. */
+  busy: boolean;
   /** False while the 今天 block shows a clicked cell's day instead of today. */
   shownToday: boolean;
   /** 回到今天: the 今天 block shows today again. */
@@ -895,6 +905,22 @@ export interface ControlPanelProps {
   weekFocus?: number;
   /** 开下一周期: the 本周 banner and the wizard. A skin without it shows neither. */
   nextCycle?: NextCycleView;
+  /** 领域 row at the bottom (control-v3 ①): every subject, null while loading; absent hides the row. */
+  domains?: { id: string; title: string; pages: number; terms: number }[] | null;
+  onOpenDomain?: (id: string, title: string) => void;
+}
+
+/** 领域页（domain.html）: the glossary on the left, the 领域小结 or a page in the middle. */
+export interface DomainPanelProps {
+  /** The subject's title (「编程语言与编程范式」). */
+  title: string;
+  /** Every subject for 「换科目」, current one included; fewer than two hides the switch. */
+  subjects: { id: string; label: string }[];
+  current: string;
+  onSwitchSubject(id: string): void;
+  domain: DomainState;
+  /** Markdown → rendered body, the same renderer the chat uses. */
+  renderMarkdown(markdown: string): React.ReactNode;
 }
 
 /** The 开下一周期 banner (last week of a cycle) and its five-step wizard. */
@@ -970,6 +996,16 @@ export interface ControlCardProps {
   extract: ControlCardExtract | null;
   /** The 「更早的对话」 row under the card, or null. */
   older: { label: string; onToggle(): void } | null;
+  /** The 「⋯」 menu on a not-done 上课 row (总控 v3); absent or null hides it. */
+  lessonMenu?: ControlLessonMenu | null;
+}
+
+/** What the 「⋯」 menu's three items do: each only sends 总控 a (folded) message. */
+export interface ControlLessonMenu {
+  /** 学过了: the chosen lessons of one course, ticked as self-reported. */
+  onSelfReport(slug: string, name: string, ids: string[]): void;
+  onMove(lesson: LessonRef): void;
+  onAsk(lesson: LessonRef): void;
 }
 
 /** Every component a skin must provide. */
@@ -1010,6 +1046,8 @@ export interface SkinSlots {
   Planbook: ComponentType<PlanbookProps>;
   /** The 总控 面板 (design `?d=dash`): replaces the 周计划本 on the 总控 session. */
   ControlPanel: ComponentType<ControlPanelProps>;
+  /** The 领域 page (design `?d=domain`, domain.html ①②): glossary + summary / page. */
+  DomainPanel: ComponentType<DomainPanelProps>;
 }
 
 /** The lazily-loaded module a skin id resolves to. */

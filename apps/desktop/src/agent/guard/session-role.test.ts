@@ -86,6 +86,27 @@ describe("roleFromHints", () => {
     expect(roleFromHints(hints({ userTexts: ["今天的安排\n⟦xuegen:brief⟧"] }))).toEqual({ kind: "control" });
   });
 
+  it("reads the domain marker's subject", () => {
+    expect(
+      roleFromHints(
+        hints({ userTexts: ["编程范式里「闭包」是什么来着\n⟦xuegen:domain|programming-paradigms|编程范式⟧"] }),
+      ),
+    ).toEqual({ kind: "domain", subject: "programming-paradigms" });
+  });
+
+  it("keeps the first marker's role: a domain marker before a course marker stays domain", () => {
+    expect(
+      roleFromHints(
+        hints({
+          userTexts: [
+            "问领域\n⟦xuegen:domain|programming-paradigms|编程范式⟧",
+            "开始今天的 离散\n⟦xuegen:open|epp|离散数学⟧",
+          ],
+        }),
+      ),
+    ).toEqual({ kind: "domain", subject: "programming-paradigms" });
+  });
+
   it("ignores a marker with no slug that is not the brief", () => {
     expect(roleFromHints(hints({ userTexts: ["收课\n⟦xuegen:close⟧"] }))).toEqual({ kind: "free" });
   });

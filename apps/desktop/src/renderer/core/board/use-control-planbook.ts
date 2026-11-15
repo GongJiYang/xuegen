@@ -38,6 +38,7 @@ import { planbookProps } from "./planbook-props.js";
 import type { useReading } from "./use-reading.js";
 import type { CycleResource } from "./use-cycle.js";
 import { courseTitleOf, verifyMessage } from "./use-shell-panels.js";
+import type { DomainSession } from "./use-domain-session.js";
 
 export interface ControlPlanbookInput {
   cycle: CycleResource;
@@ -59,6 +60,8 @@ export interface ControlPlanbookInput {
   setActiveCourse(slug: string | null): void;
   /** settings `verifiedOn` (slug → the day its 周核实 last started). */
   verifiedOn: Record<string, string>;
+  /** The 领域 tab's subjects and opener: the 总控 panel's bottom row lists them. */
+  domainSession: DomainSession;
 }
 
 /** The 面板 props App hands to the skin, minus the 今日卡 element. */
@@ -104,6 +107,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
         });
       }),
     verifiedOn: input.verifiedOn,
+    onAsk: controller.send,
     refresh: () => {
       courses.reload();
       calendar.resource.reload();
@@ -227,11 +231,23 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     onOpenAnki: () => input.openTool("cards"),
     onAsk: controller.send,
     onOpenSkills: () => input.openTool("skills"),
+    onAskBrief: control.askBrief,
+    busy: controller.streaming,
     onOpenCards: () => input.openTool("cards"),
     terms,
     onOpenTerm: openTerm,
     changes: changesView,
     weekFocus,
+    domains:
+      input.domainSession.subjects === null
+        ? null
+        : input.domainSession.subjects.map((item) => ({
+            id: item.id,
+            title: item.title,
+            pages: item.pages,
+            terms: item.terms,
+          })),
+    onOpenDomain: (id, title) => input.domainSession.open(id, title),
     ...(nextCycle === undefined ? {} : { nextCycle }),
   };
   return {

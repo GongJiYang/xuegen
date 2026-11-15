@@ -82,7 +82,7 @@ function WeekView({
             </b>
             <span>
               {day.isToday ? `${strings.planbook.today} · ` : ""}
-              {day.type}
+              {day.type === null ? "" : strings.planbook.dayTypeName(day.type)}
             </span>
           </div>
         ))}
@@ -131,7 +131,9 @@ function WeekView({
                     );
                   })}
                   {day.type === "休息" && laneId === "main" && (
-                    <span className="bear-pb-it is-rest">{day.type}</span>
+                    <span className="bear-pb-it is-rest">
+                      {day.type === null ? "" : strings.planbook.dayTypeName(day.type)}
+                    </span>
                   )}
                 </button>
               );

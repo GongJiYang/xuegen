@@ -1,7 +1,8 @@
 // 收课校验规则：全部纯函数，不读文件、不起子进程，供测试直接调用。
 // 独占的知识：什么路径属于这门课、log 只能追加、index 不许删行、课程页与概念页的合法形状、
 // 以及收课暂存里的科目页只能改「## 讲解偏好」一节。
-// 对外接口：planCheck 汇总校验，以及各 check*/is*/owned*/subjectOf/stagingName 判定函数。
+// 对外接口：planCheck 汇总校验，以及各 check*/is*/owned*/subjectOf/stagingName 判定函数；
+// addedCompletedIds/checkSelfReport 是计划暂存「自报」提交（用户说学过、直接勾课次）的校验。
 // 调用方：staging.mjs 的 gatherCheck；course-close.mjs 的 cmd* 与测试转出。
 import { posix } from "node:path";
 import { parseCourse } from "../course-parse.mjs";
@@ -10,6 +11,8 @@ import { completedIds, readSchedule } from "../course-schedule.mjs";
 const COURSE_PAGE_MAX_LINES = 200;
 const PREF_HEADING_RE = /^##\s+讲解偏好\s*$/;
 const PREF_MAX_LINES = 15;
+const RECORD_SECTION_RE = /^##\s+Learning Record\s*$/;
+const DONE_LINE_RE = /完成[:：]/;
 
 /** 暂存目录名：本地时间 <slug>-YYYYMMDD-HHMMSS。 */
 export function stagingName(slug, now) {
@@ -117,16 +120,19 @@ export function checkNoDeletedLines(baseText, newText) {
 
 /**
  * 课程页校验：能解析且带 xuegen:course-state 标记；「完成：」里的课次 id 都在排期表；
- * 不超过 200 行。返回问题数组（空 = 通过）。
+ * 不超过 200 行；`## Learning Record` 只能有一节（两节时第二段的「完成：」既绕过自报
+ * 校验、又不被 completedIds 认，落盘就是脏数据）。返回问题数组（空 = 通过）。
  */
 export function checkCoursePage(text, slug) {
   const problems = [];
   const course = parseCourse(text, slug);
   if (!course.marked) problems.push("缺少 xuegen:course-state 标记，不是有效课程页");
-  const lines = text.split("\n").length;
-  if (lines > COURSE_PAGE_MAX_LINES) {
-    problems.push(`课程页 ${lines} 行，超过 ${COURSE_PAGE_MAX_LINES} 行上限`);
+  const lines = text.split("\n");
+  if (lines.length > COURSE_PAGE_MAX_LINES) {
+    problems.push(`课程页 ${lines.length} 行，超过 ${COURSE_PAGE_MAX_LINES} 行上限`);
   }
+  const recordSections = lines.filter((line) => RECORD_SECTION_RE.test(line.trim())).length;
+  if (recordSections > 1) problems.push("课程页只能有一节 ## Learning Record");
   let schedule = null;
   try {
     schedule = readSchedule(text);
@@ -200,6 +206,178 @@ export function checkSubjectPreference(baseText, newText) {
   return problems;
 }
 
+/**
+ * 计划暂存提交前：课程页新加的完成 id（staged 有、base 没有），与排期表顺序无关，
+ * 返回排序后的数组。baseText 为 null（新建课程，库里还没有课程页）时当空集。
+ */
+export function addedCompletedIds(baseText, stagedText) {
+  const base = baseText === null ? new Set() : completedIds(baseText);
+  return [...completedIds(stagedText)].filter((id) => !base.has(id)).sort();
+}
+
+/**
+ * 记录块：`### ` 开头到下一个 `### ` / `## ` 之间的内容。
+ * 默认只看课程页的 `## Learning Record` 节（没有这一节返回 []）；whole 为 true 时
+ * 整份文件都切块——归档文件 `wiki/courses/<slug>/records/YYYY-MM.md` 没有这一节标题。
+ * 返回 [{ heading: 去掉首尾空白的标题行, body: 标题行之后的行 }]。
+ */
+function recordBlocks(text, { whole = false } = {}) {
+  const lines = text.split("\n");
+  const start = whole ? 0 : lines.findIndex((line) => RECORD_SECTION_RE.test(line.trim()));
+  if (start === -1) return [];
+  const blocks = [];
+  let current = null;
+  // 课程页从节标题的下一行开始切；整份文件（归档）从第一行开始，别把首行的块标题吃掉。
+  for (const line of lines.slice(whole ? 0 : start + 1)) {
+    if (/^##\s/.test(line)) break;
+    if (/^###\s/.test(line)) {
+      current = { heading: line.trim(), body: [] };
+      blocks.push(current);
+      continue;
+    }
+    if (current) current.body.push(line);
+  }
+  return blocks;
+}
+
+/** 块的比较文本：标题 + 正文（去掉正文尾部空行，免得块间空行变化被当成改记录）。 */
+function blockText(block) {
+  const body = [...block.body];
+  while (body.length > 0 && body[body.length - 1].trim() === "") body.pop();
+  return [block.heading, ...body].join("\n");
+}
+
+/** 记录块正文里「完成：…」列出的课次 id。 */
+function blockCompletedIds(block) {
+  const done = new Set();
+  for (const line of block.body) {
+    const match = line.match(/完成[:：]\s*(.+)$/);
+    if (!match) continue;
+    for (const id of match[1].split(/[,，、\s]+/)) if (id) done.add(id.trim());
+  }
+  return done;
+}
+
+const RECORD_HEADING_RE = /^###\s+\d{4}-\d{2}-\d{2}-\d{2}/;
+
+/**
+ * 自报提交的课程页校验，返回问题字符串数组（空 = 通过）：
+ * ① added 为空 → 「自报提交没有新勾掉的课次（完成：行没变）」
+ * ② stagedText 里没有**新加**的、标题含「自报」的 `### YYYY-MM-DD-NN（…自报…）` 记录
+ *    → 「自报勾选要在学习记录里加一条标题含「自报」的记录」
+ * ③ base 里的旧记录必须原样还在（标题与正文都不变），否则「自报不能改旧记录：<旧标题>」
+ *    —— 只比标题行会被「把旧记录标题改成含自报」绕过。
+ *    例外：旧记录整块**原样**挪进了归档（`wiki/courses/<slug>/records/*.md`，技能规定的
+ *    「超过 2 条就把最早的挪进当月 records」），算合法移走，不报错。
+ * ④ 新勾的课次必须写在那条新自报记录的「完成：」行里（写进别的块不算数）。
+ * 「新块」= 标题 + 正文原样都找不到对应旧块的块。baseText 为 null（新建课程）时
+ * 没有旧块可比，③④ 不适用（缺 ① ② 仍然拒）。
+ * archivedTexts 是暂存里 records 文件的全文数组（course-close.mjs 从暂存目录读）。
+ */
+export function checkSelfReport(baseText, stagedText, archivedTexts = []) {
+  const problems = [];
+  const added = addedCompletedIds(baseText, stagedText);
+  if (added.length === 0) {
+    problems.push("自报提交没有新勾掉的课次（完成：行没变）");
+  }
+  const stagedBlocks = recordBlocks(stagedText);
+  const baseBlocks = baseText === null ? [] : recordBlocks(baseText);
+  // 旧块按「标题 + 正文」多重集比对：改标题、改正文、删旧块都算改了旧记录。
+  const stagedTexts = stagedBlocks.map(blockText);
+  const matched = new Array(stagedBlocks.length).fill(false);
+  // 归档文件整份切块（没有 `## Learning Record` 标题），按同样的「标题 + 正文」比对。
+  const archivedBlocks = archivedTexts.flatMap((text) => recordBlocks(text, { whole: true }));
+  const archivedTextsOfBlocks = archivedBlocks.map(blockText);
+  const archivedMatched = new Array(archivedBlocks.length).fill(false);
+  for (const block of baseBlocks) {
+    const text = blockText(block);
+    const index = stagedTexts.findIndex((candidate, i) => !matched[i] && candidate === text);
+    if (index === -1) {
+      // 课程页里没了：原样出现在某个归档里就算「按归档规则挪走」，不算改旧记录。
+      const archived = archivedTextsOfBlocks.findIndex((candidate, i) => !archivedMatched[i] && candidate === text);
+      if (archived === -1) {
+        problems.push(`自报不能改旧记录：${block.heading}`);
+        continue;
+      }
+      archivedMatched[archived] = true;
+      continue;
+    }
+    matched[index] = true;
+  }
+  const newBlocks = stagedBlocks.filter((_, index) => !matched[index]);
+  const reportBlocks = newBlocks.filter((block) => RECORD_HEADING_RE.test(block.heading) && block.heading.includes("自报"));
+  if (reportBlocks.length === 0) {
+    problems.push("自报勾选要在学习记录里加一条标题含「自报」的记录");
+  } else if (baseText !== null) {
+    const done = new Set();
+    for (const block of reportBlocks) for (const id of blockCompletedIds(block)) done.add(id);
+    const missing = added.filter((id) => !done.has(id));
+    if (missing.length > 0) {
+      problems.push(`新勾的课次要写在自报记录的「完成：」行里：${missing.join("、")}`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * 暂存文本里比 baseText 多出来的「完成：」行（按行做多重集比较，baseText 为 null 当空）。
+ * 归档记录（wiki/courses/<slug>/records/*.md）用：计划暂存只许原样搬，不许新加完成行。
+ */
+export function addedDoneLines(baseText, stagedText) {
+  const left = new Map();
+  for (const line of (baseText === null ? "" : baseText).split("\n")) {
+    const key = line.trim();
+    if (key === "") continue;
+    left.set(key, (left.get(key) ?? 0) + 1);
+  }
+  const added = [];
+  for (const line of stagedText.split("\n")) {
+    const key = line.trim();
+    if (key === "" || !DONE_LINE_RE.test(key)) continue;
+    const count = left.get(key) ?? 0;
+    if (count > 0) {
+      left.set(key, count - 1);
+      continue;
+    }
+    added.push(key);
+  }
+  return added;
+}
+
+/** 归档记录路径：wiki/courses/<slug>/records/ 下的 .md。 */
+function isArchiveRecord(slug, path) {
+  return path.startsWith(`wiki/courses/${slug}/records/`) && path.endsWith(".md");
+}
+
+/**
+ * 计划暂存里「整块原样挪进这份归档」的块里的「完成：」行（多重集，已 trim）：
+ * base 课程页有这一块、staged 课程页里已经没了、而它原样出现在这份归档文本里。
+ * 用于放行技能规定的「收课记录超过 2 条就把最早的挪进当月 records」——那种挪动能把
+ * 块自带的「完成：」行一起搬走，不能当成「给归档新加完成行」。
+ * 课程页不在暂存里、或库里没有基线课程页时返回 []（没有「挪走」可言）。
+ */
+function movedDoneLines(manifest, staged, baseCourseText, archivedText) {
+  if (typeof baseCourseText !== "string") return [];
+  const courseRel = `wiki/courses/${manifest.slug}.md`;
+  const stagedPage = staged.find(
+    (item) => item.path === courseRel && !item.symlink && typeof item.text === "string",
+  );
+  if (!stagedPage) return [];
+  const stagedTexts = recordBlocks(stagedPage.text).map(blockText);
+  const archivedTexts = recordBlocks(archivedText, { whole: true }).map(blockText);
+  const out = [];
+  for (const block of recordBlocks(baseCourseText)) {
+    const text = blockText(block);
+    if (stagedTexts.includes(text)) continue;
+    if (!archivedTexts.includes(text)) continue;
+    for (const line of block.body) {
+      const key = line.trim();
+      if (key !== "" && DONE_LINE_RE.test(key)) out.push(key);
+    }
+  }
+  return out;
+}
+
 /** 新增概念页：以 "---\n" 开头且 frontmatter 内有 sources: 行。通过返回 null。 */
 export function checkConceptPage(text) {
   if (!text.startsWith("---\n")) return "概念页缺少 frontmatter（须以 --- 开头）";
@@ -260,6 +438,28 @@ export function planCheck(manifest, staged, current) {
       } else if (path === `wiki/courses/${manifest.slug}.md`) {
         for (const detail of checkCoursePage(item.text, manifest.slug)) {
           problems.push({ path, kind: "course-page", detail });
+        }
+      } else if (isArchiveRecord(manifest.slug, path) && (manifest.kind ?? "close") === "plan") {
+        // 计划暂存不许往归档记录里新加「完成：」行：完成状态只能由课程页来（收课时整条记录
+        // 连完成行一起搬过去，所以收课暂存不受这条限制）。库里没有这份记录时按空文本比。
+        // 例外：整块原样挪走的旧记录（技能规定的归档）自带的完成行跟着搬，不算新加。
+        const baseText = inBase && cur && typeof cur.text === "string" ? cur.text : null;
+        const courseCur = current.get(`wiki/courses/${manifest.slug}.md`);
+        const moved = new Map();
+        for (const line of movedDoneLines(manifest, staged, courseCur?.text, item.text)) {
+          moved.set(line, (moved.get(line) ?? 0) + 1);
+        }
+        const leftover = [];
+        for (const line of addedDoneLines(baseText, item.text)) {
+          const count = moved.get(line) ?? 0;
+          if (count > 0) {
+            moved.set(line, count - 1);
+            continue;
+          }
+          leftover.push(line);
+        }
+        if (leftover.length > 0) {
+          problems.push({ path, kind: "archive-record", detail: "归档记录只能原样搬进来，不能新加完成行" });
         }
       } else if (subjectPage && (manifest.kind ?? "close") !== "plan") {
         // 收课暂存的本科目页：只许改「## 讲解偏好」一节（计划暂存不设此限，总控能改整页）。

@@ -4,10 +4,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  addedCompletedIds,
+  addedDoneLines,
   checkAppendOnly,
   checkConceptPage,
   checkCoursePage,
   checkNoDeletedLines,
+  checkSelfReport,
   checkSubjectPreference,
   isOwned,
   isSafeRelPath,
@@ -201,6 +204,22 @@ test("checkCoursePage：合法通过；缺标记、超 200 行、完成 id 不�
   assert.match(checkCoursePage(withCloseRecord(coursePage(), "D9"), "epp").join("\n"), /不在排期表：D9/);
   const brokenSchedule = coursePage().replace("<!-- xuegen:schedule:end -->", "");
   assert.match(checkCoursePage(brokenSchedule, "epp").join("\n"), /排期表无法解析/);
+});
+
+test("checkCoursePage：`## Learning Record` 出现两节 → 报「只能有一节」", () => {
+  assert.deepEqual(checkCoursePage(coursePage(), "epp"), [], "一节时通过");
+  // 第二节里的「完成：D2」是 completedIds 看不见的脏数据（completedIds 碰到下一个 ## 就停）。
+  const twoSections = coursePage({ tail: "## Learning Record\n\n### 2026-11-10-01\n\n- 补记\n- 完成：D2\n" });
+  assert.deepEqual(checkCoursePage(twoSections, "epp"), ["课程页只能有一节 ## Learning Record"]);
+  // planCheck 里所有暂存种类都走 checkCoursePage，所以 check 也不通过。
+  const page = "wiki/courses/epp.md";
+  const manifest = { kind: "plan", slug: "epp", base: { [page]: "s" } };
+  const current = new Map([[page, { sha: "s", text: coursePage() }]]);
+  const result = planCheck(manifest, [{ path: page, sha: "s2", text: twoSections, symlink: false }], current);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.problems.map((p) => [p.path, p.kind, p.detail]), [
+    [page, "course-page", "课程页只能有一节 ## Learning Record"],
+  ]);
 });
 
 // ---- 收课暂存里的科目页：只能改「## 讲解偏好」一节 ----
@@ -430,6 +449,43 @@ test("planCheck：收课暂存里新加的本科目页（基线没有）→ 只�
   assert.deepEqual(bad.problems.map((p) => p.kind), ["subject-scope"]);
 });
 
+test("planCheck：plan 暂存把旧记录整块原样搬进归档 → 不报 archive-record；多写一行完成行仍报", () => {
+  const page = "wiki/courses/epp.md";
+  const record = "wiki/courses/epp/records/2026-11.md";
+  const oldBlock = "### 2026-11-09-01\n\n- 讲了 §1.1。\n- 完成：D1\n";
+  const recordBase = "# 2026 年 11 月收课记录\n\n";
+  const movedPage = withSelfRecord(coursePage(), { done: "D2" }).replace(
+    oldBlock,
+    "- 归档：2026 年 11 月的收课记录见 [[courses/epp/records/2026-11]]\n",
+  );
+  const manifest = { kind: "plan", slug: "epp", subject: "discrete-math", base: { [page]: "sha-page", [record]: "sha-rec" } };
+  const current = new Map([
+    [page, { sha: "sha-page", text: coursePage() }],
+    [record, { sha: "sha-rec", text: recordBase }],
+  ]);
+  const staged = [
+    { path: page, sha: "sha-page2", text: movedPage, symlink: false },
+    // 整块原样追加在末尾：它自带的「- 完成：D1」跟着搬，不算「给归档新加完成行」。
+    { path: record, sha: "sha-rec2", text: `${recordBase}${oldBlock}`, symlink: false },
+  ];
+  const ok = planCheck(manifest, staged, current);
+  assert.deepEqual(ok.problems, []);
+  assert.deepEqual(ok.changes, [
+    { path: page, action: "update" },
+    { path: record, action: "update" },
+  ]);
+
+  // 搬过去之后又给归档多写一行完成行 → 仍报 archive-record。
+  const extra = planCheck(
+    manifest,
+    [staged[0], { path: record, sha: "sha-rec3", text: `${recordBase}${oldBlock}- 完成：D2\n`, symlink: false }],
+    current,
+  );
+  assert.deepEqual(extra.problems.map((p) => [p.path, p.kind, p.detail]), [
+    [record, "archive-record", "归档记录只能原样搬进来，不能新加完成行"],
+  ]);
+});
+
 test("planCheck：plan --new 暂存没有课程页 → 报「新建课程必须写课程页」（kind course-page）", () => {
   const manifest = { kind: "plan", slug: "epp", subject: "discrete-math", isNew: true, base: { "wiki/index.md": "i" } };
   const current = new Map([["wiki/index.md", { sha: "i", text: INDEX }]]);
@@ -454,4 +510,117 @@ test("planCheck：非 --new 的 plan 暂存不要求课程页（改已有课程�
   const current = new Map([[subjectPage, { sha: "s", text: "# 科目" }]]);
   const result = planCheck(manifest, [{ path: subjectPage, sha: "s2", text: "# 科目（改）", symlink: false }], current);
   assert.equal(result.ok, true, JSON.stringify(result.problems));
+});
+
+// ---- 计划暂存的「自报」校验：用户说学过、直接勾课次 ----
+
+/** 在课程页末尾（## Relationships 前）插一条记录，勾掉给定课次。 */
+function withSelfRecord(text, { heading = "### 2026-11-15-02（用户自报）", done = "D2" } = {}) {
+  return text.replace(
+    "## Relationships",
+    `${heading}\n\n- 用户说学过，直接勾掉。\n- 完成：${done}\n\n## Relationships`,
+  );
+}
+
+test("addedCompletedIds：staged 有 base 没有的才算新增；base 为 null 全算；删掉的 id 不算；与顺序无关", () => {
+  const base = coursePage(); // Learning Record 里「完成：D1」
+  const staged = withSelfRecord(base, { done: "R1-D1、D2" });
+  assert.deepEqual(addedCompletedIds(base, staged), ["D2", "R1-D1"], "新增排序输出，与书写顺序无关");
+  // base 为 null（新建课程）：staged 的全部完成 id 都算新增
+  assert.deepEqual(addedCompletedIds(null, staged), ["D1", "D2", "R1-D1"]);
+  // base 里的 id 被删掉不算「新增」：D1 → D2 只新增 D2
+  assert.deepEqual(addedCompletedIds(base, base.replace("- 完成：D1", "- 完成：D2")), ["D2"]);
+  // 一样就是空
+  assert.deepEqual(addedCompletedIds(base, base), []);
+  assert.deepEqual(addedCompletedIds(null, base), ["D1"]);
+});
+
+test("checkSelfReport：没新勾课次报①、没写自报记录报②，两样齐了就过", () => {
+  const base = coursePage();
+  // ①：加了标题含「自报」的记录，但「完成：」没有新 id（D1 早已勾过）。
+  const noNewId = withSelfRecord(base, { done: "D1" });
+  assert.deepEqual(checkSelfReport(base, noNewId), ["自报提交没有新勾掉的课次（完成：行没变）"]);
+  // ②：勾了新的 D2，但新加的记录标题不含「自报」。
+  const noReport = withSelfRecord(base, { heading: "### 2026-11-15-02", done: "D2" });
+  assert.deepEqual(checkSelfReport(base, noReport), ["自报勾选要在学习记录里加一条标题含「自报」的记录"]);
+  // 通过：新勾 D2 + 新加标题含「自报」的记录；base 为 null（新建课程）一样过。
+  const ok = withSelfRecord(base, { done: "D2" });
+  assert.deepEqual(checkSelfReport(base, ok), []);
+  assert.deepEqual(checkSelfReport(null, ok), []);
+  // base 里已有同一条自报记录标题（旧记录），staged 没新加 → 仍报②。
+  const oldReport = withSelfRecord(base, { done: "D1" });
+  const again = withSelfRecord(oldReport, { heading: "### 2026-11-15-03", done: "D2" });
+  assert.deepEqual(checkSelfReport(oldReport, again), ["自报勾选要在学习记录里加一条标题含「自报」的记录"]);
+});
+
+test("checkSelfReport：改旧标题加「自报」→ 拒（旧记录必须原样还在）", () => {
+  const base = coursePage();
+  // 复现一般 1：把旧记录标题改成含「自报」，再把 D2 勾进这条旧记录。
+  const renamed = base
+    .replace("### 2026-11-09-01", "### 2026-11-09-01（用户自报）")
+    .replace("- 完成：D1", "- 完成：D1、D2");
+  assert.deepEqual(checkSelfReport(base, renamed), ["自报不能改旧记录：### 2026-11-09-01"]);
+});
+
+test("checkSelfReport：改旧块正文 → 拒", () => {
+  const base = coursePage();
+  const edited = withSelfRecord(base, { done: "D2" }).replace("- 讲了 §1.1。", "- 讲了 §1.1（补记）。");
+  assert.deepEqual(checkSelfReport(base, edited), ["自报不能改旧记录：### 2026-11-09-01"]);
+});
+
+test("checkSelfReport：旧块原样挪进 records 归档 → 过；归档里改了字或没归档 → 拒", () => {
+  const base = coursePage();
+  const oldBlock = "### 2026-11-09-01\n\n- 讲了 §1.1。\n- 完成：D1\n";
+  // 课程页：最早那条整块删掉，改写成一行「- 归档：…」，再加一条自报记录勾 D2。
+  const pageAfterMove = withSelfRecord(base, { done: "D2" }).replace(
+    oldBlock,
+    "- 归档：2026 年 11 月的收课记录见 [[courses/epp/records/2026-11]]\n",
+  );
+  assert.ok(!pageAfterMove.includes("### 2026-11-09-01"), "夹具：旧块确实从课程页删掉了");
+  assert.deepEqual(checkSelfReport(base, pageAfterMove), ["自报不能改旧记录：### 2026-11-09-01"], "不传归档等于没归档");
+  const archive = `# 2026 年 11 月收课记录\n\n${oldBlock}`;
+  assert.deepEqual(checkSelfReport(base, pageAfterMove, [archive]), [], "原样搬进当月 records 算合法移走");
+  assert.deepEqual(
+    checkSelfReport(base, pageAfterMove, [archive.replace("- 讲了 §1.1。", "- 讲了 §1.1。（补）")]),
+    ["自报不能改旧记录：### 2026-11-09-01"],
+    "归档里的块多一个字也不算原样搬走",
+  );
+  assert.deepEqual(
+    checkSelfReport(base, pageAfterMove, ["# 2026 年 11 月收课记录\n"]),
+    ["自报不能改旧记录：### 2026-11-09-01"],
+    "旧块根本没进 records",
+  );
+  // 归档里换个位置（别的文件）也算：只看「标题 + 正文」是否原样出现在任一归档文本里。
+  assert.deepEqual(checkSelfReport(base, pageAfterMove, ["# 2026 年 10 月\n", archive]), []);
+  // 归档文件直接以块标题开头（没有 `# 月份` 标题行）也要认出来。
+  assert.deepEqual(checkSelfReport(base, pageAfterMove, [oldBlock]), []);
+});
+
+test("checkSelfReport：新块含自报且完成行有新 id → 过；新 id 写在旧块里 → 拒", () => {
+  const base = coursePage();
+  const ok = withSelfRecord(base, { done: "D2" });
+  assert.deepEqual(checkSelfReport(base, ok), []);
+  // 新加了一条含「自报」的记录，却把 D2 勾在旧记录里：新记录没有新 id，报「新勾的课次…」。
+  const inOld = base
+    .replace("- 完成：D1", "- 完成：D1、D2")
+    .replace("## Relationships", "### 2026-11-15-02（用户自报）\n\n- 用户说学过。\n\n## Relationships");
+  assert.deepEqual(checkSelfReport(base, inOld), [
+    "自报不能改旧记录：### 2026-11-09-01",
+    "新勾的课次要写在自报记录的「完成：」行里：D2",
+  ]);
+  // 旧块原样不动、新记录写了 D2 也照原样在新块里 → 过（D2 落在新块的完成行里）。
+  const doneInNew = base.replace(
+    "## Relationships",
+    "### 2026-11-15-02（用户自报）\n\n- 用户说学过。\n- 完成：D2\n\n## Relationships",
+  );
+  assert.deepEqual(checkSelfReport(base, doneInNew), []);
+});
+
+test("addedDoneLines：只算比基线多出来的「完成：」行（多重集比较，全角/半角冒号都算）", () => {
+  const base = "# 2026-11\n\n- 完成：D1\n";
+  assert.deepEqual(addedDoneLines(base, base), []);
+  assert.deepEqual(addedDoneLines(base, `${base}- 完成：D2\n`), ["- 完成：D2"]);
+  assert.deepEqual(addedDoneLines(base, "# 2026-11\n\n- 完成：D1\n- 完成：D1\n"), ["- 完成：D1"], "多一行同样的也算新加");
+  assert.deepEqual(addedDoneLines(null, "- 完成:D3\n"), ["- 完成:D3"], "库里没有这份记录：全部算新加");
+  assert.deepEqual(addedDoneLines(base, `${base}- 讲了 D2\n`), [], "不是完成行不管");
 });

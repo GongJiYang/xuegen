@@ -37,6 +37,7 @@ import { UpdateBar } from "./update-bar.js";
 import { ControlCard } from "./control-card.js";
 import { Planbook } from "./planbook.js";
 import { ControlPanel } from "./control-panel.js";
+import { DomainPanel } from "./domain-panel.js";
 import { ChicagoContentNode } from "./content.js";
 import { chicagoMotion } from "./motion.js";
 import { chicagoBodyScaleSteps } from "./body-scale.js";
@@ -68,6 +69,7 @@ const slots: SkinSlots = {
   ControlCard,
   Planbook,
   ControlPanel,
+  DomainPanel,
 };
 
 /** The Chicago skin, consumed by the registry's lazy loader. */

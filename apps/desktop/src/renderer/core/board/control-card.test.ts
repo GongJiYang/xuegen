@@ -166,6 +166,8 @@ describe("controlCard", () => {
     // 过期课次不受影响：普通 ○ + 开课 →，只多一行灰字「原排 …」。
     expect(view?.rows[2]).toEqual({
       group: "lesson",
+      missed: true,
+      lessons: [{ slug: "ctm", name: "CTM", id: "D1", content: "Ch1", date: "2026-11-10" }],
       mark: "plan",
       text: strings.control.card.missedRow("CTM", "D1", "Ch1"),
       sub: strings.control.card.missedSub("2026-11-10"),
@@ -393,6 +395,12 @@ describe("controlCard", () => {
     expect(view?.rows.slice(0, 1)).toEqual([
       {
         group: "lesson",
+        missed: true,
+        lessons: [
+          { slug: "ctm", name: "CTM", id: "D1", content: "Ch1", date: "2026-11-09" },
+          { slug: "ctm", name: "CTM", id: "D2", content: "Ch2", date: "2026-11-10" },
+          { slug: "ctm", name: "CTM", id: "D3", content: "Ch3", date: "2026-11-11" },
+        ],
         mark: "plan",
         text: strings.control.card.missedMany("CTM", "D1", 3),
         sub: strings.control.card.missedManySub("2026-11-09"),
@@ -864,5 +872,110 @@ describe("parsePageInput", () => {
     for (const text of ["0", "100000", "11a", "", "   ", "11 12", "p.", "-1", "1.5"]) {
       expect(parsePageInput(text)).toBeNull();
     }
+  });
+});
+
+describe("lesson refs (总控 v3)", () => {
+  const CARD = TODAY;
+  const TODAY_LESSON_DATE = "2026-11-15";
+
+  it("a not-done main lesson carries one ref to that day and no missed flag", () => {
+    const view = controlCard({
+      today: TODAY_LESSON_DATE,
+      day: day({
+        date: TODAY_LESSON_DATE,
+        names: { ctm: "CTM" },
+        lessons: [{ course: "ctm", id: "D3", content: "Ch3", done: false }],
+      }),
+      calendar: EMPTY_MONTH,
+      queue: [],
+    });
+    const row = view?.rows.find((entry) => entry.group === "lesson");
+    expect(row?.lessons).toEqual([
+      { slug: "ctm", name: "CTM", id: "D3", content: "Ch3", date: TODAY_LESSON_DATE },
+    ]);
+    expect(row?.missed).toBeUndefined();
+  });
+
+  it("a done lesson carries no refs at all", () => {
+    const view = controlCard({
+      today: TODAY_LESSON_DATE,
+      day: day({
+        date: TODAY_LESSON_DATE,
+        names: { ctm: "CTM" },
+        lessons: [{ course: "ctm", id: "D3", content: "Ch3", done: true }],
+      }),
+      calendar: EMPTY_MONTH,
+      queue: [],
+    });
+    const row = view?.rows.find((entry) => entry.group === "lesson");
+    expect(row?.mark).toBe("done");
+    expect(row?.lessons).toBeUndefined();
+  });
+
+  it("a course's missed lessons fold into one 原排 row, oldest first, each with its own date", () => {
+    const view = controlCard({
+      today: CARD,
+      day: day({
+        names: { ctm: "CTM" },
+        overdue: [
+          { course: "ctm", id: "D2", date: "2026-11-12", content: "Ch2" },
+          { course: "ctm", id: "D1", date: "2026-11-10", content: "Ch1" },
+        ],
+      }),
+      calendar: EMPTY_MONTH,
+      queue: [],
+    });
+    const row = view?.rows.find((entry) => entry.missed === true);
+    expect(row?.missed).toBe(true);
+    expect(row?.lessons?.map((lesson) => lesson.id)).toEqual(["D1", "D2"]);
+    expect(row?.lessons?.[0]?.date).toBe("2026-11-10");
+    expect(row?.lessons?.[1]?.date).toBe("2026-11-12");
+  });
+
+  it("an aux lesson today carries refs too", () => {
+    const view = controlCard({
+      today: TODAY_LESSON_DATE,
+      day: day({
+        date: TODAY_LESSON_DATE,
+        roles: { ctm: "aux" },
+        names: { ctm: "CTM" },
+        lessons: [{ course: "ctm", id: "D1", content: "Ch1", done: false }],
+      }),
+      calendar: EMPTY_MONTH,
+      queue: [],
+    });
+    const row = view?.rows.find((entry) => entry.text.startsWith(strings.control.card.auxPrefix));
+    expect(row?.lessons).toEqual([
+      { slug: "ctm", name: "CTM", id: "D1", content: "Ch1", date: TODAY_LESSON_DATE },
+    ]);
+  });
+
+  it("周核实、讲后读 and Anki rows carry no refs", () => {
+    const calendar = month({
+      [CARD]: {
+        records: [],
+        plans: [],
+        readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 · Ch3 · CTM" }],
+        log: [],
+        note: null,
+      },
+    });
+    const view = controlCard({
+      today: CARD,
+      day: day({ type: "整合", subject: null, course: null }),
+      calendar,
+      queue: [],
+      anki: { running: true, due: [{ deck: "离散", count: 12 }] },
+    });
+    const verify = view?.rows.filter((entry) => entry.action?.kind === "verify") ?? [];
+    const read = view?.rows.find((entry) => entry.action?.kind === "afterRead");
+    const anki = view?.rows.find((entry) => entry.action?.kind === "anki");
+    expect(verify.length).toBeGreaterThan(0);
+    expect(read).toBeDefined();
+    expect(anki).toBeDefined();
+    for (const row of verify) expect(row.lessons).toBeUndefined();
+    expect(read?.lessons).toBeUndefined();
+    expect(anki?.lessons).toBeUndefined();
   });
 });

@@ -1,0 +1,186 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>领域总控 v0 · 设计稿</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a3:#0f2a3d;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1500px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:100ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper);position:relative}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;gap:6px;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex;height:640px}
+.lnk{color:var(--a11);font-size:12px;cursor:pointer}
+.sub,.cap{font-size:12px;color:var(--g11)}
+/* left: glossary */
+.gl{width:280px;border-right:1px solid var(--g6);display:flex;flex-direction:column}
+.gl-h{padding:14px 14px 8px}
+.subj{display:flex;align-items:baseline;gap:6px;font-size:15px;font-weight:600}.subj span{font-size:12px;color:var(--g8);font-weight:400}
+.find{margin-top:10px;border:1px solid var(--g7);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--g8)}
+.find.typed{color:var(--g12)}
+.filt{display:flex;gap:6px;margin-top:8px;font-size:12px}
+.filt span{padding:1px 8px;border-radius:10px;border:1px solid var(--g6);color:var(--g11)}.filt .on{border-color:var(--a11);color:var(--a11)}
+.list{flex:1;overflow:hidden;padding:0 6px 10px}
+.lg{font-size:11px;color:var(--g8);padding:10px 8px 4px;letter-spacing:.02em}
+.it{padding:5px 8px;border-radius:5px;font-size:13px;line-height:18px}
+.it small{display:block;color:var(--g8);font-size:11px;line-height:14px}
+.it.on{background:var(--a3)}.it.on small{color:var(--a11)}
+.it mark{background:none;color:var(--a11);font-weight:600}
+/* center: reader */
+.rd{flex:1;min-width:0;padding:22px 34px;overflow:hidden}
+.crumb{font-size:12px;color:var(--g11);margin-bottom:6px}
+.rd h2{font-size:20px;margin:0 0 2px}.rd .en{color:var(--g11);font-size:13px;margin-bottom:14px}
+.rd p,.rd li{font-size:14px;line-height:24px;max-width:64ch}
+.rd h4{font-size:13px;color:var(--g11);font-weight:500;margin:18px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--g4);max-width:64ch}
+.rel{display:flex;flex-wrap:wrap;gap:6px}.rel span{font-size:12px;border:1px solid var(--g6);border-radius:12px;padding:1px 10px;color:var(--g12)}
+.src{font-size:12px;color:var(--g11);line-height:20px}
+.sum{border:1px solid var(--g6);border-radius:8px;padding:14px 18px;background:var(--g2);max-width:70ch}
+.sum ol{margin:6px 0 0;padding-left:20px}.sum li{font-size:13px;line-height:22px}
+.navb{display:flex;justify-content:space-between;max-width:64ch;margin-top:22px;font-size:12px;color:var(--g11)}
+/* right: ask */
+.ask{width:360px;border-left:1px solid var(--g6);display:flex;flex-direction:column}
+.ask-h{padding:14px 16px 6px;font-size:13px}.ask-h b{font-weight:600}
+.ask-h .sub{display:block}
+.msgs{flex:1;padding:6px 14px;display:flex;flex-direction:column;gap:12px;overflow:hidden}
+.me{align-self:flex-end;background:var(--g4);border-radius:10px;padding:7px 11px;font-size:13px;max-width:85%}
+.ai{font-size:13px;line-height:21px}
+.cite{display:inline-block;font-size:11px;color:var(--a11);border:1px solid #1d4a6b;background:var(--a3);border-radius:4px;padding:0 5px;margin:0 2px;line-height:16px}
+.srcs{margin-top:6px;font-size:12px;color:var(--g11)}
+.none{font-size:13px;line-height:21px;color:var(--g11);border-left:2px solid var(--g7);padding-left:10px}
+.compose{margin:12px;border:1px solid var(--g7);border-radius:8px;padding:10px 12px;color:var(--g8);font-size:13px}
+.compose small{display:block;font-size:11px;margin-top:4px}
+table.spec{border-collapse:collapse;font-size:13px;margin-top:8px;max-width:1150px}
+table.spec td,table.spec th{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top;text-align:left}table.spec td:first-child{color:var(--g11);white-space:nowrap}
+table.spec th{color:var(--g11);font-weight:500}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+</style>
+<body><div class="doc">
+<h1>领域总控 v0 · 设计稿</h1>
+<p class="lead">用途（用户 11-11 定）：<b>忘了的词去问</b>。每个科目一个领域页，只读：左边是这个科目的词表（从概念页来），中间读词条或「领域小结」，右边问这个领域。范围只到<b>这个科目的知识页 + 课程页学习记录</b>，不查会话、不查卡片，不接检索（RAG）；回答都带出处，库里没有就直说没有。<b>不改计划、不勾课、不写库。</b>用户 11-14 说术语块将来搬进这里——本稿把它画进来了（左栏按课次分组就是原来的术语块）。</p>
+
+<h3>① 打开：中间是领域小结，左边是词表</h3>
+<p class="note">入口：总控底部「领域」一行（见 control-v3.html），课程会话顶栏「领域 →」，或 ＋ 列表。打开后是一个<b>临时标签</b>「领域 · 编程范式」，规则同陪读的临时标签（今天开过就留着）。领域小结 ≤ 20 行，由收课时 AI 写进科目页；还没有时这一块写「还没有小结——上过几节课后，收课时会写」。</p>
+<div class="win">
+  <div class="bar"><div class="tab">总控 · C1</div><div class="tab">CTM D2</div><div class="tab on">领域 · 编程范式</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>只读</span><span>⋯</span></div></div>
+  <div class="shell">
+    <div class="gl">
+      <div class="gl-h"><div class="subj">编程范式 <span>▾ 换科目</span></div>
+        <div class="find">找词：中文、英文都行</div>
+        <div class="filt"><span class="on">全部 41</span><span>CTM 33</span><span>其他书 8</span></div></div>
+      <div class="list">
+        <div class="lg">CTM D2 · 11-14</div>
+        <div class="it">抽象机<small>abstract machine</small></div>
+        <div class="it">语义栈<small>semantic stack</small></div>
+        <div class="it">闭包<small>closure</small></div>
+        <div class="it">自由标识符<small>free identifier</small></div>
+        <div class="it">错误围隔<small>error confinement</small></div>
+        <div class="it" style="color:var(--g8)">还有 9 个 ▾</div>
+        <div class="lg">CTM D1 · 11-12</div>
+        <div class="it">内核语言<small>kernel language</small></div>
+        <div class="it">单赋值存储<small>single-assignment store</small></div>
+        <div class="it">dataflow 变量<small>dataflow variable</small></div>
+        <div class="it">交错执行<small>interleaving</small></div>
+        <div class="lg">其他书</div>
+        <div class="it">Prolog 逻辑编程<small>logic programming</small></div>
+      </div>
+    </div>
+    <div class="rd">
+      <div class="crumb">编程范式 · 领域小结</div>
+      <h2>到目前为止学了什么</h2><div class="en">更新于 11-14 收课 · CTM D1–D2</div>
+      <div class="sum">
+        <ol>
+          <li>CTM 用「计算模型阶梯」组织全书：每加一个概念（并发、状态、对象…）表达力变强、推理变难。</li>
+          <li>声明式模型的底子是<b>单赋值存储</b>：变量只能绑定一次，未绑定时读它会挂起等待。</li>
+          <li>全部语言特性都翻译成<b>内核语言</b>的八条语句，再由<b>抽象机</b>（语义栈 + 存储）逐步执行。</li>
+          <li>过程值是<b>闭包</b>：代码 + 定义时的上下文环境，所以作用域是静态的。</li>
+          <li>异常靠弹语义栈找到 catch，实现<b>错误围隔</b>。</li>
+        </ol>
+        <div class="cap" style="margin-top:8px">还没验收过的：上面 2–4 条（D1、D2 是自报学过）</div>
+      </div>
+      <h4>最近问过的</h4>
+      <div class="src">闭包里装的是什么 · 11-15　　单赋值和 final 有什么不同 · 11-13</div>
+    </div>
+    <div class="ask">
+      <div class="ask-h"><b>问编程范式</b><span class="sub">只按这个科目的知识页和学习记录回答</span></div>
+      <div class="msgs"></div>
+      <div class="compose">比如「闭包里装的是什么来着」<small>Enter 发送 · 回答带出处</small></div>
+    </div>
+  </div>
+</div>
+
+<h3>② 找词：输入就过滤，点了在中间读</h3>
+<p class="note">搜索只在本科目的词表里过滤（中文、英文、拼音首字母都不做——v0 只做包含匹配）。点词条在中间显示概念页正文（同总控宽阅读层的排版：去掉重复大标题、行宽 64 字），顶部写出自哪节课、哪本书哪几页；底部「相关词」是页里的双链。← → 在当前过滤结果里翻。</p>
+<div class="win">
+  <div class="bar"><div class="tab">总控 · C1</div><div class="tab on">领域 · 编程范式</div><div class="gap"></div><div class="meta"><span>只读</span></div></div>
+  <div class="shell" style="height:560px">
+    <div class="gl">
+      <div class="gl-h"><div class="subj">编程范式 <span>▾</span></div><div class="find typed">闭包</div><div class="filt"><span class="on">找到 3</span></div></div>
+      <div class="list">
+        <div class="lg">CTM D2 · 11-14</div>
+        <div class="it on"><mark>闭包</mark><small>closure</small></div>
+        <div class="it">上下文环境<small>contextual environment · 页里提到「<mark>闭包</mark>」</small></div>
+        <div class="lg">CTM D1 · 11-12</div>
+        <div class="it">过程值<small>procedure value · 页里提到「<mark>闭包</mark>」</small></div>
+      </div>
+    </div>
+    <div class="rd">
+      <div class="crumb">概念页 · CTM D2 · 11-14 · 《CTM》pp.64–66</div>
+      <h2>闭包与静态作用域</h2><div class="en">closure · static scoping</div>
+      <p>过程值不只是代码：创建它时，抽象机把过程体里用到的<b>自由标识符</b>（free identifier）在当时环境里的绑定一起打包，叫<b>上下文环境</b>。代码 + 上下文环境 = 闭包。</p>
+      <p>所以调用发生在哪里不影响结果——标识符指向什么，在定义的那一刻就定了，这就是静态作用域。</p>
+      <h4>相关词</h4>
+      <div class="rel"><span>自由标识符</span><span>上下文环境</span><span>抽象机</span><span>过程值</span></div>
+      <div class="navb"><span>← 上一个</span><span>找到的 1 / 3</span><span>下一个 →</span></div>
+      <div class="src" style="margin-top:10px"><span class="lnk">在 Obsidian 打开</span></div>
+    </div>
+    <div class="ask">
+      <div class="ask-h"><b>问编程范式</b></div><div class="msgs"></div>
+      <div class="compose">问这个词，或别的</div>
+    </div>
+  </div>
+</div>
+
+<h3>③ 问：回答带出处；库里没有就直说</h3>
+<p class="note">出处是可点的小标签：点了在中间打开那一页（学习记录则打开课程页那条记录）。范围外的问题照实说「库里没有」，并给出下一步（去哪门课的哪节学、或在自由提问里问），<b>不凭模型自己的知识补</b>。这个会话不能用写文件、改计划的工具（和课程会话一样写死在权限清单里）。</p>
+<div class="cols">
+<div class="win"><div class="ask" style="width:auto;border:0;height:430px">
+  <div class="ask-h"><b>问编程范式</b></div>
+  <div class="msgs">
+    <div class="me">闭包里装的是什么来着</div>
+    <div class="ai">代码，加上定义时用到的那些<b>自由标识符</b>的绑定（上下文环境）<span class="cite">闭包与静态作用域</span>。调用时先恢复这份环境再执行过程体，所以结果不看在哪里调用<span class="cite">抽象机与操作语义</span>。
+      <div class="srcs">你在 11-14 的课上见过它：D2 讲 §2.4 时的「闭包与上下文环境」<span class="cite">CTM 学习记录 11-14</span></div></div>
+  </div>
+  <div class="compose">接着问</div>
+</div></div>
+<div class="win"><div class="ask" style="width:auto;border:0;height:430px">
+  <div class="ask-h"><b>问编程范式</b></div>
+  <div class="msgs">
+    <div class="me">monad 是什么</div>
+    <div class="none">编程范式的知识页和学习记录里都没有 monad。<br>CTM 不讲它；按现在的路线，C5「编程语言理论」会碰到。<br>想现在了解，可以在＋里开一个自由提问——那边的回答不进库。</div>
+  </div>
+  <div class="compose">接着问</div>
+</div></div>
+</div>
+
+<h3>④ 空的科目、窄窗口</h3>
+<p class="note"><b>没有概念页的科目</b>（如 图形与视觉）：左栏写「还没有词——上课收课时存的概念页会出现在这里」，右边仍能问，但多半会答「库里没有」。<b>窄窗口（≤ 1100px）</b>：右栏「问」收成底部输入框，回答在中间区显示；≤ 900px 左栏词表变成顶部的下拉。</p>
+
+<h3>数据从哪来（给后端的说明，用户可跳过）</h3>
+<table class="spec">
+<tr><th>块</th><th>来源</th><th>谁写</th></tr>
+<tr><td>词表</td><td>科目下概念页的标题 + 正文里「**中文**（English）」的词；按「哪节课收课时存的」分组（课程页学习记录的「存库」行，同现在的术语块）；脚本生成，随看板重画</td><td>脚本（Devin）</td></tr>
+<tr><td>领域小结</td><td>科目页「## 领域小结」，≤ 20 行；收课时 AI 改，规则同「讲解偏好」（只许改这一节）</td><td>收课技能（Claude 改技能文字）</td></tr>
+<tr><td>问</td><td>新会话角色「领域」：只读工具；系统提示里放这个科目的全部知识页 + 相关课程页学习记录（最大科目约 10 万字，放得下）</td><td>Devin（角色 + 权限）/ Claude（技能 `domain`）</td></tr>
+<tr><td>最近问过的</td><td>这个领域会话里你问过的问题，最近 5 条</td><td>界面（Claude）</td></tr>
+</table>
+
+<h3>要你定</h3>
+<table class="spec">
+<tr><td>1</td><td>领域页做成<b>单独的标签</b>（本稿），还是总控里的一个区块？单独标签地方大，但多一个标签。</td></tr>
+<tr><td>2</td><td>总控面板上现在的术语块，领域页做好后<b>去掉</b>还是保留（只留最近一节课的）？</td></tr>
+<tr><td>3</td><td>领域小结要不要标出「哪几条还没验收过」（本稿标了，依据是课程页的勾是否自报）？</td></tr>
+<tr><td>4</td><td>范围外的问题，只说「没有」并指去自由提问（本稿），还是允许它用自己的知识答、但标明「不是来自你的库」？</td></tr>
+</table>
+</div></body></html>

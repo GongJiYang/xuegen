@@ -17,7 +17,6 @@ function Card({ card, last, feed }: { card: ActivityCard; last: boolean; feed: C
   const changes = card.changes ?? [];
   return (
     <article className={`bear-feed-card${last ? "" : " is-old"}${card.busy ? " is-busy" : ""}`}>
-      {card.ask !== "" && <p className="bear-feed-ask">{card.ask}</p>}
       {card.busy ? (
         <>
           <p className="bear-feed-busy">
@@ -47,6 +46,15 @@ function Card({ card, last, feed }: { card: ActivityCard; last: boolean; feed: C
       ) : (
         <p className={`bear-feed-res${card.failed ? " is-failed" : ""}`}>
           {card.failed ? text.failed : card.summary}
+          {card.undo?.status === "undone" && (
+            <span className="bear-feed-undone">{strings.planChanges.undone}</span>
+          )}
+        </p>
+      )}
+      {card.ask !== "" && (
+        <p className="bear-feed-ask" title={card.ask}>
+          {text.askPrefix}
+          {card.ask}
         </p>
       )}
       {!card.busy && (

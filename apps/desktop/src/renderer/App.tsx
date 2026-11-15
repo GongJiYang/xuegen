@@ -32,6 +32,9 @@ import { useControlPlanbook } from "./core/board/use-control-planbook.js";
 import { useChatColumn } from "./core/board/use-chat-column.js";
 import { useSessionList } from "./core/board/use-session-list.js";
 import { useSessionTabs } from "./core/board/use-session-tabs.js";
+import { useDomainSession } from "./core/board/use-domain-session.js";
+import { useDomain } from "./core/board/use-domain.js";
+import { DomainSlot } from "./core/board/domain-slot.js";
 import { controlView } from "./core/board/bot-state.js";
 import { useShellPanels } from "./core/board/use-shell-panels.js";
 import { contextUsageView } from "./core/chat/context-usage.js";
@@ -148,8 +151,12 @@ export function App() {
     setFocusMode(false);
     setActiveTool(tool);
   };
-  const sessionList = useSessionList(controller, settings, setActiveCourse, cycle, courses, handleNewSession);
+  const sessionList = useSessionList(controller, settings, setActiveCourse, cycle, courses, handleNewSession, studyCourse);
   const requestOpenSessions = sessionList.requestOpen;
+  // `enabled` is `true`: `domainSession.current` does not exist yet here, and
+  // `domain.subjects` is one read-only request (see the report).
+  const domainSession = useDomainSession({ controller, sessionGroups: sessionList.view.groups, setActiveCourse, enabled: true });
+  const domain = useDomain(domainSession.current?.subject ?? null);
   const fold = useControlFold(control.isControl, controller.messages, controller.systemNotes);
   const planbook = useControlPlanbook({
     cycle,
@@ -167,6 +174,7 @@ export function App() {
     openTool,
     setActiveCourse,
     verifiedOn: settings.verifiedOn,
+    domainSession,
   });
   const tabs = useSessionTabs({
     controller,
@@ -304,9 +312,11 @@ export function App() {
         ? // The planbook owns this session's left side, so the title says so:
           // 「总控 · C1 · 计划本」 (design `plan2.jsx`).
           strings.control.title(control.cycle) + strings.planbook.titleSuffix
-        : activeCourse
-          ? (courseTitles[activeCourse] ?? activeCourse)
-          : null,
+        : domainSession.current
+          ? strings.domain.tabTitle(domainSession.current.title)
+          : activeCourse
+            ? (courseTitles[activeCourse] ?? activeCourse)
+            : null,
     control: controlView(control.isControl, controller.streaming, controller.messages, cycle.today.state),
     contextUsage: contextUsageView(controller.contextUsage, controller.compacting, controller.compact),
     children: (
@@ -398,6 +408,14 @@ export function App() {
         todayCard={
           planbook.panelShowCard && planbook.card ? <ControlCard {...planbook.card} older={null} /> : null
  }
+      />
+    ) : domainSession.current && domain ? (
+      <DomainSlot
+        skin={skin}
+        domainSession={domainSession}
+        domain={domain}
+        controller={controller}
+        exercise={exercise}
       />
     ) : null,
     chatOpen: chat.open,

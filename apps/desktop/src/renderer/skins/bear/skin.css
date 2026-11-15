@@ -3953,39 +3953,16 @@
 }
 
 /* ── 总控面板 (design ?d=dash, PANEL-PLAN) ───────────────────────────────
-   .d3-* → .bear-cp-*；一页：六格状态 → 今天 + 本周 → 总进度 / 书房 / 卡片。
+   .d3-* → .bear-cp-*；一页：六格状态 → 今天 → 本周 → 术语 → 领域 一栏往下，
+   再接 总进度 / 书房 / 卡片 三栏。区块不套外框，靠间距分组（BEAR-VISUAL-PLAN §3）；
    宽屏内容最宽 1480px 居中；只用 Bear 变量。 */
 [data-skin="bear"] .bear-cp {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-5);
   max-width: 1480px;
   margin: 0 auto;
   color: var(--gray-12);
-}
-[data-skin="bear"] .bear-cp-tiles {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: var(--sp-3);
-}
-[data-skin="bear"] .bear-cp-tile {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-3);
-  background: var(--card);
-  border: 1px solid var(--gray-6);
-  border-radius: var(--r-2);
-  min-width: 0;
-}
-[data-skin="bear"] .bear-cp-tile b {
-  font-size: var(--fs-4);
-  line-height: var(--lh-4);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-[data-skin="bear"] .bear-cp-tile b.is-loading {
-  color: var(--gray-8);
 }
 [data-skin="bear"] .bear-cp-cap {
   font-size: var(--fs-1);
@@ -4000,26 +3977,16 @@
 [data-skin="bear"] .bear-cp-meta.is-warn {
   color: var(--warn-11);
 }
-[data-skin="bear"] .bear-cp-row2 {
-  display: grid;
-  grid-template-columns: minmax(300px, 2fr) minmax(0, 5fr);
-  gap: var(--sp-4);
-  align-items: start;
-}
 [data-skin="bear"] .bear-cp-row3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-4);
+  gap: var(--sp-5);
   align-items: start;
 }
 [data-skin="bear"] .bear-cp-block {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: var(--sp-4);
-  background: var(--card);
-  border: 1px solid var(--gray-6);
-  border-radius: var(--r-2);
 }
 [data-skin="bear"] .bear-cp-head {
   display: flex;
@@ -4132,14 +4099,6 @@
 [data-skin="bear"] .bear-pb-area {
   container-type: inline-size;
 }
-@container (max-width: 1200px) {
-  [data-skin="bear"] .bear-cp-tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  [data-skin="bear"] .bear-cp-row2 {
-    grid-template-columns: 1fr;
-  }
-}
 @container (max-width: 900px) {
   [data-skin="bear"] .bear-cp-row3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4151,7 +4110,7 @@
   }
 }
 
-/* Panel block head actions (技能与设置 · 打印, 加一本书, 新卡片) and the add-book form. */
+/* Panel block head actions (回到今天 · 打印, 加一本书, 新卡片) and the add-book form. */
 [data-skin="bear"] .bear-cp-head {
   flex-wrap: wrap;
 }
@@ -4226,30 +4185,10 @@
   margin-left: auto;
 }
 
-/* 术语 sits under 本周 and fills down to 今天's bottom (the slot adds no height
-   of its own past min-height); its rows scroll inside. */
-[data-skin="bear"] .bear-cp-col {
-  align-self: stretch;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-[data-skin="bear"] .bear-cp-termslot {
-  position: relative;
-  flex: 1 0 auto;
-  min-height: 200px;
-}
-[data-skin="bear"] .bear-cp-termslot > .bear-cp-terms {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
 [data-skin="bear"] .bear-cp-termcount {
   margin-left: var(--sp-2);
   font-size: var(--fs-1);
+  line-height: var(--lh-1);
   font-weight: 400;
   color: var(--gray-11);
 }
@@ -4262,7 +4201,8 @@
 [data-skin="bear"] .bear-cp-termfilter button {
   font: inherit;
   font-size: var(--fs-1);
-  padding: 1px var(--sp-2);
+  line-height: var(--lh-1);
+  padding: 0 var(--sp-2);
   border: 1px solid var(--gray-6);
   border-radius: 999px;
   background: none;
@@ -4270,7 +4210,7 @@
   cursor: pointer;
 }
 [data-skin="bear"] .bear-cp-termfilter button small {
-  color: var(--gray-8);
+  color: inherit;
   font-size: inherit;
 }
 [data-skin="bear"] .bear-cp-termfilter button[aria-pressed="true"] {
@@ -4299,20 +4239,13 @@
   border-top: 0;
   padding-top: 0;
 }
-/* One column (row2 stacked): 术语 is as tall as its rows, up to a scroll cap. */
-@container (max-width: 1200px) {
-  [data-skin="bear"] .bear-cp-termslot {
-    min-height: 0;
-  }
-  [data-skin="bear"] .bear-cp-termslot > .bear-cp-terms {
-    position: static;
-  }
-  [data-skin="bear"] .bear-cp-terms .bear-cp-termrows {
-    max-height: 320px;
-  }
+/* One column (control-v3 ①): 术语 is as tall as its rows, up to a scroll cap. */
+[data-skin="bear"] .bear-cp-terms .bear-cp-termrows {
+  max-height: 320px;
 }
 [data-skin="bear"] .bear-cp-termlesson {
   font-size: var(--fs-1);
+  line-height: var(--lh-1);
   color: var(--gray-11);
   white-space: nowrap;
   overflow: hidden;
@@ -4375,10 +4308,13 @@
   margin: 0;
 }
 [data-skin="bear"] .bear-feed-ask {
-  font-size: var(--fs-2);
-  line-height: var(--lh-2);
-  color: var(--ink);
-  overflow-wrap: anywhere;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 [data-skin="bear"] .bear-feed-res,
 [data-skin="bear"] .bear-feed-busy,
@@ -4387,6 +4323,15 @@
   font-size: var(--fs-1);
   line-height: var(--lh-1);
   color: var(--gray-11);
+}
+[data-skin="bear"] .bear-feed-card > .bear-feed-res:first-child {
+  margin-top: 0;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--ink);
+}
+[data-skin="bear"] .bear-feed-card > .bear-feed-busy:first-child {
+  margin-top: 0;
 }
 [data-skin="bear"] .bear-feed-res b {
   color: var(--accent-11);
@@ -4758,18 +4703,18 @@
   border-radius: 3px;
 }
 [data-skin="bear"] .bear-pb-it.is-ghost {
-  color: var(--gray-8);
+  color: var(--gray-11);
   text-decoration: line-through;
 }
 [data-skin="bear"] .bear-pb-it small {
   flex-basis: 100%;
-  font-size: 10px;
-  line-height: 13px;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
   text-decoration: none;
   color: var(--accent-11);
 }
 [data-skin="bear"] .bear-pb-it.is-ghost small {
-  color: var(--gray-8);
+  color: var(--gray-11);
 }
 /* A 课后读 carried to today: 「原排 11-10」 under it, grey like the 今天 card's sub. */
 [data-skin="bear"] .bear-pb-it.is-from small {
@@ -4861,34 +4806,12 @@
   [data-skin="bear"] .bear-feed-dot {
     animation: bear-breathe 0.9s ease-in-out infinite alternate;
   }
-  [data-skin="bear"] .bear-cp-tile,
   [data-skin="bear"] .bear-cp-block {
     animation: bear-rise 320ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
-  }
-  [data-skin="bear"] .bear-cp-tile:nth-child(2) {
-    animation-delay: 30ms;
-  }
-  [data-skin="bear"] .bear-cp-tile:nth-child(3) {
-    animation-delay: 60ms;
-  }
-  [data-skin="bear"] .bear-cp-tile:nth-child(4) {
-    animation-delay: 90ms;
-  }
-  [data-skin="bear"] .bear-cp-tile:nth-child(5) {
-    animation-delay: 120ms;
-  }
-  [data-skin="bear"] .bear-cp-tile:nth-child(6) {
-    animation-delay: 150ms;
-  }
-  [data-skin="bear"] .bear-cp-block {
     animation-delay: 120ms;
   }
   [data-skin="bear"] .bear-cp-block + .bear-cp-block {
     animation-delay: 180ms;
-  }
-  [data-skin="bear"] .bear-cp-tile b,
-  [data-skin="bear"] .bear-cp-tile .bear-cp-meta {
-    transition: color 200ms ease-out;
   }
   [data-skin="bear"] .bear-cp-bar i {
     transform-origin: left center;
@@ -4925,4 +4848,459 @@
   [data-skin="bear"] .bear-stab-dot {
     animation: bear-breathe 900ms ease-in-out infinite alternate;
   }
+}
+
+/* 总控 v3 (control-v3.html ②③): the 上课 row's 「⋯」 and the 学过了 dialog. */
+[data-skin="bear"] .bear-cc-more {
+  background: none;
+  border: none;
+  border-radius: var(--r-1);
+  width: 26px;
+  padding: 0 var(--sp-1);
+  font: inherit;
+  font-size: var(--fs-3);
+  line-height: var(--lh-2);
+  color: var(--gray-8);
+  cursor: pointer;
+  opacity: 0;
+}
+[data-skin="bear"] .bear-cc-rows li:hover .bear-cc-more,
+[data-skin="bear"] .bear-cc-more:focus-visible,
+[data-skin="bear"] .bear-cc-more[data-state="open"] {
+  opacity: 1;
+  color: var(--gray-12);
+  background: var(--gray-4);
+}
+[data-skin="bear"] .bear-cc-more:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+[data-skin="bear"] .bear-lm {
+  width: 250px;
+}
+[data-skin="bear"] .bear-lm-item {
+  display: flex;
+  flex-direction: column;
+}
+[data-skin="bear"] .bear-lm-item b {
+  font-weight: 400;
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-lm-item small {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-lm-sep {
+  height: 1px;
+  margin: var(--sp-1) 0;
+  background: var(--gray-6);
+}
+[data-skin="bear"] .bear-sr {
+  width: min(460px, calc(100vw - 2 * var(--sp-5)));
+}
+[data-skin="bear"] .bear-sr-note,
+[data-skin="bear"] .bear-sr-later {
+  margin: var(--sp-1) 0 var(--sp-3);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-sr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-sr-list li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--gray-4);
+}
+[data-skin="bear"] .bear-sr-text .bear-cc-sub {
+  display: block;
+}
+[data-skin="bear"] .bear-sr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+/* 总控 v3 ①: the missed 上课 rows fold under one line. */
+[data-skin="bear"] .bear-cc-rows li.bear-cc-fold {
+  display: block;
+  padding: var(--sp-1) 0;
+}
+[data-skin="bear"] .bear-cc-fold-btn {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--r-1);
+  padding: var(--sp-1) 0;
+  font: inherit;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  text-align: left;
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-cc-fold-btn b {
+  font-weight: 500;
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-cc-fold-names {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-cc-fold-act {
+  margin-left: auto;
+  color: var(--accent-11);
+}
+[data-skin="bear"] .bear-cc-fold-btn:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+
+/* 总控 v3 ①: the six tiles become one status line; a click jumps to its block. */
+[data-skin="bear"] .bear-cp-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  padding: 0 0 var(--sp-3);
+  border-bottom: 1px solid var(--gray-6);
+}
+[data-skin="bear"] .bear-cp-sep {
+  color: var(--gray-7);
+}
+[data-skin="bear"] .bear-cp-strip-acts {
+  margin-left: auto;
+  display: flex;
+  gap: var(--sp-4);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-link:disabled {
+  color: var(--gray-8);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+[data-skin="bear"] .bear-cp-chip {
+  background: none;
+  border: none;
+  border-radius: var(--r-1);
+  padding: 2px var(--sp-1);
+  font: inherit;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-11);
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-cp-chip b {
+  font-weight: 600;
+  color: var(--gray-12);
+  font-variant-numeric: tabular-nums;
+}
+[data-skin="bear"] .bear-cp-chip:hover {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-cp-chip:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+[data-skin="bear"] .bear-cp-chip.is-loading b {
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-cp-chip.is-warn b {
+  color: var(--warn-11);
+}
+/* The 今天 block already frames the card: drop the card's own frame inside the panel,
+   and its own title / footer rows (the block head carries the title and caption). */
+[data-skin="bear"] .bear-cp .bear-cc {
+  border: none;
+  background: none;
+  padding: 0;
+}
+[data-skin="bear"] .bear-cp .bear-cc-head,
+[data-skin="bear"] .bear-cp .bear-cc-foot {
+  display: none;
+}
+/* 别的日子：标题已在「今天」区块 h2 旁，日视图不再自己写一遍。 */
+[data-skin="bear"] .bear-cp #bear-cp-today .bear-pb-daylist > .bear-pb-cap {
+  display: none;
+}
+/* 宽屏一栏时，今天的行别拉满 1480：文字和右边按钮隔太远（设计稿这一栏约 1060px）。 */
+[data-skin="bear"] .bear-cp #bear-cp-today {
+  max-width: 76em;
+}
+/* 区块说明贴着标题（control-v3-fix）；右侧按钮仍由 .bear-cp-head-acts 的 margin-left: auto 推到最右。 */
+[data-skin="bear"] .bear-cp .bear-cp-head {
+  justify-content: flex-start;
+}
+/* 术语的说明在最右（control-v3-fix ①）。 */
+[data-skin="bear"] .bear-cp-terms .bear-cp-head > .bear-cp-meta {
+  margin-left: auto;
+}
+
+/* 「＋」: 开一门课 above the session list (user 11-15). */
+[data-skin="bear"] .bear-sessions-courses {
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--gray-6);
+}
+[data-skin="bear"] .bear-sessions-course .bear-sessions-name {
+  color: var(--gray-12);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-sessions-more {
+  background: none;
+  border: none;
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--accent-11);
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-sessions-more:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+
+/* 领域页 (domain.html ①②): glossary column + summary / page column. */
+[data-skin="bear"] .bear-dp {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-ui);
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-dp-list {
+  border-right: 1px solid var(--gray-6);
+  padding: var(--sp-4) var(--sp-3);
+  overflow-y: auto;
+  min-height: 0;
+}
+[data-skin="bear"] .bear-dp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-dp-subj {
+  min-width: 0;
+  font-size: var(--fs-3);
+  line-height: var(--lh-3);
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-dp-switch {
+  position: relative;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  cursor: pointer;
+  white-space: nowrap;
+}
+[data-skin="bear"] .bear-dp-switch:hover {
+  color: var(--gray-12);
+}
+[data-skin="bear"] .bear-dp-switch-sel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+[data-skin="bear"] .bear-dp-switch:focus-within {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+[data-skin="bear"] .bear-dp-find {
+  width: 100%;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-size: var(--fs-2);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--gray-7);
+  border-radius: var(--r-2);
+}
+[data-skin="bear"] .bear-dp-find:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+[data-skin="bear"] .bear-dp-count,
+[data-skin="bear"] .bear-dp-note,
+[data-skin="bear"] .bear-dp-crumb {
+  margin: var(--sp-2) 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-dp-sec ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-dp-group {
+  margin: var(--sp-4) 0 var(--sp-1);
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  font-weight: 400;
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-dp-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  font-size: var(--fs-2);
+  text-align: left;
+  color: var(--gray-12);
+  background: none;
+  border: none;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-dp-item small {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-dp-item:hover {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-dp-item.is-on {
+  background: var(--accent-3);
+}
+[data-skin="bear"] .bear-dp-item.is-on small {
+  color: var(--accent-11);
+}
+[data-skin="bear"] .bear-dp-item:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+[data-skin="bear"] .bear-dp-main {
+  padding: var(--sp-5) var(--sp-6);
+  overflow-y: auto;
+  min-height: 0;
+}
+[data-skin="bear"] .bear-dp-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-4);
+}
+[data-skin="bear"] .bear-dp-body,
+[data-skin="bear"] .bear-dp-sum {
+  max-width: 42em;
+  font-family: var(--font-body);
+  line-height: 1.75;
+}
+[data-skin="bear"] .bear-dp-sum {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--card);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+}
+[data-skin="bear"] .bear-dp-nav {
+  display: flex;
+  gap: var(--sp-4);
+  max-width: 42em;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--gray-4);
+}
+[data-skin="bear"] .bear-dp-body pre {
+  overflow-x: auto;
+}
+[data-skin="bear"] .bear-dp-body table {
+  width: 100%;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+/* The table caption is a screen-reader label, not a heading on the page. */
+[data-skin="bear"] .bear-dp-body caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@container (max-width: 900px) {
+  [data-skin="bear"] .bear-dp {
+    grid-template-columns: 1fr;
+  }
+  [data-skin="bear"] .bear-dp-list {
+    border-right: none;
+    border-bottom: 1px solid var(--gray-6);
+    max-height: 40vh;
+  }
+}
+
+/* 总控 v3 ①: the 领域 row — one chip per subject, opens its 领域 page. */
+[data-skin="bear"] .bear-ds-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-ds-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-12);
+  background: var(--card);
+  border: 1px solid var(--gray-6);
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-ds-chip span {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-ds-chip:hover {
+  background: var(--gray-3);
+}
+[data-skin="bear"] .bear-ds-chip.is-empty,
+[data-skin="bear"] .bear-ds-chip.is-more {
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-ds-chip:focus-visible {
+  outline: 2px solid var(--accent-11);
+  outline-offset: 1px;
+}
+
+/* Wikilinks in answers (domain.html ③): a small chip; on the 领域 page a click opens the page in the middle. */
+[data-skin="bear"] a.xg-wikilink {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--accent-11);
+  background: var(--accent-3);
+  border: 1px solid var(--accent-4);
+  border-radius: var(--r-1);
+  text-decoration: none;
+  vertical-align: baseline;
+}
+[data-skin="bear"] a.xg-wikilink:hover {
+  border-color: var(--accent-9);
 }

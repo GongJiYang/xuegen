@@ -14,6 +14,7 @@ import type { SessionsView } from "../../skins/contract.js";
 import type { ChatController } from "../chat/useChat.js";
 import * as client from "../client.js";
 import { sessionGroups, roleOfRow, type SessionListContext } from "./session-list.js";
+import { openCourses } from "./open-courses.js";
 import { todayKey } from "../today.js";
 import type { CoursesResource } from "./use-courses.js";
 import type { CycleResource } from "./use-cycle.js";
@@ -35,6 +36,8 @@ export function useSessionList(
   cycle: CycleResource,
   courses: CoursesResource,
   onNew: () => void,
+  /** Open a course's today session — the same as 「开课 →」 on the 总控 card. */
+  onOpenCourse: (slug: string) => void,
 ): SessionListController {
   const [open, setOpen] = useState(false);
   const [metas, setMetas] = useState<MetasState>({ status: "loading" });
@@ -94,6 +97,15 @@ export function useSessionList(
     [groups, controller, setActiveCourse],
   );
 
+  const courseRows = useMemo(
+    () =>
+      openCourses(
+        cycle.today.state.status === "ready" ? cycle.today.state.value : null,
+        courses.state.status === "ready" ? courses.state.value : [],
+      ),
+    [cycle.today.state, courses.state],
+  );
+
   const view = useMemo<SessionsView>(
     () => ({
       open,
@@ -105,8 +117,13 @@ export function useSessionList(
         onNew();
         setOpen(false);
       },
+      courses: courseRows,
+      onOpenCourse: (slug) => {
+        setOpen(false);
+        onOpenCourse(slug);
+      },
     }),
-    [open, metas.status, groups, onPick, onNew],
+    [open, metas.status, groups, onPick, onNew, courseRows, onOpenCourse],
   );
 
   const requestOpen = useCallback(() => setOpen(true), []);

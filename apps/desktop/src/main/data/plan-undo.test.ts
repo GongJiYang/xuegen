@@ -10,12 +10,14 @@ describe("planCommitsOf", () => {
           { id: "abc123", kind: "计划", slug: "epp", date: "2026-11-14" },
           { id: "def456", kind: "顺延", slug: "linear", date: "2026-11-14" },
           { id: "ghi789", kind: "开周期", slug: "C2", date: "2026-11-14" },
+          { id: "jkl012", kind: "自报", slug: "ctm", date: "2026-11-15" },
         ],
       }),
     ).toEqual([
       { id: "abc123", kind: "计划", slug: "epp", date: "2026-11-14" },
       { id: "def456", kind: "顺延", slug: "linear", date: "2026-11-14" },
       { id: "ghi789", kind: "开周期", slug: "C2", date: "2026-11-14" },
+      { id: "jkl012", kind: "自报", slug: "ctm", date: "2026-11-15" },
     ]);
   });
 

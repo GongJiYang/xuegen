@@ -66,6 +66,21 @@ export interface ControlCardRow {
   group?: ControlCardGroup;
   /** A second, optional action on the row's right (「陪读 →」 on a 阅读 row). */
   side?: { label: string; action: ControlCardAction } | null;
+  /** The not-done lessons a 上课 row stands for: the 「⋯」 menu's 学过了 / 挪日子 / 讲什么. */
+  lessons?: LessonRef[];
+  /** A lesson not taken on its day (「原排 …」): the skin folds these under one line. */
+  missed?: boolean;
+}
+
+/** One lesson a 上课 row covers, as the 「⋯」 menu and its 学过了 dialog name it. */
+export interface LessonRef {
+  slug: string;
+  /** The course's short name (「CTM」). */
+  name: string;
+  id: string;
+  content: string;
+  /** The day it is (or was) on. */
+  date: string;
 }
 
 export interface ControlCardView {
@@ -94,10 +109,17 @@ interface ControlCardInput {
 }
 
 /** One lesson row. `mark` is ignored once the lesson is written into its 「完成：」 line. */
-function lessonRow(lesson: CycleDay["lessons"][number], mark: ControlCardMark, text: string): ControlCardRow {
+function lessonRow(
+  day: CycleDay,
+  lesson: CycleDay["lessons"][number],
+  mark: ControlCardMark,
+  text: string,
+): ControlCardRow {
   const card = strings.control.card;
   const done = lesson.done === true;
+  const ref = lessonRef(day, lesson, day.date);
   return {
+    ...(done ? {} : { lessons: [ref] }),
     group: "lesson",
     mark: done ? "done" : mark,
     text,
@@ -107,18 +129,23 @@ function lessonRow(lesson: CycleDay["lessons"][number], mark: ControlCardMark, t
   };
 }
 
+function lessonRef(day: CycleDay, lesson: { course: string; id: string; content: string }, date: string): LessonRef {
+  return { slug: lesson.course, name: cycleName(day, lesson.course), id: lesson.id, content: lesson.content, date };
+}
+
 /** The morning's main lessons (● now), then the aux ones (○ plan). */
 function lessonRows(day: CycleDay): ControlCardRow[] {
   const card = strings.control.card;
   const rows: ControlCardRow[] = [];
   for (const lesson of day.lessons) {
     if (day.roles[lesson.course] === "aux") continue;
-    rows.push(lessonRow(lesson, "now", `${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`));
+    rows.push(lessonRow(day, lesson, "now", `${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`));
   }
   for (const lesson of day.lessons) {
     if (day.roles[lesson.course] !== "aux") continue;
     rows.push(
       lessonRow(
+        day,
         lesson,
         "plan",
         `${card.auxPrefix}${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`,
@@ -166,6 +193,10 @@ function missedRows(day: CycleDay): ControlCardRow[] {
     const prefix = day.roles[missed.course] === "aux" ? card.auxPrefix : "";
     rows.push({
       group: "lesson",
+      missed: true,
+      lessons: [...lessons]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((lesson) => lessonRef(day, lesson, lesson.date)),
       mark: "plan",
       text:
         missed.count === 1

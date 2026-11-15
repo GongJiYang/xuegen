@@ -224,12 +224,16 @@ export function useChat(
   // so the stored (already-prefixed) markdown can be sent as-is. Defined inside
   // the memo below so it reads the current transcript without its own ref.
   const newSession = useCallback(() => {
+    // A once note belongs to the session it was set for, never to the next one.
+    onceNoteRef.current = null;
     dispatch({ kind: "clear-messages" });
     // A fresh session starts at the top of an empty transcript.
     resetScrollMemory();
     client.send({ type: "new-session" });
   }, []);
   const openSession = useCallback((sessionFile: string | null, role: SessionRole) => {
+    // A once note belongs to the session it was set for, never to the next one.
+    onceNoteRef.current = null;
     dispatch({ kind: "clear-messages" });
     resetScrollMemory();
     const requestId = `open-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -239,6 +243,8 @@ export function useChat(
     });
   }, []);
   const continueSession = useCallback(() => {
+    // A once note belongs to the session it was set for, never to the next one.
+    onceNoteRef.current = null;
     dispatch({ kind: "clear-messages" });
     resetScrollMemory();
     client.send({ type: "continue-session" });

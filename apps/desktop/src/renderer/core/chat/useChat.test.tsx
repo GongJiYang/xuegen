@@ -127,6 +127,38 @@ describe("useChat prompt prefixing (B9)", () => {
     });
     expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: expect.stringContaining("[N] 再问") });
   });
+
+  it("drops a once note when the user switches to another session", () => {
+    const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    render(<ActionsHarness />);
+    act(() => {
+      captured?.setOnceNote("[撤销]");
+    });
+    act(() => {
+      void captured?.openSession("/home/sessions/domain.jsonl", { kind: "domain", subject: "paradigm" });
+    });
+    act(() => {
+      captured?.sendCommand("hi");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: "hi" });
+  });
+
+  it("drops a once note on a fresh or a continued session", () => {
+    const send = vi.spyOn(client, "send").mockImplementation(() => undefined);
+    render(<ActionsHarness />);
+    act(() => {
+      captured?.setOnceNote("[撤销]");
+      captured?.newSession();
+      captured?.sendCommand("hi");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: "hi" });
+    act(() => {
+      captured?.setOnceNote("[撤销]");
+      captured?.continueSession();
+      captured?.sendCommand("hi");
+    });
+    expect(send).toHaveBeenLastCalledWith({ type: "prompt", text: "hi" });
+  });
 });
 
 describe("useChat openSession", () => {

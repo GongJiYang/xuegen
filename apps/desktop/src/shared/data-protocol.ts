@@ -61,6 +61,47 @@ export interface TermGroup {
   terms: TermLink[];
 }
 
+/** One subject row of `domain.mjs subjects --json`. */
+export interface DomainSubject {
+  id: string;
+  title: string;
+  pages: number;
+  terms: number;
+  hasSummary: boolean;
+}
+
+/**
+ * One glossary entry of `domain.mjs glossary --json`: the concept page itself
+ * (`kind: "page"`) or a term coined inside it (`kind: "term"`). `page` is the
+ * page's full H1, `path` the absolute Markdown path (what `wiki.read` takes).
+ */
+export interface DomainTerm {
+  term: string;
+  en: string | null;
+  path: string;
+  page: string;
+  kind: "page" | "term";
+  definition: string | null;
+}
+
+/** One lesson's share of a subject's glossary; `label` is 「课程短名 课次」. */
+export interface DomainGroup {
+  label: string;
+  course: string;
+  lesson: string | null;
+  date: string;
+  terms: DomainTerm[];
+}
+
+/** A subject's glossary plus its 领域小结, from `domain.mjs glossary --json`. */
+export interface DomainGlossary {
+  subject: string;
+  title: string;
+  summary: string | null;
+  groups: DomainGroup[];
+  other: DomainTerm[];
+}
+
 /** One wiki page read for display: its H1 (or file name) and the Markdown without frontmatter. */
 export interface WikiPage {
   path: string;
@@ -455,13 +496,13 @@ export interface SessionMeta {
 }
 
 /**
- * One 「计划」/「顺延」/「开周期」 jj commit made in the current turn, as
- * `plan-undo.mjs list` reports it (oldest first). For 开周期 commits `slug`
+ * One 「计划」/「顺延」/「开周期」/「自报」 jj commit made in the current turn,
+ * as `plan-undo.mjs list` reports it (oldest first). For 开周期 commits `slug`
  * holds the cycle id (`C2`), not a course slug.
  */
 export interface PlanCommit {
   id: string;
-  kind: "计划" | "顺延" | "开周期";
+  kind: "计划" | "顺延" | "开周期" | "自报";
   slug: string;
   date: string;
 }
@@ -545,6 +586,8 @@ export type DataRequest =
   | { kind: "courses.list" }
   | { kind: "course.afterRead"; slug: string; label: string; date: string }
   | { kind: "terms.list"; since?: string }
+  | { kind: "domain.subjects" }
+  | { kind: "domain.glossary"; subject: string }
   | { kind: "wiki.read"; path: string }
   | { kind: "reading.today"; limit: number }
   | { kind: "reading.stats" }
@@ -586,6 +629,8 @@ export interface DataResponseMap {
   "courses.list": CourseSummary[];
   "course.afterRead": { label: string; reading: string | null; book: string | null };
   "terms.list": TermGroup[];
+  "domain.subjects": DomainSubject[];
+  "domain.glossary": DomainGlossary;
   "wiki.read": WikiPage;
   "reading.today": ReadingItem[];
   "reading.stats": ReadingStats;
@@ -715,6 +760,10 @@ export function isDataRequest(value: unknown): value is DataRequest {
       );
     case "terms.list":
       return value.since === undefined || (typeof value.since === "string" && isIsoDate(value.since));
+    case "domain.subjects":
+      return true;
+    case "domain.glossary":
+      return typeof value.subject === "string" && /^[a-z0-9][a-z0-9-]*$/.test(value.subject);
     case "wiki.read":
       // The path is re-checked against `<vault>/wiki/` in the main process; here
       // it only has to be a plausible absolute `.md` path.

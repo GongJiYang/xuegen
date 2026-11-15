@@ -108,10 +108,11 @@ describe("isHostToAgentMessage: sessionId", () => {
 });
 
 describe("isSessionRole / sessionRoleOrFree", () => {
-  it("accepts the three role shapes with a slug-shaped course id", () => {
+  it("accepts the four role shapes with a slug-shaped course id or subject", () => {
     expect(isSessionRole({ kind: "control" })).toBe(true);
     expect(isSessionRole({ kind: "free" })).toBe(true);
     expect(isSessionRole({ kind: "course", slug: "discrete-math-epp" })).toBe(true);
+    expect(isSessionRole({ kind: "domain", subject: "programming-paradigms" })).toBe(true);
   });
 
   it("rejects a malformed role: a role the guard cannot enforce must not arrive", () => {
@@ -126,6 +127,9 @@ describe("isSessionRole / sessionRoleOrFree", () => {
       { kind: "course", slug: "Discrete Math" },
       { kind: "course", slug: "../ctm" },
       { kind: "course", slug: 7 },
+      { kind: "domain" },
+      { kind: "domain", subject: "Programming Paradigms" },
+      { kind: "domain", subject: "a/b" },
     ]) {
       expect(isSessionRole(value)).toBe(false);
     }

@@ -66,6 +66,56 @@ describe("roleOfRow", () => {
     expect(roleOfRow(undefined)).toEqual({ kind: "free" });
     expect(roleOfRow(unpinned)).toEqual({ kind: "free" });
   });
+
+  it("opens a domain row with the read-only domain role, not a course role", () => {
+    // 领域标记的 slug 位是科目 id；当成课程行会把课程写权限给这个只读会话。
+    const row = sessionGroups(
+      [
+        meta(
+          "2026-11-08T11-00-00-000Z_domain.jsonl",
+          Date.UTC(2026, 10, 8, 11, 0),
+          "编程范式里「闭包」是什么\n⟦xuegen:domain|programming-paradigms|编程范式⟧",
+          null,
+          2,
+        ),
+      ],
+      ctx({ courseSessions: {} }),
+    )[0]?.rows[0];
+    expect(row).toMatchObject({ kind: "domain", slug: "programming-paradigms", tag: "问领域" });
+    expect(roleOfRow(row)).toEqual({ kind: "domain", subject: "programming-paradigms" });
+  });
+
+  it("names a domain row 「领域 · 科目标题」 from the marker title", () => {
+    const row = sessionGroups(
+      [
+        meta(
+          "2026-11-08T11-00-00-000Z_domain.jsonl",
+          Date.UTC(2026, 10, 8, 11, 0),
+          "问领域\n⟦xuegen:domain|programming-paradigms|编程语言与编程范式⟧",
+          null,
+          2,
+        ),
+      ],
+      ctx({ courseSessions: {} }),
+    )[0]?.rows[0];
+    expect(row?.title).toBe("领域 · 编程语言与编程范式");
+  });
+
+  it("drops the old 「领域 · 」 prefix a domain marker used to carry", () => {
+    const row = sessionGroups(
+      [
+        meta(
+          "2026-11-08T11-00-00-000Z_domain.jsonl",
+          Date.UTC(2026, 10, 8, 11, 0),
+          "问领域\n⟦xuegen:domain|programming-paradigms|领域 · 编程语言与编程范式⟧",
+          null,
+          2,
+        ),
+      ],
+      ctx({ courseSessions: {} }),
+    )[0]?.rows[0];
+    expect(row?.title).toBe("领域 · 编程语言与编程范式");
+  });
 });
 
 describe("sessionGroups: pins whose course short name contains a space", () => {

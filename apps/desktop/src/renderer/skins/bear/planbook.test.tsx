@@ -94,6 +94,29 @@ describe("Bear Planbook", () => {
     expect(onOpenDay).toHaveBeenCalledWith("2026-11-06");
   });
 
+  it("周视图表头用用户叫法：主攻日 / 整合日 / 低强度日 / 休息日，不出现「深度」", () => {
+    // The user only ever sees 「主攻日」 (11-11); 「深度」 is the data word.
+    const week: PlanWeek = {
+      ...WEEK,
+      days: [
+        day("2026-11-06", "深度"),
+        day("2026-11-07", "深度"),
+        day("2026-11-08", "深度"),
+        day("2026-11-09", "深度"),
+        day("2026-11-10", "整合"),
+        day("2026-11-11", "低强度"),
+        day("2026-11-12", "休息"),
+      ],
+    };
+    const { container } = render(<Planbook {...props({ week })} />);
+    const heads = [...container.querySelectorAll(".bear-pb-dh")].map((head) => head.textContent ?? "");
+    expect(heads[0]).toContain("主攻日");
+    expect(heads[4]).toContain("整合日");
+    expect(heads[5]).toContain("低强度日");
+    expect(heads[6]).toContain("休息日");
+    expect(container.querySelector(".bear-pb-grid")?.textContent).not.toContain("深度");
+  });
+
   it("overdue 行：每门课一条 warn 文本", () => {
     render(<Planbook {...props({})} />);
     expect(screen.getByText(strings.planbook.overdueRow("CTM", 2))).toBeTruthy();

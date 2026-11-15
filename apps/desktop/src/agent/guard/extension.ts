@@ -29,7 +29,7 @@ import type { SandboxRunner } from "../sandbox/runner.js";
 import { appendAudit } from "./audit.js";
 import { existsOnDisk, nodePathFacts } from "./facts.js";
 import { canonicalParts, expandTilde, type CanonicalPath, type PathFacts } from "./path.js";
-import { decide, type Decision, type Roots } from "./roles.js";
+import { decide, roleLabel, type Decision, type Roots } from "./roles.js";
 
 /** What the extension needs from the session it guards. */
 export interface GuardOptions {
@@ -58,13 +58,23 @@ export interface GuardOptions {
 /** Tools whose input carries a `path` the guard can check and rewrite. */
 const PATH_TOOLS = new Set(["read", "grep", "find", "ls", "write", "edit"]);
 /** Tools the guard judges at all. Anything else is a pass-through (see the header). */
-const GUARDED_TOOLS = new Set([...PATH_TOOLS, "bash", "powershell", "course_close", "course_plan", "calendar_write"]);
+const GUARDED_TOOLS = new Set([
+  ...PATH_TOOLS,
+  "bash",
+  "powershell",
+  "course_close",
+  "course_plan",
+  "cycle_open",
+  "calendar_write",
+]);
 /** How the audit line marks a call the lists do not cover. */
 const PASS_THROUGH = "这个工具不在权限清单里，默认放行（待界面阶段收紧）";
 
-/** `control` / `free` / `course:<slug>` as the audit line records it. */
+/** `control` / `free` / `course:<slug>` / `domain:<subject>` as the audit line records it. */
 function roleId(role: SessionRole): string {
-  return role.kind === "course" ? `course:${role.slug}` : role.kind;
+  if (role.kind === "course") return `course:${role.slug}`;
+  if (role.kind === "domain") return `domain:${role.subject}`;
+  return role.kind;
 }
 
 /**
@@ -177,6 +187,21 @@ export function createGuardExtension(options: GuardOptions): ExtensionFactory {
       };
 
       if (!GUARDED_TOOLS.has(event.toolName)) {
+        // 领域会话只读：清单外的工具（cycle_open、mcp__*、将来的工具）不给
+        // pass-through——否则「未知工具一律拒」在 decide 里拦不到这条路径。
+        if (role.kind === "domain") {
+          const reason = `${roleLabel(role)}只读：不改计划、不写库；要改请回总控或那门课的会话。`;
+          appendAudit(auditFile, {
+            time: new Date().toISOString(),
+            session: options.sessionId(),
+            role: roleId(role),
+            tool: event.toolName,
+            target: auditTarget(event.input as Record<string, unknown>, canon),
+            allow: false,
+            reason,
+          });
+          return { block: true, reason };
+        }
         appendAudit(auditFile, {
           time: new Date().toISOString(),
           session: options.sessionId(),

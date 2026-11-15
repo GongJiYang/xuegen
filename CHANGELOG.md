@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.14.0 — 2026-11-15
+
+- Desktop: 学过了，直接勾掉 — every not-done 上课 row in the 总控 has a 「⋯」 menu (学过了 / 挪到别的日子 / 这节讲什么). 学过了 opens a dialog listing that lesson plus earlier unfinished ones of the same course; the 总控 ticks them in one plan transaction labelled 自报 (`course_plan commit --label 自报`, jj 「自报 <slug> <date>」), writes a 「用户自报」 learning record, and 「撤销这次改动」 undoes it (`plan-undo` recognises 自报 commits). A lesson can no longer be ticked by a plan commit without that label.
+- Desktop: 总控 v3 — the six tiles became one status line (· separated, 技能与设置 and 让总控说说今天 at its right end); the panel is one column without block frames (今天 → 本周 → 术语 → 领域 → 总进度 / 书房 / 卡片); 今天 lists today's lessons first and folds the missed ones into 「之前没上的 N 节」; activity cards lead with the result; ＋ lists 开一门课 first.
+- Desktop: 领域 page — the 总控's 领域 row opens a read-only page per subject: glossary on the left (grouped by lesson, Chinese and English), the 领域小结 or a concept page in the middle, and a 领域 session on the right that answers only from that subject's pages and learning records, with clickable citations (`skills/domain`, `domain.subjects` / `domain.glossary`, session role `domain` with a read-only guard and sandbox).
+- Desktop: week grid headers say 主攻日 / 整合日 / 低强度日 / 休息日 instead of the data words; no Bear text is below 12px, readable grey text is at least 4.5:1, font sizes always use their paired line height (`scale-css.test.ts` guards all three).
+- Skills: 课后读 is scheduled on the next class day of the other main course, but moves to this Saturday when that falls next week; the 低强度 Saturday brief lists every unread 课后读 of the week first.
+- Fix: course and free sessions can no longer call `cycle_open`; renaming an old record heading no longer bypasses the 自报 check; staging without a course page no longer skips it.
+
 ## v0.13.1 — 2026-11-14
 
 - Fix: reopening 学根 no longer flashes the 总控 session as a plain chat (「自由提问」, the old transcript filling the page) while today's cycle data is still loading. A restored session that settings remember as a cycle's 总控 session is shown as 总控 immediately (`use-control-session.ts`).

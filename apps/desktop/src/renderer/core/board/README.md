@@ -47,5 +47,8 @@
 | `use-chat-column.ts` | `useChatColumn`：计划本聊天栏开合——宽窗默认开、≤900px 默认关；跨过断点只在用户没手动切过时跟随。 |
 | `control-prompts.ts` | 总控面板书房按钮发给总控的话（`addBookPrompt` / `changeModePrompt` / `setTargetPrompt` / `pausePrompt` / `resumePrompt`）：均带 `ask` 动作标记（折叠为「交给总控 · 短名」），末行固定为 `strings.panel.askConfirm`（先给看改动、说可以才写）；正文指明 `/skill:reading` 或 `/skill:course`。 |
 | `panel.ts` | 总控面板（PANEL-PLAN）纯函数：`panelTiles` 六个状态格（周期 / 今天 / 本周 / 书房 / Anki / 卡片，null 输入出加载态）、`shelfRows` 书房行（在读 → 带读 → 暂停 → 排队）、`unplannedMaterials` 未排计划资料；今天 / 本周 / Anki 张数复用 `buildDay` / `buildWeek` / `ankiDueCount`。 |
+| `domain.ts` | 领域页纯函数：`domainOf`（对话里的 `⟦xuegen:domain⟧` 标记 → 科目 id 与标题）、`domainSections` / `filterSections` / `countEntries`（词表分节与搜索）、`neighbour`（← → 翻概念页）、`domainOpenMessage`（开领域会话的那句话）。 |
+| `use-domain.ts` | `useDomain(subject)`：领域页的全部状态（`domain.glossary` 词表、搜索、正在读的一页与 `wiki.read` 竞态保护）；没有领域会话时为 null。 |
+| `use-domain-session.ts` | `useDomainSession`：当前会话是不是领域会话（`domainOf`）、`domain.subjects` 科目清单（只在有人看时加载），`open(subject, title)` 重开今天这一科的领域会话或新建一个再发开领域指令；左栏槽位包装在 `domain-slot.tsx`。 |
 
 写入动作（加入阅读、读完、存为新卡、写日历、技能开关）成功后刷新相关数据；失败结果返回给调用方由 `App` 呈现 Notice。日历网格、命令表等纯逻辑均有同目录 `*.test.ts`。

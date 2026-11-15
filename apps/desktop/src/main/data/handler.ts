@@ -173,6 +173,10 @@ async function handleScriptRequest(
         "--json",
         ...(request.since ? ["--since", request.since] : []),
       ]);
+    case "domain.subjects":
+      return runScript("domain/domain.mjs", ["subjects", vault.vault, "--json"]);
+    case "domain.glossary":
+      return runScript("domain/domain.mjs", ["glossary", vault.vault, request.subject, "--json"]);
     case "reading.today":
       return runScript("reading/reading-queue.mjs", withToday([
         "today",

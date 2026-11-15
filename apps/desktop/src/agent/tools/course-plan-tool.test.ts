@@ -123,6 +123,18 @@ describe("coursePlanCalls — 一个动作对应一串脚本调用", () => {
     }
   });
 
+  it("commit 带 label 自报 → commit <staging> --label 自报 --json；别的动作带 label 抛中文错", () => {
+    expect(coursePlanCalls({ action: "commit", staging: STAGING, label: "自报" }, VAULT, CWD)).toEqual([
+      { script: CLOSE, args: ["commit", STAGING, "--label", "自报", "--json"] },
+    ]);
+    expect(() => coursePlanCalls({ action: "stage", slug: "ctm", label: "自报" }, VAULT, CWD)).toThrow(
+      /label 只在 commit 用：按用户自报勾掉课次时填「自报」。/,
+    );
+    expect(() => coursePlanCalls({ action: "check", staging: STAGING, label: "自报" }, VAULT, CWD)).toThrow(
+      /label 只在 commit 用/,
+    );
+  });
+
   it("board 写到 wiki/_generated（目录不存在也一样）", () => {
     const vault = vaultWith([join("wiki"), join("wiki", "courses")]);
     expect(coursePlanCalls({ action: "board" }, vault, "/ws")).toEqual([

@@ -5,7 +5,9 @@
  * The write lists mirror the guard's `writeAllowed` so a bash command gets at
  * most what write/edit would allow, minus the locations the dedicated tools
  * own (course pages and board, 周期, 日历) — those stay read-only for every
- * role because bash must not produce them at all.
+ * role because bash must not produce them at all. The 领域 session (`domain`)
+ * is read-only outright: its `allowWrite` is only the workspace and the temp
+ * directories, nothing inside the vault.
  *
  * Pure: `roots` and every rule path arrive canonical via `canon` (the same
  * canonicalization the guard applies), and every entry is marked `literal` so
@@ -57,6 +59,7 @@ const ANY_SESSION_WRITE: readonly (keyof RulePaths)[] = [
 const ROLE_WRITE: Record<SessionRole["kind"], readonly (keyof RulePaths)[]> = {
   control: ["cycles", "subjects", "subjectBoard", "profile"],
   course: ["subjects"],
+  domain: [],
   free: ["knowledge"],
 };
 
@@ -111,12 +114,13 @@ function withoutVault(root: string, vault: string): boolean {
 export function sandboxConfigFor(role: SessionRole, roots: Roots, canon: CanonFn): SandboxRuntimeConfig {
   const rules = rulePaths(roots, canon);
   const pick = (keys: readonly (keyof RulePaths)[]): string[] => keys.flatMap((key) => rules[key]);
-  const writeRoots = [
-    roots.workspace,
-    ...rules.tmp,
-    ...pick(ANY_SESSION_WRITE),
-    ...pick(ROLE_WRITE[role.kind]),
-  ].filter((root) => withoutVault(root, roots.vault));
+  // 领域会话只读：连 ANY_SESSION_WRITE 也不放，bash 只能写工作区与临时目录
+  // （guard 已在 decide 里拦下 write/edit，这里守住 bash 这一侧）。
+  const writeRoots = (
+    role.kind === "domain"
+      ? [roots.workspace, ...rules.tmp]
+      : [roots.workspace, ...rules.tmp, ...pick(ANY_SESSION_WRITE), ...pick(ROLE_WRITE[role.kind])]
+  ).filter((root) => withoutVault(root, roots.vault));
   return {
     network: {
       allowedDomains: ["127.0.0.1:8765"],

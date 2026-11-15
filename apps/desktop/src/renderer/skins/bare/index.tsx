@@ -10,7 +10,7 @@
  * `Shell` and the module export.
  */
 
-import type { ControlPanelProps, PlanbookProps, ShellProps, SkinModule, SkinSlots } from "../contract.js";
+import type { ControlPanelProps, DomainPanelProps, PlanbookProps, ShellProps, SkinModule, SkinSlots } from "../contract.js";
 import type { PlanMark } from "../../core/board/planbook.js";
 import type { PlanView } from "../../core/board/planbook-nav.js";
 import { strings } from "../../core/strings.js";
@@ -63,6 +63,15 @@ function ControlPanel(props: ControlPanelProps) {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** The 领域 page as a plain heading: bare only compiles. */
+function DomainPanel(props: DomainPanelProps) {
+  return (
+    <section data-slot="domain-panel">
+      <h2>{props.title}</h2>
     </section>
   );
 }
@@ -327,6 +336,7 @@ const bareSlots: SkinSlots = {
   ControlCard,
   Planbook,
   ControlPanel,
+  DomainPanel,
 };
 
 /** The bare skin module, consumed by the registry's named-export loader. */

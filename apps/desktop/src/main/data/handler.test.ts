@@ -159,6 +159,95 @@ describe("handleDataRequest", () => {
     });
   });
 
+  it("domain.subjects and domain.glossary serve the subject glossary", async () => {
+    touch(
+      join(vault, "wiki", "subjects", "demo.md"),
+      ["# 演示科目", "", "## 领域小结", "", "学过甲。", ""].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "knowledge", "concepts", "demo", "010-alpha.md"),
+      [
+        "# 演示：甲概念",
+        "",
+        "## Definition",
+        "",
+        "甲的定义。",
+        "",
+        "正文带 **乙词**（beta term）。",
+        "",
+      ].join("\n"),
+    );
+    touch(
+      join(vault, "wiki", "courses", "demo.md"),
+      [
+        "<!-- xuegen:course-state -->",
+        "",
+        "# Demo",
+        "",
+        "## Learning Record",
+        "",
+        "### 2026-10-21-01（收课：D1 · 第一章）",
+        "",
+        "完成：D1",
+        "",
+        "- 存库：[[knowledge/concepts/demo/010-alpha|甲页]]",
+        "",
+      ].join("\n"),
+    );
+    const subjects = await handleDataRequest({ kind: "domain.subjects" });
+    expect(subjects).toEqual({
+      ok: true,
+      data: [{ id: "demo", title: "演示科目", pages: 1, terms: 2, hasSummary: true }],
+    });
+    const glossary = await handleDataRequest({ kind: "domain.glossary", subject: "demo" });
+    expect(glossary).toEqual({
+      ok: true,
+      data: {
+        subject: "demo",
+        title: "演示科目",
+        summary: "学过甲。",
+        groups: [
+          {
+            label: "Demo D1",
+            course: "demo",
+            lesson: "D1",
+            date: "2026-10-21",
+            terms: [
+              {
+                term: "甲概念",
+                en: null,
+                path: join(vault, "wiki", "knowledge", "concepts", "demo", "010-alpha.md"),
+                page: "演示：甲概念",
+                kind: "page",
+                definition: "甲的定义",
+              },
+              {
+                term: "乙词",
+                en: "beta term",
+                path: join(vault, "wiki", "knowledge", "concepts", "demo", "010-alpha.md"),
+                page: "演示：甲概念",
+                kind: "term",
+                definition: null,
+              },
+            ],
+          },
+        ],
+        other: [],
+      },
+    });
+  });
+
+  it("domain.subjects and domain.glossary return vault-missing when wiki.json is absent", async () => {
+    rmSync(join(home, "wiki.json"));
+    const missing = {
+      ok: false,
+      code: "vault-missing",
+      error: expect.stringContaining("未配置知识库"),
+    };
+    expect(await handleDataRequest({ kind: "domain.subjects" })).toEqual(missing);
+    expect(await handleDataRequest({ kind: "domain.glossary", subject: "demo" })).toEqual(missing);
+  });
+
   it("calendar.month aggregates the course record", async () => {
     const result = await handleDataRequest({ kind: "calendar.month", month: "2026-10" });
     expect(result.ok).toBe(true);

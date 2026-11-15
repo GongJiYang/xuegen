@@ -24,6 +24,7 @@ export const ACTION_KINDS = [
   "undo-close",
   "accompany",
   "next-cycle",
+  "domain",
 ] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 

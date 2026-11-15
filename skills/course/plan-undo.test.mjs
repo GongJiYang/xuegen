@@ -319,6 +319,54 @@ jjTest("undo：一轮只有开周期提交也能撤（cN 不是课程 slug，不
   }
 });
 
+jjTest("undo：一轮里「自报」提交也能撤（完成行回到原样、课程页锁回 0444）", async () => {
+  const fixture = await makeRepo();
+  try {
+    const since = SINCE();
+    const id = await commitAs(fixture, "wiki/courses/epp.md", `${PAGE_V1}- 完成：D1\n`, "自报 epp 2026-11-14");
+    const listed = await cliJson(["list", fixture.vault, "--since", since], { env: fixture.env });
+    assert.deepEqual(listed.commits, [{ id, kind: "自报", slug: "epp", date: "2026-11-14" }]);
+    const out = await cliJson(undoArgs(fixture, since), { env: fixture.env });
+    assert.deepEqual(out.undone, [id]);
+    assert.deepEqual(out.restoreFiles, ["wiki/courses/epp.md"]);
+    assert.equal(out.jj, "ok");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), PAGE_V1, "完成行回到原样");
+    const mode = async (path) => (await stat(path)).mode & 0o777;
+    assert.equal(await mode(join(fixture.vault, "wiki", "courses", "epp.md")), 0o444, "课程页锁回");
+    assert.match(fixture.jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销计划.*epp/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("undo：一轮里「计划」与「自报」一起撤（两个都回到原样、课程页锁回 0444）", async () => {
+  const fixture = await makeRepo();
+  try {
+    const since = SINCE();
+    // 同一轮里先一次计划提交（改安排）、再一次自报提交（勾课次）。
+    const planned = await commitAs(fixture, "wiki/courses/epp.md", `${PAGE_V1}- v2\n`, "计划 epp 2026-11-14");
+    const reported = await commitAs(
+      fixture,
+      "wiki/courses/epp.md",
+      `${PAGE_V1}- v2\n- 完成：D1\n`,
+      "自报 epp 2026-11-14",
+    );
+    const listed = await cliJson(["list", fixture.vault, "--since", since], { env: fixture.env });
+    assert.deepEqual(listed.commits.map((commit) => commit.kind), ["计划", "自报"]);
+    const out = await cliJson(undoArgs(fixture, since), { env: fixture.env });
+    assert.deepEqual(out.undone.sort(), [planned, reported].sort());
+    assert.deepEqual(out.restoreFiles, ["wiki/courses/epp.md"]);
+    assert.deepEqual(out.keptNew, []);
+    assert.equal(out.jj, "ok");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), PAGE_V1, "两条一起回到原样");
+    const mode = async (path) => (await stat(path)).mode & 0o777;
+    assert.equal(await mode(join(fixture.vault, "wiki", "courses", "epp.md")), 0o444, "课程页锁回");
+    assert.match(fixture.jj(["log", "--no-graph", "-T", "description.first_line()"]), /撤销计划.*epp/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 jjTest("撤销后课程页重新上锁（0444），目录 0555", async () => {
   const fixture = await makeRepo();
   try {

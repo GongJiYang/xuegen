@@ -18,6 +18,8 @@
 - subjects.list → skills/cycle-plan/subjects.mjs（list，只读）
 - course.afterRead → course-state.mjs after-read 打勾后：有 `[[shelf/<书>]]` 链接时记进书房书页（`bookshelf.mjs lecture`），否则照旧记阅读页（`reading-queue.mjs note`）；最后重建课程看板
 - terms.list → skills/course/course-terms.mjs list（只读）
+- domain.subjects → skills/domain/domain.mjs subjects（只读）：各科目概念页数、词数、有无领域小结
+- domain.glossary → skills/domain/domain.mjs glossary（只读）：一个科目的词表（按存库课次分组 + 领域小结）
 - plan.undoable → skills/course/plan-undo.mjs list（只读）：`--since` 是这一轮回答开始的时间，返回可撤销的「计划/顺延/开周期」提交
 - plan.undo → skills/course/plan-undo.mjs undo（写）：`--workspace` 取 `agent/environment.ts` 的 `resolveWorkspace()`；脚本输出经 `plan-undo.ts` 转成协议类型
 - wiki.read → wiki-page.ts（只读，限 wiki/ 内的 .md）

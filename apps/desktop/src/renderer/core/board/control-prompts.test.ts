@@ -3,9 +3,12 @@ import { strings } from "../strings.js";
 import { splitActionMarker } from "../chat/action-marker.js";
 import {
   addBookPrompt,
+  askLessonPrompt,
   changeModePrompt,
+  moveLessonPrompt,
   pausePrompt,
   resumePrompt,
+  selfReportPrompt,
   setTargetPrompt,
 } from "./control-prompts.js";
 
@@ -80,5 +83,38 @@ describe("总控书房按钮发给总控的话", () => {
     expect(resumed.action).toBe("ask");
     expect(resumed.body).toContain("bookshelf.mjs resume");
     expect(resumed.body).toContain(strings.panel.askConfirm);
+  });
+});
+
+describe("lesson menu prompts", () => {
+  const LESSON = { slug: "ctm", name: "CTM", id: "D3", content: "Ch3", date: "2026-11-24" };
+
+  it("学过了：按 cycle-plan 直接勾掉，不再问一遍", () => {
+    const marked = splitActionMarker(selfReportPrompt("ctm", "CTM", ["D1", "D2"]));
+    expect(marked.action).toBe("ask");
+    expect(marked.slug).toBe("ctm");
+    expect(marked.courseTitle).toBe("CTM 学过了 D1、D2");
+    expect(marked.body.startsWith("/skill:cycle-plan ")).toBe(true);
+    expect(marked.body).toContain("D1、D2");
+    expect(marked.body).toContain("学过了，直接勾掉");
+    // 自报不再问一遍。
+    expect(marked.body).not.toContain(strings.panel.askConfirm);
+  });
+
+  it("挪日子：按 course 技能先问挪到哪天，写之前先确认", () => {
+    const marked = splitActionMarker(moveLessonPrompt(LESSON));
+    expect(marked.action).toBe("ask");
+    expect(marked.body.startsWith("/skill:course ")).toBe(true);
+    expect(marked.body).toContain("2026-11-24");
+    expect(marked.body).toContain(strings.panel.askConfirm);
+    expect(marked.courseTitle).toBe("CTM D3 挪日子");
+  });
+
+  it("讲什么：只回答，不跑技能、不改文件", () => {
+    const marked = splitActionMarker(askLessonPrompt(LESSON));
+    expect(marked.action).toBe("ask");
+    expect(marked.body.startsWith("/skill:")).toBe(false);
+    expect(marked.body).toContain("不改任何文件");
+    expect(marked.courseTitle).toBe("CTM D3 讲什么");
   });
 });

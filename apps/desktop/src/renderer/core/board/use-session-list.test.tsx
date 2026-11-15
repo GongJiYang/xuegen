@@ -21,8 +21,12 @@ function Harness({ controller }: { controller: ChatController }) {
     controller,
     DEFAULT_DESKTOP_SETTINGS,
     vi.fn(),
-    { month: { state: { status: "loading" } } } as unknown as CycleResource,
+    {
+      month: { state: { status: "loading" } },
+      today: { state: { status: "loading" } },
+    } as unknown as CycleResource,
     { state: { status: "ready", value: [] } } as unknown as CoursesResource,
+    vi.fn(),
     vi.fn(),
   );
   useEffect(() => {

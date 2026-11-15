@@ -19,10 +19,10 @@ export interface SessionRow {
   file: string;
   /** 「09:12」 local time. */
   time: string;
-  kind: "course" | "control" | "free";
-  /** Course slug when known (opening it switches to that course), else null. */
+  kind: "course" | "control" | "free" | "domain";
+  /** Course slug when known (opening it switches to that course); a 领域 row carries the subject id here; else null. */
   slug: string | null;
-  /** 「离散」 for a course, 「总控」 / 「自由」 otherwise. */
+  /** 「离散」 for a course, 「总控」 / 「自由」 / 「问领域」 otherwise. */
   tag: string;
   title: string;
   count: number;
@@ -114,6 +114,8 @@ function pinHead(pin: string): string {
 export function roleOfRow(row: SessionRow | undefined): SessionRole {
   if (row?.kind === "control") return { kind: "control" };
   if (row?.kind === "course" && row.slug !== null) return { kind: "course", slug: row.slug };
+  // 领域会话重开仍是只读的 domain（slug 位上是科目 id）；认不出科目按 free。
+  if (row?.kind === "domain" && row.slug !== null) return { kind: "domain", subject: row.slug };
   // A transcript nothing identifies (总控/course lists not loaded, or a plain
   // question) must not inherit 总控's permissions: everything unknown is free.
   return { kind: "free" };
@@ -128,8 +130,18 @@ function rowTitle(
   date: string,
   ctx: SessionListContext,
   action: ActionKind | null,
+  courseTitle: string | null,
 ): string {
   if (kind === "control") return strings.sessions.controlTitle;
+  // 领域 rows name the subject, not the prompt that opened them.
+  if (kind === "domain") {
+    const prefix = strings.domain.tabTitle("");
+    if (courseTitle === null || courseTitle === "") return strings.actions.domain;
+    // Markers written before 11-15 already carried 「领域 · 」; strip it so the
+    // label is never doubled.
+    const title = courseTitle.startsWith(prefix) ? courseTitle.slice(prefix.length) : courseTitle;
+    return strings.domain.tabTitle(title);
+  }
   if (kind === "course" && meta.pin !== null) {
     // 「离散 D2」→ the lesson id after the course's short name; a bare id keeps itself.
     const { id } = pinParts(meta.pin);
@@ -150,29 +162,36 @@ function rowOf(meta: SessionMeta, ctx: SessionListContext): SessionRow {
   const date = localDayOf(meta.startedAt, ctx.tzOffsetMinutes);
   const marker = splitActionMarker(splitStyleTag(meta.firstUser).body);
   const control = ctx.controlFiles.includes(meta.file);
-  const slug = control ? null : slugOf(meta, marker.slug, ctx);
+  // 领域标记的 slug 位是科目 id，不是课程 slug——不当成课程行（否则重开会拿到
+  // 课程角色的写权限）。
+  const domain = marker.action === "domain";
+  const slug = control ? null : domain ? marker.slug : slugOf(meta, marker.slug, ctx);
   const kind: SessionRow["kind"] = control
     ? "control"
-    : slug !== null || meta.pin !== null
-      ? "course"
-      : "free";
+    : domain
+      ? "domain"
+      : slug !== null || meta.pin !== null
+        ? "course"
+        : "free";
   const tag =
     kind === "control"
       ? strings.sessions.control
-      : kind === "free"
-        ? strings.sessions.free
-        : slug !== null
-          ? (ctx.courseNames[slug] ?? slug)
-          : meta.pin !== null
-            ? pinHead(meta.pin)
-            : "";
+      : kind === "domain"
+        ? strings.actions.domain
+        : kind === "free"
+          ? strings.sessions.free
+          : slug !== null
+            ? (ctx.courseNames[slug] ?? slug)
+            : meta.pin !== null
+              ? pinHead(meta.pin)
+              : "";
   return {
     file: meta.file,
     time: localTimeOf(meta.startedAt, ctx.tzOffsetMinutes),
     kind,
     slug,
     tag,
-    title: rowTitle(meta, kind, slug, marker.body, date, ctx, marker.action),
+    title: rowTitle(meta, kind, slug, marker.body, date, ctx, marker.action, marker.courseTitle),
     count: meta.count,
     current: meta.file === ctx.current,
   };
