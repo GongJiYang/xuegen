@@ -17,6 +17,7 @@ import { ankiUrlOverride, fetchAnkiStatus } from "./anki.js";
 import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
 import { listReadingSources } from "./sources.js";
 import { listSessions } from "./sessions.js";
+import { listStudied } from "./studied.js";
 import { readWikiPage } from "./wiki-page.js";
 import { planCommitsOf, planUndoResultOf } from "./plan-undo.js";
 import { cycleAcceptOf, cyclePreviewOf } from "./cycle-next.js";
@@ -51,6 +52,8 @@ export async function handleDataRequest(request: DataRequest): Promise<DataRespo
       return { ok: true, data: await fetchAnkiStatus() };
     case "sessions.list":
       return { ok: true, data: listSessions(resolveHome(), request.current) };
+    case "sessions.studied":
+      return { ok: true, data: listStudied(resolveHome(), request.date) };
     case "skills.list":
       return { ok: true, data: listSkills(readSettings().disabledSkills) };
     case "skills.setEnabled":
@@ -81,6 +84,7 @@ async function handleScriptRequest(
       kind:
         | "anki.status"
         | "sessions.list"
+        | "sessions.studied"
         | "skills.list"
         | "skills.setEnabled"
         | "skills.fetch"
@@ -105,67 +109,6 @@ async function handleScriptRequest(
   switch (request.kind) {
     case "courses.list":
       return runScript("course/course-state.mjs", ["list", join(vault.vault, "wiki", "courses"), "--json"]);
-    case "course.afterRead": {
-      // 「读完了」：先给课程页 Today 那行打勾。课程页链着书房书（[[shelf/<书>]]）
-      // 时记进书页（bookshelf.mjs lecture，可带上「核心页已定」
-      // 的页码）；还链着旧阅读页（[[reading/<页>]]，迁库前的课程页）时照旧记一行
-      // Reading Log。最后重建两份派生看板。每一步失败都直接返回它的失败响应。
-      const courses = join(vault.vault, "wiki", "courses");
-      const marked = await runScript("course/course-state.mjs", [
-        "after-read",
-        join(courses, `${request.slug}.md`),
-        request.label,
-        "--date",
-        request.date,
-      ]);
-      if (!marked.ok) return marked;
-      const detail = marked.data as {
-        reading?: unknown;
-        book?: unknown;
-        course?: unknown;
-        pages?: unknown;
-      };
-      const reading = typeof detail.reading === "string" ? detail.reading : null;
-      const book = typeof detail.book === "string" ? detail.book : null;
-      const course = typeof detail.course === "string" ? detail.course : null;
-      const pages = typeof detail.pages === "string" ? detail.pages : null;
-      if (book !== null) {
-        const args = [
-          "lecture",
-          vault.vault,
-          book,
-          "--label",
-          request.label,
-          "--course",
-          course ?? request.slug,
-        ];
-        if (pages !== null) args.push("--pages", pages);
-        args.push("--today", request.date, "--json");
-        const lectured = await runScript("reading/bookshelf.mjs", args);
-        if (!lectured.ok) return lectured;
-      } else if (reading !== null) {
-        const noted = await runScript("reading/reading-queue.mjs", [
-          "note",
-          vault.vault,
-          reading,
-          "--text",
-          `讲后读 ${request.label} 已读（用户自报）`,
-          "--today",
-          request.date,
-          "--json",
-        ]);
-        if (!noted.ok) return noted;
-      }
-      const generated = generatedDir(vault.vault);
-      for (const step of [
-        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(generated, "courses.md")]),
-        runScriptPlain("course/render-board.mjs", [courses, join(generated, "courses.html")]),
-      ]) {
-        const done = await step;
-        if (!done.ok) return done;
-      }
-      return { ok: true, data: { label: request.label, reading, book } };
-    }
     case "terms.list":
       return runScript("course/course-terms.mjs", [
         "list",
@@ -242,6 +185,32 @@ async function handleScriptRequest(
         request.today,
         "--json",
       ]);
+    case "shelf.afterDone": {
+      // 「读完了」：只写书页 —— 勾 `## 课后读` 第 N 条并记进 `## 读书记录`；
+      // 之后照旧重建两份派生看板。每一步失败都直接返回它的失败响应。
+      const done = await runScript("reading/bookshelf.mjs", [
+        "after",
+        "done",
+        vault.vault,
+        request.book,
+        "--index",
+        String(request.index),
+        "--today",
+        request.today,
+        "--json",
+      ]);
+      if (!done.ok) return done;
+      const generated = generatedDir(vault.vault);
+      const courses = join(vault.vault, "wiki", "courses");
+      for (const step of [
+        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(generated, "courses.md")]),
+        runScriptPlain("course/render-board.mjs", [courses, join(generated, "courses.html")]),
+      ]) {
+        const rebuilt = await step;
+        if (!rebuilt.ok) return rebuilt;
+      }
+      return done;
+    }
     case "shelf.extract":
       return runScript("reading/bookshelf.mjs", [
         "extract",

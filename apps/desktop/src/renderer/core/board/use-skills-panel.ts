@@ -10,7 +10,7 @@
 import { useState } from "react";
 import type { SkillReview } from "@shared/data-protocol.js";
 import type { DesktopSettings } from "@shared/protocol.js";
-import type { ShellPanels } from "../../skins/contract.js";
+import type { ShellPanels, SkillsPanelProps } from "../../skins/contract.js";
 import type { AsyncState } from "./state.js";
 import { strings } from "../strings.js";
 import type { SkillsResource } from "./use-skills.js";
@@ -19,6 +19,7 @@ import type { SkillsResource } from "./use-skills.js";
 export function useSkillsPanel(
   skills: SkillsResource,
   apply: (settings: DesktopSettings) => void,
+  studied?: SkillsPanelProps["studied"],
 ): ShellPanels["skills"] {
   const [fetchNotice, setFetchNotice] = useState<string | null>(null);
   const [review, setReview] = useState<AsyncState<SkillReview> | null>(null);
@@ -68,5 +69,6 @@ export function useSkillsPanel(
       setReview(null);
       void skills.discard(name);
     },
+    ...(studied ? { studied } : {}),
   };
 }

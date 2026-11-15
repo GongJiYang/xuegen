@@ -125,6 +125,7 @@ test("空书房（没有 wiki/shelf）：list / today / index 都不崩，today 
   assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-11"]), {
     planned: null,
     free: null,
+    guided: [],
   });
 
   const index = await jsonB(["index", vault, "--today", "2026-11-11"]);
@@ -150,6 +151,7 @@ test("空书房（只有 index.md）：list 为空、today planned null、index 
   assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-11"]), {
     planned: null,
     free: null,
+    guided: [],
   });
   const index = await jsonB(["index", vault, "--today", "2026-11-11"]);
   assert.match(index.text, /^# 书房$/m);
@@ -340,6 +342,7 @@ test("today.coreOverlap：读完全部分段后 chunk 与 coreOverlap 都是 nul
   assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-11"]), {
     planned: null,
     free: null,
+    guided: [],
   });
   const list = await jsonB(["list", vault, "--today", "2026-11-11"]);
   assert.equal(list[0].status, "done");

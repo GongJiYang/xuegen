@@ -7,7 +7,7 @@ import { readdirSync, readFileSync, writeFileSync, chmodSync, statSync, existsSy
 import { join, dirname, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { parseCourse as parseCourseShared, findSection, isTask, isTaskDone, hasMarker, STATE_MARKER } from "./course-parse.mjs";
+import { parseCourse as parseCourseShared, findSection, isTask, isTaskDone, hasMarker, isArchived, archivedDate, STATE_MARKER } from "./course-parse.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MARKER = STATE_MARKER;
@@ -42,6 +42,8 @@ function parseCourse(text, file) {
   const section = (name) => findSection(parsed.sections, name);
   return {
     file,
+    archived: isArchived(text),
+    archivedDate: archivedDate(text),
     slug: parsed.slug,
     title: parsed.title,
     sections: parsed.sections,
@@ -297,13 +299,16 @@ function main() {
     .filter((f) => f.endsWith(".md") && !f.startsWith("."))
     .sort();
   const courses = [];
+  const archivedCourses = [];
   const skipped = [];
   for (const file of files) {
     const text = readFileSync(join(coursesDir, file), "utf8");
     if (!hasMarker(text)) { skipped.push(file); continue; }
-    courses.push(parseCourse(text, file));
+    const course = parseCourse(text, file);
+    // 停用课不进主表，单列在看板最后的「停用」一节。
+    (course.archived ? archivedCourses : courses).push(course);
   }
-  if (!courses.length) {
+  if (!courses.length && !archivedCourses.length) {
     console.error(`未找到课程状态文件（需要 ${MARKER} 标记）：${coursesDir}`);
     process.exit(1);
   }
@@ -407,6 +412,13 @@ footer{margin-top:34px;color:var(--muted);font-size:12.5px;line-height:1.7;borde
   </div>
 
   ${courses.map((c, i) => renderCourse(c, i)).join("\n")}
+
+  ${archivedCourses.length ? `<section class="panel">
+    <h3>停用</h3>
+    <ul>
+      ${archivedCourses.map((c) => `<li>${esc(c.title)}${c.archivedDate ? ` · ${esc(c.archivedDate)}` : ""}</li>`).join("\n      ")}
+    </ul>
+  </section>` : ""}
 
   <footer>
     <p>本页是只读视图：没有表单、按钮或任何编辑入口，也不能在这里改计划或打勾。状态只存在于 <code>wiki/courses/*.md</code>（只读锁 0444，目录 0555），由学习会话在明确收课请求后解锁写入、再重新上锁。</p>

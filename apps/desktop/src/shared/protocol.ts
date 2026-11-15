@@ -315,6 +315,8 @@ export interface DesktopSettings {
   controlSessions: Record<string, string>;
   /** The local day (`YYYY-MM-DD`) the 总控 brief was last asked for, keyed by cycle id. */
   controlBriefOn: Record<string, string>;
+  /** 总控「今天」下面是否显示「今天学过」一行（默认显示）。 */
+  showStudied: boolean;
   /**
    * The `XUEGEN_TODAY` override (`YYYY-MM-DD`), injected by the main process on
    * `get` so the renderer can pin "today" before its first render.
@@ -383,6 +385,7 @@ export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   verifiedOn: {},
   controlSessions: {},
   controlBriefOn: {},
+  showStudied: true,
 };
 
 /**
@@ -585,6 +588,7 @@ export function normalizeDesktopSettings(value: unknown): DesktopSettings {
     verifiedOn: normalizeCourseStartedOn(record.verifiedOn),
     controlSessions: normalizeCourseSessions(record.controlSessions),
     controlBriefOn: normalizeCourseStartedOn(record.controlBriefOn),
+    showStudied: record.showStudied !== false,
   };
 }
 

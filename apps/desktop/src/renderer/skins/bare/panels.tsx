@@ -186,7 +186,7 @@ export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, o
               book !== null && (
                 <div key={book.slug}>
                   <p>
-                    {book.title} · {strings.reading.shelfMeta(book.position, book.total, book.end)}
+                    {book.title} · {book.meta}
                   </p>
                   {book.next !== null && <p>{book.next}</p>}
                   {book.extracts.length > 0 && (

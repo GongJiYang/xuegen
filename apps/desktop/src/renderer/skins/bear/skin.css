@@ -4121,6 +4121,25 @@
   align-items: center;
   gap: var(--sp-3);
 }
+/* 今天学过（批 6） */
+[data-skin="bear"] .bear-cp-studied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-4);
+  margin: var(--sp-3) 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-studied b {
+  color: var(--gray-12);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-cp-studied-k {
+  font-size: 12px;
+  line-height: 16px;
+}
 [data-skin="bear"] .bear-cp-add {
   display: flex;
   flex-wrap: wrap;
@@ -4170,6 +4189,16 @@
   font-size: var(--fs-4);
   line-height: var(--lh-4);
   font-weight: 600;
+}
+[data-skin="bear"] .bear-dlg[data-tool="reading"] {
+  width: min(1120px, calc(100vw - 2 * var(--sp-5)));
+}
+[data-skin="bear"] .bear-dlg-cap {
+  margin-right: auto;
+  margin-left: var(--sp-3);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--gray-11);
 }
 
 [data-skin="bear"] .bear-cp-controls {

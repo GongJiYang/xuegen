@@ -381,3 +381,22 @@ jjTest("撤销后课程页重新上锁（0444），目录 0555", async () => {
     await cleanup(fixture);
   }
 });
+
+jjTest("undo：这一轮的计划提交改过书页「课后读」一节 → 书页一起恢复（收课/计划暂存都带书页）", async () => {
+  const fixture = await makeRepo();
+  try {
+    // 书页先进基线，再让这一轮的计划提交改它 `## 课后读` 里的日期（收课事务经
+    // 计划暂存写书页的形状），undo 必须把它恢复到这轮之前。
+    const BOOK_V1 = "# Epp\n\n## 课后读\n\n- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n";
+    const BOOK_V2 = BOOK_V1.replace("2026-11-10", "2026-11-11");
+    await commitAs(fixture, "wiki/shelf/epp-text.md", BOOK_V1, "书房基线");
+    const since = SINCE();
+    await commitAs(fixture, "wiki/shelf/epp-text.md", BOOK_V2, "计划 epp 2026-11-14");
+    const out = await cliJson(undoArgs(fixture, since), { env: fixture.env });
+    assert.deepEqual(out.restoreFiles, ["wiki/shelf/epp-text.md"]);
+    assert.deepEqual(out.keptNew, []);
+    assert.equal(await readFile(join(fixture.vault, "wiki", "shelf", "epp-text.md"), "utf8"), BOOK_V1, "书页回到这轮之前");
+  } finally {
+    await cleanup(fixture);
+  }
+});

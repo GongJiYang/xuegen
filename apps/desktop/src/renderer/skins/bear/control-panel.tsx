@@ -18,6 +18,7 @@ import { AddBook, ShelfList, Unplanned } from "./control-shelf.js";
 import { NextCycleBanner, NextCycleWizard } from "./next-cycle.js";
 import { DomainStrip } from "./domain-strip.js";
 import { Cards, Progress, WeekControls } from "./control-panel-blocks.js";
+import { StudiedRow } from "./studied-row.js";
 
 /**
  * 总控 v3 ①: the six tiles are one status line, each a button that jumps to its
@@ -173,7 +174,14 @@ export function ControlPanel(props: ControlPanelProps) {
             day={props.day}
             week={null}
             month={null}
-            todayCard={props.todayCard}
+            todayCard={
+              props.todayCard === null ? null : (
+                <>
+                  {props.todayCard}
+                  <StudiedRow entries={props.studied} />
+                </>
+              )
+            }
             tomorrow={props.tomorrow}
             onOpenDay={props.onOpenDay}
             onOpenAnki={props.onOpenAnki}
@@ -213,7 +221,18 @@ export function ControlPanel(props: ControlPanelProps) {
         >
           <Progress overview={props.overview} />
         </Block>
-        <Block id="bear-cp-shelf" title={strings.panel.blockShelf} actions={<AddBook onAsk={props.onAsk} />}>
+        <Block
+          id="bear-cp-shelf"
+          title={strings.panel.blockShelf}
+          actions={
+            <>
+              <AddBook onAsk={props.onAsk} />
+              <button type="button" className="bear-cp-link" onClick={props.onOpenShelf}>
+                {strings.panel.shelfOpen}
+              </button>
+            </>
+          }
+        >
           <ShelfList rows={props.shelf} onAsk={props.onAsk} />
           <Unplanned items={props.unplanned} />
         </Block>

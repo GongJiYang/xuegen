@@ -43,6 +43,7 @@ const EPP: ShelfListItem = {
     { index: 1, page: 14, text: "甲", carded: "2026-11-09" },
   ],
   coreRead: [],
+  afterReads: [],
   upcoming: [{ index: 2, date: TODAY, title: "Ch1", from: 10, to: 18 }],
 };
 
@@ -59,7 +60,7 @@ function input(list: BoardResource<ShelfListItem[]>, onDraftCards = vi.fn()): Sh
     }),
     sources: ready([]),
     shelf: {
-      today: ready({ planned: null, free: null }),
+      today: ready({ planned: null, guided: [], free: null }),
       list,
       reload: vi.fn(),
       done: vi.fn(),

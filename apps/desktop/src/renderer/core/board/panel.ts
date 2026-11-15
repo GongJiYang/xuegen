@@ -179,23 +179,32 @@ function queuedAfter(shelf: ShelfListItem[]): Map<string, string> {
 /** A shelf book still on the board — `done` books never get a row. */
 type ShelfBook = ShelfListItem & { status: "reading" | "paused" | "queued" };
 
-function bookRow(item: ShelfBook, afterSelf: boolean, after: Map<string, string>): ShelfRow {
+function bookRow(
+  item: ShelfBook,
+  afterSelf: boolean,
+  after: Map<string, string>,
+  overview: CycleOverview,
+): ShelfRow {
   const warn = false;
+  const guided = item.slot === "guided";
+  const days = guided ? (overview.cycle?.subjectDays[item.subject ?? ""] ?? []) : [];
   const meta =
     item.status === "paused"
       ? strings.panel.bookPaused(item.position)
-      : item.status === "queued"
-        ? strings.panel.bookQueued(after.get(item.slug) ?? null, item.end)
-        : strings.panel.bookMeta(item.end, item.target);
+      : guided
+        ? strings.panel.guideMeta(days, item.end)
+        : item.status === "queued"
+          ? strings.panel.bookQueued(after.get(item.slug) ?? null, item.end)
+          : strings.panel.bookMeta(item.end, item.target);
   return {
     kind: "book",
     slug: item.slug,
     short: item.short,
     title: item.title,
-    mode: afterSelf ? "after-self" : "self",
+    mode: guided ? "guide" : afterSelf ? "after-self" : "self",
     done: item.position,
     total: item.total,
-    unit: "段",
+    unit: guided ? "节" : "段",
     meta,
     warn,
     status: item.status,
@@ -234,7 +243,7 @@ export function shelfRows(input: ShelfRowsInput): ShelfRow[] {
     ),
   );
   const book = (item: ShelfBook): ShelfRow =>
-    bookRow(item, afterLane.has(item.slug) || item.coreRead.length > 0, after);
+    bookRow(item, afterLane.has(item.slug) || item.coreRead.length > 0, after, input.overview);
   const guides = input.overview.courses
     .filter((course) => course.role === "aux")
     .map((course) => guideRow(course, input.overview));

@@ -9,7 +9,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReadingPanel } from "./reading-panel.js";
 import type { ReadingPanelProps } from "../contract.js";
-import type { ReadingItem } from "@shared/data-protocol.js";
+import type { ReadingItem, ShelfListItem } from "@shared/data-protocol.js";
 import { shelfPanel, type ShelfPanelView } from "../../core/board/shelf-view.js";
 import { dateKey } from "../../core/board/use-calendar.js";
 import { strings } from "../../core/strings.js";
@@ -46,7 +46,30 @@ function queue(...items: ReadingItem[]): ReadingPanelProps["queue"] {
   return { status: "ready", value: items };
 }
 
-const EMPTY_SHELF: ShelfPanelView = { planned: null, queue: [], free: null };
+const EMPTY_SHELF: ShelfPanelView = { planned: null, queue: [], free: null, guided: [] };
+
+/** A 导读书 list: one 导读 book, no planned / queued / free book. */
+const GUIDED_LIST: ShelfListItem[] = [
+  {
+    slug: "ds-book",
+    title: "数据结构",
+    short: "数据结构",
+    slot: "guided",
+    subject: "data-structures-algorithms",
+    order: null,
+    status: "reading",
+    total: 14,
+    position: 1,
+    started: "2026-11-10",
+    end: "2026-12-29",
+    target: null,
+    targetLate: null,
+    extracts: [],
+    coreRead: [],
+    afterReads: [],
+    upcoming: [],
+  },
+];
 
 describe("Bear 阅读 panel", () => {
   it("splits the queue into 今天该读 and 之后", () => {
@@ -178,6 +201,26 @@ describe("Bear 阅读 panel · 书房", () => {
     expect(screen.queryByText(strings.reading.shelfQueue)).toBeNull();
     expect(screen.getByText(strings.reading.shelfFree)).toBeTruthy();
     expect(screen.getByText("Structure and Interpretation")).toBeTruthy();
+  });
+
+  it("shows the 导读 section with its book and its 节 meta", () => {
+    const guided = shelfPanel(GUIDED_LIST, "2026-11-11");
+    render(<ReadingPanel {...baseProps({ shelf: ready(guided), queue: queue() })} />);
+    const heading = screen.getByText(strings.reading.shelfGuided);
+    expect(heading).toBeTruthy();
+    expect(heading.closest("h3")?.querySelector(".bear-section-count")?.textContent).toBe("1");
+    expect(screen.getByText("数据结构")).toBeTruthy();
+    expect(
+      screen.getByText(strings.reading.shelfGuidedMeta(1, 14, "2026-12-29")),
+    ).toBeTruthy();
+    // 只有导读书时，书房这一大块也要在（计划内 / 排队 / 计划外都没有）。
+    expect(screen.queryByText(strings.reading.shelfPlanned)).toBeNull();
+    expect(screen.queryByText(strings.reading.shelfQueue)).toBeNull();
+  });
+
+  it("shows no 导读 heading when there is no guide book", () => {
+    render(<ReadingPanel {...baseProps({ shelf: ready(shelf), queue: queue() })} />);
+    expect(screen.queryByText(strings.reading.shelfGuided)).toBeNull();
   });
 
   it("renders one loading line while the shelf loads", () => {

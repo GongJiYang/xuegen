@@ -22,6 +22,7 @@ import {
   type PanelTilesInput,
 } from "./panel.js";
 import { buildDay, buildWeek, type PlanbookInput } from "./planbook.js";
+import { strings } from "../strings.js";
 import {
   ANKI,
   CALENDAR_MONTH,
@@ -86,6 +87,7 @@ function book(overrides: Partial<ShelfListItem> & { slug: string }): ShelfListIt
     targetLate: null,
     extracts: [],
     coreRead: [],
+    afterReads: [],
     upcoming: [],
     ...overrides,
   };
@@ -129,8 +131,9 @@ describe("panelTiles: six tiles, normal / loading", () => {
 
   it("today: 完成 / 总项，第一个未完成主课写「先上 …」；都做完写「都做完了」", () => {
     const normal = tile(panelTiles(input()), "today");
-    // 11-10 没读的讲后读跟到今天，算今天的一项。
-    expect(normal).toEqual({ key: "today", value: "2 / 5 项", sub: "主攻日 · 先上 离散 D5", warn: false });
+    // 11-10 没读的讲后读跟到今天，算今天的一项；导读段也算今天的一项（旧的
+    // aux 课次不再出格）。
+    expect(normal).toEqual({ key: "today", value: "1 / 5 项", sub: "主攻日 · 先上 离散 D5", warn: false });
 
     const allDone = { ...DAY, items: DAY.items.map((item) => ({ ...item, mark: "done" as const })) };
     expect(tile(panelTiles(input({ day: allDone })), "today").sub).toBe("今天的都做完了");
@@ -166,7 +169,7 @@ describe("panelTiles: six tiles, normal / loading", () => {
 
   it("week: 全周完成 / 总项，小行只写还剩几项（不再数「过了日子还没做」）", () => {
     const normal = tile(panelTiles(input()), "week");
-    expect(normal).toEqual({ key: "week", value: "3 / 11 项", sub: "还剩 8 项", warn: false });
+    expect(normal).toEqual({ key: "week", value: "3 / 12 项", sub: "还剩 9 项", warn: false });
 
     const quiet = {
       ...WEEK,
@@ -188,9 +191,9 @@ describe("panelTiles: six tiles, normal / loading", () => {
     });
   });
 
-  it("shelf: 在读的书 + 导读课；小行是计划内那本的预计读完日", () => {
+  it("shelf: 在读的书（含导读）；小行是计划内那本的预计读完日", () => {
     const normal = tile(panelTiles(input()), "shelf");
-    expect(normal).toEqual({ key: "shelf", value: "2 本在读", sub: "HTSP 预计 11-12 读完", warn: false });
+    expect(normal).toEqual({ key: "shelf", value: "3 本在读", sub: "HTSP 预计 11-12 读完", warn: false });
 
     // 比目标晚的书不再标 warn，也不写「会晚 N 天」：只写预计读完的那一天。
     const late = book({ slug: "epp", short: "Epp", target: "2027-01-15", targetLate: 15, end: "2027-01-30" });
@@ -379,6 +382,44 @@ describe("shelfRows: 在读 → 导读课 → 暂停 → 排队", () => {
     const last = rows[rows.length - 1];
     expect(last?.slug).toBe("ctm");
     expect(last?.meta).toBe("排在 Epp 后面 · 预计 02-10 读完");
+  });
+
+  it("导读书（slot guided）行：mode guide、单位「节」、meta 用科目的导读日与书自己的 end", () => {
+    const guidedOverview: CycleOverview = {
+      ...overview,
+      cycle:
+        overview.cycle === null
+          ? null
+          : {
+              ...overview.cycle,
+              subjectDays: {
+                ...overview.cycle.subjectDays,
+                "data-structures-algorithms": ["周二", "周四"],
+              },
+            },
+    };
+    const guided = book({
+      slug: "ds-book",
+      short: "数据结构",
+      title: "数据结构",
+      slot: "guided",
+      subject: "data-structures-algorithms",
+      status: "reading",
+      position: 1,
+      total: 14,
+      end: "2026-12-29",
+    });
+    const rows = shelfRows({
+      today: TODAY,
+      shelf: [guided, ...shelf],
+      overview: guidedOverview,
+      week: WEEK,
+    });
+    const row = rows.find((entry) => entry.slug === "ds-book");
+    expect(row).toMatchObject({ kind: "book", mode: "guide", unit: "节", done: 1, total: 14 });
+    expect(row?.meta).toBe(strings.panel.guideMeta(["周二", "周四"], "2026-12-29"));
+    // 自读书照旧：还是「段」、还是 bookMeta。
+    expect(rows.find((entry) => entry.slug === "epp")).toMatchObject({ mode: "after-self", unit: "段" });
   });
 
   it("本周有 lane after 且 slug 相同 → after-self，不看 coreRead", () => {

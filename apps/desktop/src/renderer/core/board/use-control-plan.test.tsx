@@ -14,7 +14,7 @@ vi.mock("../client.js", () => ({ data: clientMock.data }));
 const TODAY = "2026-11-11";
 
 function slot(type: CycleDayType, week = 1): CycleSlot {
-  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null };
+  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null, auxBook: null };
 }
 
 const CYCLE_NOV: CycleMonth = {
@@ -48,6 +48,7 @@ function day(): CycleDay {
     course: "discrete-math",
     aux: null,
     auxCourse: null,
+    auxBook: null,
     names: { "discrete-math": "离散" },
     subjects: {},
     roles: { "discrete-math": "main" },
@@ -97,7 +98,7 @@ function input(overrides: Partial<ControlPlanInput> = {}): ControlPlanInput {
     queue: resource([]),
     anki: resource({ running: false }),
     shelf: {
-      today: resource({ planned: null, free: null }),
+      today: resource({ planned: null, guided: [], free: null }),
       list: resource([]),
       done: vi.fn(),
       extract: vi.fn(),
@@ -105,6 +106,7 @@ function input(overrides: Partial<ControlPlanInput> = {}): ControlPlanInput {
     },
     streaming: false,
     onStudy: vi.fn(),
+    courses: resource([]),
     onVerify: vi.fn(),
     onOpenTool: vi.fn(),
     onAskBrief: vi.fn(),

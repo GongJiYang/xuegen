@@ -159,9 +159,11 @@ describe("Bear 总控面板布局", () => {
     shownToday: true,
     onBackToToday: vi.fn(),
     onOpenCards: vi.fn(),
+    onOpenShelf: vi.fn(),
     terms: null,
     onOpenTerm: vi.fn(),
     changes: null,
+    studied: [],
     ...over,
   });
 
@@ -224,6 +226,44 @@ describe("Bear 总控面板布局", () => {
     expect(caption?.className).toBe("bear-cp-meta");
     expect(caption?.textContent).toBe(strings.planbook.dayCaption("2026-11-17", "周二", "深度"));
     expect(caption?.textContent).toBe("11-17 周二 · 主攻日");
+  });
+
+  it("puts 「今天学过」 after the 今日卡 and before the 明天 line (批 6 ①)", () => {
+    const card = <div className="bear-cp-card-under-test">今日卡</div>;
+    const shown = render(
+      <ControlPanel
+        {...props({
+          todayCard: card,
+          tomorrow: "明天：离散 第 4 讲",
+          studied: [{ slug: "ctm", label: "CTM D3", time: "08:10–09:40" }],
+        })}
+      />,
+    );
+    const row = shown.container.querySelector(".bear-cp-studied");
+    const cardEl = shown.container.querySelector(".bear-cp-card-under-test");
+    const goal = shown.container.querySelector(".bear-pb-goal");
+    if (row === null || cardEl === null || goal === null)
+      throw new Error("missing studied row / card / 明天");
+    expect(cardEl.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row.compareDocumentPosition(goal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+
+    const empty = render(<ControlPanel {...props({ todayCard: card, studied: [] })} />);
+    expect(empty.container.querySelector(".bear-cp-studied")).toBeNull();
+  });
+
+  it("puts 打开书房 → after 加一本书 in the 书房 block head and reports onOpenShelf", async () => {
+    const onOpenShelf = vi.fn();
+    const { container } = render(<ControlPanel {...props({ onOpenShelf })} />);
+    const acts = container.querySelector("#bear-cp-shelf .bear-cp-head-acts");
+    if (acts === null) throw new Error("书房 block has no actions");
+    const labels = [...acts.querySelectorAll("button")].map((b) => b.textContent);
+    expect(labels).toEqual([strings.panel.shelfAdd, strings.panel.shelfOpen]);
+    expect(strings.panel.shelfOpen).toBe("打开书房 →");
+    const open = [...acts.querySelectorAll("button")][1];
+    if (!(open instanceof HTMLButtonElement)) throw new Error("no 打开书房 button");
+    await userEvent.click(open);
+    expect(onOpenShelf).toHaveBeenCalledTimes(1);
   });
 
   it("keeps 打印 as the day's only action, plus 回到今天 when another day shows", () => {

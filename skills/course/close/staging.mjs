@@ -42,7 +42,7 @@ import {
   writeAtomic,
   WRITABLE_FILE,
 } from "./durable.mjs";
-import { planCheck, stagingName, subjectOf } from "./rules.mjs";
+import { bookOf, planCheck, stagingName, subjectOf } from "./rules.mjs";
 import { jjCommit } from "./jj.mjs";
 import { refreshBoard } from "./board.mjs";
 
@@ -167,19 +167,30 @@ export function stageInternal(vault, slug, workspace, { kind = "close", isNew = 
   }
   const staging = uniqueStagingDir(closeDir, stagingName(slug, new Date()));
   mkdirSync(staging, { recursive: true });
-  const courseSubject = isNew ? subject : subjectOf(readFileSync(courseAbs, "utf8"));
+  const courseText = isNew ? null : readFileSync(courseAbs, "utf8");
+  const courseSubject = isNew ? subject : subjectOf(courseText);
+  // 本课链着的书（课程页第一个 [[shelf/<书>]]）：课后读要写进它，两种暂存都带上。
+  const book = courseText === null ? null : bookOf(courseText);
   const rels = isNew
     ? ["wiki/index.md", "wiki/log.md"]
     : [courseRel, "wiki/index.md", "wiki/log.md", `wiki/courses/${slug}/records/${localMonth()}.md`];
   // 计划暂存还带上科目页（总控可以改资料登记/讲解偏好），存在才复制。
   if (kind === "plan" && courseSubject !== null) rels.push(`wiki/subjects/${courseSubject}.md`);
+  // 书页存在才复制进暂存并记基线（同科目页）；库里还没有就只记 manifest.book。
+  if (book !== null) rels.push(`wiki/shelf/${book}.md`);
   const base = {};
   try {
     for (const rel of rels) {
       const src = join(vault, rel);
       if (!existsSync(src)) {
-        // 当月 records 与科目页可以还没有；index.md 与 log.md 是必写的清单页。
-        if (rel.startsWith(`wiki/courses/${slug}/records/`) || rel.startsWith("wiki/subjects/")) continue;
+        // 当月 records、科目页与书页可以还没有；index.md 与 log.md 是必写的清单页。
+        if (
+          rel.startsWith(`wiki/courses/${slug}/records/`) ||
+          rel.startsWith("wiki/subjects/") ||
+          rel.startsWith("wiki/shelf/")
+        ) {
+          continue;
+        }
         throw new Error(`库里缺少 ${rel}`);
       }
       cloneInto(src, join(staging, rel));
@@ -192,6 +203,7 @@ export function stageInternal(vault, slug, workspace, { kind = "close", isNew = 
       vault,
       slug,
       subject: courseSubject,
+      book,
       // 新建课程标记：check 要求暂存里必须有课程页（见 rules.planCheck）。
       ...(isNew ? { isNew: true } : {}),
       createdAt: new Date().toISOString(),

@@ -287,9 +287,9 @@ test("monthInfo lists only the days inside a cycle", () => {
   assert.equal(info.month, "2026-11");
   assert.equal(Object.keys(info.days).length, 25);
   assert.equal(info.days["2026-11-05"], undefined);
-  assert.deepEqual(info.days["2026-11-06"], { cycle: "C1", week: 1, type: "整合", subject: null, course: null, aux: null, auxCourse: null });
-  assert.deepEqual(info.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: null, aux: null, auxCourse: null });
-  assert.deepEqual(info.days["2026-11-30"], { cycle: "C1", week: 4, type: "深度", subject: "x", course: null, aux: null, auxCourse: null });
+  assert.deepEqual(info.days["2026-11-06"], { cycle: "C1", week: 1, type: "整合", subject: null, course: null, aux: null, auxCourse: null, auxBook: null });
+  assert.deepEqual(info.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: null, aux: null, auxCourse: null, auxBook: null });
+  assert.deepEqual(info.days["2026-11-30"], { cycle: "C1", week: 4, type: "深度", subject: "x", course: null, aux: null, auxCourse: null, auxBook: null });
   assert.equal(Object.keys(monthInfo([cycle], "2027-01").days).length, 0);
 });
 
@@ -304,7 +304,7 @@ test("CLI: month prints the cycle days of a month and rejects a bad month", asyn
     await writeFile(join(vault, "wiki", "courses", "b.md"), courseText(bRows, B_DAYS));
     const info = JSON.parse((await run("node", [SCRIPT, "month", vault, "2026-12", "--json"])).stdout);
     assert.equal(Object.keys(info.days).length, 24);
-    assert.deepEqual(info.days["2026-12-24"], { cycle: "C1", week: 7, type: "深度", subject: "y", course: "b", aux: null, auxCourse: null });
+    assert.deepEqual(info.days["2026-12-24"], { cycle: "C1", week: 7, type: "深度", subject: "y", course: "b", aux: null, auxCourse: null, auxBook: null });
     assert.equal(info.days["2026-12-10"].course, "b");
     assert.equal(info.days["2026-12-25"], undefined);
     await assert.rejects(run("node", [SCRIPT, "month", vault, "2026-13", "--json"]), (error) => /YYYY-MM/.test(error.stderr));
@@ -507,7 +507,7 @@ test("parseCycle reads the 辅助 column; dayInfo, monthInfo and checkCycle hand
   assert.equal(tue.auxCourse, null);
 
   const month = monthInfo([cycle], "2026-11", { courses: new Map([["C1", courses]]) });
-  assert.deepEqual(month.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: "a", aux: "z", auxCourse: "d" });
+  assert.deepEqual(month.days["2026-11-09"], { cycle: "C1", week: 1, type: "深度", subject: "x", course: "a", aux: "z", auxCourse: "d", auxBook: null });
   assert.equal(month.roles.d, "aux");
 
   assert.deepEqual(checkCycle(cycle, courses), []);
@@ -842,6 +842,90 @@ test("CLI: 带过来的带读与本周期同科目的课撞同一天，仍报「
         result.problems[0] === "C2：subjects/x 在 2026-12-28 同时排了 courses/a2 与 courses/e"
       );
     });
+  } finally {
+    await rm(vault, { recursive: true, force: true });
+  }
+});
+
+const GUIDED_BOOK = (subject, status = "reading") => `---
+kind: book
+slot: guided
+status: ${status}
+subject: ${subject}
+days: mon,wed
+title: "算法（第 4 版）"
+short: "算法"
+started: 2026-11-09
+position: 0
+---
+
+# 算法
+
+## 分段
+1. §1.1–1.2 pp.4–73
+`;
+
+const ARCHIVED_COURSE = (rows, days) =>
+  courseText(rows, days).replace("# 课\n", "# 课\n\n## Key Facts\n\n- 状态：停用（2026-11-15，改为只陪读）\n");
+
+test("停用课不进 day / month 的 lessons、roles；有导读书时 auxBook 与 names 对；无导读书 auxBook: null", async () => {
+  const vault = await mkdtemp(join(tmpdir(), "cycle-guided-"));
+  try {
+    await mkdir(join(vault, "wiki", "cycles"), { recursive: true });
+    await mkdir(join(vault, "wiki", "courses"), { recursive: true });
+    await mkdir(join(vault, "wiki", "shelf"), { recursive: true });
+    await writeSubjects(vault);
+    await writeFile(join(vault, "wiki", "cycles", "c1.md"), CYCLE_AUX);
+    await writeFile(join(vault, "wiki", "courses", "a.md"), courseText(aRows, A_DAYS));
+    await writeFile(join(vault, "wiki", "courses", "b.md"), courseText(bRows, B_DAYS));
+    const D_DAYS = parseDays("mon,wed", SUN);
+    // 辅助课 d 已停用：不进 lessons / roles，auxCourse 为 null。
+    await writeFile(join(vault, "wiki", "courses", "d.md"), ARCHIVED_COURSE(planSchedule(lessons(3), { ...RANGE, days: D_DAYS }), D_DAYS));
+
+    // 没有导读书：auxBook 为 null，停用课不出现。
+    let day = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(day.auxBook, null);
+    assert.equal(day.auxCourse, null);
+    assert.deepEqual(day.lessons.map((item) => item.course), ["a"]);
+    assert.deepEqual(day.roles, { a: "main", b: "main" });
+    let month = JSON.parse((await run("node", [SCRIPT, "month", vault, "2026-11", "--json"])).stdout);
+    assert.equal(month.days["2026-11-09"].auxBook, null);
+    assert.equal(month.roles.d, undefined);
+    for (const rows of Object.values(month.lessons)) {
+      assert.ok(rows.every((row) => row.course !== "d"), "停用课不进 month lessons");
+    }
+
+    // 有 z 科目的导读书：auxBook 指到书 slug，names 有短名，文本输出「导读 算法」。
+    await writeFile(join(vault, "wiki", "shelf", "algo.md"), GUIDED_BOOK("z"));
+    day = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(day.aux, "z");
+    assert.equal(day.auxBook, "algo");
+    assert.equal(day.names.algo, "算法");
+    const text = (await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09"])).stdout;
+    assert.match(text, /^导读 算法$/m);
+    // 周二没有辅助列：auxBook null。
+    const tue = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-10", "--json"])).stdout);
+    assert.equal(tue.auxBook, null);
+    month = JSON.parse((await run("node", [SCRIPT, "month", vault, "2026-11", "--json"])).stdout);
+    assert.equal(month.days["2026-11-09"].auxBook, "algo");
+    assert.equal(month.days["2026-11-11"].auxBook, "algo");
+    assert.equal(month.days["2026-11-10"].auxBook, null);
+    assert.equal(month.names.algo, "算法");
+    const week = JSON.parse((await run("node", [SCRIPT, "week", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(week.days.find((item) => item.date === "2026-11-09").auxBook, "algo");
+
+    // 同科目多本取 reading 优先；没有 reading 取文件名第一本。
+    await writeFile(join(vault, "wiki", "shelf", "a-first.md"), GUIDED_BOOK("z", "queued"));
+    let reloaded = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(reloaded.auxBook, "algo", "reading 优先于 queued");
+    await rm(join(vault, "wiki", "shelf", "algo.md"));
+    reloaded = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(reloaded.auxBook, "a-first", "没有 reading 时按文件名顺序");
+
+    // status: done 的导读书不算。
+    await writeFile(join(vault, "wiki", "shelf", "a-first.md"), GUIDED_BOOK("z", "done"));
+    reloaded = JSON.parse((await run("node", [SCRIPT, "day", vault, "--date", "2026-11-09", "--json"])).stdout);
+    assert.equal(reloaded.auxBook, null);
   } finally {
     await rm(vault, { recursive: true, force: true });
   }

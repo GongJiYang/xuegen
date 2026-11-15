@@ -5,14 +5,14 @@
  * open a tool). 「读完了」（讲后读）与「读完这段」（书房行）share one 10-second
  * undo window before writing: the row turns into ✓ with a 「撤销 · N」 button
  * (`withPendingRead` / `withPendingShelf`), and only the deadline actually
- * writes — `course.afterRead` for a 讲后读 row, `shelf.done` for a bookshelf
+ * writes — `shelf.afterDone` for a 课后读 row, `shelf.done` for a bookshelf
  * row. The 摘几句 button on an already-done shelf row opens the inline form;
  * its save goes through `shelf.extract` (no model call). The effect-free state
  * changes live in `onAction`, a click handler — never a model call.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AnkiStatus, CycleDay, ReadingQueueItem } from "@shared/data-protocol.js";
+import type { AnkiStatus, CourseSummary, CycleDay, ReadingQueueItem } from "@shared/data-protocol.js";
 import { assertNever } from "@shared/protocol.js";
 import type { ControlCardExtract, ControlCardProps, ToolId } from "../../skins/contract.js";
 import * as client from "../client.js";
@@ -36,7 +36,7 @@ const UNDO_WINDOW_MS = 10_000;
 
 /** A row parked in its undo window; the `kind` decides which write the deadline runs. */
 type Pending =
-  | { kind: "afterRead"; slug: string; labels: string[]; deadline: number }
+  | { kind: "afterRead"; slug: string; entries: { book: string; index: number }[]; deadline: number }
   | { kind: "shelf"; slug: string; deadline: number };
 
 export interface ControlCardInput {
@@ -49,6 +49,8 @@ export interface ControlCardInput {
   anki: BoardResource<AnkiStatus>;
   /** `shelf.today` / `shelf.list` plus the 书房 writes. */
   shelf: ShelfResource;
+  /** `courses.list`: the 周核实 task states the verify rows read. */
+  courses: BoardResource<CourseSummary[]>;
   /** `controller.streaming`: an answer disables every button. */
   streaming: boolean;
   /** The 今天 window's own handlers. */
@@ -97,6 +99,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         calendar: month.state.status === "ready" ? month.state.value : null,
         queue: input.queue.state.status === "ready" ? input.queue.state.value : [],
         shelf: input.shelf.today.state.status === "ready" ? input.shelf.today.state.value : null,
+        courses: input.courses.state.status === "ready" ? input.courses.state.value : [],
         anki: input.anki.state.status === "ready" ? input.anki.state.value : null,
         verifiedOn: input.verifiedOn,
       }),
@@ -107,6 +110,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
       month.state,
       input.queue.state,
       input.shelf.today.state,
+      input.courses.state,
       input.anki.state,
       input.verifiedOn,
     ],
@@ -124,10 +128,15 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         .finally(() => setWriting(false));
       return;
     }
-    // One write per label, in order; the first failure stops the rest.
+    // One write per book-page row, in order; the first failure stops the rest.
     const readAll = async (): Promise<boolean> => {
-      for (const label of entry.labels) {
-        const result = await client.data({ kind: "course.afterRead", slug: entry.slug, label, date: today });
+      for (const done of entry.entries) {
+        const result = await client.data({
+          kind: "shelf.afterDone",
+          book: done.book,
+          index: done.index,
+          today,
+        });
         if (!result.ok) return false;
       }
       return true;
@@ -137,7 +146,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         if (ok) {
           input.refresh();
           reloadMonth();
-          // The 讲后读 may land in a 书房 page (核心页已读): refresh the book rows too.
+          // 「读完了」勾的是书页 `## 课后读` 那一行：刷新书房的行。
           input.shelf.reload();
         } else setError(strings.control.card.afterReadFailed);
       })
@@ -183,7 +192,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         const deadline = Date.now() + UNDO_WINDOW_MS;
         setPending(
           action.kind === "afterRead"
-            ? { kind: "afterRead", slug: action.slug, labels: action.labels, deadline }
+            ? { kind: "afterRead", slug: action.slug, entries: action.entries, deadline }
             : { kind: "shelf", slug: action.slug, deadline },
         );
         setNow(Date.now());
@@ -210,7 +219,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
     withPendingShelf(
       withPendingRead(
         view,
-        pending?.kind === "afterRead" ? { slug: pending.slug, labels: pending.labels, left } : null,
+        pending?.kind === "afterRead" ? { slug: pending.slug, entries: pending.entries, left } : null,
       ),
       pending?.kind === "shelf" ? { slug: pending.slug, left } : null,
     ),

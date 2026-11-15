@@ -35,6 +35,7 @@ function day(overrides: Partial<CycleDay> = {}): CycleDay {
     course: "epp",
     aux: null,
     auxCourse: null,
+    auxBook: null,
     names: { epp: "离散", c: "C 语言" },
     subjects: {},
     roles: { epp: "main", c: "aux" },

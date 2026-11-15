@@ -13,6 +13,7 @@
 //   node course-close.mjs check   <暂存目录> [--json]
 //   node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]
 //   node course-close.mjs abort   <暂存目录>
+//   node course-close.mjs after-read <暂存目录> --label <标签> --pages <页码> --date YYYY-MM-DD [--json]
 //   node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]
 //   node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]
 //   node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]
@@ -32,11 +33,13 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail } from "./close/fail.mjs";
 import { addedCompletedIds, checkSelfReport, isOwned, isSafeRelPath } from "./close/rules.mjs";
+import { addAfterRead } from "../reading/shelf-after.mjs";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
 import {
   diffEntries,
@@ -68,10 +71,13 @@ import {
 
 // 转出给现有测试（import 路径不变，实现已搬入 close/ 各模块）。
 export {
+  bookOf,
+  checkAfterReadSection,
   checkAppendOnly,
   checkConceptPage,
   checkCoursePage,
   checkNoDeletedLines,
+  checkNoNewAfterReadLines,
   checkSubjectPreference,
   isOwned,
   isSafeRelPath,
@@ -102,7 +108,9 @@ function cmdAdd(stagingArg, rel, json) {
   if (!rel) fail("add 需要 <库内相对路径>");
   recoverInternal(workspaceOf(staging));
   const manifest = loadManifest(staging);
-  if (!isOwned(rel, manifest.slug, manifest.subject, manifest.kind ?? "close")) fail(`这个路径不属于本课：${rel}`);
+  if (!isOwned(rel, manifest.slug, manifest.subject, manifest.kind ?? "close", manifest.book ?? null)) {
+    fail(`这个路径不属于本课：${rel}`);
+  }
   const src = join(manifest.vault, rel);
   if (!existsSync(src) || !statSync(src).isFile()) fail(`库里没有这个文件：${rel}`);
   if (Object.prototype.hasOwnProperty.call(manifest.base, rel)) fail(`已在暂存清单里：${rel}`);
@@ -371,6 +379,44 @@ function cmdSchedule(stagingArg, flags, json) {
   process.stdout.write(json ? `${JSON.stringify({ scheduled: courseRel })}\n` : `已把排期写进暂存课程页：${courseRel}\n`);
 }
 
+/**
+ * 把一条课后读写进暂存里的书页（收敛 A2）：本课的书 = 课程页第一个 [[shelf/<书>]]
+ * （stage 时记进 manifest.book，书页在则已复制进暂存）。调 shelf-after 的
+ * addAfterRead 在暂存副本上加/改一行（同课同标签的未勾行只改页码与日期），
+ * 写回暂存文件，随这次收课/计划一起一笔提交。课程页不再写「讲后读」行。
+ * manifest.book 为 null（课没链书）或暂存里没有书页，都报「这门课没有链着书房的书」。
+ */
+function cmdAfterRead(stagingArg, flags, json) {
+  const staging = resolve(stagingArg ?? fail("after-read 需要 <暂存目录>"));
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  if (existsSync(join(staging, "committed"))) fail("这次收课已提交，不能再写课后读（要改请重新 stage）");
+  const book = manifest.book ?? null;
+  if (book === null) fail("这门课没有链着书房的书");
+  const rel = `wiki/shelf/${book}.md`;
+  const file = join(staging, rel);
+  if (!existsSync(file) || !lstatSync(file).isFile()) fail("这门课没有链着书房的书");
+  if (flags.label === undefined) fail("after-read 需要 --label <标签>（课后读的范围，如 §1.1–1.4）");
+  if (flags.pages === undefined) fail("after-read 需要 --pages <页码>（如 1–5、7–12）");
+  if (flags.date === undefined) fail("after-read 需要 --date YYYY-MM-DD（排在哪天读）");
+  let result;
+  try {
+    result = addAfterRead(readFileSync(file, "utf8").split("\n"), {
+      label: flags.label,
+      pages: flags.pages,
+      course: manifest.slug,
+      date: flags.date,
+    });
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+  writeFileSync(file, result.body.join("\n"));
+  const out = { book, index: result.index, updated: result.updated };
+  process.stdout.write(
+    json ? `${JSON.stringify(out)}\n` : `课后读已写进暂存书页 ${rel}（第 ${out.index} 条）\n`,
+  );
+}
+
 /** 从 render-snapshot 的 stderr 取一行可读原因（去掉它自己的 `Snapshot failed:` 前缀）。 */
 function snapshotReason(error) {
   const stderr = error && error.stderr ? String(error.stderr) : "";
@@ -394,7 +440,9 @@ function cmdSnapshot(stagingArg, reportRel, pngRel, json) {
   if (!isSafeRelPath(pngRel)) fail(`截图路径不安全（只能是暂存目录内的相对路径）：${pngRel}`);
   if (!pngRel.endsWith(".png")) fail(`截图必须以 .png 结尾：${pngRel}`);
   const snapshotsPrefix = `wiki/courses/${manifest.slug}/snapshots/`;
-  if (!isOwned(pngRel, manifest.slug, manifest.subject, manifest.kind ?? "close")) fail(`截图不属于本课：${pngRel}`);
+  if (!isOwned(pngRel, manifest.slug, manifest.subject, manifest.kind ?? "close", manifest.book ?? null)) {
+    fail(`截图不属于本课：${pngRel}`);
+  }
   if (!pngRel.startsWith(snapshotsPrefix)) fail(`截图必须放在 ${snapshotsPrefix} 下：${pngRel}`);
   const reportAbs = join(staging, reportRel);
   // lstat：报告必须是暂存里的普通文件，符号链接不跟随。
@@ -531,6 +579,7 @@ function usage() {
     "  node course-close.mjs check   <暂存目录> [--json]",
     "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
+    "  node course-close.mjs after-read <暂存目录> --label <标签> --pages <页码> --date YYYY-MM-DD [--json]",
     "  node course-close.mjs schedule <暂存目录> --lessons <课次清单> [--start --end --rest --days --extra --reviews --elastic] [--json]",
     "  node course-close.mjs shift   <vault> <slug> --workspace <工作区> [--today YYYY-MM-DD] [--end YYYY-MM-DD] [--json]",
     "  node course-close.mjs undo    <vault> <slug> --workspace <工作区> [--json]",
@@ -541,6 +590,8 @@ function usage() {
     "  暂存里不放课程页，只复制 index/log/科目页。schedule 只在计划暂存上跑，把排期写进暂存课程页。",
     "  plan 暂存的 commit 不带 --label 记「计划 <slug> <日期>」（课程页不许新加完成 id）；undo 仍只认「收课」。",
     "  plan 暂存勾掉课次要用 --label 自报（jj 记「自报 <slug> <日期>」），学习记录要有标题含「自报」的新记录。",
+    "  after-read 把一条课后读写进暂存书页（本课课程页第一个 [[shelf/<书>]] 链着的那本），",
+    "  跟课程页一起一笔提交；课程页不再写「课后读」待办行。",
     "  收课暂存可以用 add 把本科目页复制进来，但只能改它的「## 讲解偏好」一节（≤ 15 行）；",
     "  课上记「以后讲<科目>都…」用 --label 偏好；undo 不撤偏好提交。",
   ].join("\n");
@@ -559,6 +610,7 @@ function main() {
   else if (command === "check") cmdCheck(rest[0], json);
   else if (command === "commit") cmdCommit(rest[0], flags.label, json);
   else if (command === "abort") cmdAbort(rest[0]);
+  else if (command === "after-read") cmdAfterRead(rest[0], flags, json);
   else if (command === "schedule") cmdSchedule(rest[0], flags, json);
   else if (command === "shift") cmdShift(rest[0], rest[1], flags.workspace, flags.today, flags.end, json);
   else if (command === "undo") cmdUndo(rest[0], rest[1], flags.workspace, json);

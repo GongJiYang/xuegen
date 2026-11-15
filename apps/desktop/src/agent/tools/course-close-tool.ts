@@ -36,7 +36,16 @@ export interface CourseCloseToolOptions {
 }
 
 /** The actions the tool schema accepts, in the order the flow uses them. */
-export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shift" | "undo" | "snapshot";
+export type CloseAction =
+  | "stage"
+  | "add"
+  | "check"
+  | "commit"
+  | "abort"
+  | "after-read"
+  | "shift"
+  | "undo"
+  | "snapshot";
 
 /**
  * What `commit` calls the jj commit: 「收课」 by default, 「存档点」 for a
@@ -44,8 +53,12 @@ export type CloseAction = "stage" | "add" | "check" | "commit" | "abort" | "shif
  * 「偏好」 for a lesson-time teaching preference (「以后讲离散都…」) written
  * into the subject page's `## 讲解偏好` section. `undo` only looks for
  * 「收课 <slug> <date>」, so neither a checkpoint nor a preference is undone by it.
+ * The schema leaves `label` a free string — `after-read` uses the same flag for
+ * the after-reading range (e.g. §1.1–1.4) — so the commit values are checked
+ * here at argv time instead.
  */
 export type CommitLabel = "收课" | "存档点" | "偏好";
+const COMMIT_LABELS: readonly CommitLabel[] = ["收课", "存档点", "偏好"];
 
 const SCRIPT = join("skills", "course", "course-close.mjs");
 
@@ -64,9 +77,11 @@ export function courseCloseArgs(
     path?: string | undefined;
     today?: string | undefined;
     end?: string | undefined;
-    label?: CommitLabel | undefined;
+    label?: string | undefined;
     report?: string | undefined;
     out?: string | undefined;
+    pages?: string | undefined;
+    date?: string | undefined;
   },
   vault: string,
   cwd: string,
@@ -85,12 +100,34 @@ export function courseCloseArgs(
       return [params.action, params.staging, "--json"];
     case "commit":
       if (params.staging === undefined) throw new Error(`course_close ${params.action} 缺少 staging。`);
+      if (params.label !== undefined && !COMMIT_LABELS.includes(params.label as CommitLabel)) {
+        throw new Error("course_close commit 的 label 只能是 收课、存档点 或 偏好。");
+      }
       // 存档点（长会话中途保存）不能记成「收课」，否则 undo 会撤错那次提交；
       // 课上记的讲解偏好同理（--label 偏好）。
       return ["commit", params.staging, ...(params.label ? ["--label", params.label] : []), "--json"];
     case "abort":
       if (params.staging === undefined) throw new Error("course_close abort 缺少 staging。");
       return ["abort", params.staging, "--json"];
+    case "after-read":
+      if (params.staging === undefined) throw new Error("course_close after-read 缺少 staging。");
+      if (params.label === undefined)
+        throw new Error("course_close after-read 缺少 label：课后读的范围（如 §1.1–1.4）。");
+      if (params.pages === undefined)
+        throw new Error("course_close after-read 缺少 pages：课后读的页码（如 1–5、7–12）。");
+      if (params.date === undefined)
+        throw new Error("course_close after-read 缺少 date：排在哪天读（YYYY-MM-DD）。");
+      return [
+        "after-read",
+        params.staging,
+        "--label",
+        params.label,
+        "--pages",
+        params.pages,
+        "--date",
+        params.date,
+        "--json",
+      ];
     case "shift":
       if (params.slug === undefined) throw new Error("course_close shift 缺少 slug：要顺延哪门课。");
       return [
@@ -128,7 +165,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       label: "收课",
       description:
         "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
-        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。",
+        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。after-read 把课后读写进本课链着的书页（课程页不再写课后读）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。",
       parameters: Type.Object({
         action: Type.Union(
           [
@@ -137,18 +174,19 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
             Type.Literal("check"),
             Type.Literal("commit"),
             Type.Literal("abort"),
+            Type.Literal("after-read"),
             Type.Literal("shift"),
             Type.Literal("undo"),
             Type.Literal("snapshot"),
           ],
           {
             description:
-              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。shift 开课时顺延排期（一步完成暂存、校验、提交）。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。",
+              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。after-read 把一条课后读写进暂存书页（本课课程页第一个 [[shelf/<书>]] 链着的那本），随这次收课一笔提交。shift 开课时顺延排期（一步完成暂存、校验、提交）。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。",
           },
         ),
         slug: Type.Optional(Type.String({ description: "课程 slug（stage、shift、undo 必填）" })),
         staging: Type.Optional(
-          Type.String({ description: "暂存目录（add、check、commit、abort 必填；stage 输出它）" }),
+          Type.String({ description: "暂存目录（add、check、commit、abort、after-read、snapshot 必填；stage 输出它）" }),
         ),
         path: Type.Optional(Type.String({ description: "库内相对路径（add 必填）" })),
         today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
@@ -162,10 +200,14 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
           }),
         ),
         label: Type.Optional(
-          Type.Union([Type.Literal("收课"), Type.Literal("存档点"), Type.Literal("偏好")], {
+          Type.String({
             description:
-              "commit 用：存档点（长会话中途保存）填「存档点」；课上记讲解偏好（「以后讲<科目>都…」，只改本科目页「讲解偏好」一节）填「偏好」；收课不填",
+              "commit 用：存档点（长会话中途保存）填「存档点」；课上记讲解偏好（「以后讲<科目>都…」，只改本科目页「讲解偏好」一节）填「偏好」；收课不填。after-read 用：课后读的范围（如 §1.1–1.4，必填）",
           }),
+        ),
+        pages: Type.Optional(Type.String({ description: "after-read 用：课后读的页码（如 1–5、7–12，必填）" })),
+        date: Type.Optional(
+          Type.String({ description: "after-read 用：排在哪天读（YYYY-MM-DD，必填）" }),
         ),
       }),
       async execute(_toolCallId, params): Promise<AgentToolResult<undefined>> {

@@ -96,6 +96,16 @@
       "why": "旧书页标题「## 核心页已读」的兼容读取常量"
     },
     {
+      "file": "skills/reading/shelf-after.mjs",
+      "word": "核心页",
+      "why": "数据格式：旧书页节名「## 核心页已读」（`## 课后读` 新节插入位置的锚点之一）"
+    },
+    {
+      "file": "skills/reading/shelf-after.mjs",
+      "word": "讲后读",
+      "why": "数据格式：书页节名「## 讲后读已读」（`## 课后读` 新节插入位置的锚点之一）"
+    },
+    {
       "file": "skills/course/SKILL.md",
       "word": "核心页",
       "why": "说明「核心页是内部词、不对用户说」的规则本身"

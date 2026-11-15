@@ -18,7 +18,7 @@ afterEach(cleanup);
 function baseProps(overrides: Partial<ReadingPanelProps> = {}): ReadingPanelProps {
   return {
     tool: "reading",
-    shelf: { status: "ready", value: { planned: null, queue: [], free: null } },
+    shelf: { status: "ready", value: { planned: null, queue: [], free: null, guided: [] } },
     queue: { status: "ready", value: [] },
     sources: { status: "ready", value: [] },
     onAdd: vi.fn(() => Promise.resolve(null)),
@@ -145,12 +145,14 @@ describe("ReadingPanel", () => {
         end: "2027-01-28",
         next: strings.reading.shelfToday("Ch1 §1.1–1.4 · pp.10–18"),
         later: [],
+        meta: strings.reading.shelfMeta(1, 81, "2027-01-28"),
         coreRead: [],
         extracts: [{ page: 16, text: "乙", carded: null }],
         pending: 1,
       },
       queue: [],
       free: null,
+      guided: [],
     };
     render(<ReadingPanel {...baseProps({ shelf: { status: "ready", value: shelf }, onShelfCards })} />);
     expect(screen.getByText(shelf.planned?.title ?? "")).toBeTruthy();

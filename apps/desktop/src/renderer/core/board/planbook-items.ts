@@ -1,23 +1,23 @@
 /**
  * The planbook's per-date grid items: the cycle's lessons, the calendar's 讲后读
- * rows, the shelf's self-reading blocks and a 整合日's 周核实.
+ * rows, the shelf's self-reading and 导读 blocks, and a 整合日's 周核实.
  *
  * Pure helpers of `planbook.ts` — every input is an argument and `today` comes
  * from `PlanbookInput`; `planbook.ts` re-exports the names callers import.
  */
 
+import type { CourseSummary } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
+import { afterReadEntry } from "./control-card-rows.js";
 import { mergeOverdue } from "./cycle-today.js";
 import { slotOf } from "./planbook-range.js";
 import type { PlanItem, PlanLane, PlanMark, PlanbookInput, PlanWeek } from "./planbook.js";
-
-const AFTER_READ_MARK = "#讲后读-";
 
 /**
  * done → `done`; else by date: past `warn`, future `plan`, today `now` for a
  * main lesson and `plan` for every reading lane.
  *
- * The design marks only today's main lesson ●: 讲后读 / 带读 / 自读 stay ○ even on
+ * The design marks only today's main lesson ●: 讲后读 / 导读 / 自读 stay ○ even on
  * the current day (`plan2.jsx` `WEEK`, 11-11), so the today column is not bolded
  * from top to bottom.
  */
@@ -28,17 +28,20 @@ export function markOf(date: string, today: string, done: boolean, lane: PlanLan
   return lane === "main" ? "now" : "plan";
 }
 
-/** Main and guide items of one date, from `lessons[date]` across the months. */
+/**
+ * Main-lane items of one date, from `lessons[date]` across the months. 导读课改
+ * 书房导读后 aux 课次不再出现; old `roles: aux` rows produce no item either.
+ */
 export function lessonItems(input: PlanbookInput, date: string): PlanItem[] {
   const items: PlanItem[] = [];
   for (const month of input.cycleMonths) {
     for (const lesson of month.lessons[date] ?? []) {
-      const lane: PlanLane = month.roles[lesson.course] === "aux" ? "guide" : "main";
+      if (month.roles[lesson.course] === "aux") continue;
       items.push({
-        lane,
+        lane: "main",
         text: `${month.names[lesson.course] ?? lesson.course} ${lesson.id} · ${lesson.content}`,
         short: `${month.names[lesson.course] ?? lesson.course} ${lesson.id}`,
-        mark: markOf(date, input.today, lesson.done === true, lane),
+        mark: markOf(date, input.today, lesson.done === true, "main"),
         slug: lesson.course,
         id: lesson.id,
       });
@@ -50,20 +53,21 @@ export function lessonItems(input: PlanbookInput, date: string): PlanItem[] {
 /** One calendar 讲后读 row as a grid item, before the per-course merge. */
 function afterReadItem(
   input: PlanbookInput,
-  due: { slug: string; title: string },
+  due: { slug: string; title: string; book?: string; index?: number },
   date: string,
 ): PlanItem | null {
-  const cut = due.slug.indexOf(AFTER_READ_MARK);
-  if (cut === -1) return null;
+  const entry = afterReadEntry(due);
+  if (entry === null) return null;
   // The lane already says 讲后读; drop the title's 「讲后读 · 」/「讲后读 」 lead.
   const text = due.title.startsWith("讲后读 · ")
     ? due.title.slice("讲后读 · ".length)
     : due.title.startsWith("讲后读 ")
       ? due.title.slice("讲后读 ".length)
       : due.title;
-  const slug = due.slug.slice(0, cut);
   const name =
-    input.cycleMonths.map((month) => month.names[slug]).find((value) => value !== undefined) ?? slug;
+    input.cycleMonths
+      .map((month) => month.names[entry.slug])
+      .find((value) => value !== undefined) ?? entry.slug;
   const late = date < input.today;
   return {
     lane: "after",
@@ -71,7 +75,7 @@ function afterReadItem(
     // 「离散 §2.1–2.2」: the course short name plus the range before the first 「 · 」.
     short: `${name} ${text.split(" · ")[0]}`,
     mark: markOf(date, input.today, false, "after"),
-    slug,
+    slug: entry.slug,
     id: null,
     ...(late ? { from: date } : {}),
   };
@@ -121,10 +125,11 @@ export function afterReadItems(input: PlanbookInput, date: string): PlanItem[] {
   return mergeByCourse(items);
 }
 
-/** date → self-reading items, indexed once for the whole range. */
+/** date → self-reading items, indexed once for the whole range (导读书走 guide 行). */
 export function selfItemsByDate(input: PlanbookInput): Map<string, PlanItem[]> {
   const byDate = new Map<string, PlanItem[]>();
   for (const book of input.shelf) {
+    if (book.slot === "guided") continue;
     for (const row of book.schedule ?? []) {
       const text = `${book.short} ${row.title} pp.${row.from}–${row.to}`;
       const item: PlanItem = {
@@ -145,25 +150,60 @@ export function selfItemsByDate(input: PlanbookInput): Map<string, PlanItem[]> {
   return byDate;
 }
 
+/** date → 导读 items of the guided books' schedule, indexed once for the range. */
+export function guidedItemsByDate(input: PlanbookInput): Map<string, PlanItem[]> {
+  const byDate = new Map<string, PlanItem[]>();
+  for (const book of input.shelf) {
+    if (book.slot !== "guided") continue;
+    for (const row of book.schedule ?? []) {
+      const item: PlanItem = {
+        lane: "guide",
+        text: `${book.short} ${row.title} pp.${row.from}–${row.to}`,
+        short: `${book.short} ${row.title}`,
+        mark: markOf(row.date, input.today, row.done, "guide"),
+        slug: book.slug,
+        id: null,
+      };
+      const list = byDate.get(row.date) ?? [];
+      list.push(item);
+      byDate.set(row.date, list);
+    }
+  }
+  return byDate;
+}
+
+/** The course-page week task a 周核实 row answers to (label 含「周核实」). */
+function isVerifyTask(task: { label: string }): boolean {
+  return task.label.includes("周核实");
+}
+
+/**
+ * Whether the course's 周核实 is done — only its checked week task counts, so
+ * today card and week grid share one verdict (converge 11-15).
+ */
+export function verifyDone(courses: CourseSummary[], slug: string): boolean {
+  const course = courses.find((item) => item.slug === slug);
+  return course?.week.tasks.some((task) => isVerifyTask(task) && task.done) === true;
+}
+
 /**
  * A 整合日's 周核实, one main-lane item per main course (panel v2: the day's 主课
- * cells read 「● 离散 周核实」). Done once the course's week task says so; a
- * past 整合日 not known to be done stays plain ○ — it is not a missed lesson.
+ * cells read 「● 离散 周核实」). Done once the course's week task says so;
+ * started that day but not checked off reads ●; a past 整合日 not known to be
+ * done stays plain ○ — it is not a missed lesson.
  */
 export function verifyItems(input: PlanbookInput, date: string): PlanItem[] {
   if (slotOf(input.cycleMonths, date)?.type !== "整合") return [];
-  const goals = weekGoals(input);
   return [...mainCourseSlugs(input)].map((slug) => {
     const name =
       input.cycleMonths.map((month) => month.names[slug]).find((value) => value !== undefined) ?? slug;
-    // Started that day counts as done, the same rule as today's card.
+    const done = date <= input.today && verifyDone(input.courses, slug);
     const started = input.verifiedOn?.[slug] === date;
-    const done = started || (date <= input.today && goals.some((goal) => goal.course === slug && goal.done));
     return {
       lane: "main",
       text: strings.control.card.verifyRow(name),
       short: `${name} ${strings.actions.verify}`,
-      mark: done ? "done" : date === input.today ? "now" : "plan",
+      mark: done ? "done" : started || date === input.today ? "now" : "plan",
       slug,
       id: null,
     };
@@ -196,7 +236,7 @@ export function weekGoals(input: PlanbookInput): PlanWeek["goals"] {
   }
   return input.courses.flatMap((course) =>
     course.week.tasks
-      .filter((task) => mains.has(course.slug) && task.label.includes("周核实"))
+      .filter((task) => mains.has(course.slug) && isVerifyTask(task))
       .map((task) => ({
         course: course.slug,
         // Same short name the week grid uses: 离散 / CTM (falls back to the title).

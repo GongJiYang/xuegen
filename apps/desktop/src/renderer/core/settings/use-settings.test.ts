@@ -22,6 +22,7 @@ describe("useSettings", () => {
       verifiedOn: {},
       controlSessions: {},
       controlBriefOn: {},
+      showStudied: true,
     });
     const { result } = renderHook(() => useSettings());
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -37,6 +38,7 @@ describe("useSettings", () => {
       verifiedOn: {},
       controlSessions: {},
       controlBriefOn: {},
+      showStudied: true,
     });
   });
 

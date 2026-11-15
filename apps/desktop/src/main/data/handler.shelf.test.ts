@@ -104,15 +104,21 @@ describe("shelf data requests", () => {
           late: 1,
           target: null,
           targetLate: null,
+          afterReads: [],
+          subject: null,
+          days: null,
+          limit: null,
+          nextDay: null,
         },
         free: null,
+        guided: [],
       },
     });
   });
 
   it("shelf.today reports both slots empty for an empty shelf", async () => {
     const result = await handleDataRequest({ kind: "shelf.today", today: "2026-11-10" });
-    expect(result).toEqual({ ok: true, data: { planned: null, free: null } });
+    expect(result).toEqual({ ok: true, data: { planned: null, free: null, guided: [] } });
   });
 
   it("shelf.list returns every book with its status", async () => {
@@ -207,7 +213,7 @@ describe("shelf data requests", () => {
     const result = await handleDataRequest({ kind: "shelf.done", slug: "epp", today: "2026-11-10" });
     expect(result).toEqual({
       ok: true,
-      data: { slug: "epp", position: 1, total: 1, finished: true, next: "next-book" },
+      data: { slug: "epp", position: 1, total: 1, finished: true, next: "next-book", committed: "skipped" },
     });
     expect(readFileSync(join(shelfDir(), "epp.md"), "utf8")).toContain(
       "- 2026-11-10: 第 1 段 pp.1–10 读完（用户自报）",
@@ -236,7 +242,7 @@ describe("shelf data requests", () => {
     });
     expect(first).toEqual({
       ok: true,
-      data: { slug: "epp", index: 1, page: 5, text: "逆否命题与原命题等价。" },
+      data: { slug: "epp", index: 1, page: 5, text: "逆否命题与原命题等价。", committed: "skipped" },
     });
     const second = await handleDataRequest({
       kind: "shelf.extract",
@@ -247,7 +253,7 @@ describe("shelf data requests", () => {
     });
     expect(second).toEqual({
       ok: true,
-      data: { slug: "epp", index: 2, page: 11, text: "条件命题 只在 p 真 q 假时为假。" },
+      data: { slug: "epp", index: 2, page: 11, text: "条件命题 只在 p 真 q 假时为假。", committed: "skipped" },
     });
     const page = readFileSync(join(shelfDir(), "epp.md"), "utf8");
     expect(page).toContain("- p.5: 逆否命题与原命题等价。 #待做卡");
@@ -280,9 +286,9 @@ describe("shelf data requests", () => {
     });
 
     const marked = await handleDataRequest({ kind: "shelf.card", slug: "epp", indexes: [1], today: "2026-11-10" });
-    expect(marked).toEqual({ ok: true, data: { slug: "epp", marked: [1], skipped: [] } });
+    expect(marked).toEqual({ ok: true, data: { slug: "epp", marked: [1], skipped: [], committed: "skipped" } });
     const again = await handleDataRequest({ kind: "shelf.card", slug: "epp", indexes: [1], today: "2026-11-11" });
-    expect(again).toEqual({ ok: true, data: { slug: "epp", marked: [], skipped: [1] } });
+    expect(again).toEqual({ ok: true, data: { slug: "epp", marked: [], skipped: [1], committed: "skipped" } });
 
     const page = readFileSync(join(shelfDir(), "epp.md"), "utf8");
     expect(page).toContain("- p.5: 甲 #卡/2026-11-10");

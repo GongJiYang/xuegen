@@ -4,29 +4,51 @@
 //   node bookshelf.mjs list <vault> [--today YYYY-MM-DD] [--from YYYY-MM-DD --to YYYY-MM-DD] [--json]
 //   node bookshelf.mjs today <vault> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs done <vault> <slug> [--today YYYY-MM-DD] [--json]
-//     （同一天只能记一段）
+//     （同一天只能记一段；导读书 slot: guided 不受此限，一日可读两段）
 //   node bookshelf.mjs pause <vault> <slug> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs resume <vault> <slug> [--today YYYY-MM-DD] [--json]
 //     （暂停＝停在当前进度、不再往后排；恢复＝从明天接着排）
 //   node bookshelf.mjs plan <vault> <slug> [--today YYYY-MM-DD] [--write] [--json]
 //   node bookshelf.mjs index <vault> [--today YYYY-MM-DD] [--write] [--json]
-//   node bookshelf.mjs lecture <vault> <slug> --label <标签> --course <课程slug> [--pages <页码列表>] [--today YYYY-MM-DD] [--json]
-//     （标签开头的「讲后读」会被去掉；同课同页已记过时不再记）
+//   node bookshelf.mjs after add <vault> <slug> --label <标签> --pages <页码> --course <课程slug> --date YYYY-MM-DD [--json]
+//     （同课同标签的未勾行只改页码与日期，不重复加）
+//   node bookshelf.mjs after done <vault> <slug> --index N [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs extract <vault> <slug> --page <n> --text <原句> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs card <vault> <slug> --index <逗号分隔的序号> [--today YYYY-MM-DD] [--json]
 //   node bookshelf.mjs target <vault> <slug> (--date YYYY-MM-DD | --clear) [--json]
 // 所有命令支持 --json；日期由 --today 注入，默认本地日期。
+// 写入命令（done / after / extract / card / pause / resume / target）写完、重画 index.md 后
+// 各记一笔 jj（库是 jj 仓库时）；提交失败或跳过不阻断，--json 里有 committed。
 // 书页 frontmatter：kind/slot/order/status/title/short/source/file/page_offset/started/position/target；
+// 导读书（slot: guided）另有 subject/days/limit：subject 是周期页模板辅助列的科目 slug，
+// days 是导读日（mon,wed 逗号分隔），limit 是每次 ≤ N 分钟（只作提示）。
 // 正文 `## 分段` 每行 `N. <标题> pp.<起>–<止>`；`## 排期` 两个 xuegen:shelf 标记间由本脚本生成；
 // `## 读书记录` 每行 `- <日期>: <说明>`；`## 讲后读已读` 每行 `- pp.<页码列表> · <课程slug> · <标签> · <日期>`
 // （旧书页里这一节叫 `## 核心页已读`，读取兼容，再写入时就地改名）；
+// `## 课后读` 每行 `- [ ] <标签> · pp.<页码列表> · <课程slug> · <排在哪天>`，勾掉的多 ` · 读于 <日期>`；
 // `## 摘录` 每行 `- p.<页码>: <原句> <标记>`，标记是行尾的 `#待做卡` 或 `#卡/<日期>`。
 // 规则：每天一段（每块 ≤ 10 页），计划内一次只读一本，
 // 读完自动开 order 最小的 queued；计划外同时最多一本在读。只排页码与日期，不估时长。
+// 导读书一段 = `## 分段` 里的一行（不按 10 页切），只在 days 的星期读，
+// 同日可读两段、读完不开下一本；排期算法在 shelf-guided.mjs。
 import { readFile, writeFile, readdir, rename, mkdir } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  AFTER_HEADING,
+  addAfterRead,
+  afterReadPages,
+  formatPageList,
+  markAfterRead,
+  parseAfterReads,
+  parsePageList,
+} from "./shelf-after.mjs";
+import { guidedSchedule, nextGuidedDay, parseDays } from "./shelf-guided.mjs";
+import { jjCommit } from "../course/close/jj.mjs";
+
+// 页码列表的解析与格式化挪在 shelf-after.mjs（课后读与 coreOverlap 共用），这里继续导出。
+export { formatPageList, parsePageList };
 
 const INDEX_FILE = "index.md";
 const PLAN_START = "<!-- xuegen:shelf:start -->";
@@ -36,6 +58,9 @@ const FIELD_ORDER = [
   "slot",
   "order",
   "status",
+  "subject",
+  "days",
+  "limit",
   "title",
   "short",
   "source",
@@ -247,7 +272,25 @@ function shelfName() {
 // ---- 书页字段访问（frontmatter 原样是字符串，这里统一落成可用值）----
 
 function bookSlot(page) {
-  return field(page, "slot") === "free" ? "free" : "planned";
+  const slot = field(page, "slot");
+  return slot === "free" || slot === "guided" ? slot : "planned";
+}
+
+// 导读书的 frontmatter：days 原串（解析交给 shelf-guided 的 parseDays，坏值抛错）、
+// subject（周期页模板的辅助列科目 slug）、limit（每次 ≤ N 分钟，只是提示；没有或乱写为 null）。
+function bookGuidedDays(page) {
+  return parseDays(field(page, "days"));
+}
+
+function bookSubject(page) {
+  return field(page, "subject") || null;
+}
+
+function bookLimit(page) {
+  const raw = field(page, "limit");
+  if (raw === "") return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 function bookStatus(page) {
@@ -324,39 +367,6 @@ export function chunksOf(segments) {
   return chunks;
 }
 
-// 页码列表 `"1–5、7–12、31"` → 展开的升序页码数组。
-// 分隔符接受 `、` `,` `，`；每项是 `a` 或 `a–b`（连接号也接受 `-`）。
-// 反向区间与不合法的项忽略；结果去重、升序。
-export function parsePageList(text) {
-  const pages = [];
-  for (const part of String(text).split(/[、,，]/)) {
-    const match = part.trim().match(/^(\d+)(?:\s*[–-]\s*(\d+))?$/);
-    if (!match) continue;
-    const from = Number(match[1]);
-    const to = match[2] === undefined ? from : Number(match[2]);
-    if (from > to) continue;
-    for (let page = from; page <= to; page += 1) pages.push(page);
-  }
-  return [...new Set(pages)].sort((a, b) => a - b);
-}
-
-// 升序页码数组 → 连续段合并的页码列表：`[12,13,14,15,17]` → `"12–15、17"`；空数组 → `""`。
-export function formatPageList(pages) {
-  const sorted = [...new Set(pages)].sort((a, b) => a - b);
-  const parts = [];
-  let from = -1;
-  let prev = -1;
-  for (const page of sorted) {
-    if (from === -1 || page !== prev + 1) {
-      if (from !== -1) parts.push(from === prev ? `${from}` : `${from}–${prev}`);
-      from = page;
-    }
-    prev = page;
-  }
-  if (from !== -1) parts.push(from === prev ? `${from}` : `${from}–${prev}`);
-  return parts.join("、");
-}
-
 // 解析 `## 讲后读已读` 一节的各行 → [{pages, course, label, date}]（pages 保留原文），
 // 不匹配的行忽略；没有该节返回 []。旧书页的 `## 核心页已读` 同样认（两节都在就都读）。
 export function parseCoreRead(body) {
@@ -400,29 +410,62 @@ export function parseExtracts(body) {
 // late：end 比 plannedEnd 晚几天（不晚为 0）。
 // target：frontmatter 里的目标日期，不是合法日期（空、缺失、乱写）为 null。
 // targetLate：end 比 target 晚几天（不晚为 0）；target 为 null 时它也是 null。
-// coreOverlap：今天这段里讲后读已读过的页（`"pp.…"`），没有或读完全部分段时为 null。
+// coreOverlap：今天这段里课后读已读过的页（`"pp.…"`；`## 讲后读已读`/`## 核心页已读` 的行
+// 与 `## 课后读` 已勾行取并集），没有或读完全部分段时为 null。
+// afterReads：`## 课后读` 一节的各行（见 shelf-after.mjs）。
 // doneToday：今天的读书记录里已有「第 position 段」（今天这块已读）；
 // doneChunk：已读的这块（chunks[position - 1]），doneToday 为假时是 null。
 // resumedToday：今天有一条「恢复」记录（resume 当天）——chunk 是明天要读的，不是今天的。
 export function bookView(page, today) {
+  const slot = bookSlot(page);
   const segments = parseSegments(page.body);
-  const chunks = chunksOf(segments);
+  // 导读的一段 = `## 分段` 里的一行，不按 10 页切；其余书仍走 chunksOf。
+  const chunks =
+    slot === "guided" ? segments.map((segment, i) => ({ index: i + 1, ...segment })) : chunksOf(segments);
   const total = chunks.length;
   const position = bookPosition(page);
   const started = bookStarted(page);
   const finished = position >= total;
   const lastRecord = lastRecordDate(page.body);
-  const plannedEnd = addDays(started || today, Math.max(total - 1, 0));
-  const end = finished
-    ? (lastRecord ?? today)
-    : addDays(nextReadDay(page, today), total - position - 1);
+  let plannedEnd;
+  let end;
+  // 下一段排在哪天：导读书是下一个导读日（含今天）；读完为 null；自读书没有这个字段。
+  let nextDay = null;
+  if (slot === "guided") {
+    if (finished) {
+      end = lastRecord ?? today;
+      plannedEnd = end;
+    } else {
+      const rows = guidedRows(page, today);
+      end = rows.length === 0 ? (lastRecord ?? today) : rows[rows.length - 1].date;
+      nextDay = rows.find((row) => !row.done)?.date ?? null;
+      // 名义读完日：若一段都没读、从今天起每个导读日一段，最后一段排哪天。
+      const nominal = guidedSchedule({
+        segments,
+        position: 0,
+        started: started || today,
+        days: bookGuidedDays(page),
+        today: started || today,
+        readDates: new Map(),
+      });
+      plannedEnd = nominal.length === 0 ? started || today : nominal[nominal.length - 1].date;
+    }
+  } else {
+    plannedEnd = addDays(started || today, Math.max(total - 1, 0));
+    end = finished
+      ? (lastRecord ?? today)
+      : addDays(nextReadDay(page, today), total - position - 1);
+  }
   const chunk = finished ? null : chunks[position];
   const doneToday = position > 0 && recordDate(page.body, position) === today;
   const doneChunk = doneToday ? (chunks[position - 1] ?? null) : null;
   let coreOverlap = null;
   if (chunk !== null) {
-    const read = parseCoreRead(page.body).flatMap((row) => parsePageList(row.pages));
-    const overlap = read.filter((page) => page >= chunk.from && page <= chunk.to);
+    const read = new Set([
+      ...parseCoreRead(page.body).flatMap((row) => parsePageList(row.pages)),
+      ...afterReadPages(page.body),
+    ]);
+    const overlap = [...read].filter((page) => page >= chunk.from && page <= chunk.to);
     if (overlap.length > 0) coreOverlap = `pp.${formatPageList(overlap)}`;
   }
   const target = bookTarget(page);
@@ -430,11 +473,16 @@ export function bookView(page, today) {
     slug: typeof page.slug === "string" ? page.slug : "",
     title: bookTitle(page, typeof page.slug === "string" ? page.slug : ""),
     short: bookShort(page, typeof page.slug === "string" ? page.slug : ""),
-    slot: bookSlot(page),
+    slot,
+    subject: bookSubject(page),
+    days: slot === "guided" ? field(page, "days") : null,
+    limit: slot === "guided" ? bookLimit(page) : null,
     total,
     position,
     chunk,
+    nextDay,
     coreOverlap,
+    afterReads: parseAfterReads(page.body),
     doneToday,
     doneChunk,
     resumedToday: resumedToday(page.body, today),
@@ -553,6 +601,27 @@ async function loadBook(vault, slug) {
 }
 
 // ---- 排期表（`## 排期` 标记之间）----
+
+// 导读书的排期行：已读段按读书记录的日期（没记录按 started 起每导读日一段顺推），
+// 未读段从「下一个导读日」起往后排；resume 当天恢复的书从再下一个导读日起
+// （自读的「恢复＝明天接着排」对导读就是「下一个导读日」）。
+function guidedRows(page, today) {
+  const position = bookPosition(page);
+  const readDates = new Map();
+  for (let index = 1; index <= position; index += 1) {
+    const date = recordDate(page.body, index);
+    if (date !== null) readDates.set(index, date);
+  }
+  const from = resumedToday(page.body, today) ? addDays(today, 1) : today;
+  return guidedSchedule({
+    segments: parseSegments(page.body),
+    position,
+    started: bookStarted(page) || today,
+    days: bookGuidedDays(page),
+    today: from,
+    readDates,
+  });
+}
 
 // 排期表：已读的块按实际记录日期（没记录就按 started 顺推），未读的块从
 // 「下一段该读的那天」起每天一块。
@@ -726,14 +795,26 @@ async function commandList(vault, options, today) {
         view.target === null || end === "" ? null : Math.max(0, daysBetween(view.target, end)),
       extracts: parseExtracts(page.body),
       coreRead: parseCoreRead(page.body),
+      afterReads: parseAfterReads(page.body),
       // 不在读的书没有日程（排队书没开始、暂停书不再往后排、读完的书没有下一段）。
       upcoming:
         status !== "reading"
           ? []
-          : planRows(page, today)
-              .rows.filter((row) => row.index > bookPosition(page))
-              .slice(0, 5),
+          : view.slot === "guided"
+            ? guidedRows(page, today)
+                .filter((row) => !row.done)
+                .slice(0, 5)
+            : planRows(page, today)
+                .rows.filter((row) => row.index > bookPosition(page))
+                .slice(0, 5),
     };
+    // 导读书带科目与节奏信息（subject / days 原串 / limit 分钟 / nextDay 下一个导读日）。
+    if (view.slot === "guided") {
+      item.subject = view.subject;
+      item.days = view.days;
+      item.limit = view.limit;
+      item.nextDay = view.nextDay;
+    }
     if (range !== null) {
       // 排队书没有 started：queueEnds 给的是串接后的预计读完，
       // 起点 = 读完日 − (段数 − 1)，与 queueEnds 的算法互逆；
@@ -744,11 +825,15 @@ async function commandList(vault, options, today) {
           ? addDays(chainedEnd, 1 - Math.max(view.total, 1))
           : bookStarted(page) || today;
       item.schedule =
-        status === "queued" && chainedEnd === ""
-          ? []
-          : scheduleRows(page, start, today).filter(
+        view.slot === "guided"
+          ? guidedRows(page, today).filter(
               (row) => row.date >= range.from && row.date <= range.to,
-            );
+            )
+          : status === "queued" && chainedEnd === ""
+            ? []
+            : scheduleRows(page, start, today).filter(
+                (row) => row.date >= range.from && row.date <= range.to,
+              );
     }
     return item;
   });
@@ -784,7 +869,12 @@ async function commandToday(vault, options, today) {
       ));
     return reading.length === 0 ? null : bookView(reading[0].page, today);
   };
-  const result = { planned: pick("planned"), free: pick("free") };
+  // 导读：所有 slot: guided 且在读、且今天排了一段的书（今天不是它的导读日就不列）。
+  const guided = books
+    .filter((book) => bookSlot(book.page) === "guided" && bookStatus(book.page) === "reading")
+    .map((book) => bookView(book.page, today))
+    .filter((view) => view.nextDay === today);
+  const result = { planned: pick("planned"), free: pick("free"), guided };
   output(options, result, () => {
     const line = (label, view) => {
       if (view === null) return `${label}：没有在读的书。`;
@@ -800,26 +890,29 @@ async function commandToday(vault, options, today) {
           : `，目标 ${view.target}${view.targetLate > 0 ? `，晚 ${view.targetLate} 天` : ""}`;
       return `${label}：${view.title}（${view.position}/${view.total} 段，${doing}，预计 ${view.end} 读完${target}）`;
     };
-    return [line("计划内", result.planned), line("计划外", result.free)].join("\n");
+    const guidedLine =
+      result.guided.length === 0
+        ? "导读：今天没有安排。"
+        : `导读：${result.guided
+            .map(
+              (view) =>
+                `${view.title}（${view.position}/${view.total} 节` +
+                (view.chunk ? `，下一段 ${view.chunk.title} pp.${view.chunk.from}–${view.chunk.to}` : "，已读完全部分段") +
+                `）`,
+            )
+            .join("；")}`;
+    return [line("计划内", result.planned), line("计划外", result.free), guidedLine].join("\n");
   });
 }
 
-// 单节在书页正文里的先后：`## 讲后读已读` → `## 摘录` → `## 读书记录`。
-// 旧标题 `## 核心页已读` 与它同位置。
+// 单节在书页正文里的先后：`## 排期` → `## 课后读` → `## 讲后读已读` → `## 摘录` → `## 读书记录`。
+// 旧标题 `## 核心页已读` 与 `## 讲后读已读` 同位置。
 const NEXT_SECTIONS = {
+  [AFTER_HEADING]: [CORE_READ_HEADING, LEGACY_CORE_READ_HEADING, "## 摘录", "## 读书记录"],
   [CORE_READ_HEADING]: ["## 摘录", "## 读书记录"],
   [LEGACY_CORE_READ_HEADING]: ["## 摘录", "## 读书记录"],
   "## 摘录": ["## 读书记录"],
 };
-
-// 旧书页里的一节改成新标题（只改标题行，不动内容）；没有旧节时原样返回。
-function renameLegacyCoreRead(body) {
-  const index = body.findIndex((line) => line.trim() === LEGACY_CORE_READ_HEADING);
-  if (index === -1) return body;
-  const copy = body.slice();
-  copy[index] = CORE_READ_HEADING;
-  return copy;
-}
 
 // 在 `heading` 一节末尾追加一行（末尾的空行保持在 line 之后）。
 // 节不存在时：`## 读书记录` 直接加在文末（同原 appendRecord）；其余新节插在
@@ -859,6 +952,23 @@ function appendRecord(body, date, message) {
   return appendToSection(body, "## 读书记录", `- ${date}: ${message}`);
 }
 
+// ---- jj：写命令写完、重画 index.md 后各记一笔 ----
+
+// 提交这次写过的文件：书页 + 重画过的 index.md（一笔）。
+// 返回 "ok" | "skipped" | "failed: …"，不抛。
+function commitShelf(vault, message, slugs) {
+  const paths = [...slugs.map((slug) => `wiki/shelf/${slug}.md`), `wiki/shelf/${INDEX_FILE}`];
+  return jjCommit(vault, message, paths);
+}
+
+// 文字输出尾巴：committed 非 ok 时补一行原因；ok 不加。
+function commitNote(committed) {
+  if (committed === "ok") return "";
+  const reason =
+    committed === "skipped" ? "库不是 jj 仓库" : committed.replace(/^failed:\s*/, "");
+  return `\n（没有记进 jj：${reason}）`;
+}
+
 // 读完一本计划内的书后，自动开 order 最小的 planned queued：
 // status → reading、started → 明天、position → 0，并写入它的排期表。
 async function startNextPlanned(vault, today) {
@@ -886,12 +996,18 @@ async function commandDone(vault, positional, options, today) {
   const { page, file } = await loadBook(vault, slug);
   const status = bookStatus(page);
   if (status !== "reading") fail(`${slug} 状态为 ${status}，只有在读的书可以记读完`);
-  const chunks = chunksOf(parseSegments(page.body));
+  const slot = bookSlot(page);
+  // 导读的一段 = `## 分段` 里的一行，不按 10 页切。
+  const chunks =
+    slot === "guided"
+      ? parseSegments(page.body).map((segment, i) => ({ index: i + 1, ...segment }))
+      : chunksOf(parseSegments(page.body));
   const position = bookPosition(page);
   const chunk = chunks[position];
   if (!chunk) fail(`${slug} 没有下一段（position=${position}，共 ${chunks.length} 段）`);
   // 用户 11-11 定：同一天只记一段，防止连点两次前进两段。
-  if (bookView(page, today).doneToday) {
+  // 导读书不套这条：导读日一次可以读两节（用户 11-15 定）。
+  if (slot !== "guided" && bookView(page, today).doneToday) {
     fail(`${slug} 今天这段已记过（第 ${position} 段），明天再记下一段`);
   }
 
@@ -904,20 +1020,29 @@ async function commandDone(vault, positional, options, today) {
   );
   const finished = nextPosition >= chunks.length;
   if (finished) setField(page, "status", "done");
-  // 没读完就把排期表按「今天已经读了这段」重算：后面每块从现在起每天一块。
-  if (!finished) page.body = withPlan(page.body, renderPlanTable(planRows(page, today).rows));
+  // 没读完就把排期表按「今天已经读了这段」重算：后面每块从现在起每天一块
+  // （导读书：每个导读日一段）。
+  if (!finished) {
+    page.body = withPlan(
+      page.body,
+      renderPlanTable(slot === "guided" ? guidedRows(page, today) : planRows(page, today).rows),
+    );
+  }
   await writeAtomic(file, renderPage(page.fields, page.body));
 
   let next = null;
   if (finished && bookSlot(page) === "planned") next = await startNextPlanned(vault, today);
   await writeIndex(vault, today);
+  // 自动开的下一本书页也写过了，进同一笔。
+  const committed = commitShelf(vault, `读书 ${slug} ${today}`, next ? [slug, next] : [slug]);
 
-  const result = { slug, position: nextPosition, total: chunks.length, finished, next };
+  const result = { slug, position: nextPosition, total: chunks.length, finished, next, committed };
   output(
     options,
     result,
     `done: ${slug} 第 ${nextPosition}/${chunks.length} 段` +
-      (finished ? `（读完${next ? `，下一本 ${next}` : ""}）` : ""),
+      (finished ? `（读完${next ? `，下一本 ${next}` : ""}）` : "") +
+      commitNote(committed),
   );
 }
 
@@ -933,10 +1058,11 @@ async function commandPause(vault, positional, options, today) {
   page.body = appendRecord(page.body, today, "暂停");
   await writeAtomic(file, renderPage(page.fields, page.body));
   await writeIndex(vault, today);
+  const committed = commitShelf(vault, `暂停 ${slug} ${today}`, [slug]);
   output(
     options,
-    { slug, status: "paused", position: bookPosition(page) },
-    `pause: ${slug} 已暂停`,
+    { slug, status: "paused", position: bookPosition(page), committed },
+    `pause: ${slug} 已暂停${commitNote(committed)}`,
   );
 }
 
@@ -950,16 +1076,21 @@ async function commandResume(vault, positional, options, today) {
   const status = bookStatus(page);
   if (status !== "paused") fail(`${slug} 状态为 ${status}，只有暂停的书可以恢复`);
   const position = bookPosition(page);
+  const slot = bookSlot(page);
   setField(page, "status", "reading");
   setField(page, "started", addDays(addDays(today, 1), -position));
   page.body = appendRecord(page.body, today, "恢复，明天接着读");
-  page.body = withPlan(page.body, renderPlanTable(planRows(page, today).rows));
+  page.body = withPlan(
+    page.body,
+    renderPlanTable(slot === "guided" ? guidedRows(page, today) : planRows(page, today).rows),
+  );
   await writeAtomic(file, renderPage(page.fields, page.body));
   await writeIndex(vault, today);
+  const committed = commitShelf(vault, `恢复 ${slug} ${today}`, [slug]);
   output(
     options,
-    { slug, status: "reading", started: bookStarted(page), position },
-    `resume: ${slug} 恢复，明天接着读`,
+    { slug, status: "reading", started: bookStarted(page), position, committed },
+    `resume: ${slug} 恢复，明天接着读${commitNote(committed)}`,
   );
 }
 
@@ -972,7 +1103,9 @@ async function commandPlan(vault, positional, options, today) {
     fail(`${slug} 还在排队（或已读完），开始读时会自动排期`);
   }
   if (bookStarted(page) === "") setField(page, "started", today);
-  const { started, rows } = planRows(page, today);
+  const guided = bookSlot(page) === "guided";
+  const started = bookStarted(page);
+  const rows = guided ? guidedRows(page, today) : planRows(page, today).rows;
   const table = renderPlanTable(rows);
   if (options.write) {
     page.body = withPlan(page.body, table);
@@ -985,102 +1118,60 @@ async function commandPlan(vault, positional, options, today) {
   );
 }
 
-// 标签规范化：去掉开头的「讲后读」及其后空白（技能示例传 `--label "讲后读 D1"`，
-// 写页面时固定加前缀，不规范化就会写成「讲后读 讲后读 D1」）。规范化后为空则保留原值。
-function lectureLabel(label) {
-  const stripped = String(label).replace(/^讲后读\s*/, "").trim();
-  return stripped === "" ? String(label).trim() : stripped;
-}
-
-// 页码串规范化成同一写法，用于查重：去空白、`-` 与 `–` 等同。
-function canonicalPages(pages) {
-  return formatPageList(parsePageList(String(pages)));
-}
-
-// `## 读书记录` 里的「讲后读 <标签> 已读（<课程>，用户自报）」行 → [{label, course}]。
-const LECTURE_RECORD_RE = /^-\s+\d{4}-\d{2}-\d{2}:\s+讲后读\s+(.+?)\s+已读（([a-z0-9-]+)，用户自报）\s*$/;
-
-function parseLectureRecords(body) {
-  const range = sectionRange(body, "## 读书记录");
-  if (!range) return [];
-  const rows = [];
-  for (const line of body.slice(range.start, range.end)) {
-    const match = line.match(LECTURE_RECORD_RE);
-    if (!match) continue;
-    rows.push({ label: lectureLabel(match[1]), course: match[2] });
+// `after add`：在 `## 课后读` 加一条；同课同标签的未勾行已有则只改页码与日期（updated: true）。
+// 写完重画 index.md。
+async function commandAfterAdd(vault, positional, options, today) {
+  const slug = positional[0];
+  if (!slug) fail("after add 需要 slug");
+  for (const flag of ["label", "pages", "course", "date"]) {
+    if (options[flag] === undefined) fail(`after add 需要 --${flag}`);
   }
-  return rows;
-}
-
-// 这次 lecture 是否已经记过：给了 --pages 看 `## 讲后读已读`（同课程 + 同规范化页码，
-// 旧标题 `## 核心页已读` 也认；标签不比）；没给 --pages 看 `## 读书记录`（同课程 + 同规范化标签）。
-function lectureAlreadyRecorded(page, course, label, pages) {
-  if (pages !== null) {
-    const wanted = canonicalPages(pages);
-    return parseCoreRead(page.body).some(
-      (row) => row.course === course && canonicalPages(row.pages) === wanted,
-    );
-  }
-  return parseLectureRecords(page.body).some(
-    (row) => row.course === course && row.label === label,
+  const { page, file } = await loadBook(vault, slug);
+  const result = addAfterRead(page.body, {
+    label: options.label,
+    pages: options.pages,
+    course: options.course,
+    date: options.date,
+  });
+  page.body = result.body;
+  await writeAtomic(file, renderPage(page.fields, page.body));
+  await writeIndex(vault, today);
+  const committed = commitShelf(vault, `排课后读 ${slug} ${today}`, [slug]);
+  output(
+    options,
+    { slug, index: result.index, updated: result.updated, committed },
+    () =>
+      `after add: ${slug} 课后读 ${String(options.label).trim()} 第 ${result.index} 条` +
+      (result.updated ? "（更新）" : "") +
+      commitNote(committed),
   );
 }
 
-// 讲后读读完：记一条读书记录，给了 --pages 时再记一行讲后读已读；不改 position/status。
-// 同课同页（或同课同标签）已记过时不再记，返回 already: true。
-async function commandLecture(vault, positional, options, today) {
+// `after done`：勾 `## 课后读` 第 N 条（写「读于」），并在 `## 读书记录` 加一行；
+// 写完重画 index.md。
+async function commandAfterDone(vault, positional, options, today) {
   const slug = positional[0];
-  if (!slug) fail("lecture 需要 slug");
+  if (!slug) fail("after done 需要 slug");
+  if (options.index === undefined) fail("after done 需要 --index N");
+  const index = Number(options.index);
+  if (!Number.isInteger(index) || index < 1) fail(`--index 非法：${options.index}`);
   const { page, file } = await loadBook(vault, slug);
-  const rawLabel = options.label;
-  if (
-    typeof rawLabel !== "string" ||
-    rawLabel === "" ||
-    rawLabel.includes("\n") ||
-    rawLabel.length > 200
-  ) {
-    fail(`--label 非法：${rawLabel}`);
-  }
-  const label = lectureLabel(rawLabel);
-  const course = options.course;
-  if (typeof course !== "string" || !/^[a-z0-9-]+$/.test(course)) {
-    fail(`--course 非法：${course}`);
-  }
-  let pages = null;
-  if (options.pages !== undefined) {
-    const parsed = parsePageList(String(options.pages));
-    if (parsed.length === 0) fail(`页码列表非法：${options.pages}`);
-    pages = formatPageList(parsed);
-  }
-  const already = lectureAlreadyRecorded(page, course, label, pages);
-  if (already) {
-    output(
-      options,
-      { slug, label, course, pages, already: true },
-      () => `lecture: ${slug} 讲后读 ${label} 已读（${course}）已记过，不再记`,
-    );
-    return;
-  }
-  page.body = appendRecord(page.body, today, `讲后读 ${label} 已读（${course}，用户自报）`);
-  if (pages !== null) {
-    // 旧书页的 `## 核心页已读` 就地改名，再往里追加，避免开出第二节。
-    page.body = renameLegacyCoreRead(page.body);
-    page.body = appendToSection(
-      page.body,
-      CORE_READ_HEADING,
-      `- pp.${pages} · ${course} · ${label} · ${today}`,
-    );
-  }
+  const row = parseAfterReads(page.body).find((entry) => entry.index === index);
+  page.body = markAfterRead(page.body, index, today);
+  page.body = appendRecord(page.body, today, `课后读 ${row.label} 已读（${row.course}）`);
   await writeAtomic(file, renderPage(page.fields, page.body));
+  await writeIndex(vault, today);
+  const committed = commitShelf(vault, `课后读 ${slug} ${today}`, [slug]);
   output(
     options,
-    { slug, label, course, pages, already: false },
-    () => `lecture: ${slug} 讲后读 ${label} 已读（${course}，用户自报）`,
+    { slug, index, label: row.label, pages: row.pages, course: row.course, readOn: today, committed },
+    () => `after done: ${slug} 课后读 ${row.label} 已读（${row.course}）${commitNote(committed)}`,
   );
 }
 
 // 存一句摘录：在 `## 摘录` 末尾加 `- p.<n>: <原句> #待做卡`；不改 frontmatter。
-async function commandExtract(vault, positional, options) {
+// 写完重画 index.md（index 是派生文件，每次书房写入都跟着重画才不会旧）。
+async function commandExtract(vault, positional, options, today) {
   const slug = positional[0];
   if (!slug) fail("extract 需要 slug");
   const { page, file } = await loadBook(vault, slug);
@@ -1094,8 +1185,11 @@ async function commandExtract(vault, positional, options) {
   if (text === "" || text.length > 500) fail(`--text 非法：${options.text}`);
   page.body = appendToSection(page.body, "## 摘录", `- p.${pageNo}: ${text} #待做卡`);
   await writeAtomic(file, renderPage(page.fields, page.body));
+  await writeIndex(vault, today);
+  const committed = commitShelf(vault, `摘录 ${slug} ${today}`, [slug]);
   const index = parseExtracts(page.body).length;
-  output(options, { slug, index, page: pageNo, text }, () => `extract: ${slug} 摘录 ${index}（p.${pageNo}）`);
+  output(options, { slug, index, page: pageNo, text, committed }, () =>
+    `extract: ${slug} 摘录 ${index}（p.${pageNo}）${commitNote(committed)}`);
 }
 
 // 把摘录标成已做卡：`#待做卡` → `#卡/<today>`；已是 `#卡/…` 的序号进 skipped。
@@ -1136,8 +1230,10 @@ async function commandCard(vault, positional, options, today) {
     page.body = next;
     await writeAtomic(file, renderPage(page.fields, page.body));
   }
-  output(options, { slug, marked, skipped }, () =>
-    `card: ${slug} 做卡 ${marked.join("、") || "无"}${skipped.length ? `（跳过 ${skipped.join("、")}）` : ""}`,
+  await writeIndex(vault, today);
+  const committed = commitShelf(vault, `制卡 ${slug} ${today}`, [slug]);
+  output(options, { slug, marked, skipped, committed }, () =>
+    `card: ${slug} 做卡 ${marked.join("、") || "无"}${skipped.length ? `（跳过 ${skipped.join("、")}）` : ""}${commitNote(committed)}`,
   );
 }
 
@@ -1154,6 +1250,7 @@ async function commandTarget(vault, positional, options, today) {
   setField(page, "target", hasDate ? String(options.date) : "");
   await writeAtomic(file, renderPage(page.fields, page.body));
   await writeIndex(vault, today);
+  const committed = commitShelf(vault, `目标 ${slug} ${today}`, [slug]);
 
   const view = bookView(page, today);
   // 排队书的预计读完按 queueEnds 串接算，与 list/index 一致；暂停书没有预计读完。
@@ -1163,8 +1260,8 @@ async function commandTarget(vault, positional, options, today) {
     view.target === null || end === "" ? null : Math.max(0, daysBetween(view.target, end));
   output(
     options,
-    { slug, target: view.target, end, targetLate },
-    () => `target: ${slug} ${hasDate ? `目标 ${options.date}` : "不设目标"}`,
+    { slug, target: view.target, end, targetLate, committed },
+    () => `target: ${slug} ${hasDate ? `目标 ${options.date}` : "不设目标"}${commitNote(committed)}`,
   );
 }
 
@@ -1183,9 +1280,23 @@ function indexLine(view, status, end, shelfName, after) {
   return `${prefix} · 预计 ${end} 读完${target}`;
 }
 
+const WEEKDAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
+
+// 导读书的 index 行：`- [[shelf/<slug>|<short>]] · <title> · <n>/<N> 节 · 每周 <一、三> · 预计 <日期> 读完`；
+// 暂停的导读书没有预计日，写「已暂停」。
+function guidedIndexLine(page, view, shelfName) {
+  const weekdays = bookGuidedDays(page)
+    .map((day) => WEEKDAY_NAMES[day])
+    .join("、");
+  const base = `- [[${shelfName}/${view.slug}|${view.short}]] · ${view.title} · ${view.position}/${view.total} 节 · 每周 ${weekdays}`;
+  if (bookStatus(page) === "paused") return `${base} · 已暂停`;
+  return `${base} · 预计 ${view.end} 读完`;
+}
+
 function renderIndex(books, today, shelfName) {
   const queue = queueEnds(books, today);
   const groups = { reading: [], paused: [], queued: [], done: [] };
+  const guidedLines = [];
   // 每本排队书的前一本：计划内占位（在读或暂停）的书，或上一本排队书。
   const planned = books
     .filter(({ page }) => bookSlot(page) === "planned")
@@ -1200,6 +1311,16 @@ function renderIndex(books, today, shelfName) {
   for (const { slug, page } of books) {
     const status = bookStatus(page);
     const view = bookView(page, today);
+    // 导读书不进在读/暂停/排队三组：读完的进「读完」，其余单列一节「导读」。
+    if (view.slot === "guided" && status !== "done") {
+      guidedLines.push({
+        slug,
+        order: bookOrder(page),
+        status,
+        line: guidedIndexLine(page, view, shelfName),
+      });
+      continue;
+    }
     // 排队书用 queueEnds 的串接日期（等在读的读完再算），暂停的书没有预计日，
     // 其余用 bookView 的 end。
     const end =
@@ -1214,11 +1335,12 @@ function renderIndex(books, today, shelfName) {
   const blocks = ["# 书房"];
   for (const [status, heading] of [
     ["reading", "## 在读"],
+    ["guided", "## 导读"],
     ["paused", "## 暂停"],
     ["queued", "## 排队"],
     ["done", "## 读完"],
   ]) {
-    const group = groups[status].sort(compareBooks);
+    const group = (status === "guided" ? guidedLines : groups[status]).sort(compareBooks);
     // 空组也保留标题：界面按标题定位，缺一组会让人以为文件坏了。
     blocks.push(
       group.length === 0 ? heading : [heading, "", ...group.map((item) => item.line)].join("\n"),
@@ -1269,7 +1391,8 @@ function usage() {
     "  node bookshelf.mjs plan <vault> <slug> [--today YYYY-MM-DD] [--write] [--json]",
     "  （list 可加 --from YYYY-MM-DD --to YYYY-MM-DD：每本书多一个 schedule，逐段的日子）",
     "  node bookshelf.mjs index <vault> [--today YYYY-MM-DD] [--write] [--json]",
-    "  node bookshelf.mjs lecture <vault> <slug> --label <标签> --course <课程slug> [--pages <页码列表>] [--today YYYY-MM-DD] [--json]",
+    "  node bookshelf.mjs after add <vault> <slug> --label <标签> --pages <页码> --course <课程slug> --date YYYY-MM-DD [--json]",
+    "  node bookshelf.mjs after done <vault> <slug> --index N [--today YYYY-MM-DD] [--json]",
     "  node bookshelf.mjs extract <vault> <slug> --page <n> --text <原句> [--today YYYY-MM-DD] [--json]",
     "  node bookshelf.mjs card <vault> <slug> --index <逗号分隔的序号> [--today YYYY-MM-DD] [--json]",
     "  node bookshelf.mjs target <vault> <slug> (--date YYYY-MM-DD | --clear) [--json]",
@@ -1282,11 +1405,13 @@ function usage() {
     "resume：暂停的书恢复——started 改成明天减已读段数，从明天接着排，重写排期与 index。",
     "plan：生成/重写 `## 排期` 的排期表（不带 --write 只打印）。",
     "index：生成/重写 wiki/shelf/index.md（不带 --write 只打印）。",
-    "lecture：讲后读读完——追加读书记录，给了 --pages 再记一行 `## 讲后读已读`；不改 position/status。",
-    "  同课同页已记过时不再记（--json 里 already: true）。",
+    "after add：在 `## 课后读` 加一条；同课同标签的未勾行已有则只改页码与日期。",
+    "after done：勾 `## 课后读` 第 N 条（写「读于」），读书记录加一行「课后读 … 已读」。",
     "extract：在 `## 摘录` 末尾存一句摘录（行尾标 `#待做卡`）。",
     "card：把 `## 摘录` 里指定序号的 `#待做卡` 改成 `#卡/<today>`。",
     "target：设/清书页的目标日期（frontmatter 裸日期），只和预计读完对比，不改排期。",
+    "写入命令（done / after / extract / card / pause / resume / target）写完、重画 index.md 后",
+    "各记一笔 jj（库是 jj 仓库时）；提交失败或跳过不阻断，--json 里有 committed。",
     "",
     "选项：",
     "  --today YYYY-MM-DD  注入「今天」（测试用），默认本地日期",
@@ -1337,14 +1462,22 @@ async function main() {
     const vault = vaultArg();
     requireVault(vault);
     await commandIndex(vault, options, today);
-  } else if (command === "lecture") {
-    const vault = vaultArg();
+  } else if (command === "after") {
+    const sub = positional[0];
+    if (sub !== "add" && sub !== "done") {
+      fail(sub === undefined ? "after 需要子命令 add 或 done" : `未知 after 子命令：${sub}`);
+    }
+    const vault = resolve(positional[1] ?? fail(`after ${sub} 需要 vault 路径`));
     requireVault(vault);
-    await commandLecture(vault, positional.slice(1), options, today);
+    if (sub === "add") {
+      await commandAfterAdd(vault, positional.slice(2), options, today);
+    } else {
+      await commandAfterDone(vault, positional.slice(2), options, today);
+    }
   } else if (command === "extract") {
     const vault = vaultArg();
     requireVault(vault);
-    await commandExtract(vault, positional.slice(1), options);
+    await commandExtract(vault, positional.slice(1), options, today);
   } else if (command === "card") {
     const vault = vaultArg();
     requireVault(vault);

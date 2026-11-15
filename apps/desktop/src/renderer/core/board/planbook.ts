@@ -22,6 +22,7 @@ import type {
 import { ankiDueCount } from "./cycle-today.js";
 import {
   afterReadItems,
+  guidedItemsByDate,
   lessonItems,
   missedLessons,
   selfItemsByDate,
@@ -32,7 +33,7 @@ import { addDays, planWeekRange, slotOf, weekdayOf } from "./planbook-range.js";
 
 export { addDays, mondayIndex, planWeekRange, weekdayOf, type PlanWeekRange } from "./planbook-range.js";
 
-/** The four rows of a planbook day: main lessons, 讲后读, 带读 (aux), self-reading. */
+/** The four rows of a planbook day: main lessons, 讲后读, 导读, self-reading. */
 export type PlanLane = "main" | "after" | "guide" | "self";
 /** ✓ done / ● today / ○ planned / ! missed. */
 export type PlanMark = "done" | "now" | "plan" | "warn";
@@ -108,14 +109,14 @@ function planDay(
   input: PlanbookInput,
   date: string,
   self: Map<string, PlanItem[]>,
+  guided: Map<string, PlanItem[]>,
   lanes: PlanLane[],
 ): PlanDay {
-  const lessons = lessonItems(input, date);
   const items = [
     ...(lanes === ALL_LANES ? verifyItems(input, date) : []),
-    ...lessons.filter((item) => item.lane === "main"),
+    ...lessonItems(input, date),
     ...afterReadItems(input, date),
-    ...lessons.filter((item) => item.lane === "guide"),
+    ...(guided.get(date) ?? []),
     ...(self.get(date) ?? []),
   ].filter((item) => lanes.includes(item.lane));
   return {
@@ -147,9 +148,10 @@ function reviewDayOf(input: PlanbookInput, end: string): string | null {
 export function buildWeek(input: PlanbookInput): PlanWeek {
   const range = planWeekRange(input.cycleMonths, input.anchor ?? input.today);
   const self = selfItemsByDate(input);
+  const guided = guidedItemsByDate(input);
   const days: PlanDay[] = [];
   for (let i = 0; i < 7; i += 1) {
-    days.push(planDay(input, addDays(range.start, i), self, ALL_LANES));
+    days.push(planDay(input, addDays(range.start, i), self, guided, ALL_LANES));
   }
   return {
     ...range,
@@ -162,17 +164,18 @@ export function buildWeek(input: PlanbookInput): PlanWeek {
 
 /** One `PlanDay` for `date` — same per-day logic as `buildWeek`. */
 export function buildDay(input: PlanbookInput, date: string): PlanDay {
-  return planDay(input, date, selfItemsByDate(input), ALL_LANES);
+  return planDay(input, date, selfItemsByDate(input), guidedItemsByDate(input), ALL_LANES);
 }
 
 /** Every day of `month` (`YYYY-MM`); the month view keeps only main / guide rows. */
 export function buildMonth(input: PlanbookInput, month: string): PlanDay[] {
   const [year = 1970, monthNumber = 1] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const guided = guidedItemsByDate(input);
   const days: PlanDay[] = [];
   for (let day = 1; day <= daysInMonth; day += 1) {
     const date = `${month}-${String(day).padStart(2, "0")}`;
-    days.push(planDay(input, date, new Map(), MONTH_LANES));
+    days.push(planDay(input, date, new Map(), guided, MONTH_LANES));
   }
   return days;
 }

@@ -77,9 +77,7 @@ export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, o
                   <div className="chicago-it-meta">
                     <span>{book.title}</span>
                   </div>
-                  <div className="chicago-small">
-                    {strings.reading.shelfMeta(book.position, book.total, book.end)}
-                  </div>
+                  <div className="chicago-small">{book.meta}</div>
                   {book.next !== null && <div className="chicago-small">{book.next}</div>}
                   {book.extracts.length > 0 && (
                     <ul>

@@ -124,7 +124,7 @@ describe("useNextCycle", () => {
     ]);
     act(() => groups[1]!.onFrom("fresh"));
     act(() => view().wizard!.onNext());
-    expect(view().wizard!.shelf.note).toContain("导读课 C 变成主课后自动停掉");
+    expect(view().wizard!.shelf.note).toContain("导读 C 变成主课后自动停掉");
     act(() => view().wizard!.shelf.onToggle("dsa/CLRS"));
     act(() => view().wizard!.onNext());
     await waitFor(() => expect(view().wizard!.preview.state).toBe("ready"));

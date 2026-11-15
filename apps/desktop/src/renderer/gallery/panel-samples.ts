@@ -113,6 +113,7 @@ export const SAMPLE_CYCLE_OUTSIDE: CycleDay = {
   course: null,
   aux: null,
   auxCourse: null,
+  auxBook: null,
   names: {},
   subjects: {},
   roles: {},
@@ -131,6 +132,7 @@ export const SAMPLE_CYCLE_DAY: CycleDay = {
   course: "discrete-math-epp",
   aux: null,
   auxCourse: null,
+  auxBook: null,
   names: { "discrete-math-epp": "离散", ctm: "CTM" },
   subjects: { "discrete-math": "离散", "programming-paradigms": "范式" },
   roles: { "discrete-math-epp": "main", ctm: "main" },
@@ -145,13 +147,13 @@ export const SAMPLE_CYCLE_DAY: CycleDay = {
 export const SAMPLE_CYCLE_MONTH: CycleMonth = {
   month: "2026-11",
   days: {
-    "2026-11-06": { cycle: "C1", week: 1, type: "整合", subject: null, course: null, aux: null, auxCourse: null },
-    "2026-11-07": { cycle: "C1", week: 1, type: "低强度", subject: null, course: null, aux: null, auxCourse: null },
-    "2026-11-08": { cycle: "C1", week: 1, type: "休息", subject: null, course: null, aux: null, auxCourse: null },
-    "2026-11-09": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp", aux: "c-systems-programming", auxCourse: "effective-c" },
-    "2026-11-10": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm", aux: "data-structures", auxCourse: null },
-    "2026-11-11": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp", aux: "c-systems-programming", auxCourse: null },
-    "2026-11-12": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm", aux: "data-structures", auxCourse: null },
+    "2026-11-06": { cycle: "C1", week: 1, type: "整合", subject: null, course: null, aux: null, auxCourse: null, auxBook: null },
+    "2026-11-07": { cycle: "C1", week: 1, type: "低强度", subject: null, course: null, aux: null, auxCourse: null, auxBook: null },
+    "2026-11-08": { cycle: "C1", week: 1, type: "休息", subject: null, course: null, aux: null, auxCourse: null, auxBook: null },
+    "2026-11-09": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp", aux: "c-systems-programming", auxCourse: "effective-c", auxBook: null },
+    "2026-11-10": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm", aux: "data-structures", auxCourse: null, auxBook: null },
+    "2026-11-11": { cycle: "C1", week: 1, type: "深度", subject: "discrete-math", course: "discrete-math-epp", aux: "c-systems-programming", auxCourse: null, auxBook: null },
+    "2026-11-12": { cycle: "C1", week: 1, type: "深度", subject: "programming-paradigms", course: "ctm", aux: "data-structures", auxCourse: null, auxBook: null },
   },
   lessons: {
     "2026-11-06": [{ course: "discrete-math-epp", id: "D1", content: "Ch1 全章：变量、三类陈述、集合、关系与函数" }],
@@ -283,14 +285,23 @@ const CONTROL_CALENDAR: CalendarMonth = {
     "2026-11-10": {
       records: [],
       plans: [],
-      readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 · Ch2 §2.2 · CTM" }],
+      readingDue: [
+        { slug: "ctm#讲后读-ctm-book-1", title: "讲后读 · Ch2 §2.2 · CTM", book: "ctm-book", index: 1 },
+      ],
       log: [],
       note: null,
     },
     "2026-11-11": {
       records: [],
       plans: [],
-      readingDue: [{ slug: "discrete-math-epp#讲后读-2", title: "讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）" }],
+      readingDue: [
+        {
+          slug: "discrete-math-epp#讲后读-epp-2",
+          title: "讲后读 · §1.1–1.4 · 离散数学（Epp, 5th ed）",
+          book: "epp",
+          index: 2,
+        },
+      ],
       log: [],
       note: null,
     },
@@ -330,7 +341,7 @@ export const SAMPLE_CONTROL_CARD_LIGHT = must(controlCard({
 /** 今日卡 · 「读完了」等撤销：该行变 ✓ + 「撤销 · N」。 */
 export const SAMPLE_CONTROL_CARD_PENDING = withPendingRead(SAMPLE_CONTROL_CARD, {
   slug: "discrete-math-epp",
-  labels: ["§1.1–1.4"],
+  entries: [{ book: "epp", index: 2 }],
   left: 7,
 });
 
@@ -341,6 +352,10 @@ export const SAMPLE_SHELF_TODAY: ShelfToday = {
     title: "Discrete Mathematics and Its Applications",
     short: "Epp",
     slot: "planned",
+    subject: null,
+    days: null,
+    limit: null,
+    nextDay: null,
     total: 81,
     position: 1,
     chunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 },
@@ -351,7 +366,9 @@ export const SAMPLE_SHELF_TODAY: ShelfToday = {
     plannedEnd: "2027-01-28",
     end: "2027-01-29",
     late: 1,
+    afterReads: [],
   },
+  guided: [],
   free: null,
 };
 
@@ -387,6 +404,7 @@ export const SAMPLE_CONTROL_CARD_SHELF_DONE = withExtractCount(
         doneToday: true,
         doneChunk: { index: 2, title: "Ch1 §1.1–1.4", from: 10, to: 18 },
       },
+      guided: [],
       free: null,
     },
   })),
@@ -423,6 +441,9 @@ export const SAMPLE_SHELF_LIST: ShelfListItem[] = [
       { pages: "12–15", course: "discrete-math-epp", label: "§1.3 变量与量化", date: "2026-11-09" },
       { pages: "3–5", course: "discrete-math-epp", label: "§1.1 命题形式", date: "2026-11-06" },
     ],
+    afterReads: [
+      { index: 1, label: "§1.1–1.4", pages: "1–5、7–12", course: "discrete-math-epp", date: "2026-11-11", done: false, readOn: null },
+    ],
     upcoming: [
       { index: 2, date: "2026-11-11", title: "Ch1 §1.1–1.4", from: 10, to: 18 },
       { index: 3, date: "2026-11-12", title: "Ch1 §1.5–1.8", from: 19, to: 27 },
@@ -446,6 +467,7 @@ export const SAMPLE_SHELF_LIST: ShelfListItem[] = [
     targetLate: null,
     extracts: [],
     coreRead: [],
+    afterReads: [],
     upcoming: [
       { index: 1, date: "2026-11-11", title: "Ch1 §1.1–1.5", from: 1, to: 9 },
       { index: 2, date: "2026-11-12", title: "Ch1 §1.6–1.10", from: 10, to: 18 },

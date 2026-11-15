@@ -145,7 +145,7 @@ describe("previewCells", () => {
     ...extra,
   });
 
-  it("drops a 导读课 whose subject became a main", () => {
+  it("drops a 导读 whose subject became a main", () => {
     const cells = previewCells(
       [
         day("2026-12-30", "周三", "深度", { subject: "dsa", name: "数据结构", aux: "c", auxName: "C" }),
@@ -177,7 +177,7 @@ describe("nextCyclePrompt", () => {
       shelf: [{ title: "CLRS", subjectTitle: "数据结构与算法" }],
     });
     expect(text).toContain("先开 C2，CTM 剩下的转进书房自读");
-    expect(text).toContain("数据结构与算法 用《Sedgewick》，接着导读课的进度往下讲");
+    expect(text).toContain("数据结构与算法 用《Sedgewick》，接着导读的进度往下讲");
     expect(text).toContain("C 与系统编程 的主资料先问我");
     expect(text).toContain("书房加：《CLRS》（数据结构与算法）");
     expect(text).toContain("从 2026-12-30 开始");

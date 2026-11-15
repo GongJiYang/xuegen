@@ -13,7 +13,7 @@ vi.mock("../client.js", () => ({ data: clientMock.data }));
 const TODAY = "2026-11-11";
 
 function slot(type: CycleDayType, week = 1): CycleSlot {
-  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null };
+  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null, auxBook: null };
 }
 
 const CYCLE_NOV: CycleMonth = {
@@ -138,13 +138,13 @@ describe("usePlanbook", () => {
     expect(requests("courses.list")).toHaveLength(0);
   });
 
-  it("month：只拉那一个月的 cycle.month", async () => {
+  it("month：拉那一个月的 cycle.month 和整月的 shelf.list（导读格要导读排期）", async () => {
     const state = await renderHook("month", TODAY);
     expect(state.status).toBe("ready");
     if (state.status !== "ready" || state.value.view !== "month") throw new Error("not a month result");
     expect(state.value.days).toHaveLength(30);
     expect(requests("cycle.month")).toEqual([{ kind: "cycle.month", month: "2026-11" }]);
-    expect(requests("shelf.list")).toHaveLength(0);
+    expect(requests("shelf.list")).toEqual([{ kind: "shelf.list", from: "2026-11-01", to: "2026-11-30" }]);
     expect(requests("anki.status")).toHaveLength(0);
   });
 

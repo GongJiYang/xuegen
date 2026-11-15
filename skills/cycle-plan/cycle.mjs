@@ -110,6 +110,18 @@ function subjectOf(courseText) {
   return null;
 }
 
+/** 课程页 ## Key Facts 里有「- 状态：停用（YYYY-MM-DD，…）」行 → 停用课，不再装进周期。（与 skills/course/course-parse.mjs 的 isArchived 相同，就近复制，不跨目录 import。） */
+function isArchived(text) {
+  const lines = text.split("\n");
+  const start = lines.findIndex((line) => /^##\s+Key Facts\s*$/.test(line.trim()));
+  if (start === -1) return false;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) break;
+    if (/^-\s*状态：停用（\d{4}-\d{2}-\d{2}/.test(lines[i].trim())) return true;
+  }
+  return false;
+}
+
 /** 科目页里 ## Materials 与 ## Courses 两节链接的课程：[{ slug, name }]；name 取链接别名，没有别名就是 slug。 */
 export function subjectCourses(text) {
   const found = new Map();
@@ -132,12 +144,14 @@ export function subjectCourses(text) {
 
 /**
  * 某天的情况。courses：loadCourses 的结果 Map<slug, { subject, role, name, rows, done, days }>。
+ * guidedBooks：loadGuidedBooks 的结果 Map<subject, { slug, short, status }>（可选）。
  * lessons：这天的计划行（新课与机动，不含复习；每项带 done：已写进该课「完成：」的新课次）；overdue：这天之前、没写进「完成：」的新课次。
+ * auxBook：这天辅助科目对应的导读书 slug（没有为 null）；names 里同时放它的短名。
  */
-export function dayInfo(cycle, courses, date) {
+export function dayInfo(cycle, courses, date, guidedBooks = new Map()) {
   const base = { date, weekday: WEEKDAY_ZH[weekday(date)] };
   if (!cycle) {
-    return { ...base, cycle: null, week: null, type: null, subject: null, course: null, aux: null, auxCourse: null, names: {}, subjects: {}, roles: {}, lessons: [], overdue: [] };
+    return { ...base, cycle: null, week: null, type: null, subject: null, course: null, aux: null, auxCourse: null, auxBook: null, names: {}, subjects: {}, roles: {}, lessons: [], overdue: [] };
   }
   const slot = cycle.template[weekday(date)];
   const lessons = [];
@@ -164,8 +178,10 @@ export function dayInfo(cycle, courses, date) {
   };
   const course = pick(slot.subject);
   const auxCourse = pick(slot.aux);
+  const auxBookEntry = slot.aux ? (guidedBooks.get(slot.aux) ?? null) : null;
   const roles = Object.fromEntries([...courses].map(([slug, info]) => [slug, info.role]));
   const names = Object.fromEntries([...courses].map(([slug, info]) => [slug, info.name]));
+  if (auxBookEntry) names[auxBookEntry.slug] = auxBookEntry.short;
   return {
     ...base,
     cycle: cycle.cycle,
@@ -175,6 +191,7 @@ export function dayInfo(cycle, courses, date) {
     course,
     aux: slot.aux,
     auxCourse,
+    auxBook: auxBookEntry?.slug ?? null,
     names,
     subjects: cycle.subjects,
     roles,
@@ -184,22 +201,22 @@ export function dayInfo(cycle, courses, date) {
 }
 
 /** date 所在周的 7 天。 */
-export function weekInfo(cycle, courses, date) {
+export function weekInfo(cycle, courses, date, guidedBooks = new Map()) {
   if (!cycle) return { cycle: null, week: null, start: null, end: null, days: [] };
   const week = weekOf(cycle, date);
   const start = addDays(cycle.start, (week - 1) * 7);
-  const days = Array.from({ length: 7 }, (_, index) => dayInfo(cycle, courses, addDays(start, index)));
+  const days = Array.from({ length: 7 }, (_, index) => dayInfo(cycle, courses, addDays(start, index), guidedBooks));
   return { cycle: cycle.cycle, week, start, end: addDays(start, 6), days };
 }
 
 /**
  * 一个月的周期信息：
- * { month, days: { 'YYYY-MM-DD': { cycle, week, type, subject, course, aux, auxCourse } }, lessons: { 'YYYY-MM-DD': [{ course, id, content, done }] },
+ * { month, days: { 'YYYY-MM-DD': { cycle, week, type, subject, course, aux, auxCourse, auxBook } }, lessons: { 'YYYY-MM-DD': [{ course, id, content, done }] },
  *   names: { slug: 短名 }, subjects: { 科目 slug: 短名 }, roles: { 课程 slug: "main" | "aux" }, cycles: [{ cycle, start, end }], recovery: ['YYYY-MM-DD'] }。
  * days 只含落在周期内的日子；lessons 是这些日子的计划行（新课与机动，不含复习；每项带 done：已写进该课「完成：」）；recovery 是路线页里恢复周落在本月的日子。
  * extra.courses：Map<周期名, loadCourses 的结果>；extra.route：parseRoute 的结果或 null。
  */
-export function monthInfo(cycles, month, { courses = new Map(), route = null } = {}) {
+export function monthInfo(cycles, month, { courses = new Map(), route = null, guidedBooks = new Map() } = {}) {
   const days = {};
   const lessons = {};
   const names = {};
@@ -227,6 +244,8 @@ export function monthInfo(cycles, month, { courses = new Map(), route = null } =
     }
     const ofSubject = (subject) =>
       subject ? (rows.find((row) => cycleCourseMap.get(row.course)?.subject === subject)?.course ?? null) : null;
+    const auxBookEntry = slot.aux ? (guidedBooks.get(slot.aux) ?? null) : null;
+    if (auxBookEntry) names[auxBookEntry.slug] = auxBookEntry.short;
     days[date] = {
       cycle: cycle.cycle,
       week: weekOf(cycle, date),
@@ -235,6 +254,7 @@ export function monthInfo(cycles, month, { courses = new Map(), route = null } =
       course: ofSubject(slot.subject),
       aux: slot.aux,
       auxCourse: ofSubject(slot.aux),
+      auxBook: auxBookEntry?.slug ?? null,
     };
     if (rows.length > 0) lessons[date] = rows;
   }
@@ -538,6 +558,7 @@ export async function loadCourses(vault, cycle) {
         } catch {
           continue;
         }
+        if (isArchived(text)) continue; // 停用课不进周期
         const schedule = readSchedule(text);
         if (!schedule) continue;
         if (!schedule.rows.some((row) => row.kind === "new" && cycle.start <= row.date && row.date <= cycle.end)) continue;
@@ -563,6 +584,7 @@ export async function loadCourses(vault, cycle) {
       continue;
     }
     if (!schedule) continue;
+    if (isArchived(text)) continue; // 停用课不进周期（含带过来的带读）
     const done = completedIds(text);
     const pending = schedule.rows.some(
       (row) => row.kind === "new" && cycle.start <= row.date && row.date <= cycle.end && !done.has(row.id),
@@ -595,6 +617,51 @@ async function carriedName(vault, slug, subject, text) {
   }
   const heading = /^#\s+(.+?)\s*$/m.exec(text);
   return heading ? heading[1] : slug;
+}
+
+/** 书页 frontmatter 的 `key: value`（就近复制的最小读法，与 skills/reading/bookshelf.mjs 的 frontmatter 约定一致；不 import bookshelf.mjs）。 */
+function bookFields(text) {
+  const match = /^---\n([\s\S]*?)\n---/.exec(text);
+  if (!match) return {};
+  const fields = {};
+  for (const line of match[1].split("\n")) {
+    const entry = /^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/.exec(line);
+    if (entry) fields[entry[1]] = entry[2].trim().replace(/^"(.*)"$/, "$1");
+  }
+  return fields;
+}
+
+/**
+ * 书房里的导读书（`slot: guided`）：Map<subject, { slug, short, status }>。
+ * 只收 status 为 reading / paused / queued 的（done 的书不再有排期意义）；
+ * 同一科目多本导读书取 reading 优先，再按文件名顺序。只解析 frontmatter。
+ */
+export async function loadGuidedBooks(vault) {
+  const dir = join(vault, "wiki", "shelf");
+  let names;
+  try {
+    names = await readdir(dir);
+  } catch {
+    return new Map();
+  }
+  const books = new Map();
+  for (const file of names.filter((item) => item.endsWith(".md") && item !== "index.md").sort()) {
+    let fields;
+    try {
+      fields = bookFields(await readFile(join(dir, file), "utf8"));
+    } catch {
+      continue;
+    }
+    if (fields.slot !== "guided" || !["reading", "paused", "queued"].includes(fields.status)) continue;
+    const subject = fields.subject;
+    if (!subject) continue;
+    const slug = file.slice(0, -3);
+    const entry = { slug, short: fields.short || fields.title || slug, status: fields.status };
+    const existing = books.get(subject);
+    // reading 优先，其次按文件名顺序（上面已排序，先到先留）。
+    if (!existing || (existing.status !== "reading" && entry.status === "reading")) books.set(subject, entry);
+  }
+  return books;
 }
 
 // ---- CLI ----
@@ -721,7 +788,7 @@ async function main() {
     } catch (error) {
       fail(error.message);
     }
-    const info = monthInfo(cycles, month, { courses, route });
+    const info = monthInfo(cycles, month, { courses, route, guidedBooks: await loadGuidedBooks(vault) });
     if (flags.json) {
       process.stdout.write(`${JSON.stringify(info)}\n`);
       return;
@@ -827,15 +894,17 @@ async function main() {
   if (!isValidDate(date)) fail(`--date 必须是 YYYY-MM-DD，收到 ${date}`);
   let cycle;
   let courses;
+  let guidedBooks;
   try {
     cycle = findCycle(await loadElasticCycles(vault), date);
     courses = cycle ? await loadCourses(vault, cycle) : new Map();
+    guidedBooks = await loadGuidedBooks(vault);
   } catch (error) {
     fail(error.message);
   }
 
   if (command === "day") {
-    const info = dayInfo(cycle, courses, date);
+    const info = dayInfo(cycle, courses, date, guidedBooks);
     if (flags.json) {
       process.stdout.write(`${JSON.stringify(info)}\n`);
       return;
@@ -843,11 +912,12 @@ async function main() {
     const lines = [dayLine(info)];
     for (const item of info.lessons) lines.push(`● ${item.course} ${item.id}  ${item.content}`);
     for (const item of info.overdue) lines.push(`! ${item.course} ${item.id}（${item.date}）未学  ${item.content}`);
+    if (info.auxBook) lines.push(`导读 ${info.names[info.auxBook] ?? info.auxBook}`);
     process.stdout.write(`${lines.join("\n")}\n`);
     return;
   }
 
-  const info = weekInfo(cycle, courses, date);
+  const info = weekInfo(cycle, courses, date, guidedBooks);
   if (flags.json) {
     process.stdout.write(`${JSON.stringify(info)}\n`);
     return;

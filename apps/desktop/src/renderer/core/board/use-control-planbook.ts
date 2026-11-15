@@ -15,6 +15,7 @@ import type { BoardResource } from "./use-resource.js";
 import type { CardsResource } from "./use-cards.js";
 import { useControlPanel } from "./use-control-panel.js";
 import { useTerms } from "./use-terms.js";
+import { useStudied } from "./use-studied.js";
 import { termTrail, type TermStop } from "./terms.js";
 import { activityCards } from "./activity-feed.js";
 import { planMarks, changeLine } from "./plan-diff.js";
@@ -60,6 +61,8 @@ export interface ControlPlanbookInput {
   setActiveCourse(slug: string | null): void;
   /** settings `verifiedOn` (slug → the day its 周核实 last started). */
   verifiedOn: Record<string, string>;
+  /** settings `showStudied` (whether the 总控「今天学过」row loads and shows). */
+  showStudied: boolean;
   /** The 领域 tab's subjects and opener: the 总控 panel's bottom row lists them. */
   domainSession: DomainSession;
 }
@@ -92,6 +95,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     queue: reading.queue,
     anki,
     shelf: reading.shelf,
+    courses,
     streaming: controller.streaming,
     onStudy: input.studyCourse,
     onVerify: (slug) => input.startSession(slug, verifyMessage(slug, courseTitleOf(courses, slug))),
@@ -135,6 +139,11 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
   });
   const names = cycle.today.state.status === "ready" ? cycle.today.state.value.names : NO_NAMES;
   const terms = useTerms(control.isControl, today, names);
+  const studied = useStudied(
+    control.isControl && input.showStudied,
+    today,
+    cycle.today.state.status === "ready" ? cycle.today.state.value : null,
+  );
   const turnId = lastUserId(controller.messages);
   const changes = usePlanChanges({
     enabled: control.isControl,
@@ -234,9 +243,11 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     onAskBrief: control.askBrief,
     busy: controller.streaming,
     onOpenCards: () => input.openTool("cards"),
+    onOpenShelf: () => input.openTool("reading"),
     terms,
     onOpenTerm: openTerm,
     changes: changesView,
+    studied: studied ?? [],
     weekFocus,
     domains:
       input.domainSession.subjects === null

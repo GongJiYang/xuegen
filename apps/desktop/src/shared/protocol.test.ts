@@ -235,6 +235,13 @@ describe("normalizeDesktopSettings", () => {
     expect(normalized.verifiedOn).toEqual({});
   });
 
+  it("defaults showStudied to true and keeps an explicit false", () => {
+    expect(normalizeDesktopSettings({ skin: "bare", bodyScale: 1 }).showStudied).toBe(true);
+    expect(
+      normalizeDesktopSettings({ skin: "bare", bodyScale: 1, showStudied: false }).showStudied,
+    ).toBe(false);
+  });
+
   it("keeps only real dates in courseStartedOn", () => {
     const normalized = normalizeDesktopSettings({
       skin: "bare",

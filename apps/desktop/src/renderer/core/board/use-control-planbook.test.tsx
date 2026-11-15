@@ -24,7 +24,7 @@ const TODAY = "2026-11-11";
 const NEXT_WEEK_START = "2026-11-16";
 
 function slot(type: CycleDayType, week = 1): CycleSlot {
-  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null };
+  return { cycle: "C1", week, type, subject: null, course: null, aux: null, auxCourse: null, auxBook: null };
 }
 
 const CYCLE_NOV: CycleMonth = {
@@ -62,6 +62,7 @@ function day(date = TODAY): CycleDay {
     course: "discrete-math",
     aux: null,
     auxCourse: null,
+    auxBook: null,
     names: { "discrete-math": "离散" },
     subjects: {},
     roles: { "discrete-math": "main" },
@@ -84,7 +85,7 @@ function mockClient(): void {
       case "cycle.day":
         return ok(day(request.date ?? TODAY));
       case "shelf.today":
-        return ok({ planned: null, free: null });
+        return ok({ planned: null, guided: [], free: null });
       case "shelf.list":
         return ok([]);
       case "cycle.overview":
@@ -97,6 +98,8 @@ function mockClient(): void {
         return ok([]);
       case "anki.status":
         return ok({ running: false });
+      case "sessions.studied":
+        return ok([]);
       default:
         return Promise.resolve({ ok: false, code: "script-failed", error: `unexpected ${request.kind}` });
     }
@@ -130,7 +133,7 @@ function input(overrides: Partial<ControlPlanbookInput> = {}): ControlPlanbookIn
       }),
       sources: resource([]),
       shelf: {
-        today: resource({ planned: null, free: null }),
+        today: resource({ planned: null, guided: [], free: null }),
         list: resource([]),
         done: vi.fn(),
         extract: vi.fn(),
@@ -169,6 +172,7 @@ function input(overrides: Partial<ControlPlanbookInput> = {}): ControlPlanbookIn
     openTool: vi.fn(),
     setActiveCourse: vi.fn(),
     verifiedOn: {},
+    showStudied: true,
     // The 领域 row reads the subject list; a fake keeps this assembly test free of requests.
     domainSession: { current: null, subjects: null, open: vi.fn() },
     ...overrides,
@@ -246,5 +250,14 @@ describe("useControlPlanbook 组装", () => {
     expect(hook.current().panelProps.shownToday).toBe(true);
     expect(hook.current().panelShowCard).toBe(true);
     expect(hook.current().panelProps.day?.date).toBe(TODAY);
+  });
+
+  it('panelProps.onOpenShelf() 调 openTool("reading")（批 6b-2）', async () => {
+    const openTool = vi.fn();
+    const hook = render(input({ openTool }));
+    await settle();
+    act(() => hook.current().panelProps.onOpenShelf());
+    expect(openTool).toHaveBeenCalledWith("reading");
+    expect(openTool).toHaveBeenCalledTimes(1);
   });
 });

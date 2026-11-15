@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { strings } from "./strings.js";
 
 describe("strings.planbook.lanePrefix", () => {
-  it("课后读 / 导读课 / 自读 带行名，主课不带", () => {
+  it("课后读 / 导读 / 自读 带行名，主课不带", () => {
     expect(strings.planbook.lanePrefix("main")).toBe("");
     expect(strings.planbook.lanePrefix("after")).toBe("课后读 · ");
-    expect(strings.planbook.lanePrefix("guide")).toBe("导读课 · ");
+    expect(strings.planbook.lanePrefix("guide")).toBe("导读 · ");
     expect(strings.planbook.lanePrefix("self")).toBe("自读 · ");
   });
 });

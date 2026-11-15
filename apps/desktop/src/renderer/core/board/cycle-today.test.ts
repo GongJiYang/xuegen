@@ -23,6 +23,7 @@ function day(overrides: Partial<CycleDay>): CycleDay {
     course: "epp",
     aux: null,
     auxCourse: null,
+    auxBook: null,
     names: NAMES,
     subjects: {},
     roles: { epp: "main", ctm: "main" },

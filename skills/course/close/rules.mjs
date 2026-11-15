@@ -7,6 +7,7 @@
 import { posix } from "node:path";
 import { parseCourse } from "../course-parse.mjs";
 import { completedIds, readSchedule } from "../course-schedule.mjs";
+import { AFTER_HEADING, parseAfterReads } from "../../reading/shelf-after.mjs";
 
 const COURSE_PAGE_MAX_LINES = 200;
 const PREF_HEADING_RE = /^##\s+讲解偏好\s*$/;
@@ -36,6 +37,11 @@ export function subjectOf(courseText) {
   return null;
 }
 
+/** 课程页正文里第一个 [[shelf/<书>]] 链接的 <书>（正则同 course-state.mjs）；没有返回 null。 */
+export function bookOf(courseText) {
+  return /\[\[shelf\/([^\]|]+)/.exec(courseText)?.[1] ?? null;
+}
+
 /**
  * 这门课允许写入的库内路径（见设计「校验 1」）。返回字符串数组：
  * 以 "/" 结尾的是目录前缀，其余是必须精确相等的文件路径。新旧两种布局都列。
@@ -46,14 +52,18 @@ export function subjectOf(courseText) {
  * 收课暂存也含 `wiki/subjects/<subject>.md`：用户 2026-11-08 要求课上说的「以后讲
  * 离散都…」当场记进本科目页。那不是放开整页写入——`planCheck` 只许改
  * 「## 讲解偏好」一节（见 checkSubjectPreference），别的行一行都不能动。
+ *
+ * book 非 null 时两种 kind 都加 `wiki/shelf/<book>.md`（收敛 A2：课后读写进
+ * 本课链着的书页，planCheck 只许改它的「## 课后读」一节，见 checkAfterReadSection）。
  */
-export function ownedPrefixes(slug, subject, kind = "close") {
+export function ownedPrefixes(slug, subject, kind = "close", book = null) {
   const owned = [
     `wiki/courses/${slug}.md`,
     `wiki/courses/${slug}/`,
     "wiki/index.md",
     "wiki/log.md",
   ];
+  if (book !== null) owned.push(`wiki/shelf/${book}.md`);
   if (kind === "plan") {
     if (subject) owned.push(`wiki/subjects/${subject}.md`);
     return owned;
@@ -87,9 +97,9 @@ export function isSafeRelPath(path) {
 }
 
 /** path 为库内相对路径（posix 分隔符）；不安全或不属于本课时返回 false。 */
-export function isOwned(path, slug, subject, kind = "close") {
+export function isOwned(path, slug, subject, kind = "close", book = null) {
   if (!isSafeRelPath(path)) return false;
-  for (const entry of ownedPrefixes(slug, subject, kind)) {
+  for (const entry of ownedPrefixes(slug, subject, kind, book)) {
     if (entry.endsWith("/") ? path.startsWith(entry) : path === entry) return true;
   }
   return false;
@@ -202,6 +212,106 @@ export function checkSubjectPreference(baseText, newText) {
       : section.lines.slice(section.start + 1, section.end).filter((line) => line.trim() !== "").length;
   if (count > PREF_MAX_LINES) {
     problems.push({ kind: "subject-lines", detail: `讲解偏好不超过 ${PREF_MAX_LINES} 行（现在 ${count} 行）` });
+  }
+  return problems;
+}
+
+const AFTER_HEADING_RE = /^##\s+课后读\s*$/;
+// 课程页里「讲后读」待办行：收敛后一律写进书页（course_close after-read），课程页不许新写。
+const AFTER_TODO_RE = /^\s*-\s+\[[ xX]\]\s+讲后读/;
+
+/** text 里「## 课后读」一节的 { lines, start: 标题行下标, end: 下一个 ## 的下标或行数 }；没有返回 null。 */
+function afterSection(text) {
+  const lines = text.split("\n");
+  const start = lines.findIndex((line) => AFTER_HEADING_RE.test(line.trim()));
+  if (start === -1) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return { lines, start, end };
+}
+
+/** 去掉「## 课后读」一节后的行（节不存在就是全文的行），用来逐行比对节外内容。 */
+function linesOutsideAfter(text) {
+  const section = afterSection(text);
+  const lines = text.split("\n");
+  if (section === null) return lines;
+  return [...lines.slice(0, section.start), ...lines.slice(section.end)];
+}
+
+/** 「## 课后读」一节里的非空行（不含标题）。节不存在返回 []。 */
+function afterSectionRows(text) {
+  const section = afterSection(text);
+  if (section === null) return [];
+  return section.lines.slice(section.start + 1, section.end).filter((line) => line.trim() !== "");
+}
+
+/**
+ * 收课/计划暂存的书页校验（收敛 A2：课后读写进本课链着的书页）：
+ * 照 checkSubjectPreference 的写法——只有「## 课后读」标题行到下一个 `## ` 之间的内容
+ * 可以变，节外每一行必须与基线完全相同；基线没有这一节时等于「插了一节」，
+ * 去掉新节后的行必须与基线逐行相同（addAfterRead 把新节插在「## 排期」之后、
+ * 不是文末，所以这里不能用 log.md 那种纯追加规则）。整节删掉不允许。
+ * 这一节里新出现的非空行（相对基线按多重集比）必须能被 parseAfterReads 认出来。
+ * 返回 [{ kind: "shelf-scope", detail }]（空 = 通过）。
+ */
+export function checkAfterReadSection(baseText, newText) {
+  const problems = [];
+  if (afterSection(baseText) !== null && afterSection(newText) === null) {
+    problems.push({ kind: "shelf-scope", detail: "收课只能改书页的「课后读」一节（不能整节删掉）" });
+  } else {
+    const before = linesOutsideAfter(baseText);
+    const after = linesOutsideAfter(newText);
+    const sameOutside = before.length === after.length && before.every((line, index) => line === after[index]);
+    if (!sameOutside) {
+      problems.push({ kind: "shelf-scope", detail: "收课只能改书页的「课后读」一节" });
+    }
+  }
+  // 节里新出现的非空行必须能被 parseAfterReads 认出来（删行、原样行、挪位置都不算新）。
+  const baseRows = new Map();
+  for (const row of afterSectionRows(baseText)) {
+    baseRows.set(row, (baseRows.get(row) ?? 0) + 1);
+  }
+  for (const row of afterSectionRows(newText)) {
+    const count = baseRows.get(row) ?? 0;
+    if (count > 0) {
+      baseRows.set(row, count - 1);
+      continue;
+    }
+    if (parseAfterReads([AFTER_HEADING, row]).length === 0) {
+      problems.push({ kind: "shelf-scope", detail: `课后读这一行格式不对：${row.trim()}` });
+    }
+  }
+  return problems;
+}
+
+/**
+ * 课程页不许新写「讲后读」待办行（收敛 A2：课后读改用 course_close after-read 写进书页）。
+ * 基线里已有的旧行不算（迁移前不拦），删掉旧行允许——按行做多重集比较，
+ * 只有 staged 比 base 多出来的、形状是 `- [ ]/- [x] 讲后读…` 的行才报。
+ * 返回 [{ kind: "course-page", detail }]（空 = 通过）；baseText 为 null 时全部算新加。
+ */
+export function checkNoNewAfterReadLines(baseText, newText) {
+  const left = new Map();
+  for (const line of (baseText ?? "").split("\n")) {
+    const key = line.trim();
+    if (key === "") continue;
+    left.set(key, (left.get(key) ?? 0) + 1);
+  }
+  const problems = [];
+  for (const line of newText.split("\n")) {
+    const key = line.trim();
+    if (key !== "" && (left.get(key) ?? 0) > 0) {
+      left.set(key, left.get(key) - 1);
+      continue;
+    }
+    if (AFTER_TODO_RE.test(line)) {
+      problems.push({ kind: "course-page", detail: "课后读不再写进课程页，用 course_close after-read 写进书页" });
+    }
   }
   return problems;
 }
@@ -414,7 +524,9 @@ export function planCheck(manifest, staged, current) {
     const inBase = Object.prototype.hasOwnProperty.call(manifest.base, path);
     const cur = current.get(path);
     const subjectPage = manifest.subject ? path === `wiki/subjects/${manifest.subject}.md` : false;
-    if (!isOwned(path, manifest.slug, manifest.subject, manifest.kind ?? "close")) {
+    const book = manifest.book ?? null;
+    const bookPage = book !== null && path === `wiki/shelf/${book}.md`;
+    if (!isOwned(path, manifest.slug, manifest.subject, manifest.kind ?? "close", book)) {
       problems.push({ path, kind: "owner", detail: "路径不属于这门课，不能写入" });
       continue;
     }
@@ -439,6 +551,11 @@ export function planCheck(manifest, staged, current) {
         for (const detail of checkCoursePage(item.text, manifest.slug)) {
           problems.push({ path, kind: "course-page", detail });
         }
+        // 收敛 A2：课程页不许新写「讲后读」待办行。基线取库里当前那份（同科目页的写法）。
+        const baseText = inBase && cur && typeof cur.text === "string" ? cur.text : null;
+        for (const problem of checkNoNewAfterReadLines(baseText, item.text)) {
+          problems.push({ path, ...problem });
+        }
       } else if (isArchiveRecord(manifest.slug, path) && (manifest.kind ?? "close") === "plan") {
         // 计划暂存不许往归档记录里新加「完成：」行：完成状态只能由课程页来（收课时整条记录
         // 连完成行一起搬过去，所以收课暂存不受这条限制）。库里没有这份记录时按空文本比。
@@ -460,6 +577,22 @@ export function planCheck(manifest, staged, current) {
         }
         if (leftover.length > 0) {
           problems.push({ path, kind: "archive-record", detail: "归档记录只能原样搬进来，不能新加完成行" });
+        }
+      } else if (bookPage) {
+        // 本课链着的书页（close 与 plan 都限）：只许改「## 课后读」一节
+        // （checkAfterReadSection），且节里新加的行必须能被 parseAfterReads 认出来。
+        // 基线文本取库里的那份：冲突检查已保证它与 stage 时的基线一致。
+        const baseText = inBase && cur && typeof cur.text === "string" ? cur.text : null;
+        if (baseText === null) {
+          problems.push({
+            path,
+            kind: "shelf-scope",
+            detail: "书页不在暂存基线里：先用 add 把书页复制进暂存再改",
+          });
+          continue;
+        }
+        for (const problem of checkAfterReadSection(baseText, item.text)) {
+          problems.push({ path, ...problem });
         }
       } else if (subjectPage && (manifest.kind ?? "close") !== "plan") {
         // 收课暂存的本科目页：只许改「## 讲解偏好」一节（计划暂存不设此限，总控能改整页）。

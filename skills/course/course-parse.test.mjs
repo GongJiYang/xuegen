@@ -18,6 +18,8 @@ import {
   isTask,
   isTaskDone,
   hasMarker,
+  isArchived,
+  archivedDate,
 } from "./course-parse.mjs";
 
 const run = promisify(execFile);
@@ -179,6 +181,7 @@ test("list --json：跳过无标记文件、按 slug 排序、字段完整", asy
   );
   const ctm = entries[0];
   assert.deepEqual(Object.keys(ctm).sort(), [
+    "archived",
     "changedAt",
     "file",
     "lastRecord",
@@ -272,4 +275,34 @@ test("findSection：前缀后必须紧跟括号或空白，`## This Weekend` 不
   assert.equal(findSection(parsed.sections, "This Week").name, "This Week（W1）");
   assert.equal(parsed.week.length, 1);
   assert.equal(parsed.week[0].label, "本周");
+});
+
+test("isArchived：Key Facts 里有「- 状态：停用（…）」为真；没有或写在别的节为假", () => {
+  const archived = [
+    "<!-- xuegen:course-state -->",
+    "# 算法课",
+    "## Key Facts",
+    "- 当前周：W3",
+    "- 状态：停用（2026-11-15，改为只陪读）",
+    "## This Week",
+    "- [ ] 活动",
+  ].join("\n");
+  assert.equal(isArchived(archived), true);
+  assert.equal(archivedDate(archived), "2026-11-15");
+
+  assert.equal(isArchived(FULL), false, "没有停用行");
+  assert.equal(
+    isArchived("# 课\n## Overview\n- 状态：停用（2026-11-15，x）\n## Key Facts\n- 当前周：W1\n"),
+    false,
+    "写在别的节不算",
+  );
+  assert.equal(
+    isArchived("# 课\n## Key Facts\n- 状态：进行中\n"),
+    false,
+    "状态：进行中不算",
+  );
+
+  const course = parseCourse(archived, "x");
+  assert.equal(course.archived, true);
+  assert.equal(toListEntry(course).archived, true);
 });

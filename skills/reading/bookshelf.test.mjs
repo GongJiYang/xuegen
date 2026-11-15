@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bookshelf.mjs 的测试：使用 node:test + node:assert，无第三方依赖。
 // 每个测试在 os.tmpdir() 下建临时 Wiki，不触碰真实库。
-import { test } from "node:test";
+import { test, skip } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -9,7 +9,7 @@ import { symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import {
   bookView,
@@ -35,10 +35,14 @@ async function makeVault() {
 
 // expectFail: true 时命令必须非零退出。成功 / 失败的判断放在 try 外面——`assert.fail`
 // 写在 try 里会被同一个 catch 吞掉，命令成功时也当成「失败了」返回，测试就空转。
-async function b(args, { expectFail = false } = {}) {
+// env 透传给子进程（jj 用例要设 JJ_CONFIG 才能提交）。
+async function b(args, { expectFail = false, env = {} } = {}) {
   let result;
   try {
-    const { stdout } = await run("node", [SCRIPT, ...args], { encoding: "utf8" });
+    const { stdout } = await run("node", [SCRIPT, ...args], {
+      encoding: "utf8",
+      env: { ...process.env, ...env },
+    });
     result = { ok: true, code: 0, stdout };
   } catch (error) {
     result = { ok: false, code: error.code ?? 1, stderr: error.stderr ?? "", stdout: error.stdout ?? "" };
@@ -49,8 +53,8 @@ async function b(args, { expectFail = false } = {}) {
   return result;
 }
 
-async function jsonB(args) {
-  const { stdout } = await b([...args, "--json"]);
+async function jsonB(args, opts = {}) {
+  const { stdout } = await b([...args, "--json"], opts);
   return JSON.parse(stdout);
 }
 
@@ -273,6 +277,7 @@ test("today：书房目录不存在时返回 {planned:null, free:null}", async (
   assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-09"]), {
     planned: null,
     free: null,
+    guided: [],
   });
   assert.deepEqual(await jsonB(["list", vault]), []);
   await rm(vault, { recursive: true, force: true });
@@ -749,156 +754,7 @@ test("bookView.doneToday：读完最后一段当天仍 true，chunk 为 null、d
   assert.equal(bookView(page, "2026-11-11").doneToday, false);
 });
 
-// ---- lecture ----
-
-test("lecture：追加读书记录与核心页行，不改 position/status", async () => {
-  const vault = await makeVault();
-  const file = await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const result = await jsonB([
-    "lecture", vault, "epp",
-    "--label", "§1.1 核心页",
-    "--course", "discrete-math-epp",
-    "--pages", "1–5、7-12",
-    "--today", "2026-11-10",
-  ]);
-  assert.deepEqual(result, {
-    slug: "epp",
-    label: "§1.1 核心页",
-    course: "discrete-math-epp",
-    pages: "1–5、7–12",
-    already: false,
-  });
-  const page = await readFile(file, "utf8");
-  assert.match(page, /^- 2026-11-10: 讲后读 §1\.1 核心页 已读（discrete-math-epp，用户自报）$/m);
-  assert.match(page, /^- pp\.1–5、7–12 · discrete-math-epp · §1\.1 核心页 · 2026-11-10$/m);
-  assert.match(page, /^position: 0$/m, "lecture 不改 position");
-  assert.match(page, /^status: reading$/m, "lecture 不改 status");
-  // 节顺序：讲后读已读 → 摘录 → 读书记录
-  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"));
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：不给 --pages 时只记读书记录，pages 为 null", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const result = await jsonB([
-    "lecture", vault, "epp", "--label", "§1.2", "--course", "discrete-math-epp", "--today", "2026-11-10",
-  ]);
-  assert.equal(result.pages, null);
-  const page = await readBook(vault, "epp");
-  assert.match(page, /^- 2026-11-10: 讲后读 §1\.2 已读（discrete-math-epp，用户自报）$/m);
-  assert.ok(!page.includes("## 讲后读已读"), "不给 --pages 不应新建讲后读已读一节");
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：非法 label / course / pages 报错，文件不变", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const before = await readBook(vault, "epp");
-  const bad = [
-    ["--label", "§1.1", "--course", "Discrete_Math"],
-    ["--label", "§1.1", "--course", ""],
-    ["--label", "§1.1", "--course", "ok-course", "--pages", "附录、pp.3"],
-    ["--label", "§1.1\n第二行", "--course", "ok-course"],
-    ["--label", "x".repeat(201), "--course", "ok-course"],
-  ];
-  for (const extra of bad) {
-    const fail = await b(["lecture", vault, "epp", ...extra, "--today", "2026-11-10"], { expectFail: true });
-    assert.match(fail.stderr, /非法/, extra.join(" "));
-  }
-  assert.equal(await readBook(vault, "epp"), before);
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：标签带「讲后读」前缀时不再重复加前缀", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const withPrefix = await jsonB([
-    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--today", "2026-11-11",
-  ]);
-  assert.equal(withPrefix.already, false);
-  const plain = await jsonB([
-    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--pages", "3-5", "--today", "2026-11-12",
-  ]);
-  assert.equal(plain.already, false);
-  const page = await readBook(vault, "epp");
-  assert.match(page, /^- 2026-11-11: 讲后读 D1 已读（discrete-math-epp，用户自报）$/m);
-  assert.doesNotMatch(page, /讲后读 讲后读/, page);
-  assert.match(page, /^- 2026-11-12: 讲后读 D1 已读（discrete-math-epp，用户自报）$/m);
-  assert.match(page, /^- pp\.3–5 · discrete-math-epp · D1 · 2026-11-12$/m, "核心页行也不带前缀");
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：同课同页已记过时不再记（文件字节不变，already: true）", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const first = await jsonB([
-    "lecture", vault, "epp", "--label", "§1.1 核心页", "--course", "discrete-math-epp", "--pages", "1–5、7-12", "--today", "2026-11-10",
-  ]);
-  assert.equal(first.already, false);
-  const before = await readBook(vault, "epp");
-
-  // 页码串规范化后相同（空白不同、连接号换成 `-`），标签不同也算记过。
-  const again = await jsonB([
-    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--pages", " 1-5、7 – 12 ", "--today", "2026-11-11",
-  ]);
-  assert.equal(again.already, true);
-  assert.equal(await readBook(vault, "epp"), before, "重复 lecture 不应改动文件");
-
-  const text = await b([
-    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--pages", "1–5、7–12", "--today", "2026-11-11",
-  ]);
-  assert.match(text.stdout, /已记过/);
-  assert.match(text.stdout, /不再记/);
-  assert.equal(await readBook(vault, "epp"), before);
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：不同 course 或不同 pages 仍照常追加", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  await jsonB([
-    "lecture", vault, "epp", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
-  ]);
-  const otherCourse = await jsonB([
-    "lecture", vault, "epp", "--label", "§1.1", "--course", "linear-algebra", "--pages", "1–5", "--today", "2026-11-11",
-  ]);
-  assert.equal(otherCourse.already, false);
-  const otherPages = await jsonB([
-    "lecture", vault, "epp", "--label", "§1.2", "--course", "discrete-math-epp", "--pages", "6–9", "--today", "2026-11-12",
-  ]);
-  assert.equal(otherPages.already, false);
-  const page = await readBook(vault, "epp");
-  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
-  assert.match(page, /^- pp\.1–5 · linear-algebra · §1\.1 · 2026-11-11$/m);
-  assert.match(page, /^- pp\.6–9 · discrete-math-epp · §1\.2 · 2026-11-12$/m);
-  await rm(vault, { recursive: true, force: true });
-});
-
-test("lecture：不给 --pages 时按读书记录里的同课同标签查重", async () => {
-  const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  const first = await jsonB([
-    "lecture", vault, "epp", "--label", "D1", "--course", "discrete-math-epp", "--today", "2026-11-10",
-  ]);
-  assert.equal(first.already, false);
-  const before = await readBook(vault, "epp");
-  const again = await jsonB([
-    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--today", "2026-11-11",
-  ]);
-  assert.equal(again.already, true, "同课同标签的讲后读已读行 → 不再记");
-  assert.equal(await readBook(vault, "epp"), before);
-
-  const otherCourse = await jsonB([
-    "lecture", vault, "epp", "--label", "D1", "--course", "linear-algebra", "--today", "2026-11-11",
-  ]);
-  assert.equal(otherCourse.already, false);
-  const page = await readBook(vault, "epp");
-  assert.match(page, /^- 2026-11-11: 讲后读 D1 已读（linear-algebra，用户自报）$/m);
-  await rm(vault, { recursive: true, force: true });
-});
-
-// ---- 讲后读已读：新标题 + 旧标题兼容 ----
+// ---- 讲后读已读：旧标题兼容 ----
 
 /** 手写的旧式书页：只有 `## 核心页已读` 一节（旧标题）+ 读书记录。 */
 async function writeLegacyBook(vault, slug = "epp") {
@@ -922,20 +778,6 @@ async function writeLegacyBook(vault, slug = "epp") {
   );
 }
 
-test("lecture：新书页写 `## 讲后读已读`，不再出现 `## 核心页已读`", async () => {
-  const vault = await makeVault();
-  const file = await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
-  await jsonB([
-    "lecture", vault, "epp", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
-  ]);
-  const page = await readFile(file, "utf8");
-  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
-  assert.ok(!page.includes("## 核心页已读"), "新写入不应再用旧标题");
-  assert.match(page, /^- pp\.1–5 · discrete-math-epp · §1\.1 · 2026-11-10$/m);
-  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"), "讲后读已读在读书记录之前");
-  await rm(vault, { recursive: true, force: true });
-});
-
 test("旧书页 `## 核心页已读`：list.coreRead 与 today.coreOverlap 照常读", async () => {
   const vault = await makeVault();
   await writeLegacyBook(vault);
@@ -953,39 +795,163 @@ test("旧书页 `## 核心页已读`：list.coreRead 与 today.coreOverlap 照�
   await rm(vault, { recursive: true, force: true });
 });
 
-test("旧书页再 lecture（不同页码）：旧标题改名，只有一节，旧行新行都在", async () => {
+// ---- after add / done：书页 `## 课后读` ----
+
+test("after add：写一行进 `## 课后读`；同课同标签再加是更新；index.md 重画", async () => {
   const vault = await makeVault();
-  await writeLegacyBook(vault);
-  const result = await jsonB([
-    "lecture", vault, "epp", "--label", "§1.2", "--course", "discrete-math-epp", "--pages", "21–30", "--today", "2026-11-11",
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const first = await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§1.1–1.4", "--pages", "1–5、7-12", "--course", "discrete-math-epp",
+    "--date", "2026-11-10", "--today", "2026-11-10",
   ]);
-  assert.equal(result.already, false);
+  assert.deepEqual(first, { slug: "epp", index: 1, updated: false, committed: "skipped" });
+  assert.ok(
+    existsSync(join(vault, "wiki", "shelf", "index.md")),
+    "after add 后应重画 index.md",
+  );
+  const second = await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§1.1–1.4", "--pages", "13–15", "--course", "discrete-math-epp",
+    "--date", "2026-11-12", "--today", "2026-11-12",
+  ]);
+  assert.deepEqual(second, { slug: "epp", index: 1, updated: true, committed: "skipped" });
   const page = await readBook(vault, "epp");
-  assert.ok(!page.includes("## 核心页已读"), `旧标题应已改名：\n${page}`);
-  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1, "只应有一节");
-  // 旧行在前、新行在后，中间不被别的内容穿插。
-  const oldLine = page.indexOf("- pp.11–20 · discrete-math-epp · §1.1 核心页 · 2026-11-08");
-  const newLine = page.indexOf("- pp.21–30 · discrete-math-epp · §1.2 · 2026-11-11");
-  assert.ok(oldLine !== -1 && newLine !== -1);
-  assert.ok(oldLine < newLine, "旧行应保留在新行之前");
-  assert.ok(page.indexOf("## 讲后读已读") < oldLine);
-  assert.ok(newLine < page.indexOf("## 读书记录"), "两行都在讲后读已读一节里");
+  assert.equal(page.match(/^## 课后读$/gm).length, 1);
+  assert.equal(page.match(/^- \[[ x]\] /gm).length, 1, "只应有一行课后读");
+  assert.match(
+    page,
+    /^- \[ \] §1\.1–1\.4 · pp\.13–15 · discrete-math-epp · 2026-11-12$/m,
+    "页码与日期是第二次的",
+  );
+  assert.ok(page.indexOf("## 课后读") < page.indexOf("## 读书记录"), "课后读在读书记录之前");
   assert.doesNotMatch(page, /\n\n\n/, page);
-  // 改名后的旧行仍能被读出来。
-  const list = await jsonB(["list", vault, "--today", "2026-11-11"]);
-  assert.equal(list[0].coreRead.length, 2);
   await rm(vault, { recursive: true, force: true });
 });
 
-test("旧书页同课同页再 lecture：旧标题下也算已记过，文件不变", async () => {
+test("after add：非法参数报错且书页不变；子命令缺失或未知报错", async () => {
   const vault = await makeVault();
-  await writeLegacyBook(vault);
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
   const before = await readBook(vault, "epp");
-  const again = await jsonB([
-    "lecture", vault, "epp", "--label", "讲后读 D1", "--course", "discrete-math-epp", "--pages", "11-20", "--today", "2026-11-11",
+  const bad = [
+    ["after", "add", vault, "epp", "--pages", "1–5", "--course", "dm", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--course", "dm", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--pages", "1–5", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--pages", "1–5", "--course", "dm"],
+    ["after", "add", vault, "epp", "--label", "含 · 中点", "--pages", "1–5", "--course", "dm", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--pages", "附录", "--course", "dm", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--pages", "1–5", "--course", "Bad_Course", "--date", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1", "--pages", "1–5", "--course", "dm", "--date", "11-10"],
+  ];
+  for (const args of bad) {
+    const fail = await b(args, { expectFail: true });
+    assert.match(fail.stderr, /需要 --|非法/, args.join(" "));
+  }
+  for (const args of [["after", vault, "epp"], ["after", "wat", vault, "epp"], ["after"]]) {
+    const fail = await b(args, { expectFail: true });
+    assert.match(fail.stderr, /after/, args.join(" "));
+  }
+  assert.equal(await readBook(vault, "epp"), before, "报错不应改动书页");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("after done：行变 [x] 写「读于」、读书记录加一行；再勾与越界都报错", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§1.1", "--pages", "1–5", "--course", "discrete-math-epp",
+    "--date", "2026-11-10", "--today", "2026-11-10",
   ]);
-  assert.equal(again.already, true);
-  assert.equal(await readBook(vault, "epp"), before, "重复 lecture 不应改动文件");
+  await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§2.3", "--pages", "66–75", "--course", "discrete-math-epp",
+    "--date", "2026-11-12", "--today", "2026-11-12",
+  ]);
+  const done = await jsonB(["after", "done", vault, "epp", "--index", "2", "--today", "2026-11-17"]);
+  assert.deepEqual(done, {
+    slug: "epp",
+    index: 2,
+    label: "§2.3",
+    pages: "66–75",
+    course: "discrete-math-epp",
+    readOn: "2026-11-17",
+    committed: "skipped",
+  });
+  const page = await readBook(vault, "epp");
+  assert.match(
+    page,
+    /^- \[x\] §2\.3 · pp\.66–75 · discrete-math-epp · 2026-11-12 · 读于 2026-11-17$/m,
+  );
+  assert.match(
+    page,
+    /^- \[ \] §1\.1 · pp\.1–5 · discrete-math-epp · 2026-11-10$/m,
+    "别行不动",
+  );
+  assert.match(page, /^- 2026-11-17: 课后读 §2\.3 已读（discrete-math-epp）$/m);
+
+  const again = await b(
+    ["after", "done", vault, "epp", "--index", "2", "--today", "2026-11-18"],
+    { expectFail: true },
+  );
+  assert.match(again.stderr, /已经记过/);
+  const outOfRange = await b(
+    ["after", "done", vault, "epp", "--index", "5", "--today", "2026-11-18"],
+    { expectFail: true },
+  );
+  assert.match(outOfRange.stderr, /没有第 5 条课后读/);
+  const badIndex = await b(
+    ["after", "done", vault, "epp", "--index", "x", "--today", "2026-11-18"],
+    { expectFail: true },
+  );
+  assert.match(badIndex.stderr, /--index 非法/);
+  const noIndex = await b(["after", "done", vault, "epp", "--today", "2026-11-18"], {
+    expectFail: true,
+  });
+  assert.match(noIndex.stderr, /--index/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("after：list / today --json 里有 afterReads", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§1.1", "--pages", "1–5", "--course", "discrete-math-epp",
+    "--date", "2026-11-10", "--today", "2026-11-10",
+  ]);
+  const expected = [
+    {
+      index: 1,
+      label: "§1.1",
+      pages: "1–5",
+      course: "discrete-math-epp",
+      date: "2026-11-10",
+      done: false,
+      readOn: null,
+    },
+  ];
+  const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
+  assert.deepEqual(list[0].afterReads, expected);
+  const today = await jsonB(["today", vault, "--today", "2026-11-10"]);
+  assert.deepEqual(today.planned.afterReads, expected);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("after：coreOverlap 把已勾课后读的页也算进「读过了」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await jsonB([
+    "after", "add", vault, "epp",
+    "--label", "§1.1", "--pages", "1–5", "--course", "discrete-math-epp",
+    "--date", "2026-11-10", "--today", "2026-11-10",
+  ]);
+  // 未勾的行不算已读：今天这段 pp.1–9 没有重叠。
+  const before = await jsonB(["today", vault, "--today", "2026-11-10"]);
+  assert.equal(before.planned.coreOverlap, null);
+  await jsonB(["after", "done", vault, "epp", "--index", "1", "--today", "2026-11-11"]);
+  const after = await jsonB(["today", vault, "--today", "2026-11-11"]);
+  assert.equal(after.planned.coreOverlap, "pp.1–5");
   await rm(vault, { recursive: true, force: true });
 });
 
@@ -995,11 +961,11 @@ test("extract：换行折成空格，返回新行序号", async () => {
   const vault = await makeVault();
   await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
   const first = await jsonB(["extract", vault, "epp", "--page", "5", "--text", "逆否命题等价。", "--today", "2026-11-10"]);
-  assert.deepEqual(first, { slug: "epp", index: 1, page: 5, text: "逆否命题等价。" });
+  assert.deepEqual(first, { slug: "epp", index: 1, page: 5, text: "逆否命题等价。", committed: "skipped" });
   const second = await jsonB([
     "extract", vault, "epp", "--page", "11", "--text", "条件命题\n  只在 p 真 q 假时为假。\n", "--today", "2026-11-10",
   ]);
-  assert.deepEqual(second, { slug: "epp", index: 2, page: 11, text: "条件命题 只在 p 真 q 假时为假。" });
+  assert.deepEqual(second, { slug: "epp", index: 2, page: 11, text: "条件命题 只在 p 真 q 假时为假。", committed: "skipped" });
   const page = await readBook(vault, "epp");
   assert.match(page, /^- p\.5: 逆否命题等价。 #待做卡$/m);
   assert.ok(!page.includes("\n\n\n"), `不应出现连续空行：\n${page}`);
@@ -1036,11 +1002,11 @@ test("card：标记 #待做卡 → #卡/<today>；重复请求进 skipped；越�
   await jsonB(["extract", vault, "epp", "--page", "5", "--text", "甲", "--today", "2026-11-10"]);
   await jsonB(["extract", vault, "epp", "--page", "6", "--text", "乙", "--today", "2026-11-10"]);
   const marked = await jsonB(["card", vault, "epp", "--index", "1", "--today", "2026-11-10"]);
-  assert.deepEqual(marked, { slug: "epp", marked: [1], skipped: [] });
+  assert.deepEqual(marked, { slug: "epp", marked: [1], skipped: [], committed: "skipped" });
   const again = await jsonB(["card", vault, "epp", "--index", "1", "--today", "2026-11-11"]);
-  assert.deepEqual(again, { slug: "epp", marked: [], skipped: [1] });
+  assert.deepEqual(again, { slug: "epp", marked: [], skipped: [1], committed: "skipped" });
   const both = await jsonB(["card", vault, "epp", "--index", "1,2", "--today", "2026-11-11"]);
-  assert.deepEqual(both, { slug: "epp", marked: [2], skipped: [1] });
+  assert.deepEqual(both, { slug: "epp", marked: [2], skipped: [1], committed: "skipped" });
 
   const page = await readBook(vault, "epp");
   assert.match(page, /^- p\.5: 甲 #卡\/2026-11-10$/m);
@@ -1077,7 +1043,7 @@ test("card：摘录中间夹着不合格式的行时序号仍按匹配行计", a
     ].join("\n"),
   );
   const result = await jsonB(["card", vault, "mixed", "--index", "2", "--today", "2026-11-10"]);
-  assert.deepEqual(result, { slug: "mixed", marked: [2], skipped: [] });
+  assert.deepEqual(result, { slug: "mixed", marked: [2], skipped: [], committed: "skipped" });
   const page = await readBook(vault, "mixed");
   assert.match(page, /^- p\.5: 第一条 #待做卡$/m, "第 1 条不应被改");
   assert.match(page, /^- p\.7: 第二条 #卡\/2026-11-10$/m);
@@ -1089,11 +1055,26 @@ test("card：摘录中间夹着不合格式的行时序号仍按匹配行计", a
 
 test("list：带 extracts 与 coreRead", async () => {
   const vault = await makeVault();
-  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  await writeBook(
+    vault,
+    "epp",
+    EPP_FIELDS,
+    [
+      "# Epp",
+      "",
+      "## 分段",
+      "1. Ch1 pp.1–36",
+      "2. Ch2 pp.37–65",
+      "",
+      "## 讲后读已读",
+      "",
+      "- pp.1–5 · discrete-math-epp · §1.1 · 2026-11-10",
+      "",
+      "## 读书记录",
+      "",
+    ].join("\n"),
+  );
   await jsonB(["extract", vault, "epp", "--page", "5", "--text", "甲", "--today", "2026-11-10"]);
-  await jsonB([
-    "lecture", vault, "epp", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
-  ]);
   const list = await jsonB(["list", vault, "--today", "2026-11-10"]);
   assert.equal(list.length, 1);
   assert.deepEqual(list[0].extracts, [{ index: 1, page: 5, text: "甲", carded: null }]);
@@ -1165,18 +1146,22 @@ test("list：status 为 done 的书 upcoming 是空数组", async () => {
   await rm(vault, { recursive: true, force: true });
 });
 
-test("反复 lecture / extract 不累积空行，节顺序始终一致", async () => {
+test("反复 after add / extract 不累积空行，节顺序始终一致", async () => {
   const vault = await makeVault();
   await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
   for (let i = 0; i < 3; i += 1) {
     await b(["extract", vault, "epp", "--page", String(i + 1), "--text", `第 ${i + 1} 句`, "--today", "2026-11-10"]);
-    await b(["lecture", vault, "epp", "--label", `§1.${i}`, "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10"]);
+    await b([
+      "after", "add", vault, "epp",
+      "--label", `§1.${i}`, "--pages", "1–5", "--course", "discrete-math-epp",
+      "--date", "2026-11-10", "--today", "2026-11-10",
+    ]);
   }
   const page = await readBook(vault, "epp");
   assert.doesNotMatch(page, /\n\n\n/, `不应出现连续空行：\n${page}`);
-  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 摘录"), "讲后读已读在摘录之前");
+  assert.ok(page.indexOf("## 课后读") < page.indexOf("## 摘录"), "课后读在摘录之前");
   assert.ok(page.indexOf("## 摘录") < page.indexOf("## 读书记录"), "摘录在读书记录之前");
-  assert.equal(page.match(/^## 讲后读已读$/gm).length, 1);
+  assert.equal(page.match(/^## 课后读$/gm).length, 1);
   assert.equal(page.match(/^## 摘录$/gm).length, 1);
   await rm(vault, { recursive: true, force: true });
 });
@@ -1263,22 +1248,30 @@ test("日期：started 为空的书 plan --write 后 frontmatter started 等于 
   await rm(vault, { recursive: true, force: true });
 });
 
-test("lecture：书页没有 `## 读书记录` 时补一节，讲后读已读排在它前面", async () => {
+test("after done：书页没有 `## 读书记录` 时补一节，课后读排在它前面", async () => {
   const vault = await makeVault();
   await writeBook(
     vault,
     "bare",
     { ...EPP_FIELDS, position: 3 },
-    "# Bare\n\n## 分段\n1. Ch1 pp.1–36\n",
+    [
+      "# Bare",
+      "",
+      "## 分段",
+      "1. Ch1 pp.1–36",
+      "",
+      "## 课后读",
+      "",
+      "- [ ] §1.1 · pp.1–5 · discrete-math-epp · 2026-11-10",
+      "",
+    ].join("\n"),
   );
-  await jsonB([
-    "lecture", vault, "bare", "--label", "§1.1", "--course", "discrete-math-epp", "--pages", "1–5", "--today", "2026-11-10",
-  ]);
+  await jsonB(["after", "done", vault, "bare", "--index", "1", "--today", "2026-11-10"]);
   const page = await readBook(vault, "bare");
   assert.match(page, /^## 读书记录$/m);
-  assert.match(page, /^- 2026-11-10: 讲后读 §1\.1 已读（discrete-math-epp，用户自报）$/m);
-  assert.ok(page.indexOf("## 讲后读已读") < page.indexOf("## 读书记录"));
-  assert.match(page, /^position: 3$/m, "lecture 不动 position");
+  assert.match(page, /^- 2026-11-10: 课后读 §1\.1 已读（discrete-math-epp）$/m);
+  assert.ok(page.indexOf("## 课后读") < page.indexOf("## 读书记录"));
+  assert.match(page, /^position: 3$/m, "after done 不动 position");
   assert.doesNotMatch(page, /\n\n\n/, page);
   await rm(vault, { recursive: true, force: true });
 });
@@ -1493,6 +1486,7 @@ test("布局：只有旧 wiki/书房/ 时 today 不读它（当作书房为空�
   assert.deepEqual(await jsonB(["today", vault, "--today", "2026-11-09"]), {
     planned: null,
     free: null,
+    guided: [],
   });
   assert.deepEqual(await jsonB(["list", vault]), []);
   await rm(vault, { recursive: true, force: true });
@@ -1603,7 +1597,13 @@ test("target 命令：--date 写入裸日期，--clear 清空，其余字段不�
   assert.ok(existsSync(join(vault, "wiki", "shelf", "index.md")), "target 后应重写 index.md");
 
   const set = await jsonB(["target", vault, "epp", "--date", "2026-11-12", "--today", "2026-11-09"]);
-  assert.deepEqual(set, { slug: "epp", target: "2026-11-12", end: "2026-11-15", targetLate: 3 });
+  assert.deepEqual(set, {
+    slug: "epp",
+    target: "2026-11-12",
+    end: "2026-11-15",
+    targetLate: 3,
+    committed: "skipped",
+  });
 
   const cleared = await jsonB(["target", vault, "epp", "--clear", "--today", "2026-11-09"]);
   assert.equal(cleared.target, null);
@@ -1973,5 +1973,312 @@ test("resume：恢复当天 today 标 resumedToday，文字说「今天恢复，
   assert.equal(next.planned.resumedToday, false);
   const nextText = (await b(["today", vault, "--today", "2026-11-14"])).stdout;
   assert.match(nextText, /下一段 Ch1 pp\.19–27/, nextText);
+  await rm(vault, { recursive: true, force: true });
+});
+
+// ---- jj：写命令写完各记一笔（库是 jj 仓库时）----
+
+const hasJj = (() => {
+  try {
+    execFileSync("jj", ["--version"], { encoding: "utf8" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const jjTest = hasJj ? test : (name) => skip(`${name}（本机没有 jj，跳过）`);
+
+/** 临时库 + 独立根目录（jj 配置写在库外）。 */
+async function makeJjVault() {
+  const root = await mkdtemp(join(tmpdir(), "bookshelf-jj-"));
+  const vault = join(root, "vault");
+  await mkdir(join(vault, "wiki"), { recursive: true });
+  return { root, vault };
+}
+
+/** 在临时库里 `jj git init` 并把当前文件提交成基线；返回 { env, jj }。 */
+async function initJj(vault, root) {
+  const config = join(root, "jj-config.toml");
+  await writeFile(config, 'user.name = "书房测试"\nuser.email = "test@example.com"\n');
+  const env = { JJ_CONFIG: config };
+  const jj = (args) =>
+    execFileSync("jj", args, { cwd: vault, encoding: "utf8", env: { ...process.env, ...env } });
+  jj(["git", "init"]);
+  jj(["commit", "-m", "基线"]);
+  return { env, jj };
+}
+
+/** 最近一笔提交（@-）的说明与改动文件列表。 */
+function lastCommit(jj) {
+  return {
+    description: jj(["log", "-r", "@-", "--no-graph", "-T", "description"]).trim(),
+    files: jj(["diff", "-r", "@-", "--summary"])
+      .trim()
+      .split("\n")
+      .map((line) => line.slice(1).trim())
+      .sort(),
+  };
+}
+
+test("非 jj 库：八个写命令 JSON 都有 committed: skipped，文件照写", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const cases = [
+    ["done", vault, "epp", "--today", "2026-11-10"],
+    ["after", "add", vault, "epp", "--label", "§1.1", "--pages", "1–5", "--course", "dm", "--date", "2026-11-10", "--today", "2026-11-10"],
+    ["after", "done", vault, "epp", "--index", "1", "--today", "2026-11-11"],
+    ["extract", vault, "epp", "--page", "5", "--text", "句子", "--today", "2026-11-11"],
+    ["card", vault, "epp", "--index", "1", "--today", "2026-11-11"],
+    ["pause", vault, "epp", "--today", "2026-11-12"],
+    ["resume", vault, "epp", "--today", "2026-11-13"],
+    ["target", vault, "epp", "--date", "2026-12-01", "--today", "2026-11-13"],
+  ];
+  for (const args of cases) {
+    const result = await jsonB(args);
+    assert.equal(result.committed, "skipped", args.join(" "));
+  }
+  // 文件照写：读书记录、课后读勾行、摘录、状态都在。
+  const page = await readBook(vault, "epp");
+  assert.match(page, /^position: 1$/m);
+  assert.match(page, /^- \[x\] §1\.1 · pp\.1–5 · dm · 2026-11-10 · 读于 2026-11-11$/m);
+  assert.match(page, /^- p\.5: 句子 #卡\/2026-11-11$/m);
+  assert.match(page, /^status: reading$/m, "pause 后 resume 恢复");
+  assert.match(page, /^target: 2026-12-01$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("非 jj 库：文字输出末尾加「（没有记进 jj：库不是 jj 仓库）」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  const { stdout } = await b(["done", vault, "epp", "--today", "2026-11-10"]);
+  assert.match(stdout, /^done: epp 第 1\/7 段$/m);
+  assert.match(stdout, /^（没有记进 jj：库不是 jj 仓库）$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("extract / target 之后 index.md 被重画（预计日期与 list 一致）", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+  // 先写一份按 11-09 算的旧 index（预计 11-15），随后用更晚的 today 跑写命令。
+  await b(["index", vault, "--today", "2026-11-09", "--write"]);
+  const indexFile = join(vault, "wiki", "shelf", "index.md");
+  assert.match(await readFile(indexFile, "utf8"), /预计 2026-11-15 读完/);
+
+  await jsonB(["extract", vault, "epp", "--page", "5", "--text", "句子", "--today", "2026-11-20"]);
+  const listAfterExtract = await jsonB(["list", vault, "--today", "2026-11-20"]);
+  const indexAfterExtract = await readFile(indexFile, "utf8");
+  assert.match(
+    indexAfterExtract,
+    new RegExp(`预计 ${listAfterExtract[0].end} 读完`),
+    "extract 后 index 应按新 today 重画",
+  );
+
+  await jsonB(["target", vault, "epp", "--date", "2026-11-21", "--today", "2026-11-21"]);
+  const listAfterTarget = await jsonB(["list", vault, "--today", "2026-11-21"]);
+  const indexAfterTarget = await readFile(indexFile, "utf8");
+  assert.match(indexAfterTarget, new RegExp(`预计 ${listAfterTarget[0].end} 读完`));
+  assert.match(indexAfterTarget, /目标 2026-11-21/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+jjTest("jj：done 记一笔「读书 epp <today>」，只收书页与 index.md，无关改动留在工作副本", async () => {
+  const { root, vault } = await makeJjVault();
+  try {
+    await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+    const { env, jj } = await initJj(vault, root);
+    // 库里另一个无关的未提交改动（用户在 Obsidian 里写的）。
+    await writeFile(join(vault, "wiki", "note.md"), "# 手写未提交\n");
+
+    const result = await jsonB(["done", vault, "epp", "--today", "2026-11-17"], { env });
+    assert.equal(result.committed, "ok");
+
+    const commit = lastCommit(jj);
+    assert.equal(commit.description, "读书 epp 2026-11-17");
+    assert.deepEqual(commit.files, ["wiki/shelf/epp.md", "wiki/shelf/index.md"]);
+
+    const status = jj(["st"]);
+    assert.match(status, /wiki\/note\.md/, "无关改动仍在工作副本");
+    assert.doesNotMatch(status, /wiki\/shelf/, "本次文件已被提交");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+jjTest("jj：after add / after done / extract 各一笔，说明正确", async () => {
+  const { root, vault } = await makeJjVault();
+  try {
+    await writeBook(vault, "epp", EPP_FIELDS, EPP_BODY);
+    const { env, jj } = await initJj(vault, root);
+
+    const add = await jsonB(
+      ["after", "add", vault, "epp", "--label", "§1.1", "--pages", "1–5", "--course", "dm", "--date", "2026-11-16", "--today", "2026-11-16"],
+      { env },
+    );
+    assert.equal(add.committed, "ok");
+    const done = await jsonB(["after", "done", vault, "epp", "--index", "1", "--today", "2026-11-17"], { env });
+    assert.equal(done.committed, "ok");
+    const ext = await jsonB(["extract", vault, "epp", "--page", "5", "--text", "句子", "--today", "2026-11-17"], { env });
+    assert.equal(ext.committed, "ok");
+
+    const descriptions = jj(["log", "--no-graph", "-T", 'description ++ "\\n"'])
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+    assert.deepEqual(descriptions, [
+      "摘录 epp 2026-11-17",
+      "课后读 epp 2026-11-17",
+      "排课后读 epp 2026-11-16",
+      "基线",
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+jjTest("jj：读完最后一段自动开下一本，两本书页在同一笔里", async () => {
+  const { root, vault } = await makeJjVault();
+  try {
+    await writeBook(vault, "last", { ...EPP_FIELDS, order: 1, position: 6 }, EPP_BODY);
+    await writeBook(
+      vault,
+      "next-book",
+      { kind: "book", slot: "planned", order: 2, status: "queued", title: '"Next"', short: '"N"', started: '""', position: 0 },
+      "# Next\n\n## 分段\n1. S1 pp.1–29\n\n## 读书记录\n",
+    );
+    const { env, jj } = await initJj(vault, root);
+
+    const result = await jsonB(["done", vault, "last", "--today", "2026-11-17"], { env });
+    assert.equal(result.committed, "ok");
+    assert.equal(result.next, "next-book");
+
+    const commit = lastCommit(jj);
+    assert.equal(commit.description, "读书 last 2026-11-17");
+    assert.deepEqual(commit.files, [
+      "wiki/shelf/index.md",
+      "wiki/shelf/last.md",
+      "wiki/shelf/next-book.md",
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ---- 导读书（slot: guided）----
+
+// 导读书的常用字段与正文：周二四读，一段 = 分段一行（不按 10 页切）。
+const GUIDED_FIELDS = {
+  kind: "book",
+  slot: "guided",
+  status: "reading",
+  subject: "data-structures-algorithms",
+  days: "tue,thu",
+  limit: 45,
+  title: '"算法（第 4 版）"',
+  short: '"算法"',
+  started: "2026-11-15",
+  position: 0,
+};
+const GUIDED_BODY =
+  "# 算法\n\n## 分段\n" +
+  "1. §1.1–1.2 概览 pp.4–73\n" +
+  "2. §1.3 背包、队列和栈 pp.74–107\n" +
+  "3. §1.4 算法分析 pp.108–135\n" +
+  "4. §1.5 union-find pp.136–151\n" +
+  "\n## 读书记录\n";
+
+test("导读：today 在导读日列出、非导读日不列；view 带 subject/days/limit/nextDay", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "sedgewick", GUIDED_FIELDS, GUIDED_BODY);
+  // 2026-11-17 是周二（导读日）：列出，下一段是整段 1（不按 10 页切）。
+  const tue = await jsonB(["today", vault, "--today", "2026-11-17"]);
+  assert.equal(tue.guided.length, 1);
+  assert.equal(tue.guided[0].slug, "sedgewick");
+  assert.equal(tue.guided[0].slot, "guided");
+  assert.equal(tue.guided[0].subject, "data-structures-algorithms");
+  assert.equal(tue.guided[0].days, "tue,thu");
+  assert.equal(tue.guided[0].limit, 45);
+  assert.equal(tue.guided[0].nextDay, "2026-11-17");
+  assert.deepEqual(tue.guided[0].chunk, { index: 1, title: "§1.1–1.2 概览", from: 4, to: 73 });
+  assert.equal(tue.guided[0].total, 4);
+  assert.equal(tue.guided[0].end, "2026-11-26");
+
+  // 2026-11-18 周三不是导读日：不列。
+  const wed = await jsonB(["today", vault, "--today", "2026-11-18"]);
+  assert.deepEqual(wed.guided, []);
+
+  const text = (await b(["today", vault, "--today", "2026-11-17"])).stdout;
+  assert.match(text, /导读：算法（第 4 版）（0\/4 节，下一段 §1\.1–1\.2 概览 pp\.4–73）/);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("导读：done 同日两次都成功（不套同日拦截），读完不顶上排队书", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "sedgewick", GUIDED_FIELDS, GUIDED_BODY);
+  await writeBook(
+    vault,
+    "queued-book",
+    { kind: "book", slot: "planned", order: 1, status: "queued", title: '"Q"', short: '"Q"', started: '""', position: 0 },
+    "# Q\n\n## 分段\n1. S pp.1–1\n",
+  );
+  const first = await jsonB(["done", vault, "sedgewick", "--today", "2026-11-17"]);
+  assert.equal(first.position, 1);
+  const second = await jsonB(["done", vault, "sedgewick", "--today", "2026-11-17"]);
+  assert.equal(second.position, 2, "导读日一次可以读两节");
+  const page = await readBook(vault, "sedgewick");
+  assert.match(page, /^- 2026-11-17: 第 1 段 pp\.4–73 读完（用户自报）$/m);
+  assert.match(page, /^- 2026-11-17: 第 2 段 pp\.74–107 读完（用户自报）$/m);
+
+  // 读完：status done；排队的 planned 书不被顶上（只有 planned 接续）。
+  await writeBook(vault, "short", { ...GUIDED_FIELDS, subject: "other", position: 0 }, "# 短\n\n## 分段\n1. S pp.1–1\n\n## 读书记录\n");
+  const done = await jsonB(["done", vault, "short", "--today", "2026-11-17"]);
+  assert.equal(done.finished, true);
+  assert.equal(done.next, null);
+  assert.match(await readBook(vault, "queued-book"), /^status: queued$/m);
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("导读：list --from/--to 的日子只落在 days；index.md 有「## 导读」", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "sedgewick", GUIDED_FIELDS, GUIDED_BODY);
+  const list = await jsonB(["list", vault, "--today", "2026-11-15", "--from", "2026-11-15", "--to", "2026-12-02"]);
+  const book = list.find((item) => item.slug === "sedgewick");
+  assert.equal(book.slot, "guided");
+  const weekdayOf = (date) => new Date(`${date}T00:00:00Z`).getUTCDay();
+  assert.ok(book.schedule.length > 0);
+  for (const row of book.schedule) {
+    assert.ok([2, 4].includes(weekdayOf(row.date)), `${row.date} 不是导读日`);
+  }
+  assert.deepEqual(
+    book.schedule.map((row) => [row.index, row.date, row.done]),
+    [
+      [1, "2026-11-17", false],
+      [2, "2026-11-19", false],
+      [3, "2026-11-24", false],
+      [4, "2026-11-26", false],
+    ],
+  );
+  assert.equal(book.subject, "data-structures-algorithms");
+  assert.equal(book.nextDay, "2026-11-17");
+
+  const index = await jsonB(["index", vault, "--today", "2026-11-15"]);
+  assert.match(index.text, /^## 导读$/m);
+  assert.match(
+    index.text,
+    /^- \[\[shelf\/sedgewick\|算法\]\] · 算法（第 4 版） · 0\/4 节 · 每周 二、四 · 预计 2026-11-26 读完$/m,
+  );
+  assert.ok(index.text.indexOf("## 导读") > index.text.indexOf("## 在读"), "导读一节在在读之后");
+  await rm(vault, { recursive: true, force: true });
+});
+
+test("导读：pause 后 today 不列；resume 后从下一个导读日接着排", async () => {
+  const vault = await makeVault();
+  await writeBook(vault, "sedgewick", GUIDED_FIELDS, GUIDED_BODY);
+  await jsonB(["pause", vault, "sedgewick", "--today", "2026-11-17"]);
+  assert.deepEqual((await jsonB(["today", vault, "--today", "2026-11-19"])).guided, []);
+  await jsonB(["resume", vault, "sedgewick", "--today", "2026-11-18"]);
+  // 周三恢复：下一个导读日是周四 11-19
+  const thu = await jsonB(["today", vault, "--today", "2026-11-19"]);
+  assert.equal(thu.guided.length, 1);
+  assert.equal(thu.guided[0].nextDay, "2026-11-19");
   await rm(vault, { recursive: true, force: true });
 });

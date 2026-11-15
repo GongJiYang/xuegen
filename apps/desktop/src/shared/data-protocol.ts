@@ -153,7 +153,15 @@ export interface ShelfBook {
   slug: string;
   title: string;
   short: string;
-  slot: "planned" | "free";
+  slot: "planned" | "free" | "guided";
+  /** The subject a 导读书 covers (frontmatter `subject:`; null for other books). */
+  subject: string | null;
+  /** The weekday pattern a 导读书 reads on (frontmatter `days:`; null for other books). */
+  days: string | null;
+  /** Minutes per 导读 segment (frontmatter `limit:`; null when unset or unreadable). */
+  limit: number | null;
+  /** The 导读书's next scheduled reading day (null for other books). */
+  nextDay: string | null;
   total: number;
   position: number;
   chunk: ShelfChunk | null;
@@ -167,11 +175,15 @@ export interface ShelfBook {
   plannedEnd: string;
   end: string;
   late: number;
+  /** The book's `## 课后读` rows (checked and unchecked). */
+  afterReads: ShelfAfterRead[];
 }
 
 /** The currently-reading planned and free books, from `bookshelf.mjs today --json`. */
 export interface ShelfToday {
   planned: ShelfBook | null;
+  /** 导读 books due today (slot `guided`), shown before 课后读 in the 阅读 group. */
+  guided: ShelfBook[];
   free: ShelfBook | null;
 }
 
@@ -189,6 +201,17 @@ export interface ShelfCoreRead {
   course: string;
   label: string;
   date: string;
+}
+
+/** One `## 课后读` line of a book page, as `shelf-after.mjs` parses it. */
+export interface ShelfAfterRead {
+  index: number;
+  label: string;
+  pages: string;
+  course: string;
+  date: string;
+  done: boolean;
+  readOn: string | null;
 }
 
 /** One upcoming block of a book's schedule (`bookshelf.mjs list`): when to read which pages. */
@@ -226,7 +249,12 @@ export interface ShelfListItem {
   slug: string;
   title: string;
   short: string;
-  slot: "planned" | "free";
+  slot: "planned" | "free" | "guided";
+  /** 导读 books only: frontmatter subject / weekday pattern / minute limit / next day. */
+  subject?: string | null;
+  days?: string | null;
+  limit?: number | null;
+  nextDay?: string | null;
   order: number | null;
   status: "queued" | "reading" | "paused" | "done";
   total: number;
@@ -239,6 +267,8 @@ export interface ShelfListItem {
   targetLate: number | null;
   extracts: ShelfExtract[];
   coreRead: ShelfCoreRead[];
+  /** The book's `## 课后读` rows (checked and unchecked). */
+  afterReads: ShelfAfterRead[];
   /** The next ≤5 unread blocks of the schedule (`[]` once the book is done). */
   upcoming: ShelfUpcoming[];
   /** Every block planned inside the requested `--from/--to` range (absent unless the request carried both). */
@@ -268,7 +298,9 @@ export interface AnkiStatus {
 export interface CalendarDay {
   records: { course: string; heading: string }[];
   plans: { course: string; label: string }[];
-  readingDue: { slug: string; title: string }[];
+  /** Due self-read blocks, plus unchecked `## 课后读` rows of book pages: those
+   *  carry the `#讲后读-` mark in `slug` and the `book` + `index` of their row. */
+  readingDue: { slug: string; title: string; book?: string; index?: number }[];
   log: string[];
   note: string | null;
 }
@@ -310,6 +342,8 @@ export interface CycleDay {
   aux: string | null;
   /** The auxiliary subject's course for that day (same rule as `course`), or null. */
   auxCourse: string | null;
+  /** The 导读书 slug covering `aux` (导读课改书房导读后的来源), or null. */
+  auxBook: string | null;
   /** Course slug → its short name (the alias of its link on the subject page). */
   names: Record<string, string>;
   /** Subject slug → the short name the weekly template links it with. */
@@ -332,6 +366,8 @@ export interface CycleSlot {
   course: string | null;
   aux: string | null;
   auxCourse: string | null;
+  /** The 导读书 slug covering `aux`, or null. */
+  auxBook: string | null;
 }
 
 /**
@@ -481,6 +517,19 @@ export interface SkillReview {
   lint: { errors: string[]; warnings: string[] };
 }
 
+/** One course's study span on a day, from its session transcripts (`sessions.studied`). */
+export interface StudiedSpan {
+  slug: string;
+  /** lesson: an open/resume marker that day; verify: only a verify marker; other: neither. */
+  action: "lesson" | "verify" | "other";
+  /** The 「今日要点 · X」 title announced that day (「离散 D3」), or null. */
+  pin: string | null;
+  /** Epoch ms of the first user message that day. */
+  from: number;
+  /** Epoch ms of the last assistant message that day (the last user message when no answer). */
+  to: number;
+}
+
 /** One session transcript, summarized for the session list (from the transcript file itself). */
 export interface SessionMeta {
   /** Absolute path of the `.jsonl` transcript. */
@@ -584,7 +633,6 @@ export interface ReadingSource {
 /** Requests the renderer sends on the data channel. */
 export type DataRequest =
   | { kind: "courses.list" }
-  | { kind: "course.afterRead"; slug: string; label: string; date: string }
   | { kind: "terms.list"; since?: string }
   | { kind: "domain.subjects" }
   | { kind: "domain.glossary"; subject: string }
@@ -598,6 +646,7 @@ export type DataRequest =
   | { kind: "shelf.today"; today: string }
   | { kind: "shelf.list"; from?: string; to?: string }
   | { kind: "shelf.done"; slug: string; today: string }
+  | { kind: "shelf.afterDone"; book: string; index: number; today: string }
   | { kind: "shelf.extract"; slug: string; page: number; text: string; today: string }
   | { kind: "shelf.card"; slug: string; indexes: number[]; today: string }
   | { kind: "cards.stats" }
@@ -615,6 +664,7 @@ export type DataRequest =
   | { kind: "plan.undoable"; since: string }
   | { kind: "plan.undo"; since: string }
   | { kind: "sessions.list"; current: string }
+  | { kind: "sessions.studied"; date: string }
   | { kind: "skills.list" }
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
   | { kind: "skills.fetch"; url: string }
@@ -627,7 +677,6 @@ export type DataRequest =
 /** The typed payload each request kind resolves to. */
 export interface DataResponseMap {
   "courses.list": CourseSummary[];
-  "course.afterRead": { label: string; reading: string | null; book: string | null };
   "terms.list": TermGroup[];
   "domain.subjects": DomainSubject[];
   "domain.glossary": DomainGlossary;
@@ -641,6 +690,14 @@ export interface DataResponseMap {
   "shelf.today": ShelfToday;
   "shelf.list": ShelfListItem[];
   "shelf.done": { slug: string; position: number; total: number; finished: boolean; next: string | null };
+  "shelf.afterDone": {
+    slug: string;
+    index: number;
+    label: string;
+    pages: string;
+    course: string;
+    readOn: string;
+  };
   "shelf.extract": { slug: string; index: number; page: number; text: string };
   "shelf.card": { slug: string; marked: number[]; skipped: number[] };
   "cards.stats": CardsStats;
@@ -665,6 +722,7 @@ export interface DataResponseMap {
   "plan.undoable": PlanCommit[];
   "plan.undo": PlanUndoResult;
   "sessions.list": SessionMeta[];
+  "sessions.studied": StudiedSpan[];
   "skills.list": SkillInfo[];
   "skills.setEnabled": DesktopSettings;
   "skills.fetch": { skills: { name: string; path: string }[] };
@@ -747,17 +805,6 @@ export function isDataRequest(value: unknown): value is DataRequest {
     case "anki.status":
     case "skills.list":
       return true;
-    case "course.afterRead":
-      return (
-        typeof value.slug === "string" &&
-        /^[a-z0-9-]+$/.test(value.slug) &&
-        typeof value.label === "string" &&
-        value.label.length > 0 &&
-        value.label.length <= 200 &&
-        !value.label.includes("\n") &&
-        typeof value.date === "string" &&
-        isIsoDate(value.date)
-      );
     case "terms.list":
       return value.since === undefined || (typeof value.since === "string" && isIsoDate(value.since));
     case "domain.subjects":
@@ -801,6 +848,17 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return (
         typeof value.slug === "string" &&
         /^[a-z0-9-]+$/.test(value.slug) &&
+        typeof value.today === "string" &&
+        isIsoDate(value.today)
+      );
+    case "shelf.afterDone":
+      return (
+        typeof value.book === "string" &&
+        /^[a-z0-9][a-z0-9-]*$/.test(value.book) &&
+        typeof value.index === "number" &&
+        Number.isInteger(value.index) &&
+        value.index >= 1 &&
+        value.index <= 999 &&
         typeof value.today === "string" &&
         isIsoDate(value.today)
       );
@@ -872,6 +930,8 @@ export function isDataRequest(value: unknown): value is DataRequest {
       );
     case "sessions.list":
       return typeof value.current === "string" && value.current.endsWith(".jsonl");
+    case "sessions.studied":
+      return typeof value.date === "string" && isIsoDate(value.date);
     case "skills.setEnabled":
       return typeof value.name === "string" && typeof value.enabled === "boolean";
     case "skills.fetch":

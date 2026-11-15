@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // course-state.mjs + render-board.mjs 的端到端补测（全量测试 B4）。
-// 覆盖 lock/unlock、verify、dashboard、list --json、after-read 与 render-board 的一致性。
+// 覆盖 lock/unlock、verify、dashboard、list --json 与 render-board 的一致性。
 // 全部在 os.tmpdir() 下跑；需要真实库副本的用例先 cp -R 到临时目录，绝不写库副本本身。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -436,125 +436,7 @@ test("list --json：没有排期的课照常输出（weekLabel/日期为未设�
   }
 });
 
-// ---- 5. after-read ----
-
-/** 课程页：Today 里一条带「核心页已定」与行尾 —— 备注的未打勾讲后读。 */
-const READ_COURSE = `<!-- xuegen:course-state -->
-
-# 离散数学学习计划
-
-## Key Facts
-
-- 当前周：W1
-
-## Overall Goals
-
-- [ ] 目标一
-
-## This Week
-
-W1
-
-- [ ] 讲后读 §9.9 别处同名行 · 2026-11-20 读
-
-## Today
-
-日期：2026-11-11
-
-- [ ] 讲后读 §1.1–1.4 核心页 · 2026-11-10 读（核心页已定：pp.22–23）——问过，用户没读，仍待读
-- [ ] 继续 D2
-
-## Next Session
-
-读 [[reading/epp|Epp]] §2.1。
-
-## Learning Record
-
-### 2026-11-10-01
-
-- 记录。
-`;
-
-test("after-read：标签不存在时中文报错、文件一字不改、权限仍 444", async () => {
-  const { root, coursesDir } = await makeWiki({ "epp.md": READ_COURSE });
-  const file = join(coursesDir, "epp.md");
-  try {
-    await seal(coursesDir);
-    const result = await state("after-read", file, "§9.9 不存在", "--date", "2026-11-11");
-    assert.equal(result.ok, false);
-    assert.match(result.stderr, /^course-state: 没有找到未打勾的讲后读：§9\.9 不存在/);
-    assert.equal(await readFile(file, "utf8"), READ_COURSE, "文件不变");
-    assert.equal(await modeOf(file), READONLY, "权限恢复原样");
-  } finally {
-    await cleanup(root);
-  }
-});
-
-test("after-read：同一标签打勾后再跑报错，不重复加尾注", async () => {
-  const { root, coursesDir } = await makeWiki({ "epp.md": READ_COURSE });
-  const file = join(coursesDir, "epp.md");
-  try {
-    await seal(coursesDir);
-    const first = await state("after-read", file, "§1.1–1.4 核心页", "--date", "2026-11-11");
-    assert.equal(first.ok, true, first.stderr);
-    const out = JSON.parse(first.stdout.trim());
-    assert.equal(out.pages, "22–23");
-    assert.equal(out.reading, "epp");
-    assert.equal(out.course, "epp");
-    assert.equal(await modeOf(file), READONLY);
-
-    const afterFirst = await readFile(file, "utf8");
-    assert.equal((afterFirst.match(/（用户自报，未检查，2026-11-11）/g) ?? []).length, 1);
-    assert.doesNotMatch(afterFirst, /仍待读/, "打勾时去掉旧的 —— 备注");
-
-    const second = await state("after-read", file, "§1.1–1.4 核心页", "--date", "2026-11-11");
-    assert.equal(second.ok, false);
-    assert.match(second.stderr, /没有找到未打勾的讲后读：§1\.1–1\.4 核心页/);
-    assert.equal(await readFile(file, "utf8"), afterFirst, "第二次失败不改文件");
-    assert.equal((await readFile(file, "utf8")).match(/用户自报/g).length, 1, "尾注没被加第二次");
-    assert.equal(await modeOf(file), READONLY);
-  } finally {
-    await cleanup(root);
-  }
-});
-
-test("after-read：课程页只读（444）时跑完仍只读；可写（644）时保持 644（不主动上锁）", async () => {
-  const { root, coursesDir } = await makeWiki({ "locked.md": READ_COURSE, "open.md": READ_COURSE });
-  try {
-    const locked = join(coursesDir, "locked.md");
-    const open = join(coursesDir, "open.md");
-    await chmod(locked, READONLY);
-    await chmod(open, WRITABLE);
-
-    assert.equal((await state("after-read", locked, "继续 D2")).ok, false, "不是讲后读行，不匹配");
-    const okLocked = await state("after-read", locked, "§1.1–1.4 核心页", "--date", "2026-11-11");
-    assert.equal(okLocked.ok, true, okLocked.stderr);
-    assert.equal(await modeOf(locked), READONLY, "只读的跑完仍只读");
-
-    const okOpen = await state("after-read", open, "§1.1–1.4 核心页", "--date", "2026-11-11");
-    assert.equal(okOpen.ok, true, okOpen.stderr);
-    assert.equal(await modeOf(open), WRITABLE, "原本可写的保持 644，after-read 不强制上锁");
-  } finally {
-    await cleanup(root);
-  }
-});
-
-test("after-read：--date 非法时报错且不碰文件", async () => {
-  const { root, coursesDir } = await makeWiki({ "epp.md": READ_COURSE });
-  const file = join(coursesDir, "epp.md");
-  try {
-    await seal(coursesDir);
-    const bad = await state("after-read", file, "§1.1–1.4 核心页", "--date", "2026-13");
-    assert.equal(bad.ok, false);
-    assert.match(bad.stderr, /--date 日期非法：2026-13/);
-    assert.equal(await readFile(file, "utf8"), READ_COURSE);
-    assert.equal(await modeOf(file), READONLY);
-  } finally {
-    await cleanup(root);
-  }
-});
-
-// ---- 6. render-board.mjs 与 dashboard 的一致性 ----
+// ---- 5. render-board.mjs 与 dashboard 的一致性 ----
 
 test("render-board：读临时课程目录生成只读 HTML，导出 JSON 与 dashboard/list 的数字一致", async () => {
   const { root, coursesDir, dash } = await makeWiki({ "demo.md": COURSE, "demo2.md": COURSE });
@@ -635,7 +517,9 @@ test(
       assert.equal(meta.verify, true, "收课后的只读状态应与 dashboard 一致");
 
       const listed = JSON.parse((await state("list", coursesDir, "--json")).stdout);
-      assert.equal(meta.courses.length, listed.length);
+      // render-board 把停用课单列在「停用」一节：meta.courses 只含未停用的。
+      const active = listed.filter((item) => item.archived !== true);
+      assert.equal(meta.courses.length, active.length);
       for (const course of meta.courses) {
         const entry = listed.find((item) => item.slug === course.slug);
         assert.ok(entry, `${course.slug} 在 list 里也有`);

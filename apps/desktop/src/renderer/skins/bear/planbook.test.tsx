@@ -157,7 +157,7 @@ describe("Bear Planbook", () => {
     expect(screen.queryByText(strings.planbook.dayCaption("2026-11-11", "周三", "深度"))).toBeNull();
   });
 
-  it("周视图：格子写短名（PANEL-PLAN 宽屏 1920），课后读 / 导读课 / 自读以行名开头，主课不加；全文放在 title", () => {
+  it("周视图：格子写短名（PANEL-PLAN 宽屏 1920），课后读 / 导读 / 自读以行名开头，主课不加；全文放在 title", () => {
     const week: PlanWeek = {
       ...WEEK,
       days: WEEK.days.map((entry) =>
@@ -184,7 +184,7 @@ describe("Bear Planbook", () => {
 
   it("周视图：今天只有主课一行加粗（is-now），其它行是普通色", () => {
     const { container } = render(<Planbook {...props({})} />);
-    // 夹具里今天（11-11）是主课 now + 导读课 plan。今天 Anki 格在设计稿里也是
+    // 夹具里今天（11-11）是主课 now + 导读 plan。今天 Anki 格在设计稿里也是
     // `.p2-it.is-now`，所以只看四道 lane 行（排除 Anki 行）。
     const bold = [...container.querySelectorAll(".bear-pb-lane-row:not(.is-anki) .bear-pb-it.is-now")].map(
       (node) => node.textContent,
@@ -223,10 +223,10 @@ describe("Bear Planbook", () => {
       />,
     );
     expect(screen.getByText(strings.planbook.dayCaption("2026-11-12", "周四", "深度"))).toBeTruthy();
-    // 主课不加前缀，其他三行加（panel v2 的改名：课后读 / 导读课）。
+    // 主课不加前缀，其他三行加（11-15 收敛后的行名：课后读 / 导读 / 自读）。
     expect(screen.getByText("CTM D1")).toBeTruthy();
     expect(screen.getByText("课后读 · Ch1 §1.3 · CTM")).toBeTruthy();
-    expect(screen.getByText("导读课 · 数据结构 D1")).toBeTruthy();
+    expect(screen.getByText("导读 · 数据结构 D1")).toBeTruthy();
     expect(screen.getByText("自读 · Epp Ch1 pp.10–18")).toBeTruthy();
     expect(screen.getByText(strings.planbook.otherDayNote)).toBeTruthy();
     expect(screen.queryByTestId("today-card")).toBeNull();

@@ -10,13 +10,14 @@
 - `sources.ts`：`reading.sources` —— 列出库内 `raw/`、`clippings/` 下尚未入队的 `.md`/`.pdf`（按修改时间倒序，最多 50 条），供「加入阅读」输入框的候选。已在阅读页 `source` 里链接的原文会被排除。
 - `cycle-next.ts`：`cycle.mjs accept / preview` 的 JSON 输出 → `CycleAccept` / `CyclePreview`（逐字段守卫，坏输出降级）。
 - `plan-undo.ts`：`plan-undo.mjs list / undo` 的 JSON 输出 → `PlanCommit[]` / `PlanUndoResult`（「开周期」提交也在列）。
+- `studied.ts`：`sessions.studied` —— 从 `<home>/sessions/`（含直接子目录）的会话文件里读出当天每门课的上课时段（开课/核实标记定课程，`studiedInTranscript` / `mergeStudied` 为纯函数，`listStudied` 是薄外壳）。
 
 不负责：模型调用、界面渲染、课程与阅读状态的解析逻辑（那些在 skill 脚本里）。
 
 - cycle.day / cycle.month / cycle.overview → skills/cycle-plan/cycle.mjs（day / month / overview，只读）
 - cycle.accept / cycle.preview → skills/cycle-plan/cycle.mjs（accept / preview，只读；输出经 `cycle-next.ts` 转协议类型）
 - subjects.list → skills/cycle-plan/subjects.mjs（list，只读）
-- course.afterRead → course-state.mjs after-read 打勾后：有 `[[shelf/<书>]]` 链接时记进书房书页（`bookshelf.mjs lecture`），否则照旧记阅读页（`reading-queue.mjs note`）；最后重建课程看板
+- shelf.afterDone → bookshelf.mjs after done 勾书页 `## 课后读` 的一行（读书记录加一行）；之后重建课程看板
 - terms.list → skills/course/course-terms.mjs list（只读）
 - domain.subjects → skills/domain/domain.mjs subjects（只读）：各科目概念页数、词数、有无领域小结
 - domain.glossary → skills/domain/domain.mjs glossary（只读）：一个科目的词表（按存库课次分组 + 领域小结）

@@ -55,6 +55,7 @@ import type { UpdateBarState } from "../core/update/use-update.js";
 import type { PlanView } from "../core/board/planbook-nav.js";
 import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
+import type { StudiedEntry } from "../core/board/studied.js";
 import type { TermLessonView } from "../core/board/terms.js";
 import type { ActivityCard, UndoState } from "../core/board/activity-feed.js";
 import type { DomainState } from "../core/board/use-domain.js";
@@ -237,6 +238,11 @@ export interface ShellProps {
   tools: ToolDescriptor[];
   /** The tool window currently shown, or null when none is open. */
   activeTool: ToolId | null;
+  /**
+   * Bumps on every open request, including one for the tool already active
+   * (lets a skin reopen a closed dialog).
+   */
+  toolRequest?: number;
   /** Open a tool window (⌘1–⌘5 and the 学习 menu call this). */
   onOpenTool(tool: ToolId): void;
   /** The desktop focus mode (right column and icon dock hidden). */
@@ -746,6 +752,8 @@ export interface SkillsPanelProps extends ToolPanelProps {
   onEnableReviewed(name: string): void;
   /** Delete the reviewed skill from the pending area. */
   onDiscardReviewed(name: string): void;
+  /** 总控「今天学过」开关（批 6）；不传就不显示这一项。 */
+  studied?: { on: boolean; onToggle(on: boolean): void };
 }
 
 /** The day editor dialog: title, body, save path, save/cancel. */
@@ -895,12 +903,16 @@ export interface ControlPanelProps {
   onBackToToday(): void;
   /** Open the 新卡片 dialog (the cards tool: deck table and the new-card form). */
   onOpenCards(): void;
+  /** 打开书房弹框（原「阅读」页）。 */
+  onOpenShelf(): void;
   /** 术语: recent lessons' concept pages (null while loading, "failed" on an error). */
   terms: TermLessonView[] | null | "failed";
   /** Open a 术语's page in the reader. */
   onOpenTerm(path: string, title: string): void;
   /** What the latest 总控 answer moved, until 「知道了」; null when nothing. */
   changes: PlanChangesView | null;
+  /** 「今天学过」：今天上过的主课与时间；空数组时整行不显示（设置关掉时也传空）。 */
+  studied: StudiedEntry[];
   /** Bumped by 「在周表格里看」: bring the 本周 block into view. A skin may ignore it. */
   weekFocus?: number;
   /** 开下一周期: the 本周 banner and the wizard. A skin without it shows neither. */

@@ -21,7 +21,7 @@ const MONTH = {
     [TODAY]: {
       records: [],
       plans: [],
-      readingDue: [{ slug: "ctm#讲后读-1", title: "讲后读 Ch2 §2.2（CTM）" }],
+      readingDue: [{ slug: "ctm#讲后读-t-1", title: "讲后读 · Ch2 §2.2 · CTM", book: "t", index: 1 }],
       log: [],
       note: null,
     },
@@ -39,6 +39,7 @@ function day(): CycleDay {
     course: "ctm",
     aux: null,
     auxCourse: null,
+    auxBook: null,
     names: { ctm: "CTM" },
     subjects: {},
     roles: {},
@@ -58,7 +59,7 @@ function input(overrides: Partial<ControlCardInput> = {}): ControlCardInput {
     queue: resource([]),
     anki: resource({ running: true, due: [{ deck: "离散", count: 74 }] }),
     shelf: {
-      today: resource({ planned: null, free: null }),
+      today: resource({ planned: null, guided: [], free: null }),
       list: resource([]),
       done: vi.fn(),
       extract: vi.fn(),
@@ -66,6 +67,7 @@ function input(overrides: Partial<ControlCardInput> = {}): ControlCardInput {
     },
     streaming: false,
     onStudy: vi.fn(),
+    courses: resource([]),
     onVerify: vi.fn(),
     onOpenTool: vi.fn(),
     onAskBrief: vi.fn(),
@@ -86,9 +88,9 @@ function Harness({ props }: { props: ControlCardInput }) {
   return null;
 }
 
-/** `client.data` calls for the 讲后读 write (the calendar load is a different kind). */
+/** `client.data` calls for the 课后读 write (the calendar load is a different kind). */
 function afterReadCalls(): number {
-  return clientMock.data.mock.calls.filter(([request]) => request.kind === "course.afterRead").length;
+  return clientMock.data.mock.calls.filter(([request]) => request.kind === "shelf.afterDone").length;
 }
 
 describe("useControlCard", () => {
@@ -125,9 +127,10 @@ describe("useControlCard", () => {
       vi.advanceTimersByTime(2_000);
     });
     expect(afterReadCalls()).toBe(1);
-    expect(clientMock.data.mock.calls.find(([request]) => request.kind === "course.afterRead")?.[0]).toMatchObject({
-      slug: "ctm",
-      label: "Ch2 §2.2",
+    expect(clientMock.data.mock.calls.find(([request]) => request.kind === "shelf.afterDone")?.[0]).toMatchObject({
+      book: "t",
+      index: 1,
+      today: TODAY,
     });
   });
 
@@ -138,8 +141,8 @@ describe("useControlCard", () => {
         [TODAY]: {
           ...MONTH.days[TODAY],
           readingDue: [
-            { slug: "ctm#讲后读-1", title: "讲后读 · Ch2 §2.2 · CTM" },
-            { slug: "ctm#讲后读-2", title: "讲后读 · Ch2 §2.4 · CTM" },
+            { slug: "ctm#讲后读-t-1", title: "讲后读 · Ch2 §2.2 · CTM", book: "t", index: 1 },
+            { slug: "ctm#讲后读-t-2", title: "讲后读 · Ch2 §2.4 · CTM", book: "t", index: 2 },
           ],
         },
       },
@@ -155,10 +158,10 @@ describe("useControlCard", () => {
     await act(async () => {
       vi.advanceTimersByTime(11_000);
     });
-    const labels = clientMock.data.mock.calls
-      .filter(([request]) => request.kind === "course.afterRead")
-      .map(([request]) => (request as { label: string }).label);
-    expect(labels).toEqual(["Ch2 §2.2", "Ch2 §2.4"]);
+    const indexes = clientMock.data.mock.calls
+      .filter(([request]) => request.kind === "shelf.afterDone")
+      .map(([request]) => (request as { index: number }).index);
+    expect(indexes).toEqual([1, 2]);
   });
 
   it("never writes when the learner undoes inside the window", async () => {
@@ -191,6 +194,10 @@ function shelfBook(overrides: Partial<ShelfBook> = {}): ShelfBook {
     title: "Discrete Mathematics and Its Applications",
     short: "Epp",
     slot: "planned",
+    subject: null,
+    days: null,
+    limit: null,
+    nextDay: null,
     total: 81,
     position: 1,
     chunk: CHUNK,
@@ -201,6 +208,7 @@ function shelfBook(overrides: Partial<ShelfBook> = {}): ShelfBook {
     plannedEnd: "2027-01-28",
     end: "2027-01-28",
     late: 0,
+    afterReads: [],
     ...overrides,
   };
 }
@@ -243,7 +251,7 @@ describe("useControlCard 书房行", () => {
   });
 
   it("waits out the undo window before calling shelf.done, and only once", async () => {
-    const inputProps = shelfInput({ planned: shelfBook(), free: null });
+    const inputProps = shelfInput({ planned: shelfBook(), guided: [], free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
     const row = rowWith("shelfDone", card().shelfPlanned);
@@ -272,7 +280,7 @@ describe("useControlCard 书房行", () => {
   });
 
   it("never writes when the learner undoes inside the window", async () => {
-    const inputProps = shelfInput({ planned: shelfBook(), free: null });
+    const inputProps = shelfInput({ planned: shelfBook(), guided: [], free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
     const row = rowWith("shelfDone", card().shelfPlanned);
@@ -293,6 +301,7 @@ describe("useControlCard 书房行", () => {
   it("commits a parked 书房 row when another row's undo window starts", async () => {
     const inputProps = shelfInput({
       planned: shelfBook(),
+      guided: [],
       free: shelfBook({ slug: "extra", short: "Extra", slot: "free", chunk: { ...CHUNK } }),
     });
     render(<Harness props={inputProps} />);
@@ -311,7 +320,7 @@ describe("useControlCard 书房行", () => {
   });
 
   it("shares one undo window with the 讲后读 rows", async () => {
-    const inputProps = shelfInput({ planned: shelfBook(), free: null });
+    const inputProps = shelfInput({ planned: shelfBook(), guided: [], free: null });
     render(<Harness props={inputProps} />);
     await act(async () => {});
     const shelf = rowWith("shelfDone", card().shelfPlanned);
@@ -335,7 +344,7 @@ describe("useControlCard 书房行", () => {
   });
 
   it("reports shelfDoneFailed when the write fails", async () => {
-    const inputProps = shelfInput({ planned: shelfBook(), free: null }, () => Promise.resolve(false));
+    const inputProps = shelfInput({ planned: shelfBook(), guided: [], free: null }, () => Promise.resolve(false));
     render(<Harness props={inputProps} />);
     await act(async () => {});
     const row = rowWith("shelfDone", card().shelfPlanned);
@@ -363,7 +372,7 @@ describe("useControlCard 摘几句", () => {
     extract: (slug: string, page: number, text: string) => Promise<string | null> = () => Promise.resolve(null),
   ): ControlCardInput {
     return shelfInput(
-      { planned: shelfBook({ doneToday: true, doneChunk: CHUNK }), free: null },
+      { planned: shelfBook({ doneToday: true, doneChunk: CHUNK }), guided: [], free: null },
       () => Promise.resolve(true),
       extract,
     );

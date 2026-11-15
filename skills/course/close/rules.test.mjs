@@ -6,10 +6,13 @@ import assert from "node:assert/strict";
 import {
   addedCompletedIds,
   addedDoneLines,
+  bookOf,
+  checkAfterReadSection,
   checkAppendOnly,
   checkConceptPage,
   checkCoursePage,
   checkNoDeletedLines,
+  checkNoNewAfterReadLines,
   checkSelfReport,
   checkSubjectPreference,
   isOwned,
@@ -623,4 +626,134 @@ test("addedDoneLines：只算比基线多出来的「完成：」行（多重集
   assert.deepEqual(addedDoneLines(base, "# 2026-11\n\n- 完成：D1\n- 完成：D1\n"), ["- 完成：D1"], "多一行同样的也算新加");
   assert.deepEqual(addedDoneLines(null, "- 完成:D3\n"), ["- 完成:D3"], "库里没有这份记录：全部算新加");
   assert.deepEqual(addedDoneLines(base, `${base}- 讲了 D2\n`), [], "不是完成行不管");
+});
+
+// ---- 课后读进书页（收敛 A2） ----
+
+/** 一份带 `## 排期` 的书页正文；`## 课后读` 新节会插在排期之后、摘录之前（同 addAfterRead）。 */
+const SHELF = [
+  "---",
+  "title: Epp",
+  "---",
+  "",
+  "# Epp",
+  "",
+  "## 排期",
+  "",
+  "<!-- xuegen:shelf:start -->",
+  "| 块 | 日期 | 读什么 |",
+  "|---|---|---|",
+  "| 1 | 2026-11-09 | Ch1 pp.1–9 |",
+  "<!-- xuegen:shelf:end -->",
+  "",
+  "## 摘录",
+  "",
+  "## 读书记录",
+  "",
+].join("\n");
+
+const SHELF_WITH_AFTER = SHELF.replace(
+  "## 摘录",
+  "## 课后读\n\n- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n\n## 摘录",
+);
+
+test("bookOf：课程页正文里第一个 [[shelf/<书>]] 的 <书>；没有返回 null", () => {
+  assert.equal(bookOf(coursePage()), null);
+  assert.equal(bookOf(coursePage().replace("[[reading/epp|Epp]]", "[[shelf/epp-text|Epp]]")), "epp-text");
+  assert.equal(bookOf("前文 [[shelf/a|A]] 后文 [[shelf/b|B]]"), "a", "只取第一个链接");
+  assert.equal(bookOf("[[shelf/discrete-math-epp|离散数学]]"), "discrete-math-epp");
+  assert.equal(bookOf("[[reading/epp|Epp]]"), null);
+});
+
+test("ownedPrefixes：带书时两种 kind 都含 wiki/shelf/<书>.md，不带书不含", () => {
+  assert.ok(ownedPrefixes("epp", "discrete-math", "close", "epp-text").includes("wiki/shelf/epp-text.md"));
+  assert.ok(ownedPrefixes("epp", "discrete-math", "plan", "epp-text").includes("wiki/shelf/epp-text.md"));
+  for (const kind of ["close", "plan"]) {
+    assert.ok(!ownedPrefixes("epp", "discrete-math", kind).some((entry) => entry.startsWith("wiki/shelf/")));
+    assert.ok(!ownedPrefixes("epp", "discrete-math", kind, null).some((entry) => entry.startsWith("wiki/shelf/")));
+  }
+  assert.equal(isOwned("wiki/shelf/epp-text.md", "epp", "discrete-math", "close", "epp-text"), true);
+  assert.equal(isOwned("wiki/shelf/epp-text.md", "epp", "discrete-math", "plan", "epp-text"), true);
+  assert.equal(isOwned("wiki/shelf/epp-text.md", "epp", "discrete-math"), false);
+  assert.equal(isOwned("wiki/shelf/other.md", "epp", "discrete-math", "close", "epp-text"), false);
+});
+
+test("checkAfterReadSection：节外一行都不许动；没改就过", () => {
+  assert.deepEqual(checkAfterReadSection(SHELF_WITH_AFTER, SHELF_WITH_AFTER), []);
+  const outside = checkAfterReadSection(SHELF_WITH_AFTER, SHELF_WITH_AFTER.replace("Ch1 pp.1–9", "Ch1 pp.1–10"));
+  assert.deepEqual(
+    outside.map((p) => [p.kind, p.detail]),
+    [["shelf-scope", "收课只能改书页的「课后读」一节"]],
+  );
+  // 节外的追加同样不行（书页不是 log.md）
+  const appended = checkAfterReadSection(SHELF_WITH_AFTER, `${SHELF_WITH_AFTER}- 别的节外一行\n`);
+  assert.deepEqual(appended.map((p) => p.kind), ["shelf-scope"]);
+});
+
+test("checkAfterReadSection：基线没有这一节时可以在节位新建（addAfterRead 插在排期后、不是文末）", () => {
+  assert.deepEqual(checkAfterReadSection(SHELF, SHELF_WITH_AFTER), []);
+  // 新建节的同时动了别处 → 拒
+  const dirty = checkAfterReadSection(SHELF, SHELF_WITH_AFTER.replace("Ch1 pp.1–9", "Ch1 pp.1–10"));
+  assert.deepEqual(dirty.map((p) => p.kind), ["shelf-scope"]);
+  // 两边都没有这一节时，任何改动都拒
+  assert.deepEqual(checkAfterReadSection(SHELF, SHELF.replace("## 摘录", "## 旁注")).map((p) => p.kind), ["shelf-scope"]);
+});
+
+test("checkAfterReadSection：节里新加的非空行必须能被 parseAfterReads 认出来", () => {
+  const good = SHELF_WITH_AFTER.replace(
+    "- [ ] §1.1 · pp.1–5 · epp · 2026-11-10",
+    "- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n- [ ] §1.2 · pp.6–9 · epp · 2026-11-11",
+  );
+  assert.deepEqual(checkAfterReadSection(SHELF_WITH_AFTER, good), []);
+  // 勾掉一行也算合法的课后读行（已勾格式能被认出来）
+  const checked = SHELF_WITH_AFTER.replace(
+    "- [ ] §1.1 · pp.1–5 · epp · 2026-11-10",
+    "- [x] §1.1 · pp.1–5 · epp · 2026-11-10 · 读于 2026-11-12",
+  );
+  assert.deepEqual(checkAfterReadSection(SHELF_WITH_AFTER, checked), []);
+  const bad = SHELF_WITH_AFTER.replace(
+    "- [ ] §1.1 · pp.1–5 · epp · 2026-11-10",
+    "- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n- [ ] 随手写的行",
+  );
+  assert.deepEqual(
+    checkAfterReadSection(SHELF_WITH_AFTER, bad).map((p) => [p.kind, p.detail]),
+    [["shelf-scope", "课后读这一行格式不对：- [ ] 随手写的行"]],
+  );
+});
+
+test("checkAfterReadSection：删掉一条未勾的行允许；整节删掉不允许", () => {
+  const removed = SHELF_WITH_AFTER.replace("- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n", "");
+  assert.deepEqual(checkAfterReadSection(SHELF_WITH_AFTER, removed), []);
+  const gone = SHELF_WITH_AFTER.replace("## 课后读\n\n- [ ] §1.1 · pp.1–5 · epp · 2026-11-10\n\n", "");
+  assert.deepEqual(
+    checkAfterReadSection(SHELF_WITH_AFTER, gone).map((p) => [p.kind, p.detail]),
+    [["shelf-scope", "收课只能改书页的「课后读」一节（不能整节删掉）"]],
+  );
+});
+
+test("checkNoNewAfterReadLines：课程页新增的「讲后读」待办行报 course-page；旧行原样/删掉都不算", () => {
+  const base = coursePage();
+  const added = base.replace("- [ ] 讲 §1.1", "- [ ] 讲 §1.1\n- [ ] 讲后读 §1.1 pp.1–5（11-10）");
+  assert.deepEqual(
+    checkNoNewAfterReadLines(base, added).map((p) => [p.kind, p.detail]),
+    [["course-page", "课后读不再写进课程页，用 course_close after-read 写进书页"]],
+  );
+  // [x] 变体（含把旧行打勾，打勾行算新行）也拦
+  const checked = base.replace("- [ ] 讲 §1.1", "- [ ] 讲 §1.1\n- [x] 讲后读 §1.1");
+  assert.equal(checkNoNewAfterReadLines(base, checked).length, 1);
+  // 基线里本来就有的一行：原样保留不算新加，挪到别处也不算
+  const withOld = base.replace("- [ ] 讲 §1.1", "- [ ] 讲 §1.1\n- [ ] 讲后读 §1.1 pp.1–5（11-10）");
+  assert.deepEqual(checkNoNewAfterReadLines(withOld, withOld), []);
+  const moved = withOld
+    .replace("- [ ] 讲后读 §1.1 pp.1–5（11-10）\n", "")
+    .replace("## Relationships", "- [ ] 讲后读 §1.1 pp.1–5（11-10）\n\n## Relationships");
+  assert.deepEqual(checkNoNewAfterReadLines(withOld, moved), []);
+  // 删掉旧行允许（迁移前不拦、也不逼着现在删）
+  assert.deepEqual(checkNoNewAfterReadLines(withOld, base), []);
+  // 库里还没有课程页（plan --new）时，所有「讲后读」行都算新加
+  assert.equal(checkNoNewAfterReadLines(null, "- [ ] 讲后读 §1.1\n").length, 1);
+  // 不是「讲后读」开头的待办行不受影响
+  assert.deepEqual(checkNoNewAfterReadLines(base, base.replace("- [ ] 讲 §1.1", "- [ ] 讲 §1.1\n- [ ] 讲后读过的页")), [
+    { kind: "course-page", detail: "课后读不再写进课程页，用 course_close after-read 写进书页" },
+  ]);
 });

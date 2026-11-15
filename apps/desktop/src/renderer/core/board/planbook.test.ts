@@ -33,10 +33,12 @@ function slot(
   aux: string | null = null,
   week = 1,
 ): CycleSlot {
-  return { cycle: "C1", week, type, subject, course: null, aux, auxCourse: null };
+  return { cycle: "C1", week, type, subject, course: null, aux, auxCourse: null, auxBook: null };
 }
 
-function calDay(readingDue: { slug: string; title: string }[] = []): CalendarDay {
+function calDay(
+  readingDue: { slug: string; title: string; book?: string; index?: number }[] = [],
+): CalendarDay {
   return { records: [], plans: [], readingDue, log: [], note: null };
 }
 
@@ -84,10 +86,12 @@ const NOV: CycleMonth = {
 const CAL_NOV: CalendarMonth = {
   month: "2026-11",
   days: {
-    "2026-11-10": calDay([{ slug: "discrete-math#讲后读-1", title: "讲后读 · Ch2 §2.1 · 离散" }]),
+    "2026-11-10": calDay([
+      { slug: "discrete-math#讲后读-epp-1", title: "讲后读 · Ch2 §2.1 · 离散", book: "epp", index: 1 },
+    ]),
     "2026-11-12": calDay([
-      { slug: "discrete-math#讲后读-2", title: "讲后读 · Ch2 §2.2 · 离散" },
-      { slug: "ctm#讲后读-1", title: "讲后读 · Ch1 §1.3 · CTM" },
+      { slug: "discrete-math#讲后读-epp-2", title: "讲后读 · Ch2 §2.2 · 离散", book: "epp", index: 2 },
+      { slug: "ctm#讲后读-t-1", title: "讲后读 · Ch1 §1.3 · CTM", book: "t", index: 1 },
       // 不是「#讲后读-」的阅读到期项不进讲后读行。
       { slug: "article-x", title: "某篇文章" },
     ]),
@@ -97,6 +101,8 @@ const CAL_NOV: CalendarMonth = {
 // 自读的 schedule 是 `bookshelf.mjs list --from/--to` 按新排期规则给出的行：
 // Epp 11-09 起、一段没读，今天（11-11）按顺延后的排期是第 1 段；11-09、11-10 的原定日
 // 留着标 missed（同一段还会在顺延后那天再出现一行，设计稿 `plan2.jsx` 就是这样）。
+// 导读书（slot: guided）同样带 schedule：导读格只落在导读排期上；过去 aux 课次
+// （c-language / data-structures）还在夹具里，但不再产生任何格子。
 const SHELF: ShelfListItem[] = [
   {
     slug: "epp",
@@ -113,12 +119,40 @@ const SHELF: ShelfListItem[] = [
     targetLate: null,
     extracts: [],
     coreRead: [],
+    afterReads: [],
     upcoming: [],
     schedule: [
       { index: 1, date: "2026-11-09", title: "Ch1", from: 1, to: 9, done: false, missed: true },
       { index: 2, date: "2026-11-10", title: "Ch1", from: 10, to: 18, done: false, missed: true },
       { index: 1, date: "2026-11-11", title: "Ch1", from: 1, to: 9, done: false },
       { index: 2, date: "2026-11-12", title: "Ch1", from: 10, to: 18, done: false },
+    ],
+  },
+  {
+    slug: "algs",
+    title: "Algorithms, 4th Edition",
+    short: "算法",
+    slot: "guided",
+    subject: "data-structures",
+    days: "tue,wed,thu",
+    limit: 20,
+    nextDay: "2026-11-11",
+    order: null,
+    status: "reading",
+    total: 8,
+    position: 1,
+    started: "2026-11-10",
+    end: "",
+    target: null,
+    targetLate: null,
+    extracts: [],
+    coreRead: [],
+    afterReads: [],
+    upcoming: [],
+    schedule: [
+      { index: 1, date: "2026-11-10", title: "§1.1–1.2", from: 1, to: 73, done: true },
+      { index: 2, date: "2026-11-11", title: "§1.3 栈与队列", from: 74, to: 107, done: false },
+      { index: 3, date: "2026-11-12", title: "§1.4 分析", from: 108, to: 140, done: false },
     ],
   },
 ];
@@ -268,7 +302,7 @@ describe("buildWeek", () => {
     expect(dayOf(week, "2026-11-08").type).toBe("休息");
   });
 
-  it("主项 / 带读：text 与 mark 按课次完成情况和日期", () => {
+  it("主项课次 / 导读段：text 与 mark 按完成情况和日期；aux 课次不出格", () => {
     const week = buildWeek(input());
     const main = laneItems(dayOf(week, "2026-11-11"), "main");
     expect(main).toEqual([
@@ -282,15 +316,15 @@ describe("buildWeek", () => {
       },
     ]);
     const guide = laneItems(dayOf(week, "2026-11-11"), "guide");
-    // 带读 text 不加前缀，lane 已表达；今天只有主项课是 ●。
+    // 导读格来自导读书的排期：短文字「短名 节名」；今天只有主项课是 ●。
     expect(guide).toEqual([
       {
         lane: "guide",
-        text: "C 语言 D1 · Ch1 起步",
-        short: "C 语言 D1",
+        text: "算法 §1.3 栈与队列 pp.74–107",
+        short: "算法 §1.3 栈与队列",
         mark: "plan",
-        slug: "c-language",
-        id: "D1",
+        slug: "algs",
+        id: null,
       },
     ]);
     expect(laneItems(dayOf(week, "2026-11-12"), "main")[0]).toMatchObject({
@@ -298,9 +332,18 @@ describe("buildWeek", () => {
       mark: "plan",
     });
     expect(laneItems(dayOf(week, "2026-11-12"), "guide")[0]).toMatchObject({
-      text: "数据结构 D1 · §1.1–1.2 数组",
+      text: "算法 §1.4 分析 pp.108–140",
       mark: "plan",
     });
+    // 周二读过的那段 ✓；导读格只落在导读排期上，11-09 没有导读格。
+    expect(laneItems(dayOf(week, "2026-11-10"), "guide")[0]).toMatchObject({ mark: "done" });
+    expect(laneItems(dayOf(week, "2026-11-09"), "guide")).toEqual([]);
+    // 旧数据的 aux 课次（C 语言 / 数据结构）不产生任何格子。
+    expect(
+      week.days
+        .flatMap((day) => day.items)
+        .some((item) => item.slug === "c-language" || item.slug === "data-structures"),
+    ).toBe(false);
     expect(laneItems(dayOf(week, "2026-11-07"), "main")[0]).toMatchObject({ mark: "done" });
     expect(laneItems(dayOf(week, "2026-11-09"), "main")[0]).toMatchObject({ mark: "done" });
   });
@@ -336,9 +379,19 @@ describe("buildWeek", () => {
             days: {
               ...CAL_NOV.days,
               "2026-11-12": calDay([
-                { slug: "discrete-math#讲后读-2", title: "讲后读 · Ch2 §2.2 · 离散" },
-                { slug: "discrete-math#讲后读-4", title: "讲后读 · Ch2 §2.4 · 离散" },
-                { slug: "ctm#讲后读-1", title: "讲后读 · Ch1 §1.3 · CTM" },
+                {
+                  slug: "discrete-math#讲后读-epp-2",
+                  title: "讲后读 · Ch2 §2.2 · 离散",
+                  book: "epp",
+                  index: 2,
+                },
+                {
+                  slug: "discrete-math#讲后读-epp-4",
+                  title: "讲后读 · Ch2 §2.4 · 离散",
+                  book: "epp",
+                  index: 4,
+                },
+                { slug: "ctm#讲后读-t-1", title: "讲后读 · Ch1 §1.3 · CTM", book: "t", index: 1 },
               ]),
             },
           },
@@ -385,6 +438,10 @@ describe("buildWeek", () => {
       text: "Epp Ch1 pp.10–18",
       mark: "plan",
     });
+    // 导读书不进自读行（它有自己的导读行）。
+    expect(week.days.flatMap((day) => laneItems(day, "self")).some((item) => item.slug === "algs")).toBe(
+      false,
+    );
     // 已读的段是 done，不受日期影响。
     const read = input({
       shelf: [
@@ -434,12 +491,12 @@ describe("buildWeek", () => {
     });
   });
 
-  it("今天只有主项课是 ●（now）；讲后读 / 带读 / 自读都是 ○（plan）", () => {
+  it("今天只有主项课是 ●（now）；讲后读 / 导读 / 自读都是 ○（plan）", () => {
     const today = input({
       cycleMonths: [
         {
           ...NOV,
-          // 今天的主项课还没上（done 缺省）→ ●；带读也在今天。
+          // 今天的主项课还没上（done 缺省）→ ●；导读段也在今天。
           lessons: {
             ...NOV.lessons,
             "2026-11-11": [
@@ -454,7 +511,14 @@ describe("buildWeek", () => {
           ...CAL_NOV,
           days: {
             ...CAL_NOV.days,
-            "2026-11-11": calDay([{ slug: "discrete-math#讲后读-3", title: "讲后读 · Ch2 §2.3 · 离散" }]),
+            "2026-11-11": calDay([
+              {
+                slug: "discrete-math#讲后读-epp-3",
+                title: "讲后读 · Ch2 §2.3 · 离散",
+                book: "epp",
+                index: 3,
+              },
+            ]),
           },
         },
       ],
@@ -480,7 +544,7 @@ describe("buildWeek", () => {
     expect(dayOf(buildWeek(input({ anki: { running: false } })), "2026-11-11").ankiDue).toBeNull();
   });
 
-  it("items 顺序：主项 → 讲后读 → 带读 → 自读", () => {
+  it("items 顺序：主项 → 讲后读 → 导读 → 自读", () => {
     const week = buildWeek(input());
     expect(dayOf(week, "2026-11-12").items.map((item) => item.lane)).toEqual([
       "main",
@@ -521,11 +585,12 @@ describe("buildWeek", () => {
       "now",
       "done",
     ]);
-    // 和今天卡同一规则：这天发起过核实（verifiedOn）就算 ✓；别的日子发起的不算。
+    // 和今天卡同一规则：这天发起过核实而课页还没勾 → ●；别的日子发起的不算
+    // （today 那天没开始也没勾也是 ●，今天的格本来标「今天」）。
     const started = buildWeek(
       input({ today: "2026-11-06", verifiedOn: { "discrete-math": "2026-11-06", ctm: "2026-10-30" } }),
     );
-    expect(laneItems(dayOf(started, "2026-11-06"), "main").map((item) => item.mark)).toEqual(["done", "now"]);
+    expect(laneItems(dayOf(started, "2026-11-06"), "main").map((item) => item.mark)).toEqual(["now", "now"]);
     // 月视图格子窄，不放周核实。
     expect(buildMonth(input(), "2026-11").find((day) => day.date === "2026-11-06")?.items).toEqual([]);
   });
@@ -632,7 +697,8 @@ describe("buildDay", () => {
     expect(day.weekday).toBe("周二");
     expect(day.type).toBe("深度");
     expect(day.isToday).toBe(false);
-    expect(day.items.map((item) => item.lane)).toEqual(["self"]);
+    // 11-10 有一节已读的导读（周二导读日）和一段没读的自读。
+    expect(day.items.map((item) => item.lane)).toEqual(["guide", "self"]);
     expect(day.ankiDue).toBeNull();
     const today = buildDay(input(), "2026-11-11");
     expect(today.isToday).toBe(true);
@@ -641,17 +707,20 @@ describe("buildDay", () => {
 });
 
 describe("buildMonth", () => {
-  it("每格只写课程短名 + 课次（`short`）", () => {
+  it("每格只写短名：主项课短名 + 课次，导读格短名 + 节名（`short`）", () => {
     const days = buildMonth(input(), "2026-11");
     const eleventh = days.find((day) => day.date === "2026-11-11");
-    expect(eleventh?.items.map((item) => item.short)).toEqual(["离散 D3", "C 语言 D1"]);
+    expect(eleventh?.items.map((item) => item.short)).toEqual(["离散 D3", "算法 §1.3 栈与队列"]);
     const twelfth = days.find((day) => day.date === "2026-11-12");
-    expect(twelfth?.items.map((item) => item.short)).toEqual(["CTM D1", "数据结构 D1"]);
-    // 没课的日子没有 short 可言；自读 / 讲后读一律空串（它们不进月视图）。
+    expect(twelfth?.items.map((item) => item.short)).toEqual(["CTM D1", "算法 §1.4 分析"]);
+    // 没课的日子没有 short 可言；自读 / 讲后读一律空串（它们不进月视图）。导读格
+    // 的 text 没有「 · 」分隔，short 按「短名 节名」验。
     for (const day of days) {
       for (const item of day.items) expect(item.short).not.toContain("·");
       expect(
-        day.items.every((item) => item.short === "" || item.short === `${item.text.split(" · ")[0]}`),
+        day.items.every(
+          (item) => item.lane === "guide" || item.short === "" || item.short === `${item.text.split(" · ")[0]}`,
+        ),
       ).toBe(true);
     }
     expect(buildMonth(input(), "2026-11").find((day) => day.date === "2026-11-06")?.items).toEqual([]);

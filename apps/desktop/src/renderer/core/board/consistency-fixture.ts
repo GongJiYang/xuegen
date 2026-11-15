@@ -46,6 +46,18 @@ export const AFTER_READ_TITLE = "讲后读 · §1.1–1.4 · 离散数学（Epp,
 /** The section range inside that title, which every 讲后读 row must keep. */
 export const AFTER_READ_RANGE = "§1.1–1.4";
 
+/** 导读书：覆盖辅助科目 data-structures，周二 / 周四读，今天是导读日。 */
+export const GUIDED = {
+  slug: "algs-4e",
+  title: "Algorithms, 4th Edition",
+  short: "算法",
+  subject: "data-structures",
+  days: "tue,thu",
+  limit: 20,
+  total: 8,
+  chunk: { index: 2, title: "§1.3 背包、队列和栈", from: 74, to: 107 },
+};
+
 export const CYCLE_DAY: CycleDay = {
   date: TODAY,
   weekday: "周四",
@@ -56,7 +68,8 @@ export const CYCLE_DAY: CycleDay = {
   course: COURSE_A,
   aux: "data-structures",
   auxCourse: COURSE_C,
-  names: { [COURSE_A]: "CTM", [COURSE_B]: "离散", [COURSE_C]: "Effective C" },
+  auxBook: GUIDED.slug,
+  names: { [COURSE_A]: "CTM", [COURSE_B]: "离散", [COURSE_C]: "Effective C", [GUIDED.slug]: GUIDED.short },
   subjects: { "programming-paradigms": "范式", "discrete-math": "离散", "c-systems-programming": "C" },
   roles: { [COURSE_A]: "main", [COURSE_B]: "main", [COURSE_C]: "aux" },
   lessons: [
@@ -67,7 +80,7 @@ export const CYCLE_DAY: CycleDay = {
   overdue: [],
 };
 
-const NAMES = { [COURSE_A]: "CTM", [COURSE_B]: "离散", [COURSE_C]: "Effective C" };
+const NAMES = { [COURSE_A]: "CTM", [COURSE_B]: "离散", [COURSE_C]: "Effective C", [GUIDED.slug]: GUIDED.short };
 const SUBJECTS = {
   "programming-paradigms": "范式",
   "discrete-math": "离散",
@@ -88,6 +101,7 @@ export const CYCLE_MONTH: CycleMonth = {
       course: COURSE_B,
       aux: null,
       auxCourse: null,
+      auxBook: null,
     },
     [TODAY]: {
       cycle: "C1",
@@ -97,6 +111,7 @@ export const CYCLE_MONTH: CycleMonth = {
       course: COURSE_A,
       aux: "data-structures",
       auxCourse: COURSE_C,
+      auxBook: GUIDED.slug,
     },
   },
   lessons: {
@@ -117,7 +132,9 @@ export const CALENDAR_MONTH: CalendarMonth = {
     [AFTER_READ_DATE]: {
       records: [{ course: COURSE_B, heading: "Ch2 §2.4 证明方法" }],
       plans: [],
-      readingDue: [{ slug: `${COURSE_B}#讲后读-1`, title: AFTER_READ_TITLE }],
+      readingDue: [
+        { slug: `${COURSE_B}#讲后读-epp-1`, title: AFTER_READ_TITLE, book: "epp", index: 1 },
+      ],
       log: [],
       note: null,
     },
@@ -253,6 +270,10 @@ export const SHELF: ShelfToday = {
     // Block 4 is today's block: 3 read, so the 4th is next — the same block the
     // shelf's `schedule` carries on today below.
     chunk: { index: 4, title: "第 4 段", from: 28, to: 36 },
+    subject: null,
+    days: null,
+    limit: null,
+    nextDay: null,
     coreOverlap: null,
     doneToday: false,
     doneChunk: null,
@@ -260,7 +281,32 @@ export const SHELF: ShelfToday = {
     plannedEnd: "2026-11-10",
     end: TODAY,
     late: 2,
+    afterReads: [],
   },
+  /** 今天（周四）是导读日：导读段排在课后读之前。 */
+  guided: [
+    {
+      slug: GUIDED.slug,
+      title: GUIDED.title,
+      short: GUIDED.short,
+      slot: "guided",
+      subject: GUIDED.subject,
+      days: GUIDED.days,
+      limit: GUIDED.limit,
+      nextDay: TODAY,
+      total: GUIDED.total,
+      position: 1,
+      chunk: GUIDED.chunk,
+      coreOverlap: null,
+      doneToday: false,
+      doneChunk: null,
+      resumedToday: false,
+      plannedEnd: "",
+      end: "",
+      late: 0,
+      afterReads: [],
+    },
+  ],
   free: null,
 };
 
@@ -287,6 +333,7 @@ export const SHELF_LIST: ShelfListItem[] = [
     targetLate: null,
     extracts: [],
     coreRead: [],
+    afterReads: [],
     upcoming: [{ index: 4, date: TODAY, title: "第 4 段", from: 28, to: 36 }],
     schedule: [
       { index: 8, date: "2026-11-06", title: "第 8 段", from: 64, to: 72, done: false, missed: true },
@@ -295,6 +342,34 @@ export const SHELF_LIST: ShelfListItem[] = [
       { index: 11, date: "2026-11-09", title: "第 11 段", from: 91, to: 99, done: false, missed: true },
       { index: 12, date: "2026-11-10", title: "第 12 段", from: 100, to: 108, done: false, missed: true },
       { index: 4, date: TODAY, title: "第 4 段", from: 28, to: 36, done: false },
+    ],
+  },
+  // 导读书的排期：周二读过的一段带记录日期，今天这段待读 — 周表格的导读格只
+  // 落在这两天。
+  {
+    slug: GUIDED.slug,
+    title: GUIDED.title,
+    short: GUIDED.short,
+    slot: "guided",
+    subject: GUIDED.subject,
+    days: GUIDED.days,
+    limit: GUIDED.limit,
+    nextDay: TODAY,
+    order: null,
+    status: "reading",
+    total: GUIDED.total,
+    position: 1,
+    started: "2026-11-10",
+    end: "",
+    target: null,
+    targetLate: null,
+    extracts: [],
+    coreRead: [],
+    afterReads: [],
+    upcoming: [{ index: 2, date: TODAY, title: GUIDED.chunk.title, from: 74, to: 107 }],
+    schedule: [
+      { index: 1, date: "2026-11-10", title: "§1.1–1.2", from: 1, to: 73, done: true },
+      { index: 2, date: TODAY, title: GUIDED.chunk.title, from: 74, to: 107, done: false },
     ],
   },
 ];

@@ -23,6 +23,7 @@
 | `use-cards.ts` | `cards.stats` + 存卡；`useAnki` 只读 AnkiConnect 状态。 |
 | `use-calendar.ts` | `calendar.month` + 翻月、选日、写笔记；`monthGrid`、`shiftMonth`、`dayMarks`、`dayOf` 为纯函数。 |
 | `use-skills.ts` | `skills.list` + 开关、获取。 |
+| `studied.ts` / `use-studied.ts` | 总控「今天学过」行：`studiedEntries` 把 `sessions.studied` 的时段按主课过滤并生成标签/时间（纯函数）；`useStudied` 只在总控会话加载，出错静默返回 []。 |
 | `cycle-today.ts` | 把一天的周期数据（cycle.day）变成「今天」窗口的标题、主攻块、没学的课、明天一行（纯函数）；`mergeOverdue` 是今日卡 / 右侧面板 / 排程本三处共用的「没学」按课程合并。 |
 | `use-cycle.ts` | 读今天、明天的 cycle.day 和日历当月的 cycle.month。 |
 | `progress-groups.ts` | 把科目骨架（subjects.list）和课程列表组合成总进度的主项 / 路线外 / 已学专题，并给课程打记号（纯函数）。 |
@@ -32,7 +33,7 @@
 | `control-card-rows.ts` | 今日卡的阅读行：讲后读标题解析与「课后读」行（`afterReadEntry`、`afterReadTitle`）、`readingDue`、书房行（`bookRow`、`shelfRows`）。 |
 | `control-card-pending.ts` | 今日卡的行后处理：「读完了」/「读完这段」的十秒撤销窗口（`withPendingRead`、`withPendingShelf`）、`withExtractCount` 摘句计数、`parsePageInput` 页码解析。 |
 | `consistency-fixture.ts` / `consistency.test.ts` | 跨处一致性夹具与测试：同一天的数据（`CycleDay` / `CycleMonth` / `CycleOverview` / `AnkiStatus` / `ShelfToday` / 日历月）同时喂给今日卡、右侧今天面板、总进度、日历当天详情的视图函数，断言完成状态、Anki 张数、讲后读文字、带读叫法四处一致（`CHECK-PROCESS-1111.md` 第 2 项）。 |
-| `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `course.afterRead` 后刷新课程与日历；「读完这段」（10 秒可撤销）写 `shelf.done`；摘几句写 `shelf.extract`。 |
+| `use-control-card.ts` | `useControlCard`：今日卡 props；行按钮走「今天」窗口的同一组动作；「读完了」写 `shelf.afterDone` 后刷新课程、日历与书房；「读完这段」（10 秒可撤销）写 `shelf.done`；摘几句写 `shelf.extract`。 |
 | `planbook.ts` | 周计划本（PLANBOOK-1111）纯函数：`buildWeek` / `buildDay` / `buildMonth`——把周期课次、日历讲后读、书房 schedule、Anki 张数合成日 / 周 / 月视图模型（lane / mark / short / goals / overdue / reviewDate）；逐日格子的条目函数在 `planbook-items.ts`。 |
 | `planbook-items.ts` | 计划本的逐日条目：`markOf`、`lessonItems`、`afterReadItems`、`selfItemsByDate`、`verifyItems`、`mainCourseSlugs`、`weekGoals`、`missedLessons`（纯函数，`planbook.ts` 的 `planDay` 用）。 |
 | `planbook-range.ts` | 计划本的日历计算：`planWeekRange`（周期周，C1 周五起；出周期退回周一–周日）/ `addDays` / `weekdayOf` / `mondayIndex` / `slotOf`，供 `planbook.ts` 与 `planbook-nav.ts` 复用（`planbook.ts` 原样再导出）。 |

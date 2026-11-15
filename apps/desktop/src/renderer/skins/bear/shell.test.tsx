@@ -182,6 +182,78 @@ describe("Bear Shell", () => {
   });
 });
 
+describe("Bear Shell control-session dialog (批 6b-2)", () => {
+  // A change of `activeTool` is what opens the dialog: the startup tool counts
+  // as dismissed, so mount on another tool first and then rerender.
+  const plan = <div className="bear-pb-stub" />;
+
+  it("opens the 书房 dialog on activeTool === reading, titled 书房 with the caption", () => {
+    const { rerender } = render(<Shell {...baseProps({ planbook: plan, activeTool: "progress" })} />);
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "reading" })} />);
+    const dialog = screen.getByRole("dialog", { name: strings.panel.blockShelf });
+    expect(dialog.classList.contains("bear-dlg")).toBe(true);
+    expect(dialog.getAttribute("data-tool")).toBe("reading");
+    const top = dialog.querySelector(".bear-dlg-top");
+    if (top === null) throw new Error("dialog has no top row");
+    const cap = top.querySelector(".bear-dlg-cap");
+    expect(cap?.textContent).toBe(strings.panel.shelfDialogCaption);
+    expect(strings.panel.shelfDialogCaption).toBe("自读每天一段（≤ 10 页）；导读在导读日读一节");
+    // The dialog holds the 阅读 panel itself (ReadingPanel's root is .bear-read).
+    expect(dialog.querySelector(".bear-read")).not.toBeNull();
+    // The caption sits after the title and before the close button.
+    expect(top.firstElementChild?.className).toBe("bear-dlg-title");
+    expect(top.lastElementChild?.className).toBe("bear-drawer-close");
+  });
+
+  it("keeps the 技能 dialog untitled-by-caption and tagged with its tool", () => {
+    const { rerender } = render(<Shell {...baseProps({ planbook: plan, activeTool: "reading" })} />);
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "skills" })} />);
+    const dialog = screen.getByRole("dialog", { name: strings.tools.skills });
+    expect(dialog.getAttribute("data-tool")).toBe("skills");
+    expect(dialog.querySelector(".bear-dlg-cap")).toBeNull();
+  });
+
+  it("reopens the 书房 dialog when the same tool is asked for again (批 6 返修)", async () => {
+    const { rerender } = render(<Shell {...baseProps({ planbook: plan, activeTool: "progress" })} />);
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "reading", toolRequest: 1 })} />);
+    expect(document.querySelector(".bear-dlg")).not.toBeNull();
+
+    const close = screen
+      .getByRole("dialog", { name: strings.panel.blockShelf })
+      .querySelector(".bear-drawer-close");
+    if (close === null) throw new Error("dialog has no close button");
+    await userEvent.click(close);
+    expect(document.querySelector(".bear-dlg")).toBeNull();
+
+    // A second click on 打开书房 → asks for the same tool again; the request
+    // number is what makes it a fresh request.
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "reading", toolRequest: 2 })} />);
+    expect(document.querySelector(".bear-dlg")).not.toBeNull();
+  });
+
+  it("does not reopen a dismissed dialog on a rerender with the same request", () => {
+    const { rerender } = render(<Shell {...baseProps({ planbook: plan, activeTool: "progress" })} />);
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "reading", toolRequest: 1 })} />);
+    const close = screen
+      .getByRole("dialog", { name: strings.panel.blockShelf })
+      .querySelector(".bear-drawer-close");
+    if (close === null) throw new Error("dialog has no close button");
+    return userEvent.click(close).then(() => {
+      expect(document.querySelector(".bear-dlg")).toBeNull();
+      // Same tool, same request: an unrelated rerender must not reopen it.
+      rerender(<Shell {...baseProps({ planbook: plan, activeTool: "reading", toolRequest: 1 })} />);
+      expect(document.querySelector(".bear-dlg")).toBeNull();
+    });
+  });
+
+  it("still uses the drawer (not the dialog) outside the control session", () => {
+    const { rerender } = render(<Shell {...baseProps({ planbook: null, activeTool: "progress" })} />);
+    rerender(<Shell {...baseProps({ planbook: null, activeTool: "reading" })} />);
+    expect(document.querySelector(".bear-dlg")).toBeNull();
+    expect(screen.getByRole("tab", { name: strings.tools.reading })).toBeTruthy();
+  });
+});
+
 describe("Bear Shell session tabs (tabs.html)", () => {
   const tabs = (onPick = vi.fn()): ShellProps["tabs"] => ({
     items: [

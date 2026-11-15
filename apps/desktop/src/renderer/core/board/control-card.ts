@@ -14,13 +14,15 @@
 import type {
   AnkiStatus,
   CalendarMonth,
+  CourseSummary,
   CycleDay,
   ReadingQueueItem,
   ShelfToday,
 } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
 import { ankiDueCount, cycleHeadline, cycleName, mergeOverdue, tomorrowLine } from "./cycle-today.js";
-import { afterReadEntry, afterReadTitle, readingDue, shelfRows } from "./control-card-rows.js";
+import { afterReadEntry, afterReadTitle, guidedRows, readingDue, shelfRows } from "./control-card-rows.js";
+import { verifyDone } from "./planbook-items.js";
 
 export { afterReadTitle } from "./control-card-rows.js";
 export {
@@ -37,8 +39,8 @@ export type ControlCardAction =
   | { kind: "verify"; slug: string }
   | { kind: "read" }
   | { kind: "anki" }
-  /** Every label of the row: one course's 课后读 due by today are one row (user 11-11). */
-  | { kind: "afterRead"; slug: string; labels: string[] }
+  /** Every book-page row of the group: one course's 课后读 due by today are one row (user 11-11). */
+  | { kind: "afterRead"; slug: string; entries: { book: string; index: number }[] }
   | { kind: "undoRead" }
   | { kind: "shelfDone"; slug: string }
   | { kind: "undoShelf" }
@@ -102,6 +104,8 @@ interface ControlCardInput {
   queue: ReadingQueueItem[];
   /** `shelf.today`: the books the 书房 is currently reading. */
   shelf?: ShelfToday | null;
+  /** `courses.list`: the 周核实 task states the verify rows read. */
+  courses?: CourseSummary[];
   /** `anki.status`: adds today's due count to the Anki row when Anki is running. */
   anki?: AnkiStatus | null;
   /** slug → the day its 周核实 was last started (settings `verifiedOn`). */
@@ -133,43 +137,38 @@ function lessonRef(day: CycleDay, lesson: { course: string; id: string; content:
   return { slug: lesson.course, name: cycleName(day, lesson.course), id: lesson.id, content: lesson.content, date };
 }
 
-/** The morning's main lessons (● now), then the aux ones (○ plan). */
+/**
+ * The morning's main lessons (● now). 导读课改书房导读后 aux 课次不出行 — old
+ * `roles: aux` rows produce no row either (their reading lives in the 阅读组).
+ */
 function lessonRows(day: CycleDay): ControlCardRow[] {
-  const card = strings.control.card;
   const rows: ControlCardRow[] = [];
   for (const lesson of day.lessons) {
     if (day.roles[lesson.course] === "aux") continue;
     rows.push(lessonRow(day, lesson, "now", `${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`));
   }
-  for (const lesson of day.lessons) {
-    if (day.roles[lesson.course] !== "aux") continue;
-    rows.push(
-      lessonRow(
-        day,
-        lesson,
-        "plan",
-        `${card.auxPrefix}${cycleName(day, lesson.course)} ${lesson.id} · ${lesson.content}`,
-      ),
-    );
-  }
   return rows;
 }
 
-/** A 整合日's 周核实 rows, one per main course (a click only switches back). */
+/**
+ * A 整合日's 周核实 rows, one per main course. Done only when the course page's
+ * 「周核实」 task is checked; started today but not checked off is 进行中 — the
+ * click only switches back to the session (no resend).
+ */
 function verifyRows(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   if (day.type !== "整合") return [];
   const card = strings.control.card;
   const rows: ControlCardRow[] = [];
   for (const [slug, role] of Object.entries(day.roles)) {
     if (role !== "main") continue;
-    // Started today: done-looking, and the click only switches back (no resend).
-    const verified = input.verifiedOn?.[slug] === input.today;
+    const done = verifyDone(input.courses ?? [], slug);
+    const started = input.verifiedOn?.[slug] === input.today;
     rows.push({
       group: "lesson",
-      mark: verified ? "done" : "now",
+      mark: done ? "done" : started ? "now" : "plan",
       text: card.verifyRow(cycleName(day, slug)),
-      sub: verified ? card.verifyStarted : card.verifySub,
-      button: verified ? card.verifyBack : card.verify,
+      sub: done ? card.verifyDone : started ? card.verifyInProgress : card.verifySub,
+      button: done ? card.verifyBackSession : started ? card.verifyBack : card.verify,
       action: { kind: "verify", slug },
       hint: card.verifyHint,
     });
@@ -186,11 +185,12 @@ function missedRows(day: CycleDay): ControlCardRow[] {
   const card = strings.control.card;
   const rows: ControlCardRow[] = [];
   for (const missed of mergeOverdue(day.overdue, day.names)) {
+    // 导读课改书房导读后 aux 课次不出行 — old overdue rows produce no row either.
+    if (day.roles[missed.course] === "aux") continue;
     // Neutral (panel v2): a lesson not taken on its day is just the next one, with
     // a grey 「原排 …」 — no 「没学」, no warning mark.
     const lessons = day.overdue.filter((lesson) => lesson.course === missed.course);
     const first = lessons.reduce((a, b) => (b.date < a.date ? b : a), lessons[0]!);
-    const prefix = day.roles[missed.course] === "aux" ? card.auxPrefix : "";
     rows.push({
       group: "lesson",
       missed: true,
@@ -200,8 +200,8 @@ function missedRows(day: CycleDay): ControlCardRow[] {
       mark: "plan",
       text:
         missed.count === 1
-          ? `${prefix}${card.missedRow(missed.name, first.id, first.content)}`
-          : `${prefix}${card.missedMany(missed.name, first.id, missed.count)}`,
+          ? card.missedRow(missed.name, first.id, first.content)
+          : card.missedMany(missed.name, first.id, missed.count),
       sub: missed.count === 1 ? card.missedSub(first.date) : card.missedManySub(first.date),
       button: card.study,
       action: { kind: "study", slug: missed.course },
@@ -223,14 +223,25 @@ function lessonGroup(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
 function afterReadRows(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   const card = strings.control.card;
   if (input.calendar === null) return [];
-  const byCourse = new Map<string, { labels: string[]; titles: string[]; ranges: string[]; first: string }>();
+  const byCourse = new Map<
+    string,
+    {
+      labels: string[];
+      titles: string[];
+      ranges: string[];
+      entries: { book: string; index: number }[];
+      first: string;
+    }
+  >();
   for (const date of Object.keys(input.calendar.days).sort()) {
     if (date > input.today) continue;
     for (const item of input.calendar.days[date]?.readingDue ?? []) {
       const entry = afterReadEntry(item);
       if (entry === null) continue;
-      const group = byCourse.get(entry.slug) ?? { labels: [], titles: [], ranges: [], first: date };
+      const group =
+        byCourse.get(entry.slug) ?? { labels: [], titles: [], ranges: [], entries: [], first: date };
       group.labels.push(entry.label);
+      group.entries.push({ book: entry.book, index: entry.index });
       group.titles.push(afterReadTitle(item.title));
       // 核心页 is the skill's word, never shown.
       group.ranges.push(entry.label.replace(/\s*核心页$/, ""));
@@ -256,7 +267,7 @@ function afterReadRows(input: ControlCardInput, day: CycleDay): ControlCardRow[]
           ? card.afterReadManySub(group.first, group.labels.length)
           : card.missedSub(group.first),
       button: card.afterRead,
-      action: { kind: "afterRead", slug, labels: group.labels },
+      action: { kind: "afterRead", slug, entries: group.entries },
       hint: card.afterReadHint,
     } satisfies ControlCardRow;
   });
@@ -280,9 +291,10 @@ function queueRows(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   return rows;
 }
 
-/** The 阅读 group: 讲后读 rows, the 书房 rows, then the reading queue. */
+/** The 阅读 group: 导读 rows first, then 讲后读, the 书房 rows, and the queue. */
 function readGroup(input: ControlCardInput, day: CycleDay): ControlCardRow[] {
   return [
+    ...(input.shelf ? guidedRows(input.shelf) : []),
     ...afterReadRows(input, day),
     ...(input.shelf ? shelfRows(input.shelf) : []),
     ...queueRows(input, day),
@@ -326,7 +338,8 @@ export function controlCard(input: ControlCardInput): ControlCardView | null {
     const text = (input.tomorrow ? tomorrowLine(input.tomorrow) : null) ?? strings.plan.restItem;
     // Reading happens every day, rest days included (per the learner).
     const rest = { mark: "faint" as const, text, button: null, action: null, hint: null };
-    return { headline, rows: [rest, ...(input.shelf ? shelfRows(input.shelf) : [])] };
+    const books = input.shelf ? [...guidedRows(input.shelf), ...shelfRows(input.shelf)] : [];
+    return { headline, rows: [rest, ...books] };
   }
 
   return {

@@ -44,6 +44,13 @@ const COMPLETE: Record<CloseAction, Params> = {
     report: ".snapshot.json",
     out: "wiki/courses/discrete-math-epp/snapshots/2026-11-10-01.png",
   },
+  "after-read": {
+    action: "after-read",
+    staging: "/home/learning/.close/discrete-math-epp-1",
+    label: "§1.1–1.4",
+    pages: "1–5、7–12",
+    date: "2026-11-10",
+  },
 };
 
 describe("courseCloseArgs — 一个动作一条 argv", () => {
@@ -199,6 +206,26 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
     ]);
   });
 
+  it("after-read passes the staging plus --label --pages --date, with --json", () => {
+    expect(courseCloseArgs(COMPLETE["after-read"], VAULT, CWD)).toEqual([
+      "after-read",
+      "/home/learning/.close/discrete-math-epp-1",
+      "--label",
+      "§1.1–1.4",
+      "--pages",
+      "1–5、7–12",
+      "--date",
+      "2026-11-10",
+      "--json",
+    ]);
+  });
+
+  it("commit still rejects a label outside 收课/存档点/偏好", () => {
+    expect(() =>
+      courseCloseArgs({ action: "commit", staging: "/s", label: "随便" }, VAULT, CWD),
+    ).toThrow(/label 只能是 收课、存档点 或 偏好/);
+  });
+
   it("throws a Chinese error naming the missing field", () => {
     const cases: [Params, RegExp][] = [
       [{ action: "stage" }, /stage 缺少 slug/],
@@ -212,6 +239,10 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
       [{ action: "snapshot" }, /snapshot 缺少 staging/],
       [{ action: "snapshot", staging: "/s" }, /snapshot 缺少 report/],
       [{ action: "snapshot", staging: "/s", report: ".snapshot.json" }, /snapshot 缺少 out/],
+      [{ action: "after-read" }, /after-read 缺少 staging/],
+      [{ action: "after-read", staging: "/s" }, /after-read 缺少 label/],
+      [{ action: "after-read", staging: "/s", label: "§1.1" }, /after-read 缺少 pages/],
+      [{ action: "after-read", staging: "/s", label: "§1.1", pages: "1–5" }, /after-read 缺少 date/],
     ];
     for (const [params, expected] of cases) {
       expect(() => courseCloseArgs(params, VAULT, CWD), params.action).toThrow(expected);
@@ -270,15 +301,19 @@ async function tool(exec: RunExecFile, home: string, repo = "/repo"): Promise<Ca
 }
 
 describe("course_close — 工具 schema", () => {
-  it("accepts label 偏好 (teaching preference) next to 收课 and 存档点", async () => {
+  it("label 说明同时覆盖 commit（收课/存档点/偏好）与 after-read（课后读的范围）", async () => {
     const home = homeWithVault(VAULT);
     try {
       const registered = await tool(fakeExec({ stdout: "{}" }), home);
-      const label = registered.parameters?.properties?.label;
-      expect(label?.anyOf?.map((entry) => entry.const)).toEqual(["收课", "存档点", "偏好"]);
-      // 说明文字要说清用途：课程会话自己就能记，不必去总控。
+      const properties = registered.parameters?.properties ?? {};
+      const label = properties.label;
+      // label 是自由文本（after-read 的「范围」不是固定枚举），commit 的三个值改由
+      // args 拼装时校验。说明文字要说清两种用途。
       expect(label?.description).toContain("偏好");
       expect(label?.description).toContain("讲解偏好");
+      expect(label?.description).toContain("课后读");
+      expect(properties.pages?.description).toContain("after-read");
+      expect(properties.date?.description).toContain("after-read");
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

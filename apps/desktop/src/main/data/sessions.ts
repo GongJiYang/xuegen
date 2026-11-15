@@ -15,13 +15,13 @@ import { isOwnSessionFile } from "../../agent/session-file.js";
 import { textFromContent } from "../../agent/event-mapper.js";
 
 /** The timestamp a session file name carries (same shape as the renderer's `SESSION_STAMP`). */
-const SESSION_STAMP = /(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z_/;
+export const SESSION_STAMP = /(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z_/;
 
 /** At most this many transcripts are summarized (newest file names first). */
 const MAX_SESSIONS = 80;
 
 /** The 「今日要点 · X」 title an assistant message announces (「离散 D2」). */
-const PIN_TITLE = /今日要点\s*·\s*([^\n\]]+)/;
+export const PIN_TITLE = /今日要点\s*·\s*([^\n\]]+)/;
 
 /**
  * Summarize one transcript for the session list, or null when the file name
@@ -70,7 +70,7 @@ export function summarizeSession(file: string, text: string): SessionMeta | null
  * else, or an unreadable directory, yields an empty list.
  */
 /** True for an existing directory physically inside `<home>/sessions`. */
-function isOwnSessionDir(home: string, dir: string): boolean {
+export function isOwnSessionDir(home: string, dir: string): boolean {
   try {
     const root = realpathSync(resolve(home, "sessions"));
     const full = realpathSync(resolve(dir));

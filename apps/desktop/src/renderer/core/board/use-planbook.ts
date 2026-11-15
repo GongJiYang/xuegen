@@ -3,7 +3,8 @@
  *
  * Loads exactly what each view needs through the data channel, assembles a
  * {@link PlanbookInput}, and hands it to the pure builders in `planbook.ts`:
- * - `month` needs only `cycle.month` (self-reading and 讲后读 stay out).
+ * - `month` needs `cycle.month` and the month's `shelf.list` for the 导读 lane
+ *   (self-reading and 讲后读 stay out).
  * - `day` adds `calendar.month`, a one-day `shelf.list` range and `anki.status`.
  * - `week` adds the whole week's range — one or two months each of `cycle` and
  *   `calendar` — plus `cycle.overview` and `courses.list` for goals / missed
@@ -110,12 +111,17 @@ async function loadPlanbook(
   const first = await client.data({ kind: "cycle.month", month });
   if (!first.ok) return first;
   if (view === "month") {
+    // 导读 is a book lane: the month grid reads the guided books' schedule too.
+    const [year = 1970, monthNumber = 1] = month.split("-").map(Number);
+    const last = `${month}-${String(new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()).padStart(2, "0")}`;
+    const shelf = await client.data({ kind: "shelf.list", from: `${month}-01`, to: last });
+    if (!shelf.ok) return shelf;
     const input: PlanbookInput = {
       today,
       anchor,
       cycleMonths: [first.data],
       calendarMonths: [],
-      shelf: [],
+      shelf: shelf.data,
       overview: null,
       courses: [],
       anki: null,
@@ -137,7 +143,8 @@ const DISABLED = new Promise<LoadResult<PlanbookResult>>(() => {});
  * `anchor` is the day a day view shows, any day inside the wanted week, or any
  * day of the wanted month. Reloads when `view`/`anchor` change. `enabled`
  * false makes no request at all — the state simply stays `loading`.
- * `verifiedOn` marks a started weekly verify done on its day (and reloads when it changes).
+ * `verifiedOn` marks a weekly verify started that day (its cell reads ● while the
+ * course page's task stays unchecked; and reloads when it changes).
  */
 export function usePlanbook(
   view: PlanbookView,

@@ -9,6 +9,7 @@ import { readFile, writeFile, readdir, rename, mkdir, unlink } from "node:fs/pro
 import { existsSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { parseCourse } from "../course/course-parse.mjs";
+import { parseAfterReads } from "../reading/shelf-after.mjs";
 
 const DAY_PAD = (n) => String(n).padStart(2, "0");
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -94,19 +95,37 @@ function collectCoursePlans(course) {
     .map((entry) => ({ date: entry.date, course: course.slug, label: entry.label }));
 }
 
-// 课程页 `## Today` 里没打勾的「讲后读 … · YYYY-MM-DD 读」→ 当天的 readingDue。
-// 标题对用户读作「讲后读 · <范围> · <课名>」：「范围」去掉内部词「核心页」，也不再套一层括号。
-function collectAfterReads(course) {
-  const lines = course.text.split("\n");
-  const start = lines.findIndex((line) => /^##\s+Today\s*$/.test(line));
-  if (start === -1) return [];
+// 去掉 frontmatter 的正文行（书页 `## 课后读` 一节在正文里）。
+function bodyLines(text) {
+  const lines = text.split("\n");
+  if (lines[0] !== "---") return lines;
+  const end = lines.indexOf("---", 1);
+  return end === -1 ? lines : lines.slice(end + 1);
+}
+
+// 书页 `## 课后读` 里没勾的行 → 排在哪天的 readingDue。
+// 标题对用户读作「讲后读 · <标签> · <课程标题>」（课程标题取课程页的 H1，
+// 没有这门课就用 slug）；slug 写 `<课程>#讲后读-<书>-<序号>`，另带 book / index 给「读完」回写用。
+async function collectAfterReads(vault, courseTitles) {
+  const dir = join(wikiDir(vault), "shelf");
+  if (!existsSync(dir)) return [];
+  const names = await readdir(dir);
   const found = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^##\s/.test(line)) break;
-    const match = line.match(/^- \[ \] 讲后读 (.+?) · (\d{4}-\d{2}-\d{2}) 读/);
-    if (!match || !isDate(match[2])) continue;
-    const range = match[1].trim().replace(/核心页/g, "").trim();
-    found.push({ date: match[2], slug: `${course.slug}#讲后读-${found.length + 1}`, title: `讲后读 · ${range} · ${course.title}` });
+  for (const name of names.filter((n) => n.endsWith(".md") && !n.startsWith(".")).sort()) {
+    const text = await readFile(join(dir, name), "utf8");
+    if (frontmatterField(text, "kind") !== "book") continue;
+    const book = basename(name, ".md");
+    for (const entry of parseAfterReads(bodyLines(text))) {
+      if (entry.done) continue;
+      const title = courseTitles.get(entry.course) ?? entry.course;
+      found.push({
+        date: entry.date,
+        slug: `${entry.course}#讲后读-${book}-${entry.index}`,
+        title: `讲后读 · ${entry.label} · ${title}`,
+        book,
+        index: entry.index,
+      });
+    }
   }
   return found;
 }
@@ -224,9 +243,15 @@ async function collectMonth(vault, month) {
   for (const item of await collectReadingDue(vault)) {
     if (inMonth(item.date)) bucket(item.date).readingDue.push({ slug: item.slug, title: item.title });
   }
-  for (const course of courses) {
-    for (const item of collectAfterReads(course)) {
-      if (inMonth(item.date)) bucket(item.date).readingDue.push({ slug: item.slug, title: item.title });
+  const courseTitles = new Map(courses.map((course) => [course.slug, course.title]));
+  for (const item of await collectAfterReads(vault, courseTitles)) {
+    if (inMonth(item.date)) {
+      bucket(item.date).readingDue.push({
+        slug: item.slug,
+        title: item.title,
+        book: item.book,
+        index: item.index,
+      });
     }
   }
   for (const item of await collectLog(vault)) {
@@ -361,7 +386,7 @@ function usage() {
     "  node calendar.mjs write <vault> <YYYY-MM-DD> (--text <string> | --stdin)",
     "",
     "<vault> 为 Wiki 库根目录（须含 wiki/ 子目录）。",
-    "month/get 聚合：课程学习记录、课程计划表日期行、阅读页 due、课程页 Today 里的讲后读、wiki/log.md、wiki/calendar/ 笔记。",
+    "month/get 聚合：课程学习记录、课程计划表日期行、阅读页 due、书页 `## 课后读` 里没勾的课后读、wiki/log.md、wiki/calendar/ 笔记。",
     "write 只写 wiki/calendar/；正文为空则删除该文件。",
   ].join("\n");
 }

@@ -1,0 +1,187 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>批 6「今天学过」+ 书房入口 + 书房进度表 · 设计稿（11-15）</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a3:#0f2a3d;--a6:#1d4a6b;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1560px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper)}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex}
+.main{flex:1;min-width:0;padding:16px 28px 28px;display:flex;flex-direction:column;gap:24px}
+.lnk{color:var(--a11);font-size:12px;line-height:16px;font-weight:500}
+.sub{font-size:12px;line-height:16px;color:var(--g11);font-weight:400}
+.chg{outline:1px dashed var(--hlb);outline-offset:3px;border-radius:3px;position:relative}
+.chg::after{content:attr(data-n);position:absolute;top:-10px;right:-10px;background:var(--hlb);color:#1a1405;font-size:12px;line-height:16px;font-weight:700;border-radius:8px;padding:0 5px}
+.ask{outline-color:#ff8a8a}.ask::after{background:#ff8a8a}
+.sec h2{font-size:16px;line-height:24px;margin:0 0 8px;display:flex;align-items:baseline;gap:10px;font-weight:600}
+.today{max-width:1064px}
+.gh{font-size:12px;line-height:16px;color:var(--g11);display:flex;gap:8px;align-items:baseline;padding:12px 0 4px;border-bottom:1px solid var(--g4)}
+.gh b{color:var(--g12);font-size:14px;line-height:20px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid var(--g3)}
+.row .mk{width:16px;text-align:center;color:var(--g8)}.row .mk.ok{color:var(--done)}
+.row .t{flex:1;min-width:0}.row .t .s{font-size:12px;line-height:16px;color:var(--g11)}
+.row .go{font-size:14px;color:var(--g12)}
+.box{width:14px;height:14px;border:1px solid var(--g7);border-radius:3px;display:inline-block}
+/* 今天学过 */
+.studied{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-top:14px;font-size:14px;line-height:20px;color:var(--g11)}
+.studied b{color:var(--g12);font-weight:500}.studied .k{font-size:12px;line-height:16px;color:var(--g11)}
+.tmr{font-size:14px;line-height:20px;margin-top:8px}
+/* r3 */
+.r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.r3 p{margin:4px 0;font-size:12px;line-height:16px;color:var(--g11)}
+.r3 h2 .lnk{margin-left:0}.r3 h2 .lnks{margin-left:auto;display:flex;gap:16px}
+.bar3{height:3px;background:var(--g4);border-radius:4px;margin:6px 0}.bar3 i{display:block;height:100%;background:var(--a9);border-radius:4px}
+/* dialog */
+.scrim{background:#0b0b0acc;padding:40px 0;display:flex;justify-content:center}
+.dlg{width:1120px;background:var(--g1);border:1px solid var(--g7);border-radius:12px;overflow:hidden}
+.dlg-h{display:flex;align-items:baseline;gap:12px;padding:16px 24px 12px;border-bottom:1px solid var(--g6)}
+.dlg-h b{font-size:16px;line-height:24px}.dlg-h .x{margin-left:auto;font-size:14px;color:var(--g11)}
+.dlg-b{padding:16px 24px 24px;display:flex;flex-direction:column;gap:24px}
+.bk{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bk b{font-size:16px;line-height:24px}
+.seg{display:inline-flex;border:1px solid var(--g7);border-radius:4px;overflow:hidden}.seg span{padding:2px 10px;font-size:13px;line-height:20px}.seg .on{background:var(--g12);color:#111}
+/* overview strip */
+.ov{display:grid;grid-template-columns:64px 1fr;gap:6px 12px;align-items:center;font-size:12px;line-height:16px;color:var(--g11)}
+.lane{position:relative;height:12px;background:var(--g3);border-radius:3px}
+.lane i{position:absolute;top:0;bottom:0;border-radius:3px}
+.lane i.done{background:var(--done)}
+.lane i.plan{background:transparent;border:1px solid var(--a6)}
+.lane i.read{background:var(--a9)}
+.lane i.core{background:transparent;border:1px solid var(--g8)}
+.lane i.skip{background:repeating-linear-gradient(45deg,var(--g4) 0 4px,var(--g2) 4px 8px)}
+.lane .now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--a11)}
+.axis{position:relative;height:16px}.axis span{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--g11)}
+.lg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;line-height:16px;color:var(--g11)}
+.lg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+/* table */
+table.pt{border-collapse:collapse;width:100%;font-size:14px;line-height:20px}
+table.pt th{font-size:12px;line-height:16px;color:var(--g11);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--g6)}
+table.pt td{padding:6px 8px;border-bottom:1px solid var(--g3);vertical-align:top}
+table.pt td.pg{color:var(--g11);font-size:12px;line-height:16px;white-space:nowrap;padding-top:8px}
+table.pt td small{display:block;font-size:12px;line-height:16px;color:var(--g11)}
+table.pt tr.cur td{background:var(--g2)}
+table.pt tr.ch td{padding-top:14px}
+table.pt .ok::before{content:"✓ ";color:var(--done)}
+table.pt .nowt{color:var(--a11);font-weight:500}
+table.pt .mute{color:var(--g11)}
+table.pt tr.skip td{color:var(--g11)}
+.fold{font-size:12px;line-height:16px;color:var(--g11);padding:8px 8px;display:flex;gap:8px}.fold .lnk{margin-left:auto}
+.old{border-top:1px solid var(--g6);padding-top:16px}
+.old h4{font-size:14px;line-height:20px;margin:0 0 4px}
+.old p{margin:0 0 12px;font-size:12px;line-height:16px;color:var(--g11)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+/* settings */
+.set{width:560px;border:1px solid var(--g7);border-radius:12px;background:var(--g1);padding:16px 24px}
+.set .r{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--g3)}
+.set .r .t{flex:1}.set .r .t small{display:block;font-size:12px;line-height:16px;color:var(--g11)}
+.sw{width:32px;height:18px;border-radius:9px;background:var(--a9);position:relative}.sw::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#fff}
+table.spec{border-collapse:collapse;font-size:13px;line-height:20px;margin-top:8px;width:100%}
+table.spec td,table.spec th{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top;text-align:left}
+table.spec th{color:var(--g11);font-weight:500}
+table.spec td:first-child{white-space:nowrap;color:var(--hlb);font-weight:700}
+table.spec tr.ask td:first-child{color:#ff8a8a}
+</style>
+<body><div class="doc">
+<h1>批 6「今天学过」+ 书房入口 + 书房进度表 · 设计稿（11-15，等你批）</h1>
+<p class="lead">按你 11-15 定的：<b>「今天学过」只算主课、每门课一段（最早到最晚）</b>，不做按天回看会话；书房补一个入口，入口里第一块是新的<b>整本书进度表</b>。窗口按 1920 宽画，日期借用测试窗口的 11-17 周二。<b>黄色虚框 = 按你说的做</b>；<b>红色虚框 = 我定的，要你点头</b>（编号对应最下面的表）。数据全是真实库的 Epp 与离散课程页。</p>
+
+<h3>① 总控「今天」卡底部 · 「今天学过」一行</h3>
+<div class="win"><div class="bar"><div class="tab on">总控 · C1</div><div class="tab">CTM</div><div class="tab" style="color:var(--g8)">＋</div><div class="gap"></div><div class="meta"><span>上下文 22%</span><span>⋯</span></div></div>
+<div class="shell"><div class="main">
+  <div class="sec today">
+    <h2>今天 <span class="sub">11-17 周二 · 主攻日</span></h2>
+    <div class="gh"><b>上课</b>进会话讲，讲完在会话里收课才算完成</div>
+    <div class="row"><span class="mk ok">✓</span><div class="t">CTM D3 · Ch3 §3.1–3.4：声明性、迭代与递归计算<div class="s">已收课</div></div><span class="lnk">回到会话 →</span></div>
+    <div class="row"><span class="mk ok">✓</span><div class="t">离散 周核实<div class="s">今天已开始</div></div><span class="lnk">回到核实 →</span></div>
+    <div class="row"><span class="mk">○</span><div class="t">导读课 · 数据结构 D2 · §1.3 背包、队列和栈</div><span class="go">开课 →</span></div>
+    <div class="gh"><b>阅读</b>读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+    <div class="row"><span class="mk"><span class="box"></span></span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+    <div class="gh"><b>复习</b>在 Anki 里刷，学根不记</div>
+    <div class="row"><span class="mk">○</span><div class="t">Anki · 今天 42 张</div><span class="go">打开 Anki →</span></div>
+    <div class="studied chg" data-n="1"><span class="k">今天学过</span><span><b>CTM D3</b> 08:10–09:40</span><span class="chg ask" data-n="2"><b>离散 周核实</b> 14:00–14:35</span></div>
+    <div class="tmr">明天：周三 · 主攻日 · 离散 D5 + 导读课 C 语言</div>
+  </div>
+</div></div></div>
+<p class="note">还没上过主课时：<b>这一行不出现</b>（红框 3），不写「今天还没学」。导读课、陪读、自读、总控、自由提问、领域问答都不算。不写总时长，不和计划比。</p>
+
+<h3>② 「技能与设置」里的开关</h3>
+<div class="set chg" data-n="4">
+  <div class="r"><div class="t">总控显示「今天学过」<small>在「今天」下面列出今天上过的主课和时间；关掉就不显示</small></div><span class="sw"></span></div>
+  <div class="r" style="border:0"><div class="t" style="color:var(--g11)">（下面是原有的技能列表，不变）</div></div>
+</div>
+
+<h3>③ 总控书房块 · 加「打开书房 →」</h3>
+<div class="win"><div class="main">
+  <div class="r3">
+    <div class="sec"><h2>总进度 <span class="sub">只算主课</span></h2><p style="color:var(--g12);font-size:14px;line-height:20px">离散数学 <span style="float:right" class="sub">3 / 14</span></p><div class="bar3"><i style="width:21%"></i></div><p>下一节 D4 · 11-16</p></div>
+    <div class="sec"><h2>书房 <span class="lnks"><span class="lnk">加一本书</span><span class="lnk chg" data-n="5">打开书房 →</span></span></h2><p style="color:var(--g12);font-size:14px;line-height:20px">Epp · 离散数学</p><p>第 1 / 81 段 · 预计 02-05 读完</p><p>排队：CTM · 预计 04-25 读完</p></div>
+    <div class="sec"><h2>卡片 <span class="lnk" style="margin-left:auto">新卡片</span></h2><p>Mathematics::DiscreteMath　160</p><p>Programming::CTM　60</p></div>
+  </div>
+</div></div>
+
+<h3>④ 点「打开书房 →」后的弹框（1120 宽，内容可滚动）</h3>
+<div class="scrim"><div class="dlg">
+  <div class="dlg-h"><b>书房</b><span class="sub">整本书每天一段，≤ 10 页</span><span class="x">关闭 ✕</span></div>
+  <div class="dlg-b">
+    <div class="bk chg ask" data-n="6"><span class="seg"><span class="on">Epp</span><span>CTM（排队）</span></span><b>Discrete Mathematics with Applications</b><span class="sub">自读第 1 / 81 段 · 原排 11-09 起 · 预计 02-05 读完 · 没设目标日期</span><span class="lnk" style="margin-left:auto">设目标日期</span></div>
+
+    <div class="chg" data-n="7">
+      <div class="ov">
+        <span></span><div class="axis"><span style="left:0%">p.1</span><span style="left:20.5%">Ch3</span><span style="left:34%">Ch5</span><span style="left:49.6%">Ch6</span><span style="left:64%">Ch8</span><span style="left:74.3%">Ch9</span><span style="left:89%">Ch10</span><span style="left:100%">p.759</span></div>
+        <span>主课讲</span>
+        <div class="lane"><i class="done" style="left:0;width:8.7%"></i><i class="plan" style="left:8.7%;width:77.4%"></i><i class="skip" style="left:86.1%;width:2.9%"></i></div>
+        <span>课后读</span>
+        <div class="lane"><i class="core" style="left:0;width:0.7%"></i><i class="core" style="left:0.9%;width:0.8%"></i><i class="core" style="left:2.2%;width:0.7%"></i><i class="core" style="left:3.1%;width:0.5%"></i><i class="core" style="left:5.2%;width:0.2%"></i><i class="core" style="left:5.7%;width:0.6%"></i><i class="core" style="left:7.0%;width:0.2%"></i><i class="core" style="left:7.3%;width:0.6%"></i><i class="core" style="left:8.6%;width:1.3%"></i></div>
+        <span>自读</span>
+        <div class="lane"><i class="plan" style="left:0;width:86.1%"></i><i class="skip" style="left:86.1%;width:2.9%"></i><i class="plan" style="left:89.1%;width:10.9%"></i><span class="now" style="left:0.2%"></span></div>
+      </div>
+      <div class="lg" style="margin-top:8px"><span><i style="background:var(--done)"></i>讲过 / 读过</span><span><i style="border:1px solid var(--a6)"></i>排着</span><span><i style="border:1px solid var(--g8)"></i>核心页（还没读）</span><span><i style="background:repeating-linear-gradient(45deg,var(--g4) 0 4px,var(--g2) 4px 8px)"></i>这本不读</span><span><i style="background:var(--a11);width:2px"></i>今天读到这</span></div>
+    </div>
+
+    <table class="pt chg ask" data-n="8">
+      <tr><th style="width:22%">章节</th><th style="width:9%">页</th><th style="width:20%">主课讲</th><th style="width:26%">课后读（核心页）</th><th>自读</th></tr>
+      <tr class="cur"><td>Ch1 §1.1–1.4 变量、集合、关系与函数</td><td class="pg">pp.1–36</td><td><span class="ok">D1 · 11-07</span></td><td>☐ pp.1–5、7–12、17–21、24–27、31<small>原排 11-10</small></td><td><span class="nowt">今天第 1 段 · pp.1–9</span><small>4 段 · 11-17 – 11-20</small></td></tr>
+      <tr class="ch"><td>Ch2 §2.1–2.2 逻辑形式与等价、条件语句</td><td class="pg">pp.37–65</td><td><span class="ok">D2 · 11-09</span></td><td>☐ pp.40、43–46、54、56–59<small>原排 11-12</small></td><td>3 段 · 11-21 – 11-23</td></tr>
+      <tr><td>Ch2 §2.3 有效论证与无效论证</td><td class="pg">pp.66–78</td><td><span class="ok">D3 · 11-11</span></td><td>☐ pp.66–75<small>原排 11-12</small></td><td>2 段 · 11-24 – 11-25</td></tr>
+      <tr><td>Ch2 §2.4–2.5</td><td class="pg">pp.79–107</td><td class="mute">D3 里略读</td><td class="mute">—</td><td>3 段 · 11-26 – 11-28</td></tr>
+      <tr class="ch"><td>Ch3 §3.1–3.2 谓词与量词</td><td class="pg">pp.108–130</td><td>D4 · 11-16</td><td class="mute">开课时定</td><td>3 段 · 11-29 – 12-01</td></tr>
+      <tr><td>Ch3 §3.3–3.4 多重量词</td><td class="pg">pp.131–159</td><td>D5 · 11-18</td><td class="mute">开课时定</td><td>3 段 · 12-02 – 12-04</td></tr>
+      <tr class="ch"><td>Ch4 §4.1–4.4 直接证明与反例</td><td class="pg">pp.161–199</td><td>D6 · 11-23</td><td class="mute">开课时定</td><td>4 段 · 12-05 – 12-08</td></tr>
+    </table>
+    <div class="fold">▸ 另外 13 节（Ch4 §4.5 – Ch10 §10.6）与「这本不读」3 处<span class="lnk">展开</span></div>
+    <table class="pt" style="margin-top:-16px">
+      <tr class="skip"><td style="width:22%">Ch9 §9.8–9.9</td><td class="pg" style="width:9%">pp.655–676</td><td colspan="3">这本不读 · 留到 C6 概率论</td></tr>
+      <tr class="skip"><td>Ch11</td><td class="pg">pp.760–828</td><td colspan="3">这本不读 · 留到 C2 数据结构与算法</td></tr>
+    </table>
+
+    <div class="old chg" data-n="9">
+      <p>下面是原来「阅读」页的内容，照搬、不改样子：</p>
+      <div class="cols">
+        <div><h4>摘录 0 句</h4><p>读完一段后在「今天」里点「摘几句」；攒够了在这里「把 N 句做成卡 →」。</p></div>
+        <div><h4>排队 · 计划外</h4><p>CTM · Epp 读完后接着读，预计 04-25 读完<br>计划外：还没有书</p></div>
+        <div><h4>文章与摘录</h4><p>加入网址或库里的路径 · 今天该读 0 篇 · 之后 0 篇</p></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<h3>编号说明</h3>
+<table class="spec">
+<tr><th>#</th><th>做什么</th><th>依据</th></tr>
+<tr><td>1</td><td>「今天学过」放在「今天」卡最底下、「明天」上面，一行写完；每门主课一段，起 = 你在那门课会话里发的第一句，止 = 当天最后一条回答结束</td><td>你 11-15 第 1、2 点</td></tr>
+<tr class="ask"><td>2</td><td>周核实也是主课的会话，算进来，写「离散 周核实」</td><td>我定：周核实是主课的一部分，不算的话核实那天这行是空的</td></tr>
+<tr class="ask"><td>3</td><td>今天还没上主课时整行不出现，不写「还没学」</td><td>我定：11-13 规则，不出催促字眼</td></tr>
+<tr><td>4</td><td>「技能与设置」最上面一个开关，默认开</td><td>你 11-12 定的开关</td></tr>
+<tr><td>5</td><td>书房块标题右边加「打开书房 →」，打开弹框（和「技能与设置」一样的弹框）</td><td>补 11-12 并页面时漏掉的入口</td></tr>
+<tr class="ask"><td>6</td><td>弹框顶部按书切换：在读的书在前，排队的书也能看（看到的是排期）</td><td>我定</td></tr>
+<tr class="ask"><td>7</td><td>整本书总览：按页码一条横轴，三条道——主课讲到哪、课后读核心页、自读排期；「这本不读」的页画斜纹；蓝竖线是今天读到的位置。有目标日期时，自读道上再标一条目标线</td><td>你 11-15 说的「进度表」；画法是我定的</td></tr>
+<tr class="ask"><td>8</td><td>下面是按书的「分段」逐节一行（Epp 20 节）：主课写课次和日期（讲过打 ✓），课后读写核心页页码和「原排」日期，自读写几段、从哪天到哪天；默认只展开今天那节和后面 6 节，其余收起；「这本不读」单列在最后，写去向</td><td>我定；文案按 11-13 规则只用中性说法（「原排」「预计」），不写落后几天</td></tr>
+<tr class="ask"><td>9</td><td>原来阅读页的摘录、排队、文章队列照搬在下面，不改</td><td>我定：先补回功能，样子以后做「书房会话」时再改</td></tr>
+</table>
+<p class="note" style="margin-top:16px"><b>画这张稿时看到的两件事（不在本批改，先告诉你）：</b>①Epp 自读停在第 0 段、课后读核心页一页都没记，可能确实都没读，也可能「读完了」没记进书页；做进度表前我先核对。②离散课程页里 D3 的周目标那一行写了两遍（第 48、55 行），内容几乎一样，数据小毛病。</p>
+</div></body></html>

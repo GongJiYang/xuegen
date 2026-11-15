@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v0.15.0 — 2026-11-15
+
+- Desktop: 今天学过 — the 总控 今天 card ends with one line listing each main course studied today and its first-to-last time (「CTM D3 08:10–09:40」), read back from the session transcripts (`sessions.studied`, `main/data/studied.ts`); no totals, no new records. 技能与设置 has a checkbox to hide it (`showStudied`).
+- Desktop: 书房 — the 总控's 书房 block has 「打开书房 →」, opening the reading page in a dialog with 计划内 / 导读 / 排队 / 计划外 and 文章与摘录. Closing a dialog and clicking the same button again reopens it (`toolRequest`, also fixes 新卡片 and 技能与设置).
+- State convergence (user 11-15: one task is ticked in one place; reading the book lives in the 书房): 课后读 is stored in the book page's `## 课后读` section (`skills/reading/shelf-after.mjs`, `bookshelf.mjs after add/done`); 收课 writes it through `course_close after-read` in the same jj commit as the course page, and the course page refuses new 讲后读 rows; ticking 读完 writes only the book page (`shelf.afterDone`). `course.afterRead`, `course-state.mjs after-read` and `bookshelf.mjs lecture` are gone.
+- 导读: the former 导读课 are 书房 guided books (`slot: guided`, `subject`, `days`) — read on the template's 导读 days one section at a time, ticked like 自读, 陪读 opens a session but nothing is closed. The 今天 card lists them under 阅读, the week grid's 导读 row is ticked like the other reading rows, `cycle.mjs day` reports `auxBook`. Course pages can be marked 停用 (`- 状态：停用（…）`): they leave the cycle and the board's main table.
+- 周核实: ✓ only when the course page's weekly 周核实 is ticked; started but not closed shows ● 进行中.
+- 书房 writes (读书 / 课后读 / 摘录 / 制卡 / 暂停 / 恢复 / 目标) each make one jj commit, and `wiki/shelf/index.md` is redrawn after every write.
+
 ## v0.14.0 — 2026-11-15
 
 - Desktop: 学过了，直接勾掉 — every not-done 上课 row in the 总控 has a 「⋯」 menu (学过了 / 挪到别的日子 / 这节讲什么). 学过了 opens a dialog listing that lesson plus earlier unfinished ones of the same course; the 总控 ticks them in one plan transaction labelled 自报 (`course_plan commit --label 自报`, jj 「自报 <slug> <date>」), writes a 「用户自报」 learning record, and 「撤销这次改动」 undoes it (`plan-undo` recognises 自报 commits). A lesson can no longer be ticked by a plan commit without that label.

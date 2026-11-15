@@ -77,6 +77,7 @@ export function Shell(props: ShellProps) {
     contextUsage,
     tools,
     activeTool,
+    toolRequest,
     onOpenTool,
     focusMode,
     panels,
@@ -101,6 +102,13 @@ export function Shell(props: ShellProps) {
     setSeenTool(activeTool);
     setDismissedFor(null);
   }
+  // Asking for the same tool again (a second click on 新卡片 / 打开书房 →) is a
+  // fresh request too: it clears the dismissal so the dialog reopens.
+  const [seenRequest, setSeenRequest] = useState(toolRequest ?? 0);
+  if ((toolRequest ?? 0) !== seenRequest) {
+    setSeenRequest(toolRequest ?? 0);
+    setDismissedFor(null);
+  }
   const [picked, setPicked] = useState<{ tool: ToolId | null } | null>(null);
   const [lastTool, setLastTool] = useState<ToolId>(tools[0]?.id ?? "progress");
   const reduceMotion = useReducedMotion();
@@ -110,10 +118,12 @@ export function Shell(props: ShellProps) {
   // no 课程与计划 button, no drawer, no ⌘1–5 (user 11-12).
   const hasDrawer = props.planbook === null;
   const open = hasDrawer && (requested || (activeTool !== null && activeTool !== dismissedFor));
-  // In the control session the panel's 技能与设置 / 新卡片 open their tool in a
-  // dialog instead (the startup tool counts as dismissed, as for the drawer).
+  // In the control session the panel's 技能与设置 / 新卡片 / 书房 open their tool
+  // in a dialog instead (the startup tool counts as dismissed, as for the drawer).
   const dialogTool =
-    !hasDrawer && (activeTool === "skills" || activeTool === "cards") && activeTool !== dismissedFor
+    !hasDrawer &&
+    (activeTool === "skills" || activeTool === "cards" || activeTool === "reading") &&
+    activeTool !== dismissedFor
       ? activeTool
       : null;
   const tab = picked !== null && picked.tool === activeTool ? TODAY_TAB : (activeTool ?? lastTool);
@@ -282,11 +292,20 @@ export function Shell(props: ShellProps) {
       >
         <RadixDialog.Portal>
           <RadixDialog.Overlay className="bear-dlg-overlay" />
-          <RadixDialog.Content className="bear-dlg" aria-describedby={undefined}>
+          <RadixDialog.Content
+            className="bear-dlg"
+            data-tool={dialogTool ?? undefined}
+            aria-describedby={undefined}
+          >
             <div className="bear-dlg-top">
               <RadixDialog.Title className="bear-dlg-title">
-                {tools.find((tool) => tool.id === dialogTool)?.name ?? ""}
+                {dialogTool === "reading"
+                  ? strings.panel.blockShelf
+                  : (tools.find((tool) => tool.id === dialogTool)?.name ?? "")}
               </RadixDialog.Title>
+              {dialogTool === "reading" && (
+                <span className="bear-dlg-cap">{strings.panel.shelfDialogCaption}</span>
+              )}
               <RadixDialog.Close className="bear-drawer-close">{strings.panel.dialogClose}</RadixDialog.Close>
             </div>
             <div className="bear-tabpanels">

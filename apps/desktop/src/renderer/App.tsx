@@ -31,6 +31,7 @@ import { isControlSession, useControlSession } from "./core/board/use-control-se
 import { useControlPlanbook } from "./core/board/use-control-planbook.js";
 import { useChatColumn } from "./core/board/use-chat-column.js";
 import { useSessionList } from "./core/board/use-session-list.js";
+import { useActiveTool } from "./core/board/use-active-tool.js";
 import { useSessionTabs } from "./core/board/use-session-tabs.js";
 import { useDomainSession } from "./core/board/use-domain-session.js";
 import { useDomain } from "./core/board/use-domain.js";
@@ -58,7 +59,7 @@ import { useUpdate } from "./core/update/use-update.js";
 import { useSkinAppearance, useSkinCycleShortcut } from "./skins/use-appearance.js";
 import { useSkin } from "./skins/use-skin.js";
 import { Gallery } from "./gallery/Gallery.js";
-import type { ShellProps, ToolId } from "./skins/contract.js";
+import type { ShellProps } from "./skins/contract.js";
 import { toolDescriptors } from "./skins/chicago/icons.js";
 import { strings } from "./core/strings.js";
 
@@ -87,7 +88,10 @@ export function App() {
   const cycle = useCycle(todayKey(), addDays(todayKey(), 1), calendar.month);
   const subjects = useSubjects(todayKey());
   const skills = useSkills();
-  const skillsPanel = useSkillsPanel(skills, apply);
+  const skillsPanel = useSkillsPanel(skills, apply, {
+    on: settings.showStudied,
+    onToggle: (on) => update({ showStudied: on }),
+  });
 
   const resume = useMemo(
     () => (courses.state.status === "ready" ? resumePoint(courses.state.value) : null),
@@ -147,10 +151,10 @@ export function App() {
     const course = courses.state.status === "ready" ? courses.state.value.find((item) => item.slug === slug) : undefined;
     if (course) handleStudy(course);
   };
-  const openTool = (tool: ToolId): void => {
-    setFocusMode(false);
-    setActiveTool(tool);
-  };
+  const [focusMode, setFocusMode] = useState(false);
+  const stopFocus = useCallback(() => setFocusMode(false), []);
+  // Every open request bumps `toolRequest`: Bear reopens a dialog just closed.
+  const { activeTool, toolRequest, setActiveTool, openTool } = useActiveTool("progress", stopFocus);
   const sessionList = useSessionList(controller, settings, setActiveCourse, cycle, courses, handleNewSession, studyCourse);
   const requestOpenSessions = sessionList.requestOpen;
   // `enabled` is `true`: `domainSession.current` does not exist yet here, and
@@ -174,6 +178,7 @@ export function App() {
     openTool,
     setActiveCourse,
     verifiedOn: settings.verifiedOn,
+    showStudied: settings.showStudied,
     domainSession,
   });
   const tabs = useSessionTabs({
@@ -191,8 +196,6 @@ export function App() {
   const activity = useTurnActivity(controller.messages, controller.streaming, controller.thinking);
   const lessonButtons = useLessonActions(activeCourse, controller);
 
-  const [activeTool, setActiveTool] = useState<ToolId | null>("progress");
-  const [focusMode, setFocusMode] = useState(false);
   const [editingDay, setEditingDay] = useState<{ date: string; text: string } | null>(null);
   // A field inside a tool window to focus once that window is open (e.g. the
   // reading add box after /加入阅读). Cleared after the panel consumes it.
@@ -394,6 +397,7 @@ export function App() {
     },
     tools: toolDescriptors(),
     activeTool,
+    toolRequest,
     onOpenTool: openTool,
     focusMode,
     onToggleFocus: () => setFocusMode((value) => !value),

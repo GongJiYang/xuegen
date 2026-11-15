@@ -27,6 +27,7 @@ function book(overrides: Partial<ShelfListItem> & { slug: string }): ShelfListIt
     targetLate: null,
     extracts: [],
     coreRead: [],
+    afterReads: [],
     upcoming: [],
     ...overrides,
   };
@@ -175,6 +176,45 @@ describe("shelfPanel: the queue", () => {
   });
 
   it("returns planned/free null and an empty queue for an empty shelf", () => {
-    expect(shelfPanel([], TODAY)).toEqual({ planned: null, queue: [], free: null });
+    expect(shelfPanel([], TODAY)).toEqual({ planned: null, queue: [], free: null, guided: [] });
+  });
+});
+
+describe("shelfPanel: the 导读书", () => {
+  it("collects the guided books that are 在读 or 暂停, sorted by slug", () => {
+    const panel = shelfPanel(
+      [
+        book({ slug: "ds-b", slot: "guided", status: "reading", position: 1, total: 14 }),
+        book({ slug: "c-lang", slot: "guided", status: "paused", position: 0, total: 14 }),
+        book({ slug: "ds-done", slot: "guided", status: "done", position: 14, total: 14 }),
+        book({ slug: "ds-queued", slot: "guided", status: "queued" }),
+        book({ slug: "epp" }),
+      ],
+      TODAY,
+    );
+    expect(panel.guided.map((entry) => entry.slug)).toEqual(["c-lang", "ds-b"]);
+    // 导读书不占计划内/计划外两个槽。
+    expect(panel.planned?.slug).toBe("epp");
+    expect(panel.free).toBeNull();
+  });
+
+  it("writes the guided meta in 节, and keeps 段 for the planned book", () => {
+    const panel = shelfPanel(
+      [
+        book({ slug: "ds-b", slot: "guided", status: "reading", position: 1, total: 14, end: "2026-12-29" }),
+        book({ slug: "epp", position: 3, total: 81, end: "2027-01-28" }),
+      ],
+      TODAY,
+    );
+    expect(panel.guided[0]?.meta).toBe(strings.reading.shelfGuidedMeta(1, 14, "2026-12-29"));
+    expect(panel.planned?.meta).toBe(strings.reading.shelfMeta(3, 81, "2027-01-28"));
+  });
+
+  it("calls a guided book's next reading 「下一节」, not 「下一段」", () => {
+    const panel = shelfPanel(
+      [book({ slug: "ds-b", slot: "guided", status: "reading", upcoming: upcoming("2026-11-13", 1) })],
+      TODAY,
+    );
+    expect(panel.guided[0]?.next?.startsWith("下一节 11-13：")).toBe(true);
   });
 });

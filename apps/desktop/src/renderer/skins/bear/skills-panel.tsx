@@ -21,10 +21,26 @@ export function SkillsPanel({
   onCloseReview,
   onEnableReviewed,
   onDiscardReviewed,
+  studied,
 }: SkillsPanelProps) {
   const [url, setUrl] = useState("");
   return (
     <section data-slot="skills" aria-label={strings.tools.skills}>
+      {studied !== undefined && (
+        <ul className="bear-skill-list">
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                checked={studied.on}
+                onChange={(event) => studied.onToggle(event.target.checked)}
+              />
+              <b>{strings.control.card.studiedSetting}</b>
+            </label>
+            <p className="bear-muted">{strings.control.card.studiedSettingHint}</p>
+          </li>
+        </ul>
+      )}
       <div data-slot="skills-install">
         <h3>{strings.skills.installCaption}</h3>
         <p>

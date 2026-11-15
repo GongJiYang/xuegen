@@ -7,9 +7,8 @@
 //   node course-state.mjs verify <coursesDir> [看板文件]   校验锁、标记与必要段落；看板是否过期
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
-//   node course-state.mjs after-read <课程文件> <标签> [--date YYYY-MM-DD]   给「讲后读 <标签>」打勾（用户自报；行尾旧的 —— 备注去掉）
 import { readFile, writeFile, stat, chmod, mkdir } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { listCourses, progressOf, toListEntry, STATE_MARKER } from "./course-parse.mjs";
 
 const READONLY_MODE = 0o444;
@@ -98,83 +97,6 @@ async function loadCourses(dir, options = {}) {
   return courses;
 }
 
-/**
- * 行尾旧的 AI 状态备注（「——…仍待读」之类）：从左往右扫，记全角/半角括号深度
- * （（( +1、）) −1），碰到第一个出现在深度 0 的「——」就切到行尾；没有就不删。
- * 括号内的「——」不动（旧备注自己带括号也不会失效）。
- * 打勾后这行已由「（用户自报，未检查，<date>）」说明状态，旧备注留着会让简报误报。
- */
-function stripTailNote(line) {
-  let depth = 0;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (char === "（" || char === "(") depth += 1;
-    else if (char === "）" || char === ")") depth = Math.max(0, depth - 1);
-    else if (char === "—" && depth === 0 && line[i + 1] === "—") return line.slice(0, i).trimEnd();
-  }
-  return line.trimEnd();
-}
-
-/**
- * 「读完了」的确定性写入：把 `## Today` 里第一条未打勾、标签完全相等的
- * 「- [ ] 讲后读 <标签>」打勾，行尾旧的 —— 备注去掉，再在行尾记
- * 「（用户自报，未检查，<date>）」。
- * 解锁 → 写 → 上锁；写失败时恢复原权限。成功输出一行 JSON：
- * {"file": <绝对路径>, "label": <标签>, "reading": <阅读页 slug 或 null>,
- *  "book": <书房书页 slug 或 null>, "course": <课程 slug>,
- *  "pages": <行里第一个 pp. 后的页码列表原文或 null>}。
- */
-async function afterRead(file, label, date) {
-  const target = resolve(file);
-  const text = await readFile(target, "utf8");
-  const lines = text.split("\n");
-  const start = lines.findIndex((line) => line.trim() === "## Today");
-  const end = start === -1 ? -1 : lines.findIndex((line, index) => index > start && /^##\s/.test(line));
-  const sectionEnd = start === -1 ? -1 : end === -1 ? lines.length : end;
-  const prefix = "- [ ] 讲后读 ";
-  // 「核心页」是技能内部词，界面对用户只说「讲后读 · §1.1–1.4 · <课名>」，
-  // 所以课程页那行带着它时，一个不带它的标签也算命中（其余逐字比较）。
-  const sameLabel = (lineLabel) =>
-    lineLabel === label ||
-    lineLabel.replace(/核心页/g, "").trim() === label.replace(/核心页/g, "").trim();
-  let hit = -1;
-  for (let index = start === -1 ? lines.length : start + 1; index < sectionEnd; index += 1) {
-    const line = lines[index];
-    if (!line.startsWith(prefix)) continue;
-    const rest = line.slice(prefix.length);
-    const cut = rest.indexOf(" · ");
-    const lineLabel = (cut === -1 ? rest : rest.slice(0, cut)).trim();
-    if (sameLabel(lineLabel)) {
-      hit = index;
-      break;
-    }
-  }
-  if (hit === -1) fail(`没有找到未打勾的讲后读：${label}`);
-  // 打勾前的那一行里第一个「pp.」后面的页码列表；没有为 null。
-  // 技能规定的写法是「讲后读 §x–y pp.a–b」，真实课程页里还常写成
-  // 「（pp.1–5、7–12；完成条件：…）」或「核心页已定：pp.66–75——…」，
-  // 所以不绑前缀：从第一个 pp. 起吃页码字符（数字、–、-、顿号、逗号、空格），
-  // 碰到第一个非页码字符（如「——」「；」）就截断，再去掉尾部分隔符。
-  const pagesMatch = /pp\.\s*([0-9–\-、,，\s]+)/.exec(lines[hit]);
-  const pages =
-    pagesMatch === null ? null : pagesMatch[1].trim().replace(/[、,，\s]+$/, "") || null;
-  const originalMode = (await stat(target)).mode & 0o777;
-  await chmod(target, WRITABLE_MODE);
-  const next = lines.slice();
-  next[hit] = `${stripTailNote(lines[hit].replace(/^- \[ \]/, "- [x]"))}（用户自报，未检查，${date}）`;
-  try {
-    await writeFile(target, next.join("\n"), "utf8");
-  } catch (error) {
-    await chmod(target, originalMode).catch(() => {});
-    fail(error instanceof Error ? error.message : String(error));
-  }
-  await chmod(target, originalMode);
-  const reading = /\[\[reading\/([^\]|]+)/.exec(text)?.[1] ?? null;
-  const book = /\[\[shelf\/([^\]|]+)/.exec(text)?.[1] ?? null;
-  const course = basename(target, ".md");
-  process.stdout.write(`${JSON.stringify({ file: target, label, reading, book, course, pages })}\n`);
-}
-
 async function mode(file) {
   return (await stat(file)).mode & 0o777;
 }
@@ -253,7 +175,7 @@ async function listCommand(coursesDir, json) {
 }
 
 const [command, ...args] = process.argv.slice(2);
-if (!command) fail("用法：lock|unlock|verify|dashboard|list|after-read");
+if (!command) fail("用法：lock|unlock|verify|dashboard|list");
 
 if (command === "lock" || command === "unlock") {
   if (args.length === 0) fail(`${command} 需要文件参数`);
@@ -261,14 +183,6 @@ if (command === "lock" || command === "unlock") {
 } else if (command === "list") {
   if (args.length === 0) fail("list 需要 courses 目录");
   await listCommand(resolve(args[0]), args.includes("--json"));
-} else if (command === "after-read") {
-  if (args.length < 2) fail("after-read 需要课程文件与标签");
-  const file = args[0];
-  const label = args[1];
-  const dateIndex = args.indexOf("--date");
-  const date = dateIndex === -1 ? localDate() : args[dateIndex + 1];
-  if (dateIndex !== -1 && (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))) fail(`--date 日期非法：${date ?? "缺值"}`);
-  await afterRead(file, label, date ?? localDate());
 } else if (command === "verify") {
   if (args.length === 0) fail("verify 需要 courses 目录");
   await verify(resolve(args[0]), args[1] ? resolve(args[1]) : null);

@@ -31,6 +31,7 @@ const day = (partial: Partial<CycleDay> = {}): CycleDay => ({
   course: null,
   aux: null,
   auxCourse: null,
+  auxBook: null,
   names: {},
   subjects: {},
   roles: {},

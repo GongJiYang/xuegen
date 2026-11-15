@@ -42,8 +42,8 @@ const SCHEDULE = [
 const INDEX = "# 索引\n\n## Courses\n\n- [[courses/epp|离散数学]]\n";
 const LOG = "# 学习日志\n\n## 2026-11-08\n\n- 读了 §1.1\n";
 
-/** 一份合法课程页。record 为额外的 Learning Record 段落、subject 为 Relationships 行。 */
-function coursePage({ record = "", subject = "- [[subjects/discrete-math|离散数学]]", tail = "" } = {}) {
+/** 一份合法课程页。record 为额外的 Learning Record 段落、subject 为 Relationships 行、book 为链着的书页。 */
+function coursePage({ record = "", subject = "- [[subjects/discrete-math|离散数学]]", tail = "", book = null } = {}) {
   return [
     "<!-- xuegen:course-state -->",
     "",
@@ -67,7 +67,7 @@ function coursePage({ record = "", subject = "- [[subjects/discrete-math|离散�
     "",
     "## Next Session",
     "",
-    "[[reading/epp|Epp]] §1.2。",
+    book === null ? "[[reading/epp|Epp]] §1.2。" : `[[reading/epp|Epp]] §1.2。[[shelf/${book}|Epp 书页]]`,
     "",
     "## 计划表（参考）",
     "",
@@ -99,8 +99,30 @@ function withCloseRecord(text, id = "D1") {
 const CONCEPT = (subject = "discrete-math", name = "truth-table") =>
   `---\ntitle: 真值表\nsources:\n  - [[reading/epp|Epp]] §1.1\n---\n\n# 真值表\n\n定义。\n`;
 
-/** 临时根目录：{root, vault, ws}，库里有课程页、index.md、log.md、records 目录、概念目录。 */
-async function makeVault({ slug = "epp" } = {}) {
+/** 一份带 `## 排期` 的书页；`## 课后读` 由 after-read 插在排期之后、摘录之前。 */
+const BOOK = [
+  "---",
+  "title: Epp",
+  "---",
+  "",
+  "# Epp",
+  "",
+  "## 排期",
+  "",
+  "<!-- xuegen:shelf:start -->",
+  "| 块 | 日期 | 读什么 |",
+  "|---|---|---|",
+  "| 1 | 2026-11-09 | Ch1 pp.1–9 |",
+  "<!-- xuegen:shelf:end -->",
+  "",
+  "## 摘录",
+  "",
+  "## 读书记录",
+  "",
+].join("\n");
+
+/** 临时根目录：{root, vault, ws}，库里有课程页、index.md、log.md、records 目录、概念目录；book 为链着的书页。 */
+async function makeVault({ slug = "epp", book = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), "course-close-"));
   const vault = join(root, "vault");
   const ws = join(root, "ws");
@@ -108,8 +130,12 @@ async function makeVault({ slug = "epp" } = {}) {
   await mkdir(join(vault, "wiki", "knowledge", "concepts", "discrete-math"), { recursive: true });
   await mkdir(join(vault, "wiki", "knowledge", "flashcards", "discrete-math"), { recursive: true });
   await mkdir(ws, { recursive: true });
+  if (book !== null) {
+    await mkdir(join(vault, "wiki", "shelf"), { recursive: true });
+    await writeFile(join(vault, "wiki", "shelf", `${book}.md`), BOOK);
+  }
   const page = join(vault, "wiki", "courses", `${slug}.md`);
-  await writeFile(page, coursePage());
+  await writeFile(page, coursePage({ book }));
   await chmod(page, 0o444);
   await chmod(join(vault, "wiki", "courses", slug), 0o755);
   await chmod(join(vault, "wiki", "courses"), 0o755);
@@ -2436,6 +2462,200 @@ jjTest("recover：journal 带 label「自报」→ 补完后 jj 最新描述是�
     assert.match(recovered.stderr, /已补完上次中断的自报：epp/, "提示用的是实际 label，不是「收课」");
     assert.equal(await readFile(fixture.page, "utf8"), newPage);
     assert.equal(latestDescription(jj), `自报 epp ${localDate()}`);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+// ---- 课后读进书页（收敛 A2） ----
+
+test("stage：课程页链着书时书页一起进暂存并记基线，manifest 记 book；没链书记 null", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.book, "epp-text");
+    assert.ok(manifest.base["wiki/shelf/epp-text.md"], "书页记进基线");
+    assert.equal(await readFile(join(staging, "wiki", "shelf", "epp-text.md"), "utf8"), BOOK);
+    assert.equal(await mode(join(staging, "wiki", "shelf", "epp-text.md")), 0o644, "镜像可写");
+  } finally {
+    await cleanup(fixture);
+  }
+
+  const bare = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", bare.vault, "epp", "--workspace", bare.ws]);
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.book, null);
+    assert.ok(!existsSync(join(staging, "wiki", "shelf")));
+  } finally {
+    await cleanup(bare);
+  }
+
+  // 链了书但库里还没有这一页：book 照记、文件跳过（同科目页「存在才复制」的写法）。
+  const missing = await makeVault();
+  try {
+    await chmod(missing.page, 0o644);
+    await writeFile(missing.page, coursePage({ book: "epp-text" }));
+    const { staging } = await cliJson(["stage", missing.vault, "epp", "--workspace", missing.ws]);
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.book, "epp-text");
+    assert.ok(!existsSync(join(staging, "wiki", "shelf", "epp-text.md")));
+    assert.ok(!("wiki/shelf/epp-text.md" in manifest.base));
+  } finally {
+    await cleanup(missing);
+  }
+});
+
+test("after-read：在暂存书页加一行（节后、摘录前）；同标签再跑只改页码日期不重复加", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const first = await cliJson(["after-read", staging, "--label", "§1.1", "--pages", "1–5", "--date", "2026-11-10"]);
+    assert.deepEqual(first, { book: "epp-text", index: 1, updated: false });
+    const second = await cliJson(["after-read", staging, "--label", "§1.1", "--pages", "1–5、7", "--date", "2026-11-11"]);
+    assert.deepEqual(second, { book: "epp-text", index: 1, updated: true });
+    const text = await readFile(join(staging, "wiki", "shelf", "epp-text.md"), "utf8");
+    const rows = text.split("\n").filter((line) => line.includes("· pp."));
+    assert.deepEqual(rows, ["- [ ] §1.1 · pp.1–5、7 · epp · 2026-11-11"]);
+    assert.match(text, /<!-- xuegen:shelf:end -->\n\n## 课后读\n\n- \[ \] §1\.1 · pp\.1–5、7 · epp · 2026-11-11\n\n## 摘录/);
+    // 暂存与库里别的内容没动
+    assert.equal(await readFile(join(fixture.vault, "wiki", "shelf", "epp-text.md"), "utf8"), BOOK);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("after-read：缺参数、没链书的课、暂存里没有书页 都报中文错", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    for (const [args, pattern] of [
+      [["after-read", staging, "--pages", "1–5", "--date", "2026-11-10"], /--label/],
+      [["after-read", staging, "--label", "§1.1", "--date", "2026-11-10"], /--pages/],
+      [["after-read", staging, "--label", "§1.1", "--pages", "1–5"], /--date/],
+      [["after-read", staging, "--label", "§1.1", "--pages", "abc", "--date", "2026-11-10"], /页码列表非法/],
+    ]) {
+      assert.match((await cli(args, { expectFail: true })).stderr, pattern, args.join(" "));
+    }
+    // 删掉暂存里的书页：manifest.book 还在、但暂存里没有书页可写
+    await rm(join(staging, "wiki", "shelf", "epp-text.md"));
+    const gone = await cli(["after-read", staging, "--label", "§1.1", "--pages", "1–5", "--date", "2026-11-10"], {
+      expectFail: true,
+    });
+    assert.match(gone.stderr, /这门课没有链着书房的书/);
+  } finally {
+    await cleanup(fixture);
+  }
+
+  const bare = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", bare.vault, "epp", "--workspace", bare.ws]);
+    const failed = await cli(["after-read", staging, "--label", "§1.1", "--pages", "1–5", "--date", "2026-11-10"], {
+      expectFail: true,
+    });
+    assert.match(failed.stderr, /这门课没有链着书房的书/);
+  } finally {
+    await cleanup(bare);
+  }
+});
+
+test("check：暂存课程页里手写「讲后读」待办行被拒；书页只能改「课后读」一节", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const bad = coursePage({ book: "epp-text" }).replace(
+      "- [ ] 讲 §1.1",
+      "- [ ] 讲 §1.1\n- [ ] 讲后读 §1.1 pp.1–5（11-10）",
+    );
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), bad);
+    const failed = JSON.parse((await cli(["check", staging, "--json"], { expectFail: true })).stdout);
+    assert.deepEqual(
+      failed.problems.map((p) => [p.path, p.kind, p.detail]),
+      [["wiki/courses/epp.md", "course-page", "课后读不再写进课程页，用 course_close after-read 写进书页"]],
+    );
+    // 书页改动在「课后读」节之外 → shelf-scope
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), coursePage({ book: "epp-text" }));
+    await writeFile(
+      join(staging, "wiki", "shelf", "epp-text.md"),
+      BOOK.replace("Ch1 pp.1–9", "Ch1 pp.1–10"),
+    );
+    const shelf = JSON.parse((await cli(["check", staging, "--json"], { expectFail: true })).stdout);
+    assert.deepEqual(
+      shelf.problems.map((p) => [p.path, p.kind]),
+      [["wiki/shelf/epp-text.md", "shelf-scope"]],
+    );
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：收课把课后读写进书页，与课程页同一笔提交；undo 连书页一起恢复", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    const newPage = withCloseRecord(coursePage({ book: "epp-text" }));
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), newPage);
+    await writeFile(join(staging, "wiki", "log.md"), `${LOG}- 收课：epp D1\n`);
+    const added = await cliJson(["after-read", staging, "--label", "§1.1", "--pages", "1–5", "--date", "2026-11-10"], {
+      env,
+    });
+    assert.deepEqual(added, { book: "epp-text", index: 1, updated: false });
+    const checked = await cliJson(["check", staging], { env });
+    assert.equal(checked.ok, true, JSON.stringify(checked.problems));
+    const committed = await cliJson(["commit", staging], { env });
+    assert.equal(committed.jj, "ok");
+    const id = jj(["log", "-r", 'description(glob:"收课 epp *")', "--no-graph", "-T", "commit_id", "--limit", "1"]).trim();
+    assert.notEqual(id, "");
+    const summary = jj(["diff", "-r", id, "--summary"])
+      .trim()
+      .split("\n")
+      .map((line) => line.slice(1).trim())
+      .sort();
+    assert.deepEqual(summary, [
+      "wiki/_generated/courses.html",
+      "wiki/_generated/courses.md",
+      "wiki/courses/epp.md",
+      "wiki/log.md",
+      "wiki/shelf/epp-text.md",
+    ]);
+    const bookText = await readFile(join(fixture.vault, "wiki", "shelf", "epp-text.md"), "utf8");
+    assert.match(bookText, /## 课后读\n\n- \[ \] §1\.1 · pp\.1–5 · epp · 2026-11-10/);
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), newPage);
+    assert.doesNotMatch(newPage, /讲后读/, "课程页不写课后读行");
+
+    const undone = await cliJson(["undo", fixture.vault, "epp", "--workspace", fixture.ws], { env });
+    assert.equal(undone.undone, id);
+    assert.ok(undone.restoreFiles.includes("wiki/shelf/epp-text.md"), "书页在恢复清单里");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "shelf", "epp-text.md"), "utf8"), BOOK, "书页回到收课前");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "epp.md"), "utf8"), coursePage({ book: "epp-text" }));
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+jjTest("jj：计划暂存也带书页（manifest.book），after-read 同样写进暂存书页", async () => {
+  const fixture = await makeVault({ book: "epp-text" });
+  try {
+    const { env, jj } = await initJj(fixture.vault, fixture.root);
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--kind", "plan", "--workspace", fixture.ws], { env });
+    const manifest = JSON.parse(await readFile(join(staging, "manifest.json"), "utf8"));
+    assert.equal(manifest.book, "epp-text");
+    assert.equal(await readFile(join(staging, "wiki", "shelf", "epp-text.md"), "utf8"), BOOK);
+    await cliJson(["after-read", staging, "--label", "§1.1", "--pages", "1–5", "--date", "2026-11-10"], { env });
+    const committed = await cliJson(["commit", staging], { env });
+    assert.equal(committed.jj, "ok");
+    const summary = jj(["diff", "-r", "@-", "--summary"])
+      .trim()
+      .split("\n")
+      .map((line) => line.slice(1).trim())
+      .sort();
+    assert.ok(summary.includes("wiki/shelf/epp-text.md"), "计划提交也含书页");
+    assert.match(
+      await readFile(join(fixture.vault, "wiki", "shelf", "epp-text.md"), "utf8"),
+      /## 课后读\n\n- \[ \] §1\.1 · pp\.1–5 · epp · 2026-11-10/,
+    );
   } finally {
     await cleanup(fixture);
   }

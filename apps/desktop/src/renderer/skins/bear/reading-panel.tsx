@@ -37,7 +37,7 @@ function BookBlock({ book, onShelfCards }: { book: ShelfBookView; onShelfCards: 
       <div className="bear-shelf-bar" role="progressbar" aria-valuenow={book.position} aria-valuemax={book.total}>
         <i style={{ width: `${book.progress * 100}%` }} />
       </div>
-      <p className="bear-shelf-meta">{strings.reading.shelfMeta(book.position, book.total, book.end)}</p>
+      <p className="bear-shelf-meta">{book.meta}</p>
       {book.next !== null && <p className="bear-shelf-today">{book.next}</p>}
       {book.later.length > 0 && (
         <details className="bear-shelf-more">
@@ -142,7 +142,10 @@ export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, o
       {shelf.status === "loading" && <p className="bear-muted">{strings.today.loading}</p>}
       {shelf.status === "error" && <p role="alert">{shelf.message}</p>}
       {shelf.status === "ready" &&
-        (shelf.value.planned !== null || shelf.value.free !== null || shelf.value.queue.length > 0) && (
+        (shelf.value.planned !== null ||
+          shelf.value.guided.length > 0 ||
+          shelf.value.free !== null ||
+          shelf.value.queue.length > 0) && (
           <>
             {shelf.value.planned !== null && (
               <>
@@ -150,6 +153,17 @@ export function ReadingPanel({ shelf, queue, sources, onAdd, onClip, onReview, o
                   <span>{strings.reading.shelfPlanned}</span>
                 </h3>
                 <BookBlock book={shelf.value.planned} onShelfCards={onShelfCards} />
+              </>
+            )}
+            {shelf.value.guided.length > 0 && (
+              <>
+                <h3 className="bear-section">
+                  <span>{strings.reading.shelfGuided}</span>
+                  <span className="bear-section-count">{shelf.value.guided.length}</span>
+                </h3>
+                {shelf.value.guided.map((book) => (
+                  <BookBlock key={book.slug} book={book} onShelfCards={onShelfCards} />
+                ))}
               </>
             )}
             {shelf.value.queue.length > 0 && (

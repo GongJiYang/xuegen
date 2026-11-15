@@ -226,6 +226,7 @@ export function parseCourse(text, slug, options = {}) {
     records,
     sections,
     marked: hasMarker(text),
+    archived: isArchived(text),
     missingSections: REQUIRED_SECTIONS.filter((name) => sectionLines(lines, `## ${name}`) === null),
     styleHint: null,
   };
@@ -258,6 +259,7 @@ export function toListEntry(course) {
     overall: progressOf(course.overall),
     lastRecord: course.lastRecord,
     nextSession: course.nextSession,
+    archived: course.archived,
     styleHint: course.styleHint ?? null,
   };
 }
@@ -265,6 +267,28 @@ export function toListEntry(course) {
 /** 判断一段文本里有没有有效标记。 */
 export function hasMarker(text) {
   return MARKER_RE.test(text);
+}
+
+/** `## Key Facts` 里「- 状态：停用（<date>，<原因>）」的日期捕获。 */
+const ARCHIVED_RE = /^-\s*状态：停用（(\d{4}-\d{2}-\d{2})/;
+
+/**
+ * 课程是否已停用：`## Key Facts` 一节里有 `- 状态：停用（YYYY-MM-DD，<原因>）` 行。
+ * 学习记录、概念页都保留；看板与周期不再列这门课。写在别的节的同一行不算。
+ */
+export function isArchived(text) {
+  const lines = sectionLines(text.split("\n"), "## Key Facts") ?? [];
+  return lines.some((line) => ARCHIVED_RE.test(line.trim()));
+}
+
+/** 停用日期（`- 状态：停用（YYYY-MM-DD，…`）；没停用或没写日期返回 null。 */
+export function archivedDate(text) {
+  const lines = sectionLines(text.split("\n"), "## Key Facts") ?? [];
+  for (const line of lines) {
+    const match = line.trim().match(ARCHIVED_RE);
+    if (match) return match[1] ?? null;
+  }
+  return null;
 }
 
 /** 判断一个文件是否为课程状态文件（含标记）。 */

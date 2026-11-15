@@ -21,7 +21,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { CycleMonth } from "@shared/data-protocol.js";
+import type { CourseSummary, CycleMonth } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
 import { controlCard, type ControlCardRow } from "./control-card.js";
 import {
@@ -35,6 +35,7 @@ import {
   COURSE_C,
   CYCLE_DAY,
   CYCLE_MONTH,
+  GUIDED,
   OVERVIEW,
   QUEUE,
   SHELF,
@@ -164,12 +165,11 @@ function numbersIn(text: string): number[] {
 }
 
 describe("同一份数据进四处视图", () => {
-  it("这一天在今日卡上：A、B、C 三节各一行", () => {
+  it("这一天在今日卡上：A、B 两节各一行（aux 课次不出行）", () => {
     expect(CARD).not.toBeNull();
     expect(cardLessonRows().map((row) => row.text)).toEqual([
       "CTM D2 · Ch2 §2.1 递归与迭代",
       "离散 D5 · Ch3 §3.1 谓词与量词",
-      "导读课 · Effective C D3 · Ch3 资源管理",
     ]);
   });
 
@@ -200,13 +200,15 @@ describe("同一份数据进四处视图", () => {
     expect(calendarLesson(COURSE_B)).toEqual({ id: "D5", done: false, aux: false });
   });
 
-  it("完成状态（C 导读课已收课）：今日卡 = 右侧面板 = 日历，三处都是完成", () => {
-    expect(cardRowFor(COURSE_C).mark).toBe("done");
-    expect(cardRowFor(COURSE_C).button).toBe(strings.control.card.backToLesson);
+  it("aux 课次 C：今日卡不出行，右侧面板与日历还照原数据显示", () => {
+    // 导读课改书房导读后：上课组不再有 aux 行，已收课状态也无对应行。
+    expect(cardLessonRows().some((row) => row.action?.kind === "study" && row.action.slug === COURSE_C)).toBe(
+      false,
+    );
 
+    // 旧数据（cycle.day / cycle.month 里的 aux 课次）在两处只读面板里原样在。
     expect(panelLesson(panelViewFor(COURSE_C), COURSE_C)).toEqual({ id: "D3", done: true });
     expect(PANEL?.aux?.lesson.course).toBe(COURSE_C);
-
     expect(calendarLesson(COURSE_C)).toEqual({ id: "D3", done: true, aux: true });
   });
 
@@ -241,10 +243,12 @@ describe("同一份数据进四处视图", () => {
     expect(cardText).not.toContain("核心页");
     expect(cardRow?.sub).toBe(strings.control.card.missedSub(AFTER_READ_DATE));
 
-    // 今日卡的「读完了」写回课程页时用的 label，就是从日历标题里解析出的范围（不是标题原文）。
+    // 今日卡的「读完了」写回书页时用的 book/index，就是日历条目上带的那一对。
     const action = cardRow?.action;
     expect(action?.kind).toBe("afterRead");
-    expect(action?.kind === "afterRead" ? action.labels : null).toEqual([AFTER_READ_RANGE]);
+    expect(action?.kind === "afterRead" ? action.entries : null).toEqual([
+      { book: "epp", index: 1 },
+    ]);
 
     // 日历当天详情：讲后读列在它原定的那天（bear / chicago 的 DayDetail 读 readingDue.title）。
     const calendarReading = CALENDAR_MONTH.days[AFTER_READ_DATE]?.readingDue.map((item) => item.title) ?? [];
@@ -253,25 +257,30 @@ describe("同一份数据进四处视图", () => {
     expect(calendarReading.filter((title) => title.includes("核心页"))).toEqual([]);
   });
 
-  it("导读课叫法：四处的标签都是「导读课」，任何一处都不出现「带读」「辅助」", () => {
-    // 给人看的名字是「导读课」（panel v2 改名，设计稿第四节）；数据里的 `aux` 不变。
-    const aux = "导读课";
-    expect(strings.cycle.auxTag).toBe(aux);
-    expect(strings.plan.auxTitle).toBe(aux);
-    expect(strings.control.card.auxPrefix).toBe("导读课 · ");
+  it("导读叫法：今日卡写「导读 · …」，其余面板对旧 aux 数据仍写「导读课」，都不出现「带读」「辅助」", () => {
+    // 给人看的标签：书房的导读写作「导读」（设计稿 ①）；旧 aux 课次在右侧面板 /
+    // 总进度 / 日历的标签仍是「导读课」。数据里的 `aux` 不变。
+    expect(strings.cycle.auxTag).toBe("导读课");
+    expect(strings.plan.auxTitle).toBe("导读课");
 
     // 一处一处地看它实际画的标签。
-    expect(cardRowFor(COURSE_C).text.startsWith(strings.control.card.auxPrefix)).toBe(true);
     expect(PANEL?.aux).not.toBeNull();
     expect(AUX_ROWS.some((row) => row.course?.slug === COURSE_C)).toBe(true);
     expect(calendarLesson(COURSE_C).aux).toBe(true);
 
-    for (const place of ["card", "panel", "progress", "calendar"] as const) {
+    // 今日卡：上课组没有 aux 行，导读以书房行的样子出现（见导读一致性用例）。
+    expect(cardLessonRows().some((row) => row.text.includes("导读课"))).toBe(false);
+    expect((CARD?.rows ?? []).some((row) => row.text.startsWith(strings.control.card.guidedPrefix))).toBe(true);
+
+    for (const place of ["panel", "progress", "calendar"] as const) {
       const texts = textsOf(place);
       expect(
-        texts.some((text) => text.includes(aux)),
+        texts.some((text) => text.includes("导读课")),
         `${place} 没有「导读课」`,
       ).toBe(true);
+    }
+    for (const place of ["card", "panel", "progress", "calendar"] as const) {
+      const texts = textsOf(place);
       expect(
         texts.filter((text) => text.includes("带读") || text.includes("辅助")),
         `${place} 出现了旧叫法`,
@@ -281,7 +290,9 @@ describe("同一份数据进四处视图", () => {
 
   it("自读今天的段：今日卡 = 排程本今天，`position: 3` 的书写今天读第 4 段 pp.28–36", () => {
     // 今日卡：`shelf.today` 给的那一段（后 3 段已读，今天读第 4 段）。
-    const cardRow = (CARD?.rows ?? []).find((row) => row.action?.kind === "shelfDone");
+    const cardRow = (CARD?.rows ?? []).find(
+      (row) => row.action?.kind === "shelfDone" && row.action.slug === "how-to-solve-it",
+    );
     expect(cardRow?.text).toBe(
       strings.control.card.shelfPlanned +
         strings.control.card.shelfChunk("HTSP", { title: "第 4 段", from: 28, to: 36 }),
@@ -334,6 +345,111 @@ describe("同一份数据进四处视图", () => {
     expect(past.map((item) => item.mark)).toEqual(past.map(() => "warn"));
     expect(past.every((item) => item.text.endsWith(strings.planbook.selfMissed))).toBe(true);
     expect(past.some((item) => item.text.includes("pp.28–36"))).toBe(false);
+  });
+
+  it("导读今天这节：今日卡 = 排程本今天的导读格，都指 §1.3 pp.74–107", () => {
+    // 今日卡：导读行在阅读组最前，走同一条 shelfDone 路径。
+    const cardRow = (CARD?.rows ?? []).find(
+      (row) => row.action?.kind === "shelfDone" && row.action.slug === GUIDED.slug,
+    );
+    expect(cardRow?.text).toBe(
+      `${strings.control.card.guidedPrefix}${GUIDED.short} ${GUIDED.chunk.title} · pp.${GUIDED.chunk.from}–${GUIDED.chunk.to}`,
+    );
+    expect(cardRow?.mark).toBe("plan");
+    expect(cardRow?.sub).toBe(strings.control.card.guidedSub(2, GUIDED.total, GUIDED.limit));
+    // 导读行排在课后读之前。
+    const rows = CARD?.rows ?? [];
+    const guidedIndex = rows.indexOf(cardRow as ControlCardRow);
+    const afterIndex = rows.findIndex((row) => row.action?.kind === "afterRead");
+    expect(guidedIndex).toBeGreaterThanOrEqual(0);
+    expect(afterIndex).toBeGreaterThan(guidedIndex);
+
+    // 排程本：导读格只落在导读排期上，今天这节与今日卡是同一段。
+    const week = buildWeek({
+      today: TODAY,
+      cycleMonths: [CYCLE_MONTH],
+      calendarMonths: [CALENDAR_MONTH],
+      shelf: SHELF_LIST,
+      overview: OVERVIEW,
+      courses: [],
+      anki: ANKI,
+    });
+    const guidesOf = (day: PlanDay): PlanItem[] => day.items.filter((item) => item.lane === "guide");
+    const todayGuides = week.days.map((day) => (day.date === TODAY ? guidesOf(day) : [])).flat();
+    expect(todayGuides).toEqual([
+      {
+        lane: "guide",
+        text: `${GUIDED.short} ${GUIDED.chunk.title} pp.${GUIDED.chunk.from}–${GUIDED.chunk.to}`,
+        short: `${GUIDED.short} ${GUIDED.chunk.title}`,
+        mark: "plan",
+        slug: GUIDED.slug,
+        id: null,
+      },
+    ]);
+    // 同一节：两边的文字写着同样的段号与页码。
+    expect(numbersIn(cardRow?.text ?? "")).toEqual(numbersIn(todayGuides[0]?.text ?? ""));
+    // 导读格只落在导读日：周二读过的一段 ✓，这周其余日子没有导读格。
+    const allGuides = week.days.flatMap(guidesOf);
+    expect(allGuides.length).toBe(2);
+    expect(allGuides.map((item) => item.mark)).toEqual(["done", "plan"]);
+  });
+
+  it("周核实三种状态：今日卡与排程本核实格的记号一致", () => {
+    // 一个 整合日（周五），同一门主课 A 的核实行与核实格吃同一份数据。
+    const verifyDate = "2026-11-13";
+    const verifyDay = { ...CYCLE_DAY, date: verifyDate, weekday: "周五", type: "整合" as const, lessons: [] };
+    const verifyMonth: CycleMonth = {
+      ...CYCLE_MONTH,
+      days: {
+        ...CYCLE_MONTH.days,
+        [verifyDate]: { cycle: "C1", week: 2, type: "整合", subject: null, course: null, aux: null, auxCourse: null, auxBook: null },
+      },
+    };
+    const course = (verified: boolean): CourseSummary => ({
+      slug: COURSE_A,
+      title: COURSE_A,
+      weekLabel: "第 1 周",
+      week: { done: verified ? 1 : 0, total: 2, tasks: [{ label: "周核实", done: verified }] },
+      overall: { done: 0, total: 10 },
+      lastRecord: null,
+      nextSession: null,
+      styleHint: null,
+    });
+    const marks = (
+      courses: CourseSummary[],
+      verifiedOn: Record<string, string>,
+    ): { card: string | undefined; grid: string | undefined } => {
+      const card = controlCard({
+        today: verifyDate,
+        day: verifyDay,
+        calendar: CALENDAR_MONTH,
+        queue: QUEUE,
+        courses,
+        verifiedOn,
+      });
+      const week = buildWeek({
+        today: verifyDate,
+        anchor: verifyDate,
+        cycleMonths: [verifyMonth],
+        calendarMonths: [CALENDAR_MONTH],
+        shelf: [],
+        overview: OVERVIEW,
+        courses,
+        anki: ANKI,
+        verifiedOn,
+      });
+      const cardRow = card?.rows.find((row) => row.action?.kind === "verify" && row.action.slug === COURSE_A);
+      const gridItem = week.days
+        .find((day) => day.date === verifyDate)
+        ?.items.find((item) => item.slug === COURSE_A && item.lane === "main" && item.id === null);
+      return { card: cardRow?.mark, grid: gridItem?.mark };
+    };
+
+    // 进行中（开始过、课页还没勾）与做完（课页已勾）两处记号一致；没开始时
+    // 表格今天的格是 ●（「今天」标记）、今日卡上是 ○。
+    expect(marks([course(false)], {})).toEqual({ card: "plan", grid: "now" });
+    expect(marks([course(false)], { [COURSE_A]: verifyDate })).toEqual({ card: "now", grid: "now" });
+    expect(marks([course(true)], { [COURSE_A]: verifyDate })).toEqual({ card: "done", grid: "done" });
   });
 
   it("没学的课：今日卡、右侧面板、排程本对同一份 overdue 说同样的「课程 → 节数」", () => {

@@ -173,3 +173,28 @@ test("布局：dashboard 在 wiki/_generated 时校验通过", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("停用课不进主表，看板末尾单列「停用」一节（课名 + 停用日期）", async () => {
+  const ARCHIVED = COURSE.replace(
+    "- 当前周：W1 · 声明式计算模型",
+    "- 当前周：W1 · 声明式计算模型\n- 状态：停用（2026-11-15，改为只陪读）",
+  ).replace("# CTM 学习计划", "# 算法学习计划");
+  const root = await mkdtemp(join(tmpdir(), "render-board-archived-"));
+  const coursesDir = join(root, "wiki", "courses");
+  await mkdir(coursesDir, { recursive: true });
+  await writeFile(join(coursesDir, "ctm.md"), COURSE, "utf8");
+  await writeFile(join(coursesDir, "algo.md"), ARCHIVED, "utf8");
+  try {
+    const out = join(root, "board.html");
+    const { stdout } = await run("node", [SCRIPT, coursesDir, out], { encoding: "utf8" });
+    const meta = JSON.parse(stdout);
+    assert.equal(meta.courses.length, 1);
+    assert.equal(meta.courses[0].slug, "ctm");
+    const html = await readFile(out, "utf8");
+    assert.equal((html.match(/<article class="course"/g) ?? []).length, 1, "停用课不渲染主卡片");
+    assert.match(html, /<h3>停用<\/h3>/);
+    assert.match(html, /<li>算法学习计划 · 2026-11-15<\/li>/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

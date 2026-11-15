@@ -1,0 +1,157 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>状态收敛 · 界面变化稿（11-15）</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a3:#0f2a3d;--a6:#1d4a6b;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1560px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper)}
+.bar{display:flex;align-items:stretch;height:40px;padding:0 14px;border-bottom:1px solid var(--g6)}
+.tab{display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--g11);border-bottom:2px solid transparent}
+.tab.on{color:var(--g12);font-weight:600;border-bottom-color:var(--a11)}
+.gap{flex:1}.meta{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--g11)}
+.shell{display:flex}
+.main{flex:1;min-width:0;padding:16px 28px 28px;display:flex;flex-direction:column;gap:24px}
+.lnk{color:var(--a11);font-size:12px;line-height:16px;font-weight:500}
+.sub{font-size:12px;line-height:16px;color:var(--g11);font-weight:400}
+.chg{outline:1px dashed var(--hlb);outline-offset:3px;border-radius:3px;position:relative}
+.chg::after{content:attr(data-n);position:absolute;top:-10px;right:-10px;background:var(--hlb);color:#1a1405;font-size:12px;line-height:16px;font-weight:700;border-radius:8px;padding:0 5px}
+.ask{outline-color:#ff8a8a}.ask::after{background:#ff8a8a}
+.sec h2{font-size:16px;line-height:24px;margin:0 0 8px;display:flex;align-items:baseline;gap:10px;font-weight:600}
+.today{max-width:1064px}
+.gh{font-size:12px;line-height:16px;color:var(--g11);display:flex;gap:8px;align-items:baseline;padding:12px 0 4px;border-bottom:1px solid var(--g4)}
+.gh b{color:var(--g12);font-size:14px;line-height:20px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid var(--g3)}
+.row .mk{width:16px;text-align:center;color:var(--g8)}.row .mk.ok{color:var(--done)}
+.row .t{flex:1;min-width:0}.row .t .s{font-size:12px;line-height:16px;color:var(--g11)}
+.row .go{font-size:14px;color:var(--g12)}
+.box{width:14px;height:14px;border:1px solid var(--g7);border-radius:3px;display:inline-block}
+/* 今天学过 */
+.studied{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-top:14px;font-size:14px;line-height:20px;color:var(--g11)}
+.studied b{color:var(--g12);font-weight:500}.studied .k{font-size:12px;line-height:16px;color:var(--g11)}
+.tmr{font-size:14px;line-height:20px;margin-top:8px}
+/* r3 */
+.r3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.r3 p{margin:4px 0;font-size:12px;line-height:16px;color:var(--g11)}
+.r3 h2 .lnk{margin-left:0}.r3 h2 .lnks{margin-left:auto;display:flex;gap:16px}
+.bar3{height:3px;background:var(--g4);border-radius:4px;margin:6px 0}.bar3 i{display:block;height:100%;background:var(--a9);border-radius:4px}
+/* dialog */
+.scrim{background:#0b0b0acc;padding:40px 0;display:flex;justify-content:center}
+.dlg{width:1120px;background:var(--g1);border:1px solid var(--g7);border-radius:12px;overflow:hidden}
+.dlg-h{display:flex;align-items:baseline;gap:12px;padding:16px 24px 12px;border-bottom:1px solid var(--g6)}
+.dlg-h b{font-size:16px;line-height:24px}.dlg-h .x{margin-left:auto;font-size:14px;color:var(--g11)}
+.dlg-b{padding:16px 24px 24px;display:flex;flex-direction:column;gap:24px}
+.bk{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bk b{font-size:16px;line-height:24px}
+.seg{display:inline-flex;border:1px solid var(--g7);border-radius:4px;overflow:hidden}.seg span{padding:2px 10px;font-size:13px;line-height:20px}.seg .on{background:var(--g12);color:#111}
+/* overview strip */
+.ov{display:grid;grid-template-columns:64px 1fr;gap:6px 12px;align-items:center;font-size:12px;line-height:16px;color:var(--g11)}
+.lane{position:relative;height:12px;background:var(--g3);border-radius:3px}
+.lane i{position:absolute;top:0;bottom:0;border-radius:3px}
+.lane i.done{background:var(--done)}
+.lane i.plan{background:transparent;border:1px solid var(--a6)}
+.lane i.read{background:var(--a9)}
+.lane i.core{background:transparent;border:1px solid var(--g8)}
+.lane i.skip{background:repeating-linear-gradient(45deg,var(--g4) 0 4px,var(--g2) 4px 8px)}
+.lane .now{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--a11)}
+.axis{position:relative;height:16px}.axis span{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--g11)}
+.lg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;line-height:16px;color:var(--g11)}
+.lg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+/* table */
+table.pt{border-collapse:collapse;width:100%;font-size:14px;line-height:20px}
+table.pt th{font-size:12px;line-height:16px;color:var(--g11);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--g6)}
+table.pt td{padding:6px 8px;border-bottom:1px solid var(--g3);vertical-align:top}
+table.pt td.pg{color:var(--g11);font-size:12px;line-height:16px;white-space:nowrap;padding-top:8px}
+table.pt td small{display:block;font-size:12px;line-height:16px;color:var(--g11)}
+table.pt tr.cur td{background:var(--g2)}
+table.pt tr.ch td{padding-top:14px}
+table.pt .ok::before{content:"✓ ";color:var(--done)}
+table.pt .nowt{color:var(--a11);font-weight:500}
+table.pt .mute{color:var(--g11)}
+table.pt tr.skip td{color:var(--g11)}
+.fold{font-size:12px;line-height:16px;color:var(--g11);padding:8px 8px;display:flex;gap:8px}.fold .lnk{margin-left:auto}
+.old{border-top:1px solid var(--g6);padding-top:16px}
+.old h4{font-size:14px;line-height:20px;margin:0 0 4px}
+.old p{margin:0 0 12px;font-size:12px;line-height:16px;color:var(--g11)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+/* settings */
+.set{width:560px;border:1px solid var(--g7);border-radius:12px;background:var(--g1);padding:16px 24px}
+.set .r{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--g3)}
+.set .r .t{flex:1}.set .r .t small{display:block;font-size:12px;line-height:16px;color:var(--g11)}
+.sw{width:32px;height:18px;border-radius:9px;background:var(--a9);position:relative}.sw::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:7px;background:#fff}
+table.spec{border-collapse:collapse;font-size:13px;line-height:20px;margin-top:8px;width:100%}
+table.spec td,table.spec th{border-top:1px solid var(--g6);padding:6px 10px;vertical-align:top;text-align:left}
+table.spec th{color:var(--g11);font-weight:500}
+table.spec td:first-child{white-space:nowrap;color:var(--hlb);font-weight:700}
+table.spec tr.ask td:first-child{color:#ff8a8a}
+.wk{display:grid;grid-template-columns:88px repeat(7,minmax(0,1fr));font-size:12px;line-height:16px}
+.wk>div{padding:8px;border-bottom:1px solid var(--g6)}
+.wk>div.c{border-left:1px solid var(--g6);min-height:44px;color:var(--g11)}
+.dh b,.lh b{display:block;font-weight:500;font-size:14px;line-height:20px}.dh span,.lh span{color:var(--g11)}
+.dh.today,.c.today{background:var(--g3)}.dh.today b{color:var(--a11)}
+.c .now{color:var(--g12);font-weight:500}.c .okc::before{content:"✓ ";color:var(--done)}
+.cmp2{display:grid;grid-template-columns:1fr 1fr;gap:24px}.cmp2 .cap{font-size:12px;line-height:16px;color:var(--g11);margin-bottom:6px}
+.mk.prog{color:var(--a9)}
+</style>
+<body><div class="doc">
+<h1>状态收敛 · 界面变化稿（11-15，等你批）</h1>
+<p class="lead">按 <b>CONVERGE-1115</b>：课后读、导读都记在书房；周核实只认课程页。界面上的样子大部分不变，变的只有下面三处。<b>黄色虚框 = 你已同意的方向</b>，<b>红色虚框 = 我定的细节</b>。日期借用测试窗口的 11-17 周二。</p>
+
+<h3>① 今天卡：导读从「上课」挪到「阅读」</h3>
+<div class="cmp2">
+<div><div class="cap">现在</div><div class="win"><div class="main"><div class="sec today">
+  <div class="gh"><b>上课</b>进会话讲，讲完在会话里收课才算完成</div>
+  <div class="row"><span class="mk">●</span><div class="t">CTM D3 · Ch3 §3.1–3.4</div><span class="go">开课 →</span></div>
+  <div class="row"><span class="mk">○</span><div class="t">导读课 · 数据结构 D2 · §1.3 背包、队列和栈</div><span class="go">开课 →</span></div>
+  <div class="gh"><b>阅读</b>读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+  <div class="row"><span class="mk"><span class="box"></span></span><div class="t">课后读 · 离散 §1.1–1.4、§2.1–2.2、§2.3<div class="s">原排 11-10 起 · 3 段</div></div><span class="lnk">陪读 →</span></div>
+  <div class="row"><span class="mk"><span class="box"></span></span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+</div></div></div></div>
+<div><div class="cap">改后</div><div class="win"><div class="main"><div class="sec today">
+  <div class="gh"><b>上课</b>进会话讲，讲完在会话里收课才算完成</div>
+  <div class="row"><span class="mk">●</span><div class="t">CTM D3 · Ch3 §3.1–3.4</div><span class="go">开课 →</span></div>
+  <div class="gh"><b>阅读</b>读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+  <div class="row chg" data-n="1"><span class="mk"><span class="box"></span></span><div class="t">导读 · 数据结构 §1.3 背包、队列和栈 · pp.74–107<div class="s chg ask" data-n="2">第 2 / 14 节 · ≤ 45 分钟</div></div><span class="lnk">陪读 →</span></div>
+  <div class="row"><span class="mk"><span class="box"></span></span><div class="t">课后读 · 离散 §1.1–1.4、§2.1–2.2、§2.3<div class="s">原排 11-10 起 · 3 段</div></div><span class="lnk">陪读 →</span></div>
+  <div class="row"><span class="mk"><span class="box"></span></span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+</div></div></div></div>
+</div>
+<p class="note">导读没有收课：读完勾 ☐ 就记进书页（一笔 jj「读书 sedgewick-algorithms 11-17」）；「陪读 →」只开会话陪你读，不记完成。陪读会话不写概念页。</p>
+
+<h3>② 周核实：✓ 只表示「课程页里核实做完了」</h3>
+<div class="cmp2">
+<div><div class="cap">现在（点过「开始」就打 ✓）</div><div class="win"><div class="main"><div class="sec today">
+  <div class="row"><span class="mk ok">✓</span><div class="t">离散 周核实<div class="s">今天已开始</div></div><span class="lnk">回到核实 →</span></div>
+</div></div></div></div>
+<div><div class="cap">改后：三种状态</div><div class="win"><div class="main"><div class="sec today">
+  <div class="row"><span class="mk">○</span><div class="t">CTM 周核实</div><span class="go">开始 →</span></div>
+  <div class="row chg ask" data-n="3"><span class="mk prog">●</span><div class="t">离散 周核实<div class="s">进行中 · 在会话里收课才算做完</div></div><span class="lnk">回到核实 →</span></div>
+  <div class="row"><span class="mk ok">✓</span><div class="t">离散 周核实<div class="s">已收课</div></div><span class="lnk">回到会话 →</span></div>
+</div></div></div></div>
+</div>
+
+<h3>③ 周表格：「导读课」一行改成「导读」、勾选完成</h3>
+<div class="win"><div class="main"><div class="wk">
+  <div></div>
+  <div class="dh"><b>五 11-13</b><span>整合日</span></div><div class="dh"><b>六 11-14</b><span>低强度日</span></div><div class="dh"><b>日 11-15</b><span>休息日</span></div><div class="dh"><b>一 11-16</b><span>主攻日</span></div><div class="dh today"><b>二 11-17</b><span>今天 · 主攻日</span></div><div class="dh"><b>三 11-18</b><span>主攻日</span></div><div class="dh"><b>四 11-19</b><span>主攻日</span></div>
+  <div class="lh"><b>主课</b><span>要收课</span></div>
+  <div class="c"><span class="okc">离散 周核实</span><br>● CTM 周核实</div><div class="c"><span class="okc">CTM D2</span></div><div class="c">休息日</div><div class="c">○ 离散 D4</div><div class="c today"><span class="now">● CTM D3</span></div><div class="c">○ 离散 D5</div><div class="c">○ CTM D4</div>
+  <div class="lh"><b>课后读</b><span>勾选完成</span></div>
+  <div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c today">↷ 离散 §1.1–1.4、§2.1–2.2、§2.3</div><div class="c">☐ CTM §2.4、§2.7</div><div class="c"></div>
+  <div class="lh chg" data-n="4"><b>导读</b><span>勾选完成</span></div>
+  <div class="c"></div><div class="c"></div><div class="c"></div><div class="c">☐ C 语言 Ch1</div><div class="c today">☐ 数据结构 §1.3</div><div class="c">☐ C 语言 Ch2 上</div><div class="c">☐ 数据结构 §1.4</div>
+  <div class="lh"><b>自读</b><span>勾选完成</span></div>
+  <div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c today">☐ Epp pp.1–9</div><div class="c">☐ Epp pp.10–18</div><div class="c">☐ Epp pp.19–27</div>
+</div></div></div>
+<p class="note">导读没读的不打 ↷ 挪日子提示，下一个导读日自动接着读（和自读一样，「日子跟着实际读的走」）。书房弹框（批 6 稿 ④）的按书切换里多出两本：「Effective C（导读）」「算法（导读）」，进度表只有「导读」一条道。</p>
+
+<h3>编号说明</h3>
+<table class="spec">
+<tr><th>#</th><th>做什么</th><th>依据</th></tr>
+<tr><td>1</td><td>导读行进「阅读」组，样子同课后读：☐ + 「陪读 →」，写「导读 · 科目短名 节名 · 页码」</td><td>你 11-15：导读课改只陪读、不收课</td></tr>
+<tr class="ask"><td>2</td><td>副行写「第 n / N 节 · ≤ 45 分钟」（上限可以写，不估时长，符合 G7）</td><td>我定：原导读课的「每节 ≤ 45 分钟」保留成提示</td></tr>
+<tr class="ask"><td>3</td><td>核实点过开始但没收课 → 蓝 ●「进行中 · 在会话里收课才算做完」；收课后才 ✓。周表格同样：● 进行中、✓ 做完</td><td>我定文案；✓ 只认课程页是你同意的 B</td></tr>
+<tr><td>4</td><td>周表格「导读课 · 要收课」→「导读 · 勾选完成」，格子用 ☐</td><td>同 1</td></tr>
+</table>
+</div></body></html>

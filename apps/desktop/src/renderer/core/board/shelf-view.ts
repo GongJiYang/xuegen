@@ -23,6 +23,8 @@ export interface ShelfBookView {
   next: string | null;
   /** The rest of `upcoming` as 「11-11 · Ch1 … · pp.19–27」. */
   later: string[];
+  /** The schedule line under the bar: 段 for a self-read book, 节 for a 导读书. */
+  meta: string;
   coreRead: { pages: string; label: string; date: string }[];
   extracts: { page: number; text: string; carded: string | null }[];
   /** How many extracts are still 「#待做卡」. */
@@ -39,6 +41,8 @@ export interface ShelfQueued {
 
 export interface ShelfPanelView {
   planned: ShelfBookView | null;
+  /** The 导读书 (slot `guided`) still on the board, by slug. */
+  guided: ShelfBookView[];
   queue: ShelfQueued[];
   free: ShelfBookView | null;
 }
@@ -69,10 +73,16 @@ function bookView(item: ShelfListItem, today: string): ShelfBookView {
         ? null
         : first.date === today
           ? strings.reading.shelfToday(chunkText(first))
-          : strings.reading.shelfNextOn(first.date.slice(5), chunkText(first)),
+          : item.slot === "guided"
+            ? strings.reading.shelfNextGuidedOn(first.date.slice(5), chunkText(first))
+            : strings.reading.shelfNextOn(first.date.slice(5), chunkText(first)),
     later: item.upcoming
       .slice(1)
       .map((row) => `${row.date.slice(5)} · ${row.title} · pp.${row.from}–${row.to}`),
+    meta:
+      item.slot === "guided"
+        ? strings.reading.shelfGuidedMeta(item.position, item.total, item.end)
+        : strings.reading.shelfMeta(item.position, item.total, item.end),
     coreRead: item.coreRead
       .map(({ pages, label, date }) => ({ pages, label, date }))
       .sort((a, b) => b.date.localeCompare(a.date)),
@@ -102,5 +112,13 @@ export function shelfPanel(list: ShelfListItem[], today: string): ShelfPanelView
     start = addDays(end, 1);
   }
 
-  return { planned, queue, free: freeItem === null ? null : bookView(freeItem, today) };
+  return {
+    planned,
+    guided: list
+      .filter((item) => item.slot === "guided" && (item.status === "reading" || item.status === "paused"))
+      .sort((left, right) => left.slug.localeCompare(right.slug))
+      .map((item) => bookView(item, today)),
+    queue,
+    free: freeItem === null ? null : bookView(freeItem, today),
+  };
 }

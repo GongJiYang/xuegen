@@ -20,7 +20,7 @@ import { strings } from "../../core/strings.js";
 // `warn` is a block or lesson moved past its day: a quiet ↷, not a warning (panel v2).
 const MARK: Record<PlanMark, string> = { done: "✓", now: "●", plan: "○", warn: "↷" };
 /** 阅读 lanes are ticked, so their not-yet-done items show an empty box. */
-const READ_LANES: PlanLane[] = ["after", "self"];
+const READ_LANES: PlanLane[] = ["after", "guide", "self"];
 const LANES: PlanLane[] = ["main", "after", "guide", "self"];
 const VIEWS: PlanView[] = ["day", "week", "month"];
 
