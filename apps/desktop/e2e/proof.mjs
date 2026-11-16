@@ -92,6 +92,16 @@ async function emulate(send) {
   const features = named.scheme ? [{ name: "prefers-color-scheme", value: named.scheme }] : [];
   await send("Emulation.setEmulatedMedia", { features });
   if (named.width) {
+    // The viewport override alone leaves the layout at the window's own width
+    // (a 1920 shot of a 1440 window is 1440 of page and 480 of blank), so the
+    // window itself is resized first.
+    const width = Number(named.width);
+    const height = Number(named.height ?? 1080);
+    const { result } = await send("Browser.getWindowForTarget");
+    if (result?.windowId) {
+      await send("Browser.setWindowBounds", { windowId: result.windowId, bounds: { windowState: "normal" } });
+      await send("Browser.setWindowBounds", { windowId: result.windowId, bounds: { width, height } });
+    }
     await send("Emulation.setDeviceMetricsOverride", {
       width: Number(named.width),
       height: Number(named.height ?? 1080),
