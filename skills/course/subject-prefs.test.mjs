@@ -115,3 +115,18 @@ test("remove：找不到完全相同的行时报「这条偏好已经不在了�
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
+
+test("remove：--text 后面跟 -- 开头的东西报「缺少值」，不当成偏好原文", async () => {
+  const fixture = await makeVault();
+  try {
+    const failed = await cli(["remove", fixture.vault, "math", "--text", "--json"], { expectFail: true });
+    assert.equal(failed.code, 1);
+    assert.match(failed.stderr, /--text 缺少值/);
+    assert.equal(await readFile(fixture.mathFile, "utf8"), MATH, "文件不变");
+    // 值参数在最后、后面什么都没有同样报缺少值。
+    const atEnd = await cli(["remove", fixture.vault, "math", "--text"], { expectFail: true });
+    assert.match(atEnd.stderr, /--text 缺少值/);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});

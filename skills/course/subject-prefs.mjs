@@ -95,7 +95,13 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (!arg.startsWith("--")) positional.push(arg);
     else if (["json", "help"].includes(arg.slice(2))) flags[arg.slice(2)] = true;
-    else flags[arg.slice(2)] = argv[++i];
+    else {
+      const key = arg.slice(2);
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) fail(`--${key} 缺少值`);
+      flags[key] = value;
+      i += 1;
+    }
   }
   return { positional, flags };
 }

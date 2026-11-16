@@ -1,13 +1,35 @@
 // @vitest-environment node
 // Session summaries: pure `summarizeSession` cases on canned transcript text,
 // and `listSessions` against a temporary <home>/sessions directory.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import type * as nodeFs from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listOtherSessions, listSessions, summarizeSession } from "./sessions.js";
 
 const FILE = "/tmp/sessions/2026-11-08T09-12-34-123Z_test.jsonl";
+
+// realpathSync on a path ending in "gone" succeeds once, then throws ENOENT —
+// this simulates a folder deleted between `readdirSync` and the loop's own
+// `realpathSync` (a race no deterministic fixture can produce otherwise).
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof nodeFs>();
+  const realpath = actual.realpathSync as (path: unknown, options?: unknown) => unknown;
+  const calls = new Map<string, number>();
+  return {
+    ...actual,
+    realpathSync: (path: unknown, options?: unknown) => {
+      const key = String(path);
+      if (key.endsWith("/gone") || key.endsWith("\\gone")) {
+        const count = (calls.get(key) ?? 0) + 1;
+        calls.set(key, count);
+        if (count > 1) throw new Error(`ENOENT: no such file or directory, realpath '${key}'`);
+      }
+      return realpath(path, options);
+    },
+  };
+});
 
 describe("summarizeSession", () => {
   it("counts user and assistant text messages, skipping bad lines and textless records", () => {
@@ -178,6 +200,15 @@ describe("listOtherSessions", () => {
     const elsewhere = join(home, "2026-11-08T09-00-00-000Z_x.jsonl");
     writeFileSync(elsewhere, "", "utf8");
     expect(listOtherSessions(home, elsewhere)).toEqual([]);
+  });
+
+  it("skips a group whose folder disappears between readdir and realpath", () => {
+    const current = write("--Users-me-xuegen--", "2026-11-08T09-00-00-000Z_a.jsonl");
+    write("--Users-bob-bar--", "2026-11-08T10-00-00-000Z_z.jsonl", "还在的");
+    mkdirSync(join(sessionsDir, "gone"));
+
+    const groups = listOtherSessions(home, current);
+    expect(groups.map((group) => group.dir)).toEqual(["--Users-bob-bar--"]);
   });
 
   it("labels a folder named like `--Users-alice--` as `alice`", () => {

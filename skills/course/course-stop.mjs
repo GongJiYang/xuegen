@@ -26,6 +26,19 @@ function fail(message) {
   process.exit(1);
 }
 
+// 暂存建好到提交成功之间，任何失败——抛错或 fail() 直接 process.exit——都要删掉暂存：
+// 不然 <ws>/.close/<slug>-* 留下未提交暂存，之后这门课的停用/恢复永远被
+// 「已有未提交的暂存」挡住，桌面端没有界面能清。checkOrDrop 与这里的 exit 钩子同责。
+let pendingStaging = null;
+process.on("exit", (code) => {
+  if (code === 0 || pendingStaging === null) return;
+  try {
+    rmSync(pendingStaging, { recursive: true, force: true });
+  } catch {
+    /* 删不掉就留着，人能看到 */
+  }
+});
+
 /** 库里课程页全文；页不存在时报错退出（stageInternal 自己的「没有这门课」检查之前先给停用状态判定）。 */
 function vaultPageText(vault, slug) {
   const file = join(vault, "wiki", "courses", `${slug}.md`);
@@ -91,11 +104,13 @@ function emit(json, payload, line) {
 function cmdStop(vault, slug, workspace, today, reason, json) {
   if (isArchived(vaultPageText(vault, slug))) fail("这门课已经停用了");
   const staging = stageInternal(vault, slug, workspace, { kind: "plan" });
+  pendingStaging = staging;
   const rel = `wiki/courses/${slug}.md`;
   const file = join(staging, rel);
   writeFileSync(file, insertStopLine(readFileSync(file, "utf8"), today, reason));
   checkOrDrop(staging);
   const out = commitInternal(staging, "停用");
+  pendingStaging = null;
   emit(
     json,
     { slug, action: "stop", date: today, jj: out.jj, firstLesson: null },
@@ -107,6 +122,7 @@ function cmdStop(vault, slug, workspace, today, reason, json) {
 function cmdResume(vault, slug, workspace, today, json) {
   if (!isArchived(vaultPageText(vault, slug))) fail("这门课没有停用");
   const staging = stageInternal(vault, slug, workspace, { kind: "plan" });
+  pendingStaging = staging;
   const rel = `wiki/courses/${slug}.md`;
   const file = join(staging, rel);
   writeFileSync(file, removeStopLines(readFileSync(file, "utf8")));
@@ -115,6 +131,7 @@ function cmdResume(vault, slug, workspace, today, json) {
   const firstLesson = firstUndoneLessonDate(readFileSync(file, "utf8"));
   checkOrDrop(staging);
   const out = commitInternal(staging, "恢复");
+  pendingStaging = null;
   emit(
     json,
     { slug, action: "resume", date: today, jj: out.jj, firstLesson },
@@ -135,7 +152,9 @@ function parseArgs(argv) {
     const key = arg.slice(2);
     if (["json", "help"].includes(key)) flags[key] = true;
     else {
-      flags[key] = argv[i + 1];
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) fail(`--${key} 缺少值`);
+      flags[key] = value;
       i += 1;
     }
   }
@@ -169,7 +188,8 @@ function main() {
   const today = flags.today ?? localDate();
   if (flags.today !== undefined && !DATE_RE.test(flags.today)) fail("--today 要写成 YYYY-MM-DD");
   const json = Boolean(flags.json);
-  if (action === "stop") cmdStop(vault, slug, workspace, today, flags.reason ?? DEFAULT_REASON, json);
+  // --reason "" 按没给处理，用默认原因。
+  if (action === "stop") cmdStop(vault, slug, workspace, today, flags.reason || DEFAULT_REASON, json);
   else cmdResume(vault, slug, workspace, today, json);
 }
 

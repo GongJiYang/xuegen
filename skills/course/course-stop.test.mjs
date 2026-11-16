@@ -6,7 +6,7 @@ import { test, skip } from "node:test";
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -227,6 +227,62 @@ test("stop：不带 jj 也能停用（jj 字段是 skipped），停用行进 Key
     const text = await readFile(fixture.page, "utf8");
     assert.ok(hasStopLine(text));
     assert.match(text, /- 状态：停用（\d{4}-\d{2}-\d{2}，用户在总进度里停用）/, "默认原因");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("stop：课程页没有 ## Key Facts 时报原错、清掉暂存；再 stop 还是同一个错", async () => {
+  const fixture = await makeVault();
+  try {
+    const noFacts = coursePage().replace(/## Key Facts\n[\s\S]*?(?=## This Week)/, "");
+    await chmod(fixture.page, 0o644);
+    await writeFile(fixture.page, noFacts);
+    await chmod(fixture.page, 0o444);
+    const args = ["stop", fixture.vault, "epp", "--workspace", fixture.ws];
+
+    const first = await cli(args, { expectFail: true });
+    assert.equal(first.code, 1);
+    assert.match(first.stderr, /没有 ## Key Facts/);
+    // 失败不能留未提交暂存：.close/ 下没有这门课的 epp-* 目录。
+    const closeDir = join(fixture.ws, ".close");
+    const names = existsSync(closeDir) ? readdirSync(closeDir) : [];
+    assert.deepEqual(
+      names.filter((name) => name.startsWith("epp-")),
+      [],
+      `暂存应被清掉：${names.join("、")}`,
+    );
+
+    // 再 stop：报同一个原因，不是「已有未提交的暂存」。
+    const second = await cli(args, { expectFail: true });
+    assert.equal(second.code, 1);
+    assert.match(second.stderr, /没有 ## Key Facts/);
+    assert.doesNotMatch(second.stderr, /未提交的暂存/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("stop：值参数后面跟 -- 开头的东西报「缺少值」，不把它当值吞掉", async () => {
+  const fixture = await makeVault();
+  try {
+    const missing = await cli(["stop", fixture.vault, "epp", "--workspace", "--json"], { expectFail: true });
+    assert.equal(missing.code, 1);
+    assert.match(missing.stderr, /--workspace 缺少值/);
+    // 值参数在最后、后面什么都没有同样报缺少值。
+    const atEnd = await cli(["stop", fixture.vault, "epp", "--reason"], { expectFail: true });
+    assert.match(atEnd.stderr, /--reason 缺少值/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("stop：--reason 空串按没给处理，停用行写默认原因", async () => {
+  const fixture = await makeVault();
+  try {
+    await cli(["stop", fixture.vault, "epp", "--workspace", fixture.ws, "--reason", ""]);
+    const text = await readFile(fixture.page, "utf8");
+    assert.match(text, /- 状态：停用（\d{4}-\d{2}-\d{2}，用户在总进度里停用）/);
   } finally {
     await cleanup(fixture);
   }

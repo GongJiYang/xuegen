@@ -91,6 +91,26 @@ describe("runChecks", () => {
     assert.equal(lastCheck(home), null, "失败时不写 check-last.json");
   });
 
+  it("returns script-failed (not a throw) when a script's problems is not an array", async () => {
+    const home = tempDir();
+    for (const [script, data] of [
+      [LINT, { problems: "oops" }],
+      [VERIFY, { problems: { slug: "epp" } }],
+      [VERIFY, { ok: true }],
+    ] as const) {
+      const run = fakeRun({
+        [LINT]: { ok: true, data: { problems: [] } },
+        [VERIFY]: { ok: true, data: { problems: [] } },
+        [script]: { ok: true, data },
+      });
+      const result = await runChecks("/tmp/vault", home, run);
+      if ("checkedAt" in result) assert.fail(`expected a ScriptFailure for ${script}`);
+      assert.equal(result.code, "script-failed");
+      assert.match(result.error, /problems/);
+    }
+    assert.equal(lastCheck(home), null, "失败时不写 check-last.json");
+  });
+
   it("persists the result so lastCheck reads the same object back", async () => {
     const home = tempDir();
     const run = fakeRun({

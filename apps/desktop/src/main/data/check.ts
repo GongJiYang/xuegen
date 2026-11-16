@@ -36,8 +36,14 @@ function shortWhere(path: string): string {
   return dot > 0 ? name.slice(0, dot) : name;
 }
 
-function lintProblems(data: unknown): CheckProblem[] {
-  const problems = (data as { problems?: LintProblem[] } | null)?.problems ?? [];
+/** Both check scripts always print `{problems: [...]}`; anything else is a malformed run. */
+function scriptFailure(relative: string): ScriptFailure {
+  return { ok: false, code: "script-failed", error: `脚本 ${relative} 输出的 problems 不是数组。` };
+}
+
+function lintProblems(data: unknown): CheckProblem[] | null {
+  const problems = (data as { problems?: LintProblem[] } | null)?.problems;
+  if (!Array.isArray(problems)) return null;
   return problems.map((problem) => ({
     area: "vault",
     where: typeof problem.path === "string" ? shortWhere(problem.path) : null,
@@ -46,8 +52,9 @@ function lintProblems(data: unknown): CheckProblem[] {
   }));
 }
 
-function verifyProblems(data: unknown): CheckProblem[] {
-  const problems = (data as { problems?: VerifyProblem[] } | null)?.problems ?? [];
+function verifyProblems(data: unknown): CheckProblem[] | null {
+  const problems = (data as { problems?: VerifyProblem[] } | null)?.problems;
+  if (!Array.isArray(problems)) return null;
   return problems.map((problem) => ({
     area: "courses",
     where: typeof problem.slug === "string" ? problem.slug : null,
@@ -80,10 +87,14 @@ export async function runChecks(
   ]);
   if (!lint.ok) return lint;
   if (!verify.ok) return verify;
+  const vaultProblems = lintProblems(lint.data);
+  if (vaultProblems === null) return scriptFailure("wiki-save/vault-lint.mjs");
+  const courseProblems = verifyProblems(verify.data);
+  if (courseProblems === null) return scriptFailure("course/course-state.mjs");
   const result: CheckResult = {
     checkedAt: new Date().toISOString(),
-    vault: lintProblems(lint.data),
-    courses: verifyProblems(verify.data),
+    vault: vaultProblems,
+    courses: courseProblems,
   };
   writeLast(home, result);
   return result;

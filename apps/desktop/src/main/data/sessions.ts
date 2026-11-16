@@ -145,7 +145,14 @@ export function listOtherSessions(
   const groups: { dir: string; label: string; sessions: SessionMeta[] }[] = [];
   for (const name of names) {
     const dir = join(root, name);
-    if (realpathSync(dir) === currentDir) continue;
+    let real: string;
+    try {
+      real = realpathSync(dir);
+    } catch {
+      // The folder passed isOwnSessionDir but vanished before this realpath.
+      continue;
+    }
+    if (real === currentDir) continue;
     const sessions = listDir(dir);
     if (sessions.length === 0) continue;
     const tail = name.replace(/^-+|-+$/g, "");
