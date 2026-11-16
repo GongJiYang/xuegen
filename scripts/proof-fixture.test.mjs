@@ -47,6 +47,9 @@ test("make-fixture 生成的合成库能让 cycle / course / vault / bookshelf �
     await makeFixture(root);
     const vault = join(root, "vault");
 
+    const desktopJson = JSON.parse(await readFile(join(root, "home", "desktop.json"), "utf8"));
+    assert.deepEqual(desktopJson, { skin: "bear", bodyScale: 1 }, "合成库的 desktop.json 应是正常字号");
+
     const cycle = await cli(["skills/cycle-plan/cycle.mjs", "check", vault]);
     assert.equal(cycle.ok, true, cycle.stderr || cycle.stdout);
 
