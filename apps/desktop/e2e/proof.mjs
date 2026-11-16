@@ -3,6 +3,7 @@
 // agent can attach to its report or PR (screenshots, a contrast scan, values
 // read from the page). Never points at the user's real home or vault.
 //
+//   npm run proof -- fixture --root /tmp/xg-proof [--today 2026-11-17] [--port 9460]
 //   npm run proof -- start --root /tmp/xg-e2e [--today 2026-11-17] [--port 9460]
 //   npm run proof -- shot <name> [--scheme light|dark] [--width 1920] [--js '<code>']
 //   npm run proof -- contrast [--scheme light|dark] [--width 1920]
@@ -18,6 +19,7 @@ import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync, rmSync } 
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeFixture } from "./make-fixture.mjs";
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [command, ...rest] = process.argv.slice(2);
@@ -182,13 +184,19 @@ async function contrast() {
   console.log(`低于 4.5:1：${rows.length} 处`);
 }
 
+async function fixture() {
+  if (!named.root) fail("fixture 要 --root <测试目录>");
+  const made = await makeFixture(named.root);
+  console.log(`合成测试库：${made.vault}`);
+}
+
 async function run() {
   const { send, close } = await connect();
   console.log(JSON.stringify(await evaluate(send, positional[0] ?? "return document.title;"), null, 1));
   close();
 }
 
-const commands = { start, stop, shot, contrast, eval: run };
+const commands = { fixture, start, stop, shot, contrast, eval: run };
 if (!commands[command]) fail(`用法：proof.mjs <${Object.keys(commands).join("|")}> …（见文件开头）`);
 setTimeout(() => fail("超时"), command === "start" ? 150_000 : 40_000).unref();
 await commands[command]();
