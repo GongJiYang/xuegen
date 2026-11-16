@@ -39,6 +39,7 @@ export interface CourseCloseToolOptions {
 export type CloseAction =
   | "stage"
   | "add"
+  | "archive"
   | "check"
   | "commit"
   | "abort"
@@ -89,7 +90,18 @@ export function courseCloseArgs(
   switch (params.action) {
     case "stage":
       if (params.slug === undefined) throw new Error("course_close stage 缺少 slug：要收哪门课。");
-      return ["stage", vault, params.slug, "--workspace", cwd, "--json"];
+      return [
+        "stage",
+        vault,
+        params.slug,
+        "--workspace",
+        cwd,
+        ...(params.today ? ["--today", params.today] : []),
+        "--json",
+      ];
+    case "archive":
+      if (params.staging === undefined) throw new Error("course_close archive 缺少 staging。");
+      return ["archive", params.staging, "--json"];
     case "add":
       if (params.staging === undefined) throw new Error("course_close add 缺少 staging：哪个暂存目录。");
       if (params.path === undefined)
@@ -165,12 +177,14 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       label: "收课",
       description:
         "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
-        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。after-read 把课后读写进本课链着的书页（课程页不再写课后读）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。",
+        "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。after-read 把课后读写进本课链着的书页（课程页不再写课后读）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。" +
+        "stage 返回的 brief 里有今天这节、记录编号、课后读日期、要不要归档、概念目录，直接用，不用再翻文件。archive 把超出 2 条的旧学习记录挪进按月归档并写好归档行。",
       parameters: Type.Object({
         action: Type.Union(
           [
             Type.Literal("stage"),
             Type.Literal("add"),
+            Type.Literal("archive"),
             Type.Literal("check"),
             Type.Literal("commit"),
             Type.Literal("abort"),
@@ -181,15 +195,15 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
           ],
           {
             description:
-              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。after-read 把一条课后读写进暂存书页（本课课程页第一个 [[shelf/<书>]] 链着的那本），随这次收课一笔提交。shift 开课时顺延排期（一步完成暂存、校验、提交）。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。",
+              "stage 开始暂存；add 把已有页复制进暂存（改已有页之前必须先 add）；archive 把超出 2 条的旧学习记录挪进按月归档；check 校验；commit 校验并一次提交；abort 放弃暂存；undo 撤销最近一次收课。after-read 把一条课后读写进暂存书页（本课课程页第一个 [[shelf/<书>]] 链着的那本），随这次收课一笔提交。shift 开课时顺延排期（一步完成暂存、校验、提交）。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。",
           },
         ),
         slug: Type.Optional(Type.String({ description: "课程 slug（stage、shift、undo 必填）" })),
         staging: Type.Optional(
-          Type.String({ description: "暂存目录（add、check、commit、abort、after-read、snapshot 必填；stage 输出它）" }),
+          Type.String({ description: "暂存目录（add、archive、check、commit、abort、after-read、snapshot 必填；stage 输出它）" }),
         ),
         path: Type.Optional(Type.String({ description: "库内相对路径（add 必填）" })),
-        today: Type.Optional(Type.String({ description: "shift 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
+        today: Type.Optional(Type.String({ description: "shift / stage 用：今天日期 YYYY-MM-DD（不填用本机日期）" })),
         end: Type.Optional(
           Type.String({ description: "shift 用：只给排期标记里已有 end= 的旧课；新排的主项课与带读（辅助）课都不设完结，不填" }),
         ),

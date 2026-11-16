@@ -331,7 +331,7 @@ export function addedCompletedIds(baseText, stagedText) {
  * 整份文件都切块——归档文件 `wiki/courses/<slug>/records/YYYY-MM.md` 没有这一节标题。
  * 返回 [{ heading: 去掉首尾空白的标题行, body: 标题行之后的行 }]。
  */
-function recordBlocks(text, { whole = false } = {}) {
+export function recordBlocks(text, { whole = false } = {}) {
   const lines = text.split("\n");
   const start = whole ? 0 : lines.findIndex((line) => RECORD_SECTION_RE.test(line.trim()));
   if (start === -1) return [];
@@ -351,7 +351,7 @@ function recordBlocks(text, { whole = false } = {}) {
 }
 
 /** 块的比较文本：标题 + 正文（去掉正文尾部空行，免得块间空行变化被当成改记录）。 */
-function blockText(block) {
+export function blockText(block) {
   const body = [...block.body];
   while (body.length > 0 && body[body.length - 1].trim() === "") body.pop();
   return [block.heading, ...body].join("\n");
@@ -368,7 +368,7 @@ function blockCompletedIds(block) {
   return done;
 }
 
-const RECORD_HEADING_RE = /^###\s+\d{4}-\d{2}-\d{2}-\d{2}/;
+export const RECORD_HEADING_RE = /^###\s+\d{4}-\d{2}-\d{2}-\d{2}/;
 
 /**
  * 自报提交的课程页校验，返回问题字符串数组（空 = 通过）：

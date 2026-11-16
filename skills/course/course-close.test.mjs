@@ -304,6 +304,47 @@ test("stage → 改 → check → commit：文件落盘、上锁、manifest 基�
   }
 });
 
+test("stage --json 返回 brief：recordId 是今天第几条、记录数与概念目录现成", async () => {
+  const fixture = await makeVault();
+  try {
+    const staged = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws, "--today", "2026-11-09"]);
+    assert.match(staged.staging, /\/\.close\/epp-\d{8}-\d{6}$/);
+    assert.equal(staged.brief.today, "2026-11-09");
+    assert.equal(staged.brief.recordId, "2026-11-09-02", "课程页已有 2026-11-09-01");
+    assert.deepEqual(staged.brief.records, { count: 1, archiveAfterThis: false });
+    assert.equal(staged.brief.concepts.dir, "wiki/knowledge/concepts/discrete-math/");
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+test("archive 端到端：第 3 条记录触发归档，check 过、commit 后 records 落库、页面只剩 2 条", async () => {
+  const fixture = await makeVault();
+  try {
+    const { staging } = await cliJson(["stage", fixture.vault, "epp", "--workspace", fixture.ws]);
+    const three = coursePage().replace(
+      "## Relationships",
+      "### 2026-11-09-02\n\n- 记一笔。\n- 完成：D2\n\n### 2026-11-10-01\n\n- 记一笔。\n\n## Relationships",
+    );
+    await writeFile(join(staging, "wiki", "courses", "epp.md"), three);
+    const archived = await cliJson(["archive", staging]);
+    assert.deepEqual(archived.moved, ["2026-11-09-01"]);
+    assert.deepEqual(archived.months, ["2026-11"]);
+    const checked = await cliJson(["check", staging]);
+    assert.equal(checked.ok, true, JSON.stringify(checked.problems));
+    const committed = await cliJson(["commit", staging]);
+    assert.equal(committed.committed, true);
+    const nov = await readFile(join(fixture.vault, "wiki", "courses", "epp", "records", "2026-11.md"), "utf8");
+    assert.match(nov, /### 2026-11-09-01\n\n- 讲了 §1.1。\n- 完成：D1\n/, "挪走的块原样落库");
+    const page = await readFile(fixture.page, "utf8");
+    assert.ok(!page.includes("### 2026-11-09-01"), "课程页只剩最新 2 条");
+    assert.ok(page.includes("### 2026-11-09-02") && page.includes("### 2026-11-10-01"));
+    assert.match(page, /- 归档：2026 年 11 月的收课记录见 \[\[courses\/epp\/records\/2026-11\]\] · 完成：D1/);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 test("check 不通过时 exit 1，--json 仍输出问题清单，库和暂存都不动", async () => {
   const fixture = await makeVault();
   try {
