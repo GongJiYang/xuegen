@@ -7,6 +7,7 @@
 import type { CycleDay, SubjectInfo } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
 import type { TermChip, TermLessonView } from "./terms.js";
+import { compareText } from "../../../shared/text-order.js";
 
 /** At most this many pages per lesson; the rest are counted. */
 export const RECALL_MAX = 8;
@@ -66,7 +67,7 @@ export function recallLessons(day: CycleDay): { course: string; id: string }[] {
   const others = rest
     .map((course) => earliest(course))
     .filter((row): row is { course: string; id: string; date: string } => row !== null)
-    .sort((a, b) => (a.date === b.date ? a.course.localeCompare(b.course) : a.date < b.date ? -1 : 1));
+    .sort((a, b) => (a.date === b.date ? compareText(a.course, b.course) : a.date < b.date ? -1 : 1));
   return [...rows, ...others.map((row) => ({ course: row.course, id: row.id }))];
 }
 

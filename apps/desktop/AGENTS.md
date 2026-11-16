@@ -129,3 +129,15 @@ npm run smoke
 - ESLint + Prettier 配置随项目提交；lint 零错误、零警告。
 - 根目录 `node bin/xuegen.mjs --version` 仍正常。
 - `git status` 只出现本批范围内的文件。
+- **改了界面的批次附证据**：用测试窗口截图，报告里列出截图路径和对比度扫描结果。只用测试数据，绝不指向 `~/.xuegen` 或 `~/xuegen-data`（`start` 会拒绝）：
+
+  ```sh
+  npm run proof -- start --root /tmp/xg-e2e --today 2026-11-17   # 开测试窗口（假 Anki、固定日期）
+  npm run proof -- shot 总控-1920 --width 1920                     # 截图到 proof/
+  npm run proof -- shot 总控-浅色 --scheme light --width 1440
+  npm run proof -- contrast --scheme light                         # 列出低于 4.5:1 的文字
+  npm run proof -- eval 'return document.querySelector(".bear-cp")?.innerText'
+  npm run proof -- stop --root /tmp/xg-e2e
+  ```
+
+  `--root` 下要有 `home/wiki.json`（指向测试库）。前面都加 `env -u NODE_OPTIONS`（本机 shell 问题）。

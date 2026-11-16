@@ -175,7 +175,7 @@ function stagedArchiveTexts(staging, slug) {
   const prefix = `wiki/courses/${slug}/records/`;
   return walkStaged(staging)
     .filter((entry) => !entry.symlink && entry.path.startsWith(prefix) && entry.path.endsWith(".md"))
-    .sort((a, b) => a.path.localeCompare(b.path))
+    .sort((a, b) => a.path.localeCompare(b.path, "zh-Hans-CN"))
     .map((entry) => readFileSync(join(staging, entry.path), "utf8"));
 }
 

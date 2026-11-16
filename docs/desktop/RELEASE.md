@@ -9,6 +9,7 @@
 3. `CHANGELOG.md`：把 `## Unreleased` 下的条目移到新标题 `## v<版本> — YYYY-MM-DD`，`## Unreleased` 留空。另写一份给用户看的更新说明 `/tmp/xuegen-notes.md`：3–8 行，每行 `- ` 开头、一句中文、说用户能感到的变化（界面会把这些行显示在「看看改了什么」里）。
 4. 打包：`cd apps/desktop && npm run dist`，确认 `dist/xuegen-<版本>-arm64-mac.zip` 存在。
 5. 提交并推送：`git commit -am "Release v<版本>"`，`git tag v<版本>`，`git push origin desktop desktop:main v<版本>`。
+   推送后跑 `node scripts/ci-green.mjs`（等这次提交的 GitHub CI 跑完）：**退出码不是 0 就不发布**，先修好、再提交推送、再跑一次。本地测试固定在英文环境（`LC_ALL=en_US.UTF-8`），和 CI 一致；以前本地中文环境绿、CI 红，连发了几版都没发现。
 6. 发布（把更新说明另存为 `notes.md` 一起上传）：
 
    ```

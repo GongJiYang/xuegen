@@ -10,6 +10,7 @@
 
 import type { CourseSummary, CycleDay } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 /** One 「开一门课」 row: the course, its label, and the lesson line under it. */
 export interface OpenCourseRow {
@@ -71,7 +72,7 @@ export function openCourses(day: CycleDay | null, courses: CourseSummary[]): Ope
 
   const other = courses
     .filter((course) => !listed.has(course.slug) && !isFinished(course))
-    .sort((left, right) => left.title.localeCompare(right.title, "zh"));
+    .sort((left, right) => compareText(left.title, right.title));
   for (const course of other) {
     rows.push({ slug: course.slug, label: course.title, sub: null, group: "other" });
   }

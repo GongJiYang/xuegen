@@ -9,6 +9,7 @@
 
 import type { ShelfListItem, ShelfUpcoming } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 export interface ShelfBookView {
   slug: string;
@@ -85,7 +86,7 @@ function bookView(item: ShelfListItem, today: string): ShelfBookView {
         : strings.reading.shelfMeta(item.position, item.total, item.end),
     coreRead: item.coreRead
       .map(({ pages, label, date }) => ({ pages, label, date }))
-      .sort((a, b) => b.date.localeCompare(a.date)),
+      .sort((a, b) => compareText(b.date, a.date)),
     extracts,
     pending: extracts.filter((extract) => extract.carded === null).length,
   };
@@ -116,7 +117,7 @@ export function shelfPanel(list: ShelfListItem[], today: string): ShelfPanelView
     planned,
     guided: list
       .filter((item) => item.slot === "guided" && (item.status === "reading" || item.status === "paused"))
-      .sort((left, right) => left.slug.localeCompare(right.slug))
+      .sort((left, right) => compareText(left.slug, right.slug))
       .map((item) => bookView(item, today)),
     queue,
     free: freeItem === null ? null : bookView(freeItem, today),

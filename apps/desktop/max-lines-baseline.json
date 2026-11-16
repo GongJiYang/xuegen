@@ -1,0 +1,22 @@
+{
+  "src/main/data/handler.ts": 333,
+  "src/renderer/App.tsx": 392,
+  "src/renderer/core/board/consistency-fixture.ts": 319,
+  "src/renderer/core/strings.ts": 1073,
+  "src/renderer/gallery/Gallery.tsx": 466,
+  "src/renderer/gallery/panel-samples.ts": 539,
+  "src/renderer/skins/bare/index.tsx": 322,
+  "src/renderer/skins/bare/messages.tsx": 414,
+  "src/renderer/skins/bare/panels-more.tsx": 353,
+  "src/renderer/skins/bear/composer.tsx": 301,
+  "src/renderer/skins/bear/planbook.tsx": 350,
+  "src/renderer/skins/bear/progress-panel.tsx": 517,
+  "src/renderer/skins/bear/shell.tsx": 352,
+  "src/renderer/skins/bear/slots.tsx": 391,
+  "src/renderer/skins/chicago/progress-panel.tsx": 303,
+  "src/renderer/skins/chicago/shell.tsx": 376,
+  "src/renderer/skins/chicago/slots.tsx": 354,
+  "src/renderer/skins/contract.ts": 568,
+  "src/shared/data-protocol.ts": 674,
+  "src/shared/protocol.ts": 338
+}

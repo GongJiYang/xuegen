@@ -6,6 +6,7 @@
 
 import type { CourseRole, CycleMonth } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 /** One lesson's day; `from` null is newly added, `to` null was removed. */
 export interface PlanChange {
@@ -48,7 +49,7 @@ export function planDiff(before: Placements, after: Placements): PlanChange[] {
     [change.from, change.to].filter((d) => d !== null).sort()[0] ?? "";
   return changes.sort(
     (a, b) =>
-      first(a).localeCompare(first(b)) || a.course.localeCompare(b.course) || a.id.localeCompare(b.id),
+      compareText(first(a), first(b)) || compareText(a.course, b.course) || compareText(a.id, b.id),
   );
 }
 

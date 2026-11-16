@@ -9,6 +9,7 @@
 
 import type { AnkiStatus, CourseSummary, CycleDay, CycleLesson } from "@shared/data-protocol.js";
 import { strings } from "../strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 /** What the 今天 window leads with on a cycle day. */
 export type CycleFocus =
@@ -79,7 +80,7 @@ export function mergeOverdue(
       count,
       first: firstMissed.get(course) ?? "",
     }))
-    .sort((a, b) => (a.first === b.first ? a.course.localeCompare(b.course) : a.first < b.first ? -1 : 1));
+    .sort((a, b) => (a.first === b.first ? compareText(a.course, b.course) : a.first < b.first ? -1 : 1));
 }
 
 /** 「明天：周六 · 低强度日」 (plus the main lesson and 「+ 辅助 X」), or null outside every cycle. */

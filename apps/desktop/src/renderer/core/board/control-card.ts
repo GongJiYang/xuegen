@@ -31,6 +31,7 @@ export {
   withPendingRead,
   withPendingShelf,
 } from "./control-card-pending.js";
+import { compareText } from "../../../shared/text-order.js";
 
 export type ControlCardMark = "now" | "warn" | "plan" | "faint" | "done";
 
@@ -197,7 +198,7 @@ function missedRows(day: CycleDay): ControlCardRow[] {
       group: "lesson",
       missed: true,
       lessons: [...lessons]
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .sort((a, b) => compareText(a.date, b.date))
         .map((lesson) => lessonRef(day, lesson, lesson.date)),
       mark: "plan",
       text:

@@ -2,6 +2,8 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import prettier from "eslint-config-prettier";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 /**
  * Dependency direction, enforced as import bans.
@@ -11,6 +13,20 @@ import prettier from "eslint-config-prettier";
  * which is the contract), skins must not import each other, and the renderer and
  * the Node-side processes must not reach across the IPC boundary.
  */
+/**
+ * File length ratchet. A source file may hold 300 code lines (blank lines and
+ * comments not counted); split it before it grows past that. Files that were
+ * already longer on 2026-11-16 are capped at their length then, in
+ * max-lines-baseline.json: they may only shrink. Lower a number there after a
+ * split; never raise one.
+ */
+const MAX_LINES = 300;
+const MAX_LINES_BASELINE = JSON.parse(readFileSync(fileURLToPath(new globalThis.URL("./max-lines-baseline.json", import.meta.url)), "utf8"));
+const maxLines = (max) => [
+  "error",
+  { max, skipBlankLines: true, skipComments: true },
+];
+
 /** Every skin directory under `src/renderer/skins/`; add a new skin here. */
 const SKINS = ["bare", "chicago", "bear"];
 /** Animation libraries: only a skin decides how things move (AGENTS.md §13). */
@@ -46,6 +62,14 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='localeCompare']",
+          message:
+            "localeCompare sorts by the machine's language (CI is en-US, so 甲/乙 flip); use compareText from src/shared/text-order.ts.",
+        },
+      ],
     },
   },
   {
@@ -86,5 +110,14 @@ export default tseslint.config(
       ),
     },
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.test.{ts,tsx}"],
+    rules: { "max-lines": maxLines(MAX_LINES) },
+  },
+  ...Object.entries(MAX_LINES_BASELINE).map(([file, max]) => ({
+    files: [file],
+    rules: { "max-lines": maxLines(max) },
+  })),
   prettier,
 );

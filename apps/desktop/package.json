@@ -13,8 +13,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run",
-    "smoke": "tsx src/agent/smoke.ts"
+    "test": "LC_ALL=en_US.UTF-8 vitest run",
+    "smoke": "tsx src/agent/smoke.ts",
+    "proof": "node e2e/proof.mjs"
   },
   "dependencies": {
     "@animate-ui/react": "2.4.2",

@@ -298,3 +298,23 @@ test("realpathSync 比较的脚本经符号链接调用仍能进入 CLI", async 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("技能脚本里不带语言参数的 localeCompare 报错（CI 是英文环境，中文排序会反）", async () => {
+  const { findBareLocaleCompare } = await import("./lint-skills.mjs");
+  // 反例取自 11-15「领域分组不稳定」与 11-16 CI 红：domain.mjs / domain-strip 按本机语言排序。
+  const bad = [
+    "rows.sort((a, b) => a.course.localeCompare(b.course));",
+    "  return (a.lesson ?? \"\").localeCompare(b.lesson ?? \"\");",
+    "x.sort((a, b) => f(a).localeCompare(f(b)));",
+  ].join("\n");
+  assert.deepEqual(
+    findBareLocaleCompare(bad).map((hit) => hit.line),
+    [1, 2, 3],
+  );
+  const good = [
+    'rows.sort((a, b) => a.course.localeCompare(b.course, "zh-Hans-CN"));',
+    'x.sort((a, b) => f(a, 1).localeCompare(f(b, 2), "zh-Hans-CN"));',
+    "// 注释里提到 localeCompare 不算",
+  ].join("\n");
+  assert.deepEqual(findBareLocaleCompare(good), []);
+});

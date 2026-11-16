@@ -17,6 +17,7 @@ import { Dialog as RadixDialog } from "radix-ui";
 import type { ControlCardRow, LessonRef } from "../../core/board/control-card.js";
 import { strings } from "../../core/strings.js";
 import type { ControlLessonMenu } from "../contract.js";
+import { compareText } from "../../../shared/text-order.js";
 
 export interface SelfReportDialogProps {
   open: boolean;
@@ -137,7 +138,7 @@ export function LessonMenuButton({ row, rows, menu, busy }: LessonMenuButtonProp
   for (const lesson of [...own, ...others]) {
     if (!listed.some((each) => each.id === lesson.id)) listed.push(lesson);
   }
-  listed.sort((a, b) => a.date.localeCompare(b.date));
+  listed.sort((a, b) => compareText(a.date, b.date));
 
   return (
     <>

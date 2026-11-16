@@ -173,7 +173,7 @@ export async function collectTerms(root) {
   }
   return groups
     .map(({ seen, ...rest }) => rest)
-    .sort((a, b) => b.date.localeCompare(a.date) || a.course.localeCompare(b.course));
+    .sort((a, b) => b.date.localeCompare(a.date, "zh-Hans-CN") || a.course.localeCompare(b.course, "zh-Hans-CN"));
 }
 
 /** 主模块判定必须比真实路径，否则经符号链接调用时静默不执行；被 domain.mjs 导入时不进 CLI。 */

@@ -14,3 +14,10 @@ trust.json
 sessions/
 notes/
 /settings.json
+
+# 本地专用，不进公开仓库（用户 11-13 定：公开仓库只放代码和说明）。
+# 以前提交过的旧文件仍被跟踪；新的任务单、报告、平台文档、返修截图不会再被 git add 带上。
+docs/**/batch*.md
+docs/platform/
+docs/desktop/mockups/fix-*/
+/link-target

@@ -11,6 +11,7 @@
 import type { CycleDay } from "@shared/data-protocol.js";
 import type { SessionRow } from "./session-list.js";
 import { strings } from "../strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 export type SessionTabKind = "control" | "course" | "other";
 
@@ -100,7 +101,7 @@ export function sessionTabs(input: SessionTabsInput): SessionTab[] {
 
   const courses = Object.entries(input.courseSessions)
     .filter(([slug]) => input.courseStartedOn[slug] === input.today)
-    .sort(([, a], [, b]) => baseName(a).localeCompare(baseName(b)));
+    .sort(([, a], [, b]) => compareText(baseName(a), baseName(b)));
   for (const [slug, file] of courses) {
     const name = input.names[slug] ?? byFile.get(file)?.tag ?? slug;
     const id = lessonId(slug, byFile.get(file), input.day);

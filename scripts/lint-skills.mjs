@@ -110,6 +110,40 @@ export function findUnsafeMainChecks(text) {
   return hits;
 }
 
+// 不带语言参数的 localeCompare 按本机语言排序：中文 Mac 上按拼音，英文 CI 上按码位，
+// 测试本地过、CI 红（11-15 领域分组、11-16 CI）。要求写成 localeCompare(x, "zh-Hans-CN")。
+// 返回 [{line, text}]；注释行不算。
+export function findBareLocaleCompare(text) {
+  const hits = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^\s*(\/\/|\*)/.test(line)) continue;
+    let from = 0;
+    for (;;) {
+      const at = line.indexOf(".localeCompare(", from);
+      if (at < 0) break;
+      let depth = 0;
+      let topComma = false;
+      let j = at + ".localeCompare".length;
+      for (; j < line.length; j += 1) {
+        const ch = line[j];
+        if (ch === "(") depth += 1;
+        else if (ch === ")") {
+          depth -= 1;
+          if (depth === 0) break;
+        } else if (ch === "," && depth === 1) topComma = true;
+      }
+      if (!topComma) {
+        hits.push({ line: i + 1, text: line.trim() });
+        break;
+      }
+      from = j;
+    }
+  }
+  return hits;
+}
+
 async function checkSkill(skillsDir, name) {
   const dir = join(skillsDir, name);
   const problems = [];
@@ -164,6 +198,13 @@ async function checkSkill(skillsDir, name) {
     const testFile = script.replace(/\.mjs$/, ".test.mjs");
     if (!existsSync(testFile)) {
       push("warning", "script-has-test", `${relative(skillsDir, script)}: 缺少同名测试 ${basename(testFile)}`);
+    }
+    for (const hit of findBareLocaleCompare(await readFile(script, "utf8"))) {
+      push(
+        "error",
+        "locale-compare",
+        `${relative(skillsDir, script)}:${hit.line} localeCompare 没写语言（CI 是英文环境，中文排序会反），改成 localeCompare(x, "zh-Hans-CN")：${hit.text}`,
+      );
     }
     for (const hit of findUnsafeMainChecks(await readFile(script, "utf8"))) {
       push(

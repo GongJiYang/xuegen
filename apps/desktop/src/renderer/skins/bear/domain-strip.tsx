@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { strings } from "../../core/strings.js";
+import { compareText } from "../../../shared/text-order.js";
 
 export interface DomainStripSubject {
   id: string;
@@ -24,7 +25,7 @@ const SHOWN = 4;
 function byPages(a: DomainStripSubject, b: DomainStripSubject): number {
   if ((a.pages === 0) !== (b.pages === 0)) return a.pages === 0 ? 1 : -1;
   if (a.pages !== b.pages) return b.pages - a.pages;
-  return a.title.localeCompare(b.title);
+  return compareText(a.title, b.title);
 }
 
 export function DomainStrip({

@@ -159,13 +159,13 @@ function compareGroupsAsc(a, b) {
   if (a.date !== b.date) {
     if (a.date === "") return 1;
     if (b.date === "") return -1;
-    return a.date.localeCompare(b.date);
+    return a.date.localeCompare(b.date, "zh-Hans-CN");
   }
   const lesson = naturalCompare(a.lesson ?? "", b.lesson ?? "");
   if (lesson !== 0) return lesson;
-  const raw = (a.lesson ?? "").localeCompare(b.lesson ?? "");
+  const raw = (a.lesson ?? "").localeCompare(b.lesson ?? "", "zh-Hans-CN");
   if (raw !== 0) return raw;
-  return a.course.localeCompare(b.course);
+  return a.course.localeCompare(b.course, "zh-Hans-CN");
 }
 
 /** 输出的组序：日期倒序（近的在前），没有日期的排最后；同日按课次自然序、课程 slug。 */
@@ -173,11 +173,11 @@ function compareGroupsDesc(a, b) {
   if (a.date !== b.date) {
     if (a.date === "") return 1;
     if (b.date === "") return -1;
-    return b.date.localeCompare(a.date);
+    return b.date.localeCompare(a.date, "zh-Hans-CN");
   }
   const lesson = naturalCompare(a.lesson ?? "", b.lesson ?? "");
   if (lesson !== 0) return lesson;
-  return a.course.localeCompare(b.course);
+  return a.course.localeCompare(b.course, "zh-Hans-CN");
 }
 
 /** 每个概念页属于哪一组：存库记录里日期最早的那组（见 `compareGroupsAsc`）。 */
@@ -219,7 +219,7 @@ async function subjects(root) {
       hasSummary: page?.summary != null,
     });
   }
-  return rows.sort((a, b) => b.pages - a.pages || a.id.localeCompare(b.id));
+  return rows.sort((a, b) => b.pages - a.pages || a.id.localeCompare(b.id, "zh-Hans-CN"));
 }
 
 async function glossary(root, id) {
