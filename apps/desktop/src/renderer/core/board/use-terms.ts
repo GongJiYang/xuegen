@@ -5,7 +5,7 @@
 
 import type { TermGroup } from "@shared/data-protocol.js";
 import * as client from "../client.js";
-import { termsSince, termsView, type TermLessonView } from "./terms.js";
+import { TERMS_DAYS, termsSince, termsView, type TermLessonView } from "./terms.js";
 import { useBoardResource, type LoadResult } from "./use-resource.js";
 
 const NEVER = new Promise<LoadResult<TermGroup[]>>(() => {});
@@ -15,8 +15,9 @@ export function useTerms(
   enabled: boolean,
   today: string,
   names: Readonly<Record<string, string>>,
+  days = TERMS_DAYS,
 ): TermLessonView[] | null | "failed" {
-  const since = termsSince(today);
+  const since = termsSince(today, days);
   const resource = useBoardResource(
     () => (enabled ? client.data({ kind: "terms.list", since }) : NEVER),
     [enabled, since],

@@ -95,7 +95,7 @@ export const strings = {
     retrying: (attempt: number, maxAttempts: number): string =>
       `连接中途断开，正在自动重试（第 ${attempt} / ${maxAttempts} 次）…`,
     /** The retry produced an answer: one soft line, no error block. */
-    retried: "连接断开过一次，已自动重试",
+    retried: (count: number): string => `连接断开过 ${count} 次，已自动接上`,
     /** Title-bar context usage; `percent` is already an integer. */
     context: (percent: number): string => `上下文 ${percent}%`,
     contextUnknown: "上下文 —",
@@ -270,8 +270,8 @@ export const strings = {
       lesson: string | null,
       aux: string | null = null,
     ): string =>
-      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}${aux ? ` + 导读课 ${aux}` : ""}`,
-    auxTag: "导读课",
+      `明天：${weekday} · ${CYCLE_DAY_TYPE[type]}${lesson ? ` · ${lesson}` : ""}${aux ? ` + 导读 ${aux}` : ""}`,
+    auxTag: "导读",
     verifyPrompt: (slug: string): string =>
       `做本周周核实：按收课流程逐项提问，核对后再打勾（课程文件：wiki/courses/${slug}.md）`,
     legend: "深 · 整 · 低 · 休 ＝ 日子类型",
@@ -429,7 +429,7 @@ export const strings = {
     otherCourses: (n: number): string => `其他课程 ${n} 门`,
     todayLesson: (id: string): string => `今天 ${id}`,
     missedLesson: (id: string, date: string): string => `${id} · 原排 ${date}`,
-    auxPrefix: "导读课 · ",
+    auxPrefix: "导读 · ",
   },
   update: {
     available: (version: string, count: number): string =>
@@ -446,6 +446,12 @@ export const strings = {
     unsupported: "开发模式不检查更新",
     close: "关闭",
   },
+  /** 「技能与设置」里的「学根」一行（logic-ui-1116.html A ②）。 */
+  about: {
+    title: "学根",
+    check: "检查更新",
+    available: (version: string): string => `有 v${version} 可以更新，见顶部的更新条`,
+  },
   plan: {
     routeLabel: "两年路线",
     routeEndLabel: "预计结束",
@@ -459,7 +465,7 @@ export const strings = {
     cycleEnd: (day: string): string => `${day} 结束`,
     cycleSub: (daysLeft: number, next: { cycle: string; start: string } | null): string =>
       `还剩 ${daysLeft} 天${next ? ` · 下个周期 ${next.cycle} 从 ${next.start.slice(5)} 开始` : ""}`,
-    auxEmpty: "没排导读课",
+    auxEmpty: "没排导读",
     auxPlanned: (list: string): string => `原定 ${list}`,
     lessonTotal: (total: number): string => ` / ${total} 节`,
     courseEnd: (day: string, role: "main" | "aux" = "main"): string =>
@@ -484,8 +490,8 @@ export const strings = {
     legend: (names: string[]): string =>
       `${names.length > 0 ? `${names.join(" / ")} = 主攻课\u3000` : ""}整合 = 周核实\u3000Anki = 低强度\u3000读书 = 书房自读\u3000顶部蓝线 = 周期起止\u3000空白 = 休息`,
     legendAux:
-      "上行主课 · 下行导读课　整合 = 周核实　Anki = 低强度　读书 = 书房自读　顶部蓝线 = 周期起止　空白 = 休息",
-    auxTitle: "导读课",
+      "上行主课 · 下行导读　整合 = 周核实　Anki = 低强度　读书 = 书房自读　顶部蓝线 = 周期起止　空白 = 休息",
+    auxTitle: "导读",
     auxNote: "只做了解 · 不考核 · 每次 ≤ 45 分钟",
     auxProgress: (done: number, total: number): string => `${done} / ${total} 节`,
     cycleRange: (start: string, end: string, weekday: string, daysLeft: number): string =>
@@ -672,14 +678,14 @@ export const strings = {
     } as Record<string, string>,
     placementTitle: (subject: string): string => `排课 · ${subject}`,
     placementTag: (cycle: string, role: "main" | "aux"): string =>
-      `${cycle} ${role === "aux" ? "导读课" : "主课"}`,
+      `${cycle} ${role === "aux" ? "导读" : "主课"}`,
     placementLine: (days: string[], role: "main" | "aux", end: string, cycle: string): string =>
       role === "aux"
         ? `${days.join(" · ")}\u3000每节 ≤ 45 分钟\u3000不设完结`
         : `${days.join(" · ")}\u3000排到 ${end.slice(5)}（${cycle} 结束）`,
     placementHint: (role: "main" | "aux"): string =>
       role === "aux"
-        ? "导读课只做了解，不出检查题；不设完结，没上的课往后顺延。"
+        ? "导读只做了解，不出检查题；不设完结，没上的课往后顺延。"
         : "按教材章节切课次；按 7 周学时排，日期跟实际走。",
     placementSubmit: "交给学根排课",
     style: "讲解风格",
@@ -690,7 +696,7 @@ export const strings = {
     submit: "提交",
     cycleTop: (cycle: string, week: number, weeks: number): string => `${cycle} · 第 ${week} / ${weeks} 周`,
     sectionMain: "主课",
-    sectionAux: "导读课",
+    sectionAux: "导读",
     sectionOther: "路线外",
     sectionLearned: "已学专题",
     countCourses: (count: number): string => `${count} 门`,
@@ -1042,6 +1048,12 @@ export const strings = {
     /** 「离散 D3 · 11-12」 for one lesson's row. */
     termsLesson: (name: string, lesson: string | null, date: string): string =>
       `${lesson === null ? name : `${name} ${lesson}`} · ${date.slice(5)}`,
+    /** 「开课前回想一下」 (recall.html): beside 今天 on a wide panel. */
+    recallTitle: "开课前回想一下",
+    recallCaption: "先想，想不起来再点开",
+    recallEmpty: "这节没存概念页。",
+    recallMore: (count: number): string => `还有 ${count} 页`,
+    recallDomain: (name: string): string => `${name} 全部概念页 → 领域`,
     blockLoading: "正在读…",
     /** Empty and failure copy per block. */
     shelfEmpty: "还没有在读的书。",

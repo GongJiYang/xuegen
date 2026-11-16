@@ -195,7 +195,7 @@ export function ToolActivity({ call }: ToolActivityProps) {
 /** The one line an automatic retry shows, or null when the error block applies. */
 function retryLine(message: ChatMessage): ReactNode {
   const display = retryDisplayOf(message);
-  if (display.kind === "error") return null;
+  if (display.kind === "error" || display.kind === "hidden") return null;
   const role = display.kind === "retrying" ? "status" : "note";
   return (
     <p data-slot="retry-line" data-retry={display.kind} role={role}>

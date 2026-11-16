@@ -27,6 +27,7 @@ import {
   type LessonRef,
 } from "./control-card.js";
 import { useBoardResource, type BoardResource } from "./use-resource.js";
+import { bookShorts } from "./cycle-today.js";
 import { todayKey } from "../today.js";
 import { askLessonPrompt, moveLessonPrompt, selfReportPrompt } from "./control-prompts.js";
 import type { ShelfResource } from "./use-shelf.js";
@@ -101,6 +102,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
         shelf: input.shelf.today.state.status === "ready" ? input.shelf.today.state.value : null,
         courses: input.courses.state.status === "ready" ? input.courses.state.value : [],
         anki: input.anki.state.status === "ready" ? input.anki.state.value : null,
+        bookNames: bookShorts(input.shelf.list.state.status === "ready" ? input.shelf.list.state.value : null),
         verifiedOn: input.verifiedOn,
       }),
     [
@@ -110,6 +112,7 @@ export function useControlCard(input: ControlCardInput): Omit<ControlCardProps, 
       month.state,
       input.queue.state,
       input.shelf.today.state,
+      input.shelf.list.state,
       input.courses.state,
       input.anki.state,
       input.verifiedOn,

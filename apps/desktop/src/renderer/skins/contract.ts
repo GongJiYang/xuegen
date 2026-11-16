@@ -52,11 +52,13 @@ import type { OpenCourseRow } from "../core/board/open-courses.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
+import type { AboutView } from "../core/update/about.js";
 import type { PlanView } from "../core/board/planbook-nav.js";
 import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
 import type { StudiedEntry } from "../core/board/studied.js";
 import type { TermLessonView } from "../core/board/terms.js";
+import type { RecallGroup } from "../core/board/recall.js";
 import type { ActivityCard, UndoState } from "../core/board/activity-feed.js";
 import type { DomainState } from "../core/board/use-domain.js";
 import type { PlanMarks } from "../core/board/plan-diff.js";
@@ -754,6 +756,8 @@ export interface SkillsPanelProps extends ToolPanelProps {
   onDiscardReviewed(name: string): void;
   /** 总控「今天学过」开关（批 6）；不传就不显示这一项。 */
   studied?: { on: boolean; onToggle(on: boolean): void };
+  /** 「学根」一行：版本号 + 检查更新（logic-ui-1116.html A ②）。A skin may ignore it. */
+  about?: AboutView & { onCheck(): void };
 }
 
 /** The day editor dialog: title, body, save path, save/cancel. */
@@ -909,6 +913,8 @@ export interface ControlPanelProps {
   terms: TermLessonView[] | null | "failed";
   /** Open a 术语's page in the reader. */
   onOpenTerm(path: string, title: string): void;
+  /** 「开课前回想一下」 (recall.html): one group per main course still to teach today; empty hides the block. A skin may ignore it. */
+  recall?: RecallGroup[];
   /** What the latest 总控 answer moved, until 「知道了」; null when nothing. */
   changes: PlanChangesView | null;
   /** 「今天学过」：今天上过的主课与时间；空数组时整行不显示（设置关掉时也传空）。 */

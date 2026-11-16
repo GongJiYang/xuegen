@@ -16,6 +16,8 @@ describe("Bear TermsBlock", () => {
             key: "d|2026-11-12|D3",
             course: "d",
             courseName: "离散",
+            lesson: "D3",
+            date: "2026-11-12",
             label: "离散 D3 · 11-12",
             terms: [
               {
@@ -56,6 +58,8 @@ describe("Bear TermsBlock", () => {
       key: `${course}|${title}`,
       course,
       courseName: name,
+      lesson: "D1",
+      date: "2026-11-12",
       label: `${name} D1 · 11-12`,
       terms: [{ key: title, title, path: `/v/${title}.md`, hint: null, missing: false }],
     });

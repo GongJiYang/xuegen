@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { PALETTES, PALETTE_IDS, paletteVariables, resolvePaletteId } from "./palette.js";
+import { PALETTES, PALETTE_IDS, applyPalette, clearPalette, paletteVariables, resolvePaletteId } from "./palette.js";
 
 /** Decode the SVG inside a `url("data:image/svg+xml,...")` value. */
 function decodeSvg(value: string): string {
@@ -55,5 +55,21 @@ describe("resolvePaletteId", () => {
     expect(resolvePaletteId("amber")).toBe("amber");
     expect(resolvePaletteId("nope")).toBe("white");
     expect(resolvePaletteId(undefined)).toBe("white");
+  });
+});
+
+describe("clearPalette", () => {
+  // 11-16: Chicago left --ink/--paper and data-palette on <html> after it was
+  // unmounted, so Bear (same variable names) drew light text on white paper.
+  it("removes everything applyPalette wrote onto <html>", () => {
+    const root = document.documentElement;
+    applyPalette("amber");
+    expect(root.style.getPropertyValue("--paper")).not.toBe("");
+    clearPalette();
+    for (const name of Object.keys(paletteVariables(PALETTES.amber))) {
+      expect(root.style.getPropertyValue(name), name).toBe("");
+    }
+    expect(root.dataset.palette).toBeUndefined();
+    expect(root.style.backgroundColor).toBe("");
   });
 });

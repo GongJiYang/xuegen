@@ -83,21 +83,37 @@ export function mergeOverdue(
 }
 
 /** 「明天：周六 · 低强度日」 (plus the main lesson and 「+ 辅助 X」), or null outside every cycle. */
-export function tomorrowLine(day: CycleDay): string | null {
+export function tomorrowLine(
+  day: CycleDay,
+  bookNames: Readonly<Record<string, string>> = {},
+): string | null {
   if (day.type === null) return null;
   const lesson = day.lessons.find((item) => day.roles[item.course] !== "aux");
   const auxLesson = day.lessons.find((item) => day.roles[item.course] === "aux");
+  // 导读课改书房导读后 aux 是科目短名（「C」），书页短名（「C 语言」）更准确。
+  const book = day.auxBook === null ? undefined : bookNames[day.auxBook];
   const aux = auxLesson
     ? cycleName(day, auxLesson.course)
-    : day.aux
-      ? (day.subjects[day.aux] ?? day.aux)
-      : null;
+    : book !== undefined
+      ? book
+      : day.aux
+        ? (day.subjects[day.aux] ?? day.aux)
+        : null;
   return strings.cycle.tomorrow(
     day.weekday,
     day.type,
     lesson ? `${cycleName(day, lesson.course)} ${lesson.id}` : null,
     aux,
   );
+}
+
+/** Book slug → its short name (「C 语言」), for the tomorrow line's 导读. */
+export function bookShorts(
+  list: readonly { slug: string; short: string }[] | null,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const book of list ?? []) out[book.slug] = book.short;
+  return out;
 }
 
 /**

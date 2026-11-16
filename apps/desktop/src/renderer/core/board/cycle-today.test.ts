@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CourseSummary, CycleDay } from "@shared/data-protocol.js";
 import {
   ankiDueCount,
+  bookShorts,
   cycleHeadline,
   cycleTodayView,
   mergeOverdue,
@@ -275,6 +276,26 @@ describe("aux lessons", () => {
       lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
       roles: { epp: "main", ctm: "main" },
     });
-    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 导读课 数据结构");
+    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 导读 数据结构");
+  });
+  it("uses the book's short name for the aux book in the tomorrow line", () => {
+    const tuesday = day({
+      date: "2026-11-10",
+      weekday: "周二",
+      subject: "programming-paradigms",
+      course: "ctm",
+      aux: "c-systems-programming",
+      auxBook: "effective-c",
+      subjects: { "c-systems-programming": "C" },
+      lessons: [{ course: "ctm", id: "D1", content: "阶梯" }],
+    });
+    expect(tomorrowLine(tuesday, { "effective-c": "C 语言" })).toBe(
+      "明天：周二 · 主攻日 · CTM D1 + 导读 C 语言",
+    );
+    expect(tomorrowLine(tuesday)).toBe("明天：周二 · 主攻日 · CTM D1 + 导读 C");
+  });
+  it("bookShorts maps a book slug to its short name", () => {
+    expect(bookShorts([{ slug: "effective-c", short: "C 语言" }])).toEqual({ "effective-c": "C 语言" });
+    expect(bookShorts(null)).toEqual({});
   });
 });

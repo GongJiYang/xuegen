@@ -35,6 +35,15 @@ describe("termsView", () => {
     expect(row?.terms[0]?.path).toBe("/v/wiki/knowledge/concepts/discrete-math/110-valid-argument.md");
   });
 
+  it("carries the lesson id and the date so other views can match a previous lesson", () => {
+    const [row] = termsView(
+      [group({ course: "ctm", courseTitle: "CTM", lesson: "D2", date: "2026-11-14" })],
+      { ctm: "CTM" },
+    );
+    expect(row?.lesson).toBe("D2");
+    expect(row?.date).toBe("2026-11-14");
+  });
+
   it("falls back to the full title without a short name, and leaves the lesson out when unknown", () => {
     const [row] = termsView([group({ lesson: null })], {});
     expect(row?.label).toBe("离散数学（Epp, 5th ed） · 11-12");

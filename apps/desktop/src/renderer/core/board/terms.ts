@@ -23,6 +23,10 @@ export interface TermLessonView {
   course: string;
   /** The course's short name (「离散」), for the block's course filter. */
   courseName: string;
+  /** The lesson id the record names (「D3」), or null. */
+  lesson: string | null;
+  /** The record's date, `YYYY-MM-DD`. */
+  date: string;
   /** 「离散 D3 · 11-12」. */
   label: string;
   terms: TermChip[];
@@ -67,6 +71,8 @@ export function termsView(
       key: `${group.course}|${group.date}|${group.lesson ?? ""}`,
       course: group.course,
       courseName: name,
+      lesson: group.lesson,
+      date: group.date,
       label: strings.panel.termsLesson(name, group.lesson, group.date),
       terms: group.terms.map((term) => ({
         key: term.path,

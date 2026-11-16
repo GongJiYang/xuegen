@@ -92,7 +92,7 @@ function MessageError({ raw }: { raw: string }) {
 /** The one soft line an automatic retry leaves behind, or null when the error block applies. */
 function RetryLine({ message }: { message: ChatMessage }) {
   const display = retryDisplayOf(message);
-  if (display.kind === "error") return null;
+  if (display.kind === "error" || display.kind === "hidden") return null;
   return (
     <div className="bear-message-retry" role={display.kind === "retrying" ? "status" : "note"}>
       <p>{display.text}</p>

@@ -22,6 +22,7 @@ export function SkillsPanel({
   onEnableReviewed,
   onDiscardReviewed,
   studied,
+  about,
 }: SkillsPanelProps) {
   const [url, setUrl] = useState("");
   return (
@@ -40,6 +41,20 @@ export function SkillsPanel({
             <p className="bear-muted">{strings.control.card.studiedSettingHint}</p>
           </li>
         </ul>
+      )}
+      {about !== undefined && (
+        <div className="bear-skill-about" data-slot="skills-about">
+          <b>{strings.about.title}</b>
+          {about.version !== "" && <span className="bear-muted">{about.version}</span>}
+          <button type="button" className="bear-link" disabled={about.checking} onClick={about.onCheck}>
+            {strings.about.check}
+          </button>
+          {about.line !== null && (
+            <p className="bear-muted" role="status">
+              {about.line}
+            </p>
+          )}
+        </div>
       )}
       <div data-slot="skills-install">
         <h3>{strings.skills.installCaption}</h3>

@@ -4,7 +4,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SkillsPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
@@ -42,5 +42,53 @@ describe("Bear 技能 panel · 今天学过开关", () => {
       (label) => label.textContent,
     );
     expect(labels.every((label) => !label?.includes(strings.control.card.studiedSetting))).toBe(true);
+  });
+});
+
+describe("Bear 技能 panel · 学根一行", () => {
+  it("shows the version and asks for a check", async () => {
+    const onCheck = vi.fn();
+    render(
+      <SkillsPanel
+        {...baseProps({ about: { version: "0.15.0", line: null, checking: false, onCheck } })}
+      />,
+    );
+    expect(screen.getByText(strings.about.title)).toBeTruthy();
+    expect(screen.getByText("0.15.0")).toBeTruthy();
+    const button = screen.getByRole("button", { name: strings.about.check });
+    expect(button.hasAttribute("disabled")).toBe(false);
+    await userEvent.click(button);
+    expect(onCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the button while checking", () => {
+    render(
+      <SkillsPanel
+        {...baseProps({
+          about: { version: "0.15.0", line: null, checking: true, onCheck: vi.fn() },
+        })}
+      />,
+    );
+    const button = screen.getByRole("button", { name: strings.about.check });
+    expect(button.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("writes the result line as a status", () => {
+    const { container } = render(
+      <SkillsPanel
+        {...baseProps({
+          about: { version: "0.15.0", line: "已是最新版本 v0.15.0", checking: false, onCheck: vi.fn() },
+        })}
+      />,
+    );
+    const slot = container.querySelector('[data-slot="skills-about"]');
+    if (!(slot instanceof HTMLElement)) throw new Error("no 学根 row");
+    const line = within(slot).getByRole("status");
+    expect(line.textContent).toBe("已是最新版本 v0.15.0");
+  });
+
+  it("has no 检查更新 button without about", () => {
+    render(<SkillsPanel {...baseProps()} />);
+    expect(screen.queryByRole("button", { name: strings.about.check })).toBeNull();
   });
 });

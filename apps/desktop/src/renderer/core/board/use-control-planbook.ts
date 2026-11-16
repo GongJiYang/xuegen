@@ -15,9 +15,10 @@ import type { BoardResource } from "./use-resource.js";
 import type { CardsResource } from "./use-cards.js";
 import { useControlPanel } from "./use-control-panel.js";
 import { useTerms } from "./use-terms.js";
+import { useRecall } from "./use-recall.js";
 import { useStudied } from "./use-studied.js";
 import { termTrail, type TermStop } from "./terms.js";
-import { activityCards } from "./activity-feed.js";
+import { activityCards, lastUserId } from "./activity-feed.js";
 import { planMarks, changeLine } from "./plan-diff.js";
 import { usePlanChanges } from "./use-plan-changes.js";
 import { useReader } from "./use-reader.js";
@@ -28,7 +29,7 @@ import { useState } from "react";
 import { withActionMarker } from "../chat/action-marker.js";
 import { todayKey } from "../today.js";
 import type { useChat } from "../chat/useChat.js";
-import { tomorrowLine } from "./cycle-today.js";
+import { bookShorts, tomorrowLine } from "./cycle-today.js";
 import type { useAnki } from "./use-cards.js";
 import type { useCalendar } from "./use-calendar.js";
 import type { CoursesResource } from "./use-courses.js";
@@ -119,7 +120,11 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     isControl: control.isControl,
     fold,
   });
-  const tomorrow = cycle.tomorrow.state.status === "ready" ? tomorrowLine(cycle.tomorrow.state.value) : null;
+  const bookNames = bookShorts(
+    reading.shelf.list.state.status === "ready" ? reading.shelf.list.state.value : null,
+  );
+  const tomorrow =
+    cycle.tomorrow.state.status === "ready" ? tomorrowLine(cycle.tomorrow.state.value, bookNames) : null;
   const { showCard, ...props } = planbookProps(plan.plan, plan.card, tomorrow, todayKey());
   // The 今日卡 Anki row and the week grid's 「打开 →」 run the same action: open
   // the cards tool.
@@ -139,6 +144,14 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
   });
   const names = cycle.today.state.status === "ready" ? cycle.today.state.value.names : NO_NAMES;
   const terms = useTerms(control.isControl, today, names);
+  const recall = useRecall({
+    enabled: control.isControl,
+    today,
+    day: cycle.today.state.status === "ready" ? cycle.today.state.value : null,
+    names,
+    subjects: input.subjects.state.status === "ready" ? input.subjects.state.value.subjects : null,
+    domains: input.domainSession.subjects,
+  });
   const studied = useStudied(
     control.isControl && input.showStudied,
     today,
@@ -246,6 +259,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     onOpenShelf: () => input.openTool("reading"),
     terms,
     onOpenTerm: openTerm,
+    recall,
     changes: changesView,
     studied: studied ?? [],
     weekFocus,
@@ -270,13 +284,6 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     older: plan.older,
     feed,
   };
-}
-
-function lastUserId(messages: readonly { id: string; role: string }[]): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === "user") return messages[index]?.id ?? null;
-  }
-  return null;
 }
 
 const NO_NAMES: Record<string, string> = {};

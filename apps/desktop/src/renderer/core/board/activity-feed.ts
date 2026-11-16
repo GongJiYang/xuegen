@@ -96,6 +96,14 @@ function groupTurns(messages: readonly ChatMessage[]): ChatMessage[][] {
   return turns;
 }
 
+/** The newest user message's id (the turn the plan-change marks belong to), or null. */
+export function lastUserId(messages: readonly { id: string; role: string }[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") return messages[index]?.id ?? null;
+  }
+  return null;
+}
+
 export function activityCards(input: {
   messages: readonly ChatMessage[];
   /** Turn id → what that turn changed (only turns compared this run). */

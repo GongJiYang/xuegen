@@ -3209,7 +3209,7 @@
 }
 [data-skin="bear"] .bear-stab-more {
   flex: none;
-  color: var(--gray-8);
+  color: var(--gray-11);
 }
 [data-skin="bear"] .bear-stab-more:hover,
 [data-skin="bear"] .bear-stab-more[data-state="open"] {
@@ -3838,7 +3838,7 @@
   color: var(--accent-11);
 }
 [data-skin="bear"] .bear-pb-mark.is-moved {
-  color: var(--gray-8);
+  color: var(--gray-11);
 }
 [data-skin="bear"] .bear-pb-mark.is-plain {
   color: var(--gray-11);
@@ -4323,6 +4323,11 @@
   color: var(--ink);
   font-size: var(--fs-2);
 }
+[data-skin="bear"] .bear-feed > .bear-empty {
+  font-family: var(--font-ui);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
 [data-skin="bear"] .bear-feed-card {
   border: 1px solid var(--gray-6);
   border-radius: var(--r-2);
@@ -4340,7 +4345,7 @@
   margin-top: var(--sp-1);
   font-size: var(--fs-1);
   line-height: var(--lh-1);
-  color: var(--gray-8);
+  color: var(--gray-11);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4392,7 +4397,7 @@
   margin-top: 2px;
   font-size: var(--fs-1);
   line-height: var(--lh-1);
-  color: var(--gray-8);
+  color: var(--gray-11);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4401,6 +4406,9 @@
   display: flex;
   gap: var(--sp-3);
   margin-top: var(--sp-2);
+  /* The feed sits in .bear-body, whose size follows the reading-text zoom. */
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
 }
 [data-skin="bear"] .bear-feed-acts:empty {
   display: none;
@@ -5066,8 +5074,13 @@
 [data-skin="bear"] .bear-cp #bear-cp-today .bear-pb-daylist > .bear-pb-cap {
   display: none;
 }
-/* 宽屏一栏时，今天的行别拉满 1480：文字和右边按钮隔太远（设计稿这一栏约 1060px）。 */
-[data-skin="bear"] .bear-cp #bear-cp-today {
+/* 宽屏一栏时，今天的标题和行别拉满 1480：右边留给回想块（文字和按钮隔太远，设计稿这一栏约 1060px）。 */
+[data-skin="bear"] .bear-cp #bear-cp-today > .bear-cp-head {
+  max-width: 76em;
+}
+[data-skin="bear"] .bear-cp .bear-cp-todaymain {
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: 76em;
 }
 /* 区块说明贴着标题（control-v3-fix）；右侧按钮仍由 .bear-cp-head-acts 的 margin-left: auto 推到最右。 */
@@ -5332,4 +5345,116 @@
 }
 [data-skin="bear"] a.xg-wikilink:hover {
   border-color: var(--accent-9);
+}
+
+/* ── 开课前回想一下（recall.html）── */
+[data-skin="bear"] .bear-cp-todayrow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-6);
+}
+[data-skin="bear"] .bear-cp-recall {
+  flex: 0 1 400px;
+  min-width: 320px;
+  font-family: var(--font-ui);
+}
+[data-skin="bear"] .bear-cp-recall-gh {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0 var(--sp-1);
+  border-bottom: 1px solid var(--gray-6);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-recall-gh b {
+  flex: none;
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-12);
+  font-weight: 600;
+}
+[data-skin="bear"] .bear-cp-recall-lesson {
+  margin: var(--sp-2) 0 var(--sp-1);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-recall-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+[data-skin="bear"] .bear-cp-recall-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--gray-3);
+}
+[data-skin="bear"] .bear-cp-recall-term {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--gray-8);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-12);
+  text-align: left;
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-cp-recall-term:hover {
+  color: var(--accent-11);
+  border-bottom-color: var(--accent-11);
+}
+[data-skin="bear"] .bear-cp-recall-more,
+[data-skin="bear"] .bear-cp-recall-empty {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-cp-recall-empty {
+  margin: var(--sp-2) 0;
+}
+[data-skin="bear"] .bear-cp-recall-foot {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-recall-group + .bear-cp-recall-group {
+  margin-top: var(--sp-3);
+}
+/* 放不下就不显示，不挤到今天下面（recall.html ③）：面板 < 1480px。 */
+@container (max-width: 1479px) {
+  [data-skin="bear"] .bear-cp-recall {
+    display: none;
+  }
+}
+@media print {
+  [data-skin="bear"] .bear-cp-recall {
+    display: none;
+  }
+}
+
+/* 「技能与设置」的「学根」一行（logic-ui-1116.html A ②） */
+[data-skin="bear"] .bear-skill-about {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--gray-4);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+[data-skin="bear"] .bear-skill-about .bear-link {
+  margin-left: auto;
+  color: var(--accent-11);
+  font-weight: 500;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-skill-about > p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
 }

@@ -259,6 +259,25 @@ describe("chatReducer automatic retry updates", () => {
     expect(state.messages[0]?.retry).toBeUndefined();
     expect(state.messages[0]?.errorMessage).toBe("terminated");
   });
+
+  it("removes a superseded failure instead of showing it", () => {
+    const other: ChatMessage = { ...failed, id: "assistant-0" };
+    delete other.errorMessage;
+    const started = reduce(initialChatState, { type: "message-start", message: other });
+    const streaming = reduce(started, {
+      type: "message-start",
+      message: { ...failed, streaming: true },
+    });
+    const errored = reduce(streaming, { type: "error", error: "terminated" });
+    const dropped = reduce(errored, {
+      type: "message-end",
+      message: { ...failed, retry: "superseded" },
+    });
+
+    // Only the earlier message is left, and the failure banner is gone too.
+    expect(dropped.messages.map((message) => message.id)).toEqual(["assistant-0"]);
+    expect(dropped.errors).toEqual([]);
+  });
 });
 
 describe("chatReducer retry clears the error banner", () => {

@@ -12,6 +12,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PanelTile } from "../../core/board/panel.js";
 import type { PlanDay } from "../../core/board/planbook.js";
+import type { RecallGroup } from "../../core/board/recall.js";
 import type { ControlPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { ControlPanel, StatusStrip } from "./control-panel.js";
@@ -169,6 +170,25 @@ describe("Bear 总控面板布局", () => {
 
   const childrenOf = (root: HTMLElement): Element[] => [...root.children];
 
+  const CTM: RecallGroup = {
+    key: "ctm|D2",
+    course: "ctm",
+    label: "CTM D2 · 11-14",
+    name: "CTM",
+    terms: [
+      {
+        key: "a",
+        title: "闭包与静态作用域",
+        path: "/v/wiki/a.md",
+        hint: "函数记住定义处的环境",
+        missing: false,
+      },
+      { key: "b", title: "语言抽象与函数", path: "/v/wiki/b.md", hint: null, missing: false },
+    ],
+    more: 0,
+    domain: { id: "programming-paradigms", title: "编程语言与编程范式" },
+  };
+
   it("no longer wraps the blocks in the old two-column / terms-slot wrappers", () => {
     const { container } = render(<ControlPanel {...props()} />);
     const panel = container.querySelector(".bear-cp");
@@ -264,6 +284,21 @@ describe("Bear 总控面板布局", () => {
     if (!(open instanceof HTMLButtonElement)) throw new Error("no 打开书房 button");
     await userEvent.click(open);
     expect(onOpenShelf).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts 开课前回想一下 beside 今天 when there is room (recall.html ①)", () => {
+    const { container } = render(<ControlPanel {...props({ recall: [CTM] })} />);
+    const row = container.querySelector(".bear-cp-todayrow");
+    if (row === null) throw new Error("今天 has no todayrow");
+    expect(row.querySelector(".bear-cp-todaymain")).toBeTruthy();
+    expect(row.querySelector(".bear-cp-recall")).toBeTruthy();
+  });
+
+  it("drops the recall block while another day shows", () => {
+    const { container } = render(
+      <ControlPanel {...props({ recall: [CTM], shownToday: false })} />,
+    );
+    expect(container.querySelector(".bear-cp-recall")).toBeNull();
   });
 
   it("keeps 打印 as the day's only action, plus 回到今天 when another day shows", () => {

@@ -26,8 +26,19 @@ describe("retryDisplayOf", () => {
   it("shows one soft line once a retry produced an answer", () => {
     expect(retryDisplayOf(message({ retry: "recovered" }))).toEqual({
       kind: "recovered",
-      text: strings.chat.retried,
+      text: strings.chat.retried(1),
     });
+  });
+
+  it("names how many times the connection dropped in that round", () => {
+    expect(retryDisplayOf(message({ retry: "recovered", retryCount: 3 }))).toEqual({
+      kind: "recovered",
+      text: "连接断开过 3 次，已自动接上",
+    });
+  });
+
+  it("hides a failure that a later failure of the same round superseded", () => {
+    expect(retryDisplayOf(message({ retry: "superseded" }))).toEqual({ kind: "hidden" });
   });
 
   it("falls back to the error block when there is no retry marker", () => {

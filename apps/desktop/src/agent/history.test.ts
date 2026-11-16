@@ -162,6 +162,30 @@ describe("historyFromEntries automatic retry", () => {
     expect(messages.map((message) => message.retry)).toEqual([undefined, "recovered", undefined]);
   });
 
+  it("keeps only the first failure of a retry round and counts the failures", () => {
+    const { messages } = historyFromEntries(
+      [
+        { type: "message", message: { role: "user", content: "q" } },
+        { type: "message", message: failed },
+        { type: "message", message: failed },
+        { type: "message", message: answered },
+      ],
+      "s",
+    );
+
+    // The second failure is not shown at all (`shownAt` -1, so it keeps no slot).
+    expect(messages.map((message) => message.id)).toEqual([
+      "s-history-0",
+      "s-history-1",
+      "s-history-3",
+    ]);
+    expect(messages[1]).toMatchObject({
+      retry: "recovered",
+      retryCount: 2,
+      errorMessage: "terminated",
+    });
+  });
+
   it("does not mark a failed entry followed by a new user question", () => {
     const { messages } = historyFromEntries(
       [

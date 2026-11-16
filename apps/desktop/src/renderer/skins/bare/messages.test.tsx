@@ -197,7 +197,7 @@ describe("Bare AssistantMessage automatic retry", () => {
   it("shows only the soft recovered line once the retry worked", () => {
     render(<AssistantMessage {...props("recovered")} />);
 
-    expect(screen.getByText(strings.chat.retried)).toBeTruthy();
+    expect(screen.getByText(strings.chat.retried(1))).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();
   });

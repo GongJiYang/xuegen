@@ -317,8 +317,49 @@ describe("mapPiEvent automatic retry", () => {
     const failed = endsOf(messages)[0];
 
     expect(failed?.retry).toBe("recovered");
+    expect(failed?.retryCount).toBe(1);
     // The error stays on the message; only the display changes.
     expect(failed?.errorMessage).toBe("terminated");
+  });
+
+  it("keeps one line for a round that dropped twice before it answered", () => {
+    // A failed, the first retry failed too (B), the second produced the answer.
+    const messages = run([
+      assistantStart(),
+      assistantEnd({ stopReason: "error", errorMessage: "terminated", content: [] }),
+      autoRetryStart(1, 3, "terminated"),
+      assistantStart(),
+      assistantEnd({ stopReason: "error", errorMessage: "terminated", content: [] }),
+      autoRetryStart(2, 3, "terminated"),
+      assistantStart(),
+      assistantEnd({ content: [{ type: "text", text: "answer" }] }),
+      autoRetryEnd(true, 2),
+    ]).messages;
+    const ends = endsOf(messages);
+
+    // A carries the whole round; B is dropped by the renderer; C is the answer.
+    expect(ends.map((message) => message.retry)).toEqual(["recovered", "superseded", undefined]);
+    expect(ends[0]?.retryCount).toBe(2);
+    // Only A raised a session-level error while the round ran.
+    expect(messages.filter((message) => message.type === "error")).toHaveLength(1);
+  });
+
+  it("drops the later failures even when every retry fails", () => {
+    const messages = run([
+      assistantStart(),
+      assistantEnd({ stopReason: "error", errorMessage: "terminated", content: [] }),
+      autoRetryStart(1, 2, "terminated"),
+      assistantStart(),
+      assistantEnd({ stopReason: "error", errorMessage: "terminated", content: [] }),
+      autoRetryStart(2, 2, "terminated"),
+      autoRetryEnd(false, 2, "terminated"),
+    ]).messages;
+    const ends = endsOf(messages);
+
+    // A falls back to the normal error block; B never shows.
+    expect(ends.map((message) => message.retry)).toEqual([undefined, "superseded"]);
+    expect(ends[0]?.errorMessage).toBe("terminated");
+    expect(messages.filter((message) => message.type === "error")).toHaveLength(1);
   });
 
   it("drops the marker and reports the error when the retries all fail", () => {

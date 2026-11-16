@@ -51,7 +51,7 @@ describe("Bear retry lines", () => {
   it("shows only the soft recovered line once the retry worked", () => {
     render(<AssistantMessage {...retryProps("recovered")} />);
 
-    expect(screen.getByText(strings.chat.retried)).toBeTruthy();
+    expect(screen.getByText(strings.chat.retried(1))).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByText(MODEL_ERROR_SUMMARIES.network)).toBeNull();
     expect(screen.queryByRole("button", { name: strings.chat.retry })).toBeNull();

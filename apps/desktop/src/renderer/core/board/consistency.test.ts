@@ -257,11 +257,11 @@ describe("同一份数据进四处视图", () => {
     expect(calendarReading.filter((title) => title.includes("核心页"))).toEqual([]);
   });
 
-  it("导读叫法：今日卡写「导读 · …」，其余面板对旧 aux 数据仍写「导读课」，都不出现「带读」「辅助」", () => {
-    // 给人看的标签：书房的导读写作「导读」（设计稿 ①）；旧 aux 课次在右侧面板 /
-    // 总进度 / 日历的标签仍是「导读课」。数据里的 `aux` 不变。
-    expect(strings.cycle.auxTag).toBe("导读课");
-    expect(strings.plan.auxTitle).toBe("导读课");
+  it("导读叫法：所有面板都写「导读」，不出现「导读课」「带读」「辅助」", () => {
+    // 给人看的标签一律「导读」（用户 11-15：导读课改成书房导读；11-16 明天一行
+    // 还写「导读课」被用户看到）。数据里的 `aux` 不变。
+    expect(strings.cycle.auxTag).toBe("导读");
+    expect(strings.plan.auxTitle).toBe("导读");
 
     // 一处一处地看它实际画的标签。
     expect(PANEL?.aux).not.toBeNull();
@@ -269,20 +269,12 @@ describe("同一份数据进四处视图", () => {
     expect(calendarLesson(COURSE_C).aux).toBe(true);
 
     // 今日卡：上课组没有 aux 行，导读以书房行的样子出现（见导读一致性用例）。
-    expect(cardLessonRows().some((row) => row.text.includes("导读课"))).toBe(false);
     expect((CARD?.rows ?? []).some((row) => row.text.startsWith(strings.control.card.guidedPrefix))).toBe(true);
 
-    for (const place of ["panel", "progress", "calendar"] as const) {
-      const texts = textsOf(place);
-      expect(
-        texts.some((text) => text.includes("导读课")),
-        `${place} 没有「导读课」`,
-      ).toBe(true);
-    }
     for (const place of ["card", "panel", "progress", "calendar"] as const) {
       const texts = textsOf(place);
       expect(
-        texts.filter((text) => text.includes("带读") || text.includes("辅助")),
+        texts.filter((text) => text.includes("导读课") || text.includes("带读") || text.includes("辅助")),
         `${place} 出现了旧叫法`,
       ).toEqual([]);
     }

@@ -13,6 +13,7 @@ import type { DesktopSettings } from "@shared/protocol.js";
 import type { ShellPanels, SkillsPanelProps } from "../../skins/contract.js";
 import type { AsyncState } from "./state.js";
 import { strings } from "../strings.js";
+import { useAbout } from "../update/use-about.js";
 import type { SkillsResource } from "./use-skills.js";
 
 /** Build the skills panel's view model and callbacks. */
@@ -23,8 +24,10 @@ export function useSkillsPanel(
 ): ShellPanels["skills"] {
   const [fetchNotice, setFetchNotice] = useState<string | null>(null);
   const [review, setReview] = useState<AsyncState<SkillReview> | null>(null);
+  const about = useAbout();
 
   return {
+    about,
     skills: skills.resource.state,
     onToggle: (name, enabled) => {
       // The write returns the authoritative settings; apply them so the

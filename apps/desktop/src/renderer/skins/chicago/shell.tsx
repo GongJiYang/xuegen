@@ -17,7 +17,7 @@ import type { ShellPanels, ShellProps, ToolId } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { useMotion } from "../../core/motion/index.js";
 import { chicagoMotion } from "./motion.js";
-import { applyPalette, PALETTE_OPTION_KEY, resolvePaletteId } from "./palette.js";
+import { applyPalette, clearPalette, PALETTE_OPTION_KEY, resolvePaletteId } from "./palette.js";
 import { MenuBar } from "./menubar.js";
 import { ToolDockWithPalette } from "./tool-dock.js";
 import { TodayPanel } from "./today-panel.js";
@@ -94,6 +94,7 @@ export function Shell(props: ShellProps) {
   useEffect(() => {
     const paper = applyPalette(paletteId);
     onWindowBackground(paper);
+    return clearPalette;
   }, [paletteId, onWindowBackground]);
 
   // Keep the body hidden until the pixel fonts are ready (capped at 800ms).

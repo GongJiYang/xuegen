@@ -2,7 +2,7 @@
  * Bear 总控面板 (design `?d=dash`, PANEL-PLAN): one page for the 总控 session.
  *
  * Top: one status line. Then 今天, 本周 / 本月, 术语, 领域 in one column (control-v3 ①); below:
- * 总进度, 书房, 卡片 in three columns. Every
+ * 总进度, 书房, 卡片 in three columns. 今天右边放得下时并排「开课前回想一下」（recall.html）。Every
  * block has its own loading state (checklist 1.3); copy comes from
  * `strings.panel` and `strings.planbook`, styles only use Bear tokens.
  */
@@ -19,6 +19,7 @@ import { NextCycleBanner, NextCycleWizard } from "./next-cycle.js";
 import { DomainStrip } from "./domain-strip.js";
 import { Cards, Progress, WeekControls } from "./control-panel-blocks.js";
 import { StudiedRow } from "./studied-row.js";
+import { RecallBlock } from "./recall-block.js";
 
 /**
  * 总控 v3 ①: the six tiles are one status line, each a button that jumps to its
@@ -169,23 +170,34 @@ export function ControlPanel(props: ControlPanelProps) {
         {props.day === null ? (
           <p className="bear-cp-meta">{strings.panel.blockLoading}</p>
         ) : (
-          <PlanbookBody
-            view="day"
-            day={props.day}
-            week={null}
-            month={null}
-            todayCard={
-              props.todayCard === null ? null : (
-                <>
-                  {props.todayCard}
-                  <StudiedRow entries={props.studied} />
-                </>
-              )
-            }
-            tomorrow={props.tomorrow}
-            onOpenDay={props.onOpenDay}
-            onOpenAnki={props.onOpenAnki}
-          />
+          <div className="bear-cp-todayrow">
+            <div className="bear-cp-todaymain">
+              <PlanbookBody
+                view="day"
+                day={props.day}
+                week={null}
+                month={null}
+                todayCard={
+                  props.todayCard === null ? null : (
+                    <>
+                      {props.todayCard}
+                      <StudiedRow entries={props.studied} />
+                    </>
+                  )
+                }
+                tomorrow={props.tomorrow}
+                onOpenDay={props.onOpenDay}
+                onOpenAnki={props.onOpenAnki}
+              />
+            </div>
+            {props.shownToday && props.recall !== undefined && (
+              <RecallBlock
+                groups={props.recall}
+                onOpenTerm={props.onOpenTerm}
+                onOpenDomain={props.onOpenDomain}
+              />
+            )}
+          </div>
         )}
       </Block>
       <div ref={weekRef}>

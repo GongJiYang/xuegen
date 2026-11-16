@@ -53,6 +53,10 @@ describe("bear scale in CSS", () => {
       `${PREFIX}.bear-pb-it.is-ghost`,
       `${PREFIX}.bear-pb-it.is-ghost small`,
       `${PREFIX}.bear-ds-chip.is-empty,\n${PREFIX}.bear-ds-chip.is-more`,
+      `${PREFIX}.bear-feed-ask`,
+      `${PREFIX}.bear-feed-doing`,
+      `${PREFIX}.bear-stab-more`,
+      `${PREFIX}.bear-pb-mark.is-moved`,
     ];
     for (const selector of readable) {
       expect(rule(selector), `${selector} still uses --gray-8`).not.toContain("var(--gray-8)");
@@ -65,8 +69,18 @@ describe("bear scale in CSS", () => {
   });
 
   it("keeps 今天 narrower than the panel so a row's text and its 开课 → stay close", () => {
-    const body = rule(`${PREFIX}.bear-cp #bear-cp-today`);
+    const head = rule(`${PREFIX}.bear-cp #bear-cp-today > .bear-cp-head`);
+    expect(head).toContain("max-width: 76em");
+    const body = rule(`${PREFIX}.bear-cp .bear-cp-todaymain`);
     expect(body).toContain("max-width: 76em");
+  });
+
+  it("gives 回想's pages readable text: scale pairs, no --gray-8 under a lesson label", () => {
+    const term = rule(`${PREFIX}.bear-cp-recall-term`);
+    expect(term).toContain("font-size: var(--fs-2)");
+    expect(term).toContain("line-height: var(--lh-2)");
+    const lesson = rule(`${PREFIX}.bear-cp-recall-lesson`);
+    expect(lesson).not.toContain("var(--gray-8)");
   });
 
   it("keeps a block's caption next to its title, not pushed to the far right", () => {
@@ -92,6 +106,13 @@ describe("bear scale in CSS", () => {
       const body = rule(selector);
       expect(body, `${selector} should set --fs-${step}`).toContain(`font-size: var(--fs-${step})`);
       expect(body, `${selector} should set --lh-${step}`).toContain(`line-height: var(--lh-${step})`);
+    }
+  });
+
+  it("gives the 动态 feed's UI text its own size — .bear-body follows the reading-text zoom", () => {
+    // 11-16: 「看回答」 inherited the reading size and grew with ⌘+.
+    for (const selector of [`${PREFIX}.bear-feed-acts`, `${PREFIX}.bear-feed > .bear-empty`]) {
+      expect(rule(selector), `${selector} should set --fs-1`).toContain("font-size: var(--fs-1)");
     }
   });
 });

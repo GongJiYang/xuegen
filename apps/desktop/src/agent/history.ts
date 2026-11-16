@@ -58,6 +58,20 @@ function errorOf(message: { stopReason?: unknown; errorMessage?: unknown }): str
     : "模型返回错误";
 }
 
+/** True for an assistant entry that answered normally: text, no failure. */
+function isNormalAnswer(entry: RestoredEntry): boolean {
+  return (
+    entry.message.role === "assistant" &&
+    entry.message.markdown.trim() !== "" &&
+    entry.errorMessage === undefined
+  );
+}
+
+/** True for an assistant entry that ended with a failure. */
+function isFailure(entry: RestoredEntry): boolean {
+  return entry.message.role === "assistant" && entry.errorMessage !== undefined;
+}
+
 /**
  * The failure text when a normal answer follows before the next user message.
  *
@@ -70,13 +84,18 @@ function recoveredFrom(
   following: readonly RestoredEntry[],
 ): string | undefined {
   if (entry.errorMessage === undefined) return undefined;
-  const answered = following.some(
-    (candidate) =>
-      candidate.message.role === "assistant" &&
-      candidate.message.markdown.trim() !== "" &&
-      candidate.errorMessage === undefined,
-  );
-  return answered ? entry.errorMessage : undefined;
+  return following.some(isNormalAnswer) ? entry.errorMessage : undefined;
+}
+
+/**
+ * How many attempts failed in this turn before the first normal answer.
+ *
+ * `entry` itself counts as one, so a single drop reports 1.
+ */
+function failuresBeforeAnswer(entry: RestoredEntry, following: readonly RestoredEntry[]): number {
+  const answerAt = following.findIndex(isNormalAnswer);
+  const beforeAnswer = answerAt === -1 ? following : following.slice(0, answerAt);
+  return beforeAnswer.filter(isFailure).length + (isFailure(entry) ? 1 : 0);
 }
 
 /** The entries after `index`, up to the next user message: the rest of this turn. */
@@ -91,10 +110,12 @@ function restOfTurn(restored: readonly RestoredEntry[], index: number): readonly
  *
  * A failed answer that a normal answer followed (same turn) was retried
  * automatically: the session file keeps the failed attempt, which Pi omits from
- * the model's context. It stays, marked `"recovered"`, and reads as one soft line
- * instead of an error block under the real answer. Everything else keeps its old
- * behaviour: entries without text are dropped, and a failure no retry recovered
- * from still shows nothing in history.
+ * the model's context. Only the round's *first* failure stays, marked
+ * `"recovered"` with the number of failed attempts, and it reads as one soft line
+ * instead of an error block under the real answer; the later failures of the
+ * same round are dropped. Everything else keeps its old behaviour: entries
+ * without text are dropped, and a failure no retry recovered from still shows
+ * nothing in history.
  */
 function buildTranscript(restored: readonly RestoredEntry[]): {
   messages: ChatMessage[];
@@ -103,11 +124,28 @@ function buildTranscript(restored: readonly RestoredEntry[]): {
 } {
   const messages: ChatMessage[] = [];
   const shownAt: number[] = [];
+  /** True once the current turn's first recovered failure took a line. */
+  let roundShown = false;
   restored.forEach((entry, index) => {
-    const recovered = recoveredFrom(entry, restOfTurn(restored, index));
+    // A new prompt, or a normal answer, ends the round: a later drop in the same
+    // turn is a round of its own.
+    if (entry.message.role === "user" || isNormalAnswer(entry)) roundShown = false;
+    const following = restOfTurn(restored, index);
+    const recovered = recoveredFrom(entry, following);
     if (recovered !== undefined) {
+      // One line for the whole retry round: the first failure carries the count.
+      if (roundShown) {
+        shownAt.push(-1);
+        return;
+      }
+      roundShown = true;
       shownAt.push(messages.length);
-      messages.push({ ...entry.message, errorMessage: recovered, retry: "recovered" });
+      messages.push({
+        ...entry.message,
+        errorMessage: recovered,
+        retry: "recovered",
+        retryCount: failuresBeforeAnswer(entry, following),
+      });
       return;
     }
     if (entry.message.markdown.trim() === "") {

@@ -1,0 +1,144 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>开课前回想一下 · 设计稿（11-16）</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a6:#1d4a6b;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--paper:#161615;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1980px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b,.lead b{color:var(--g12)}
+.win{border:1px solid var(--g7);border-radius:10px;overflow:hidden;background:var(--paper)}
+.bar{display:flex;align-items:center;height:40px;padding:0 14px;border-bottom:1px solid var(--g6);font-size:13px}
+.bar b{border-bottom:2px solid var(--a11);padding:10px 14px}
+.shell{display:flex}
+.main{flex:1;min-width:0;padding:16px 28px 28px}
+.side{width:340px;border-left:1px solid var(--g6);padding:16px;color:var(--g11);font-size:12px}
+.lnk{color:var(--a11);font-size:12px;line-height:16px;font-weight:500}
+.strip{display:flex;gap:24px;font-size:13px;color:var(--g11);padding:6px 0 14px;border-bottom:1px solid var(--g4)}
+.strip b{color:var(--g12)}
+.sec h2{font-size:16px;line-height:24px;margin:16px 0 8px;display:flex;align-items:baseline;gap:10px;font-weight:600}
+.sub{font-size:12px;line-height:16px;color:var(--g11);font-weight:400}
+/* 今天：左边原样，右边新块 */
+.todayrow{display:flex;gap:32px;align-items:flex-start}
+.today{width:1064px;flex:none}
+.gh{font-size:12px;line-height:16px;color:var(--g11);display:flex;gap:8px;align-items:baseline;padding:12px 0 4px;border-bottom:1px solid var(--g4)}
+.gh b{color:var(--g12);font-size:14px;line-height:20px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 4px;border-bottom:1px solid var(--g3)}
+.row .mk{width:16px;text-align:center;color:var(--g8)}.row .mk.on{color:var(--a9)}
+.row .t{flex:1;min-width:0}.row .t .s{font-size:12px;line-height:16px;color:var(--g11)}
+.box{width:14px;height:14px;border:1px solid var(--g7);border-radius:3px;display:inline-block}
+.btn{border:1px solid var(--g7);border-radius:4px;padding:2px 8px;font-weight:600}
+/* 新块 */
+.recall{flex:1;min-width:320px;max-width:400px}
+.recall .gh{border-bottom-color:var(--g4)}
+.rc-lesson{font-size:12px;line-height:16px;color:var(--g11);margin:8px 0 4px}
+.rc-list{list-style:none;margin:0;padding:0}
+.rc-list li{padding:6px 0;border-bottom:1px solid var(--g3)}
+.rc-list a{color:var(--g12);text-decoration:none;border-bottom:1px dotted var(--g8)}
+.rc-list .en{display:block;font-size:12px;line-height:16px;color:var(--g11)}
+.rc-empty{font-size:12px;line-height:16px;color:var(--g11);margin:8px 0}
+.rc-foot{margin-top:8px}
+.chg{outline:1px dashed var(--hlb);outline-offset:4px;border-radius:3px;position:relative}
+.chg::after{content:attr(data-n);position:absolute;top:-12px;right:-12px;background:var(--hlb);color:#1a1405;font-size:12px;line-height:16px;font-weight:700;border-radius:8px;padding:0 5px}
+.tmr{font-size:14px;line-height:20px;margin-top:16px}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:20px}
+th,td{border-bottom:1px solid var(--g6);padding:6px 10px;text-align:left;vertical-align:top}
+th{color:var(--g11);font-weight:500}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.card{border:1px solid var(--g6);border-radius:8px;padding:12px 16px;background:var(--paper)}
+.card .cap{font-size:12px;color:var(--a11);margin-bottom:6px}
+.ask{outline-color:#ff8a8a}.ask::after{background:#ff8a8a}
+</style>
+<div class="doc">
+<h1>开课前回想一下 · 设计稿</h1>
+<p class="lead">总控「今天」右边那块空白，放<b>今天要上的那门课、上一节存下的概念页</b>。点「开课 →」之前先想一想上次学了什么；想不起来就点开看。数据用现成的「术语」（学习记录里的「存库」行，`terms.list`），只换个挑法：按今天上课组里的课，挑它<b>上一节</b>的那一组。不新记任何东西。</p>
+<p class="note">黄色虚线 = 新加的东西；红色虚线 = 要你定。数值都对齐现有总控（标题 14/20 粗、说明 12/16、灰字 gray-11、行分隔 gray-3）。</p>
+
+<h3>① 1920 宽（窗口按真实 1920 画） · 今天上 CTM D3（上一节 D2 存了 4 页，用真实库数据）</h3>
+<div class="win" style="width:1920px">
+  <div class="bar"><b>总控 · C1</b></div>
+  <div class="shell">
+    <div class="main">
+      <div class="strip"><span><b>C1 · 第 2 周</b> 预计 12-24 收尾</span><span>今天 <b>0 / 5 项</b></span><span>本周 <b>1 / 21 项</b></span><span>书房 <b>3 本在读</b></span></div>
+      <div class="sec"><h2>今天 <span class="sub">11-17 周二 · 主攻日</span></h2></div>
+      <div class="todayrow">
+        <div class="today">
+          <div class="gh"><b>上课</b> 进会话讲，讲完在会话里收课才算完成</div>
+          <div class="row"><span class="mk on">●</span><div class="t"><b>CTM D3 · Ch3 §3.1–3.4：声明性、迭代与递归计算</b></div><span class="btn">开课 →</span></div>
+          <div class="gh"><b>阅读</b> 读完勾一下就记下；想让学根陪着读，点「陪读 →」</div>
+          <div class="row"><span class="box"></span><div class="t">导读 · 数据结构 §1.3 背包、队列和栈 · pp.74–107<div class="s">第 2 / 14 节 · ≤ 45 分钟</div></div><span class="lnk">陪读 →</span></div>
+          <div class="row"><span class="box"></span><div class="t">课后读 · 离散 §1.1–1.4、§2.1–2.2、§2.3<div class="s">原排 11-10 起 · 3 段</div></div><span class="lnk">陪读 →</span></div>
+          <div class="row"><span class="box"></span><div class="t">自读 · Epp Ch1 §1.1–1.4 · pp.1–9<div class="s">第 1 / 81 段</div></div><span class="lnk">陪读 →</span></div>
+          <div class="gh"><b>复习</b> 在 Anki 里刷，学根不记</div>
+          <div class="row"><span class="mk">○</span><div class="t">Anki · 今天 12 张</div><span>打开 Anki →</span></div>
+          <div class="tmr">明天：周三 · 主攻日 · 离散 D5 + 导读 C 语言</div>
+        </div>
+        <aside class="recall chg" data-n="1">
+          <div class="gh"><b>开课前回想一下</b> 先想，想不起来再点开</div>
+          <div class="rc-lesson">CTM D2 · 11-14</div>
+          <ul class="rc-list">
+            <li><a>抽象机与操作语义</a></li>
+            <li><a>闭包与静态作用域</a></li>
+            <li><a>语言抽象与函数</a></li>
+            <li><a>异常与错误围隔</a></li>
+          </ul>
+          <div class="rc-foot"><span class="lnk">CTM 全部概念页 → 领域</span></div>
+        </aside>
+      </div>
+    </div>
+    <div class="side">动态 · 今天</div>
+  </div>
+</div>
+<p class="note">
+① 块的上沿和「上课」组标题对齐；宽 320–400px（随窗口），离今天 32px；<b>不加框</b>（control-v3-fix 定的三栏去框）。<br>
+标题「开课前回想一下」14/20 粗 + 说明 12/16 灰，样子同「上课 / 阅读 / 复习」组标题。<br>
+课次行「CTM D2 · 11-14」12/16 灰。每页一行 14/20，带点线下划线（同术语块），点开 = 宽阅读层（同术语块，已有）；有英文名的第二行 12/16 灰写英文。<br>
+页名去掉课程前缀（库里写「CTM：闭包与静态作用域」，这里只写「闭包与静态作用域」）。<br>
+底部「CTM 全部概念页 → 领域」打开该科目的领域页（已有）。最多列 8 行，多了写「还有 N 页」，点了也去领域页。
+</p>
+
+<h3>② 其他情况</h3>
+<div class="mini">
+  <div class="card"><div class="cap">今天上离散 D4，上一节 D3 只存了 1 页（真实库 11-16 就是这样）</div>
+    <div class="gh"><b>开课前回想一下</b> 先想，想不起来再点开</div>
+    <div class="rc-lesson">离散 D3 · 11-11</div>
+    <ul class="rc-list"><li><a>复合命题逻辑</a></li></ul>
+    <div class="rc-foot"><span class="lnk">离散 全部概念页 → 领域</span></div>
+  </div>
+  <div class="card"><div class="cap">上一节没存概念页（如自报学过的课）</div>
+    <div class="gh"><b>开课前回想一下</b> 先想，想不起来再点开</div>
+    <div class="rc-lesson">CTM D2 · 11-14</div>
+    <p class="rc-empty">这节没存概念页。</p>
+    <div class="rc-foot"><span class="lnk">CTM 全部概念页 → 领域</span></div>
+  </div>
+  <div class="card ask chg" data-n="2"><div class="cap">今天两节主课（拖欠的展开了）/ 今天的课已收课</div>
+    <div class="gh"><b>开课前回想一下</b> 先想，想不起来再点开</div>
+    <div class="rc-lesson">CTM D2 · 11-14</div>
+    <ul class="rc-list"><li><a>抽象机与操作语义</a></li><li><a>闭包与静态作用域</a></li></ul>
+    <div class="rc-lesson">离散 D3 · 11-11</div>
+    <ul class="rc-list"><li><a>复合命题逻辑</a></li></ul>
+  </div>
+</div>
+<table style="margin-top:16px">
+<tr><th>情况</th><th>显示</th></tr>
+<tr><td>今天的课是 D1（没有上一节）</td><td>整块不显示</td></tr>
+<tr><td>今天没有主课（休息 / 整合 / 低强度日）</td><td>整块不显示</td></tr>
+<tr><td>上一节存了页</td><td>①：课次 + 页名列表 + 领域入口</td></tr>
+<tr><td>上一节一页没存</td><td>「这节没存概念页。」+ 领域入口</td></tr>
+<tr><td>今天几节主课（含展开的拖欠课）</td><td>按上课组顺序一组一组列，每组最多 8 行</td></tr>
+<tr><td>今天的课已收课</td><td><b>要你定</b> ②：A 还是这块不变（推荐，简单）；B 换成「今天存下的」（今天这节刚存的页，方便睡前回看）</td></tr>
+<tr><td>正在读取</td><td>不显示（不放「正在读取…」，免得一闪）</td></tr>
+</table>
+
+<h3>③ 窄一点的时候</h3>
+<p class="note">只在今天右边放得下时显示：总控内容区 ≥ 1064 + 32 + 320 = <b>1416px</b>（1920 宽且聊天栏展开时内容区约 1530，放得下）。放不下（1440 宽、900 宽、聊天栏展开的 1680 等）<b>整块不显示</b>，不挤到今天下面——否则周表格被往下推。窄窗口时同样的页还能在下面的「术语」块和领域页里找到。</p>
+
+<h3>④ 依据</h3>
+<table>
+<tr><th>#</th><th>规则</th><th>这稿怎么做</th></tr>
+<tr><td>1</td><td>开课流程第 5 步「回忆」（course 技能）</td><td>回忆的材料在开课前就摆在「开课 →」旁边</td></tr>
+<tr><td>2</td><td>一件事只在一处记（用户 11-15）</td><td>只读，不记完成、不加勾选框</td></tr>
+<tr><td>3</td><td>control-v3-fix：三栏去框、字号行高成对、可读文字不用 gray-8</td><td>不加框；14/20、12/16；灰字 gray-11</td></tr>
+<tr><td>4</td><td>11-13 中性文字</td><td>不写「你忘了」「该复习了」，只写「先想，想不起来再点开」</td></tr>
+<tr><td>5</td><td>宽屏 1920 规则（PANEL-PLAN）</td><td>填今天右边空白；窄了不显示，不改其他块的位置</td></tr>
+</table>
+</div>

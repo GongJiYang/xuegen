@@ -59,11 +59,15 @@ export interface ChatMessage {
    * Automatic retry state of a failed answer.
    *
    * `{ attempt, maxAttempts }` while Pi is retrying the connection, `"recovered"`
-   * once a retry produced a normal answer. The `errorMessage` stays on the
-   * message either way, so a transcript restored from the session file can be
-   * re-judged; the renderer decides what to show from `retry`.
+   * once a retry produced a normal answer, `"superseded"` for a later failure of
+   * the same round (not shown: only the round's first failure message stays). The
+   * `errorMessage` stays on the message either way, so a transcript restored from
+   * the session file can be re-judged; the renderer decides what to show from
+   * `retry`.
    */
-  retry?: { attempt: number; maxAttempts: number } | "recovered" | undefined;
+  retry?: { attempt: number; maxAttempts: number } | "recovered" | "superseded" | undefined;
+  /** With `retry: "recovered"`: how many times the connection dropped in that round (absent = 1). */
+  retryCount?: number;
   /** ISO time the session file recorded it (restored history only; live messages leave it unset). */
   at?: string;
 }
@@ -406,8 +410,13 @@ function isFiniteNumber(value: unknown): value is number {
 
 /** Runtime guard for a message's automatic-retry marker. */
 export function isRetryState(value: unknown): value is NonNullable<ChatMessage["retry"]> {
-  if (value === "recovered") return true;
+  if (value === "recovered" || value === "superseded") return true;
   return isRecord(value) && isFiniteNumber(value.attempt) && isFiniteNumber(value.maxAttempts);
+}
+
+/** True for a positive whole number (the only shape `retryCount` may take). */
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
 /**
@@ -418,9 +427,12 @@ export function isRetryState(value: unknown): value is NonNullable<ChatMessage["
  * message would lose the answer too: only the hint is dropped.
  */
 export function withValidRetry(message: ChatMessage): ChatMessage {
-  if (message.retry === undefined || isRetryState(message.retry)) return message;
+  const retryOk = message.retry === undefined || isRetryState(message.retry);
+  const countOk = message.retryCount === undefined || isPositiveInteger(message.retryCount);
+  if (retryOk && countOk) return message;
   const plain = { ...message };
-  delete plain.retry;
+  if (!retryOk) delete plain.retry;
+  if (!countOk) delete plain.retryCount;
   return plain;
 }
 

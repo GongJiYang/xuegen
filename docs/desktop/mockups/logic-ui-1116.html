@@ -1,0 +1,176 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>有逻辑没界面 · 第 1–6 项 · 设计稿（11-16）</title>
+<style>
+:root{--g1:#161615;--g2:#1c1c1b;--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a6:#1d4a6b;--a9:#1aa3ff;--a11:#6cc3ff;--done:#6cc092;--warn:#e0b25c;--paper:#161615;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1400px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:40px 0 6px}
+.lead,.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b,.lead b{color:var(--g12)}
+.lnk{color:var(--a11);font-size:12px;line-height:16px;font-weight:500}
+.sub,.m{font-size:12px;line-height:16px;color:var(--g11)}
+.chg{outline:1px dashed var(--hlb);outline-offset:4px;border-radius:3px;position:relative}
+.chg::after{content:attr(data-n);position:absolute;top:-12px;right:-12px;background:var(--hlb);color:#1a1405;font-size:12px;line-height:16px;font-weight:700;border-radius:8px;padding:0 5px}
+.ask{outline-color:#ff8a8a}.ask::after{background:#ff8a8a}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+.cap{font-size:12px;color:var(--g11);margin-bottom:6px}
+/* dialog */
+.dlg{width:640px;background:var(--g1);border:1px solid var(--g7);border-radius:12px;overflow:hidden}
+.dlg-h{display:flex;align-items:baseline;gap:12px;padding:16px 24px 12px;border-bottom:1px solid var(--g6)}
+.dlg-h b{font-size:16px;line-height:24px}.dlg-h .x{margin-left:auto;font-size:12px;color:var(--g11)}
+.dlg-b{padding:8px 24px 24px}
+.sec{padding:12px 0;border-bottom:1px solid var(--g4)}
+.sec h4{margin:0 0 6px;font-size:14px;line-height:20px;font-weight:600;display:flex;gap:8px;align-items:baseline}
+.sec h4 .m{font-weight:400}.sec h4 .lnk{margin-left:auto}
+.ln{display:flex;gap:12px;align-items:baseline;padding:4px 0}
+.ln .t{flex:1;min-width:0}
+.btn2{border:1px solid var(--g7);border-radius:4px;padding:1px 8px;font-size:12px;line-height:16px;color:var(--g12)}
+.ok{color:var(--done)}.wn{color:var(--warn)}
+ul.iss{margin:4px 0 0;padding-left:18px;font-size:12px;line-height:16px;color:var(--g11)}ul.iss li{margin:2px 0}
+code{font:12px ui-monospace,Menlo,monospace;color:var(--g11)}
+/* panel */
+.panel{background:var(--paper);border:1px solid var(--g7);border-radius:10px;padding:16px 20px}
+.ph{font-size:16px;line-height:24px;font-weight:600;margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+.row{display:flex;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--g3)}
+.row .t{flex:1}.row .dots{color:var(--g11);padding:0 4px;border-radius:4px}
+.row .dots.on{background:var(--g4);color:var(--g12)}
+.menu{position:absolute;right:0;top:28px;width:200px;background:var(--g2);border:1px solid var(--g7);border-radius:8px;padding:4px 0;box-shadow:0 8px 24px #0008;z-index:2}
+.menu div{padding:6px 12px}.menu div:hover{background:var(--g4)}
+.fold{padding:8px 0;font-size:12px;line-height:16px;color:var(--g11)}
+.confirm{width:440px;background:var(--g1);border:1px solid var(--g7);border-radius:12px;padding:20px 24px}
+.confirm b{font-size:16px;line-height:24px;display:block;margin-bottom:8px}
+.confirm p{margin:0 0 8px;color:var(--g11)}
+.acts{display:flex;gap:12px;justify-content:flex-end;margin-top:16px}
+.prim{background:var(--g12);color:#111;border-radius:4px;padding:2px 12px;font-weight:600}
+/* popover */
+.pop{width:360px;background:var(--g2);border:1px solid var(--g7);border-radius:8px;padding:8px 0}
+.pop .gh{font-size:12px;line-height:16px;color:var(--g11);padding:6px 14px}
+.pop .it{padding:6px 14px;display:flex;justify-content:space-between}
+.pop .it .m{margin-left:12px}
+/* chat */
+.chat{width:560px;background:var(--paper);border:1px solid var(--g7);border-radius:10px;padding:16px 20px}
+.err{font-size:12px;line-height:16px;color:var(--g11);border-left:2px solid var(--g7);padding:2px 10px;margin:8px 0}
+.msg{margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:20px;margin-top:8px}
+th,td{border-bottom:1px solid var(--g6);padding:6px 10px;text-align:left;vertical-align:top}
+th{color:var(--g11);font-weight:500}
+</style>
+<div class="doc">
+<h1>有逻辑没界面 · 第 1–6 项 · 设计稿</h1>
+<p class="lead">脚本早就能做、界面上没地方看或点的六件事。四件放进「技能与设置」弹框（改名不改：仍叫「技能与设置」，技能挪到最下面）；课程停用放在总进度的课程行上；会话列表补上其他位置的会话；断线重试只留一行。</p>
+<p class="note">黄色虚线 = 新加或改动；红色虚线 = 要你定。字号、颜色同现有 Bear：标题 14/20 粗、说明 12/16 gray-11、链接 accent-11。</p>
+
+<h3>A ·「技能与设置」弹框（第 2、3、6 项）</h3>
+<div class="pair">
+<div>
+<div class="cap">改后，从上到下：设置 → 学根 → 库检查 → 讲解偏好 → 技能（原样）</div>
+<div class="dlg">
+  <div class="dlg-h"><b>技能与设置</b><span class="x">关闭 · Esc</span></div>
+  <div class="dlg-b">
+    <div class="sec"><h4>设置</h4>
+      <div class="ln"><span class="box">☑</span><div class="t">总控「今天」显示「今天学过」</div></div>
+    </div>
+    <div class="sec chg" data-n="2"><h4>学根 <span class="m">0.15.0</span><span class="lnk">检查更新</span></h4>
+      <div class="m">点了在这一行下面写结果：「已是最新」/「有 0.16.0 · 去更新」（同顶部更新条）/「检查失败：…」。开发模式写「开发模式不检查更新」。</div>
+    </div>
+    <div class="sec chg" data-n="3"><h4>库检查 <span class="m">上次 11-16 10:20</span><span class="lnk">重新检查</span></h4>
+      <div class="ln"><span class="ok">✓</span><div class="t">库：没有问题<div class="m">断链、概念页来源、文件命名</div></div></div>
+      <div class="ln"><span class="wn">!</span><div class="t">课程：2 个问题 ▾<div class="m">只读锁、完成标记、排期与记录对得上</div>
+        <ul class="iss"><li>ctm · 课程页不是只读（应为只读）</li><li>discrete-math-epp · D3 记录写了完成，排期行没勾</li></ul></div></div>
+      <div class="m">只报告，不在这里改；要修就点「交给总控」，总控按问题改。</div>
+      <div class="ln"><span></span><div class="t"><span class="lnk">交给总控 →</span></div></div>
+    </div>
+    <div class="sec chg" data-n="6"><h4>讲解偏好 <span class="m">课上说「以后讲 … 都 …」时记下的（下面几行是示例）</span></h4>
+      <div class="m" style="margin:4px 0 2px">离散数学</div>
+      <div class="ln"><div class="t">证明先给直觉再写形式步骤</div><span class="lnk">删掉</span></div>
+      <div class="ln"><div class="t">例子用编程里的情形</div><span class="lnk">删掉</span></div>
+      <div class="m" style="margin:8px 0 2px">编程语言与编程范式</div>
+      <div class="ln"><div class="t">代码例子用 Oz 和 Python 对照</div><span class="lnk">删掉</span></div>
+      <div class="m">删掉 = 从科目页「讲解偏好」里去掉这一行，记一笔 jj「偏好 &lt;科目&gt; 删一条」；下节课起不再照它讲。新的偏好仍在课上说。</div>
+    </div>
+    <div class="sec"><h4>安装技能</h4><div class="m">（原样）</div></div>
+    <div class="sec" style="border:0"><h4>已安装 · 12</h4><div class="m">（原样）</div></div>
+  </div>
+</div>
+</div>
+<div>
+<table>
+<tr><th>项</th><th>数据从哪来</th><th>谁做</th></tr>
+<tr><td>2 检查更新</td><td>已有 <code>update.check</code></td><td>DeepSeek 界面</td></tr>
+<tr><td>3 库检查</td><td>新 <code>check.run</code>：跑 <code>vault-lint</code> + <code>course-state verify</code>，回问题列表；不写库</td><td>Devin 后端 → DeepSeek 界面</td></tr>
+<tr><td>6 讲解偏好</td><td>新 <code>prefs.list</code> / <code>prefs.remove</code>：读、删科目页「## 讲解偏好」行，删时记 jj</td><td>Devin 后端 → DeepSeek 界面</td></tr>
+</table>
+<p class="note chg ask" data-n="①" style="margin-top:24px"><b>要你定 ①：库检查什么时候跑？</b><br>A（推荐）只在点「重新检查」时跑，弹框显示上次结果——两个脚本要几秒，开弹框不卡。<br>B 每次打开弹框自动跑一次。</p>
+<p class="note chg ask" data-n="②" style="margin-top:24px"><b>要你定 ②：课程问题有没有要在顶部状态行提示？</b><br>A（推荐）不提示，只在弹框里看——状态行只放学习进度。<br>B 有问题时状态行末尾加一格「库检查 2 个问题」。</p>
+</div>
+</div>
+
+<h3>B · 课程停用（第 5 项）：总进度的课程行</h3>
+<div class="pair">
+<div>
+<div class="cap">每门课行右端加「⋯」，菜单两项</div>
+<div class="panel">
+  <div class="ph">总进度 <span class="sub">主课 · 按周看</span></div>
+  <div class="row"><div class="t">离散 <span class="sub">D3 / 14 · 预计 12-29 收尾</span></div></div>
+  <div class="row" style="position:relative"><div class="t">CTM <span class="sub">D2 / 14 · 预计 12-24 收尾</span></div><span class="dots on chg" data-n="5">⋯</span>
+    <div class="menu"><div>打开课程页</div><div>停用这门课…</div></div></div>
+  <div class="fold chg" data-n="5">▸ 已停用 2 门 · C 语言、数据结构</div>
+</div>
+<div class="cap" style="margin-top:16px">展开「已停用」</div>
+<div class="panel">
+  <div class="fold">▾ 已停用 2 门</div>
+  <div class="row"><div class="t">C 语言 <span class="sub">停用于 11-15 · 改成书房导读</span></div><span class="lnk">恢复</span></div>
+  <div class="row"><div class="t">数据结构 <span class="sub">停用于 11-15 · 改成书房导读</span></div><span class="lnk">恢复</span></div>
+</div>
+</div>
+<div>
+<div class="cap">点「停用这门课…」</div>
+<div class="confirm">
+  <b>停用 CTM？</b>
+  <p>停用后不再排课，也不出现在今天、周表格和总进度里。</p>
+  <p>学习记录、概念页、卡片都保留；随时可以在「已停用」里恢复，恢复后从下一个上课日接着排。</p>
+  <div class="acts"><span>取消</span><span class="prim">停用</span></div>
+</div>
+<p class="note" style="margin-top:12px">停用 = 课程页 Key Facts 写「状态：停用（日期）」，记 jj「停用 &lt;课程&gt; &lt;日期&gt;」（11-15 迁库用的同一种标记）。恢复 = 去掉这一行、按弹性排期从下一个上课日起重排，记 jj「恢复 &lt;课程&gt;」。后端 Devin：<code>course_plan stop / resume</code> + 数据通道 <code>course.stop / course.resume</code>。<br>今天卡、周表格里正在上的课不出「停用」——只在总进度这一处，免得误点。</p>
+</div>
+</div>
+
+<h3>C · 会话列表（第 4 项）：「＋」里的「按天找回以前的会话」</h3>
+<div class="pair">
+<div>
+<div class="pop">
+  <div class="gh">按天找回以前的会话</div>
+  <div class="it"><span>11-16 · 总控</span><span class="m">3 条</span></div>
+  <div class="it"><span>11-15 · CTM D2</span><span class="m">41 条</span></div>
+  <div class="it"><span>…</span></div>
+  <div class="gh chg" data-n="4">▸ 其他位置的会话 · 8 个</div>
+</div>
+</div>
+<div><p class="note">现在只列当前工作区目录里的会话（真实库 27 个），另有 8 个在别的目录（以前从 <code>~/pi-learning</code>、<code>~</code> 开的）看不到。改成：当前目录照旧在上面；其余目录收成一行「其他位置的会话 · N 个」，展开后同样按天列，每行后面小字写目录（如「pi-learning」）。打开它们和打开普通会话一样。后端 Devin：<code>sessions.list</code> 加 <code>all: true</code>，只列 <code>&lt;数据根&gt;/sessions</code> 下面的目录。</p></div>
+</div>
+
+<h3>D · 断线重试（第 1 项）：一次回答里断了几次，只留一行</h3>
+<div class="pair">
+<div><div class="cap">现在（断两次后接上）</div><div class="chat">
+  <div class="err">连接中途断开，正在自动重试（第 1 / 3 次）…</div>
+  <div class="err">连接中途断开，正在自动重试（第 2 / 3 次）…</div>
+  <div class="msg">……回答……</div>
+  <div class="err">连接断开过一次，已自动重试</div>
+</div></div>
+<div><div class="cap">改后</div><div class="chat chg" data-n="1">
+  <div class="msg">……回答……</div>
+  <div class="err">连接断开过 2 次，已自动接上</div>
+</div>
+<p class="note" style="margin-top:8px">重试中：只有一行「连接中途断开，正在自动重试（第 2 / 3 次）…」，次数原地更新；接上后这一行换成「连接断开过 N 次，已自动接上」，放在回答下面。三次都失败：换成原来的失败提示 +「重试」按钮。DeepSeek 先写测试（两次 503 后成功 → 只剩一行恢复提示，写「2 次」）。</p></div>
+</div>
+
+<h3>E · 依据</h3>
+<table>
+<tr><th>#</th><th>规则</th><th>这稿怎么做</th></tr>
+<tr><td>1</td><td>一件事只在一处（11-15）</td><td>停用只在总进度；检查结果只在弹框；偏好只在弹框删、只在课上加</td></tr>
+<tr><td>2</td><td>改动要能撤（撤销三档）</td><td>停用有「恢复」；删偏好记 jj，可从 jj 恢复；库检查只读</td></tr>
+<tr><td>3</td><td>不出现脚本名、路径（G4）</td><td>界面写「库检查 / 课程」，不写 vault-lint、course-state；会话目录只写最后一级名</td></tr>
+<tr><td>4</td><td>11-13 中性文字</td><td>「2 个问题」不写「出错」「异常」；停用说明写保留了什么</td></tr>
+<tr><td>5</td><td>危险动作二次确认、默认焦点在安全按钮</td><td>停用弹确认框，默认焦点「取消」；删偏好一行不确认（可从 jj 恢复，且影响小）</td></tr>
+</table>
+<p class="note">顺序：先派 DeepSeek 做第 1、2 项（只改界面）；同时 Devin 一批做第 3、4、5、6 项后端（约 12 个文件）；回来后 DeepSeek 按项做界面，每项一张小单。</p>
+</div>

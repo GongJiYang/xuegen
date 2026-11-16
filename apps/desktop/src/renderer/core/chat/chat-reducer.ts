@@ -157,6 +157,16 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       // The retry hint is presentation-only: a malformed one is dropped here
       // rather than trusted, and never breaks the answer it annotates.
       const message = { ...withValidRetry(event.message), streaming: false };
+      // A later failure of the same retry round is not shown: only the round's
+      // first failure keeps a line. Drop the bubble it may have started and the
+      // banner its failure raised.
+      if (message.retry === "superseded") {
+        const kept = state.messages.filter((entry) => entry.id !== message.id);
+        return withoutError(
+          kept.length === state.messages.length ? state : { ...state, messages: kept },
+          message.errorMessage,
+        );
+      }
       const next = upsertMessage(state, message);
       // A retried connection is not a failure the user must act on: the banner
       // that the failed attempt raised goes away while Pi retries, and comes

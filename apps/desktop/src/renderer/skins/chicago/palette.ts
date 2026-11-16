@@ -184,3 +184,17 @@ export function applyPalette(paletteId: PaletteId): string {
   root.style.backgroundColor = palette.paper;
   return palette.paper;
 }
+
+/**
+ * Undo `applyPalette` when the Chicago shell unmounts. The variables live on
+ * `<html>` and Bear reads the same names (`--ink`, `--paper`): left behind, they
+ * force white paper under Bear's dark-mode text (11-16).
+ */
+export function clearPalette(): void {
+  const root = document.documentElement;
+  for (const name of Object.keys(paletteVariables(PALETTES.white))) {
+    root.style.removeProperty(name);
+  }
+  delete root.dataset.palette;
+  root.style.removeProperty("background-color");
+}

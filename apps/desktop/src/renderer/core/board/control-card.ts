@@ -98,6 +98,8 @@ interface ControlCardInput {
   day: CycleDay | null;
   /** Tomorrow's place in the cycle, for the rest day's 「明天：…」 line. */
   tomorrow?: CycleDay | null;
+  /** slug → 书页短名，明天一行的导读用。 */
+  bookNames?: Record<string, string>;
   /** The calendar month containing today (`calendar.month`), or null. */
   calendar: CalendarMonth | null;
   /** The whole reading queue (`reading.queue`). */
@@ -335,7 +337,7 @@ export function controlCard(input: ControlCardInput): ControlCardView | null {
   const headline = head === null ? day.cycle : `${day.cycle} · ${head}`;
 
   if (day.type === "休息" && day.lessons.length === 0) {
-    const text = (input.tomorrow ? tomorrowLine(input.tomorrow) : null) ?? strings.plan.restItem;
+    const text = (input.tomorrow ? tomorrowLine(input.tomorrow, input.bookNames) : null) ?? strings.plan.restItem;
     // Reading happens every day, rest days included (per the learner).
     const rest = { mark: "faint" as const, text, button: null, action: null, hint: null };
     const books = input.shelf ? [...guidedRows(input.shelf), ...shelfRows(input.shelf)] : [];

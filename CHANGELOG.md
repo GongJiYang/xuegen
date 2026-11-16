@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.16.0 — 2026-11-16
+
+- Desktop: 开课前回想一下 — on wide windows (panel ≥ 1480) the 总控 今天 card shows, beside the 上课 group, the concept pages saved in each course's previous lesson; clicking one opens it in the reader, and the footer links to the subject's 领域 page (`recall.ts`, `use-recall.ts`, Bear `recall-block.tsx`). Hidden on D1, on days without a main course, and when printing.
+- Desktop: 技能与设置 has 检查更新 — shows the current version and checks GitHub for a newer one (`core/update/about.ts`, `use-about.ts`).
+- Desktop: a dropped connection that is retried and then answers leaves one line instead of a stack of 「正在自动重试」 messages (`retry: "superseded"`, `retryCount`).
+- Wording: 「导读课」 is now 「导读」 everywhere (the wording lint forbids the old name); 「明天 … 导读 C 语言」 uses the book's short name.
+- Fix: light mode — switching away from the Chicago skin left its palette on `<html>`, so Bear showed white panels with unreadable titles (`clearPalette()`); the activity feed's 看回答 no longer grows with the body text zoom; the ＋ label and ↷ marker are readable in light mode.
+
 ## v0.15.0 — 2026-11-15
 
 - Desktop: 今天学过 — the 总控 今天 card ends with one line listing each main course studied today and its first-to-last time (「CTM D3 08:10–09:40」), read back from the session transcripts (`sessions.studied`, `main/data/studied.ts`); no totals, no new records. 技能与设置 has a checkbox to hide it (`showStudied`).

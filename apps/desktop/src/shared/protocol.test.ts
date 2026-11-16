@@ -310,8 +310,9 @@ describe("isRetryState / withValidRetry", () => {
     errorMessage: "terminated",
   };
 
-  it("accepts the two valid marker shapes and rejects others", () => {
+  it("accepts the valid marker shapes and rejects others", () => {
     expect(isRetryState("recovered")).toBe(true);
+    expect(isRetryState("superseded")).toBe(true);
     expect(isRetryState({ attempt: 1, maxAttempts: 3 })).toBe(true);
     expect(isRetryState({ attempt: "1", maxAttempts: 3 })).toBe(false);
     expect(isRetryState({ attempt: 1 })).toBe(false);
@@ -320,11 +321,22 @@ describe("isRetryState / withValidRetry", () => {
 
   it("keeps a valid marker and drops only a malformed one", () => {
     expect(withValidRetry({ ...failed, retry: "recovered" }).retry).toBe("recovered");
+    expect(withValidRetry({ ...failed, retry: "superseded" }).retry).toBe("superseded");
     expect(withValidRetry({ ...failed, retry: { attempt: 2, maxAttempts: 3 } }).retry).toEqual({
       attempt: 2,
       maxAttempts: 3,
     });
     expect(withValidRetry(failed).retry).toBeUndefined();
     expect(withValidRetry({ ...failed, retry: "bogus" as never }).retry).toBeUndefined();
+  });
+
+  it("drops a retry count that is not a positive whole number", () => {
+    expect(withValidRetry({ ...failed, retry: "recovered", retryCount: 3 }).retryCount).toBe(3);
+    for (const bad of [0, -1, 1.5, Number.NaN]) {
+      const kept = withValidRetry({ ...failed, retry: "recovered", retryCount: bad });
+      expect(kept.retryCount).toBeUndefined();
+      // Only the count goes: the marker it belongs to stays.
+      expect(kept.retry).toBe("recovered");
+    }
   });
 });

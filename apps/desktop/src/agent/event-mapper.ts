@@ -33,6 +33,8 @@ export interface EventMapperState {
    * before `auto_retry_end`, so it must be remembered across that gap.
    */
   lastFailedMessage: ChatMessage | null;
+  /** Failures so far in the current retry round (0 when no round is running). */
+  retryFailures: number;
   /** Number of queued follow-up/steering messages. */
   queuedFollowUps: number;
   /** 还在 Pi 队列里的原话（steering 在前），刷新后重建转写时补回去。 */
@@ -47,6 +49,7 @@ export function createEventMapperState(): EventMapperState {
     toolCalls: [],
     lastAssistantMessageId: null,
     lastFailedMessage: null,
+    retryFailures: 0,
     queuedFollowUps: 0,
     queuedTexts: [],
   };
@@ -125,6 +128,11 @@ function markRetry(
   return plain;
 }
 
+/** True when a retry round is running: the remembered failure carries the attempt count. */
+function isRetryingRound(message: ChatMessage | null): boolean {
+  return typeof message?.retry === "object" && message.retry !== null;
+}
+
 /**
  * Map one Pi session event into protocol messages, advancing the given state.
  *
@@ -185,22 +193,32 @@ export function mapPiEvent(
         toolCalls: next.toolCalls,
       };
       if (errorMessage) finalMessage.errorMessage = errorMessage;
+      // A failure that lands while a retry round is already running is another
+      // attempt at the same answer: only the round's first failure shows a line,
+      // so this one is marked `"superseded"` (the renderer drops it) and the
+      // remembered message stays the round's first failure.
+      const superseded =
+        errorMessage !== undefined &&
+        message.stopReason !== "aborted" &&
+        isRetryingRound(next.lastFailedMessage);
+      if (superseded) finalMessage.retry = "superseded";
       messages.push({ type: "message-end", message: finalMessage });
       // A stop is not an error: the message keeps its `errorMessage` ("已中止"),
       // which the renderer shows as guidance, but it must not raise a session-level
       // error notice (that would flash an alert for a deliberate user action).
       if (errorMessage && message.stopReason !== "aborted") {
-        messages.push({ type: "error", error: errorMessage });
+        if (superseded) {
+          next = { ...next, retryFailures: next.retryFailures + 1 };
+        } else {
+          messages.push({ type: "error", error: errorMessage });
+          next = { ...next, lastFailedMessage: finalMessage, retryFailures: 1 };
+        }
       }
       next = {
         ...next,
         currentAssistantId: null,
         assistantMarkdown: "",
         toolCalls: [],
-        // Keep the failed message so a later `auto_retry_end` can mark it; a
-        // successful retry answer does not replace it.
-        lastFailedMessage:
-          errorMessage && message.stopReason !== "aborted" ? finalMessage : next.lastFailedMessage,
       };
       break;
     }
@@ -219,10 +237,15 @@ export function mapPiEvent(
     case "auto_retry_end": {
       const failed = next.lastFailedMessage;
       if (!failed) break;
-      next = { ...next, lastFailedMessage: null };
+      const retryCount = Math.max(1, next.retryFailures);
+      next = { ...next, lastFailedMessage: null, retryFailures: 0 };
       if (event.success) {
-        // A retry produced an answer: one soft line replaces the error block.
-        messages.push({ type: "message-end", message: { ...failed, retry: "recovered" } });
+        // A retry produced an answer: one soft line replaces the error block, and
+        // it names how many times the connection dropped in this round.
+        messages.push({
+          type: "message-end",
+          message: { ...failed, retry: "recovered", retryCount },
+        });
         break;
       }
       // The retries did not help: drop the marker and report the error as usual.
