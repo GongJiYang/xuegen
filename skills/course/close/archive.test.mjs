@@ -97,8 +97,8 @@ test("keep 2 → 最新 2 条留下；10 月新建带头行、11 月原内容在
     assert.ok(manifest.base["wiki/courses/epp/records/2026-11.md"], "库里已有的 11 月文件经 addToStaging 进暂存");
     assert.match(
       page,
-      /- 归档：2026 年 10 月的收课记录见 \[\[courses\/epp\/records\/2026-10\]\] · 完成：D1、D2\n- 归档：2026 年 11 月的收课记录见 \[\[courses\/epp\/records\/2026-11\]\] · 完成：D3\n\n### 2026-11-10-01/,
-      "归档行按月份从早到晚排，后留一个空行",
+      /## Learning Record\n\n- 归档：2026 年 10 月的收课记录见 \[\[courses\/epp\/records\/2026-10\]\] · 完成：D1、D2\n- 归档：2026 年 11 月的收课记录见 \[\[courses\/epp\/records\/2026-11\]\] · 完成：D3\n\n### 2026-11-10-01/,
+      "标题 → 空行 → 归档行（月份升序）→ 空行 → 第一条记录",
     );
   } finally {
     await cleanup(f);

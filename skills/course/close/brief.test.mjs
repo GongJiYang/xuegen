@@ -110,12 +110,12 @@ test("lesson/next：今天有课取当天、没课取最早逾期、全完成或
   assert.equal(b.week, null);
   assert.deepEqual(b.concepts, { dir: "wiki/knowledge/concepts/x/", pages: [] });
   const overdue = await closeBrief(f.staging, await stage(f, done1), "2026-11-11");
-  assert.equal(overdue.lesson.id, "D2");
-  assert.equal(overdue.next.id, "D3");
-  const allDone = PAGE("### 2026-11-09-01\n\n- 完成：D1、D2、D3、D4\n");
-  const done = await closeBrief(f.staging, await stage(f, allDone), "2026-11-16");
-  assert.equal(done.lesson, null);
-  assert.equal(done.next, null);
+  assert.deepEqual([overdue.lesson.id, overdue.next.id], ["D2", "D3"]);
+  const again = await closeBrief(f.staging, await stage(f, PAGE("### 2026-11-16-01\n\n- 完成：D1、D2、D3\n")), "2026-11-16");
+  assert.equal(again.lesson, null, "今天的课已完成：lesson 为 null，next 仍给下一节");
+  assert.deepEqual(again.next, { id: "D4", date: "2026-11-18", content: "第 4 课" });
+  const done = await closeBrief(f.staging, await stage(f, PAGE("### 2026-11-09-01\n\n- 完成：D1、D2、D3、D4\n")), "2026-11-16");
+  assert.deepEqual([done.lesson, done.next], [null, null]);
   const bare = await closeBrief(f.staging, await stage(f, PAGE("", "", "")), "2026-11-16");
   assert.equal(bare.lesson, null, "没有排期标记");
   assert.equal(bare.next, null);

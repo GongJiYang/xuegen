@@ -99,9 +99,10 @@ export async function closeBrief(staging, manifest, today) {
     const row = todayRow ?? overdue[0] ?? null;
     if (row) {
       lesson = { id: row.id, date: row.date, content: row.content, material: row.material, doneWhen: row.doneWhen };
-      const after = schedule.rows.slice(schedule.rows.indexOf(row) + 1).find((item) => open(item) && item.id !== row.id);
-      if (after) next = { id: after.id, date: after.date, content: after.content };
     }
+    // next 不依赖 lesson：今天的课已完成时 lesson 为 null，模型仍要拿到下一节。
+    const after = schedule.rows.find((item) => open(item) && item.date > today && item.id !== row?.id);
+    if (after) next = { id: after.id, date: after.date, content: after.content };
   }
   const cycle = findCycle(await loadElasticCycles(manifest.vault), today);
   const courses = cycle ? await loadCourses(manifest.vault, cycle) : new Map();

@@ -123,7 +123,7 @@ export function archiveRecords(staging, manifest, { keep = 2, addToStaging } = {
   while (start < others.length && others[start].trim() === "") start += 1;
   let end = others.length;
   while (end > start && others[end - 1].trim() === "") end -= 1;
-  const preamble = [...archiveLines, "", ...others.slice(start, end)];
+  const preamble = ["", ...archiveLines, "", ...others.slice(start, end)];
   if (end > start) preamble.push("");
   const body = [...preamble, ...kept.slice(1).flatMap((chunk) => chunk.lines)];
   writeFileSync(courseAbs, [...lines.slice(0, secStart + 1), ...body, ...lines.slice(secEnd)].join("\n"));
