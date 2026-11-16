@@ -256,9 +256,9 @@ test("stage → 改 → check → commit：文件落盘、上锁、manifest 基�
     ]);
     assert.equal(await mode(join(staging, "wiki", "courses", "epp.md")), 0o644, "镜像可写");
 
-    // 未改动时 check 通过且没有待提交文件
+    // 未改动时 check 通过且没有待提交文件（warnings 始终带，空库没有要提醒的）
     const before = await cliJson(["check", staging]);
-    assert.deepEqual(before, { ok: true, problems: [], changes: [] });
+    assert.deepEqual(before, { ok: true, problems: [], changes: [], warnings: [] });
 
     await writeFile(join(staging, "wiki", "courses", "epp.md"), withCloseRecord(coursePage()));
     const concept = join(staging, "wiki", "knowledge", "concepts", "discrete-math", "truth-table.md");

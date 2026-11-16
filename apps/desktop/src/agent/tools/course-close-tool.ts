@@ -176,7 +176,7 @@ export function createCourseCloseExtension(options: CourseCloseToolOptions): Ext
       name: "course_close",
       label: "收课",
       description:
-        "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；" +
+        "收课事务：stage 开始暂存 → 在暂存目录里改文件 → check 校验 → commit 一次提交；check 输出里的 warnings 要先处理再 commit。" +
         "add 把已有页复制进暂存；abort 放弃；undo 撤销最近一次收课。shift 开课时顺延排期。snapshot 在暂存里生成收课截图（沙盒外跑，bash 起不了 Chrome）。after-read 把课后读写进本课链着的书页（课程页不再写课后读）。课程页和概念页只能经这个工具写；本科目页用 add 复制进来后只许改它的「讲解偏好」一节（commit 带 label 偏好）。" +
         "stage 返回的 brief 里有今天这节、记录编号、课后读日期、要不要归档、概念目录，直接用，不用再翻文件。archive 把超出 2 条的旧学习记录挪进按月归档并写好归档行。",
       parameters: Type.Object({

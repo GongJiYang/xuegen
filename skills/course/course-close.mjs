@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 import { fail } from "./close/fail.mjs";
 import { archiveRecords } from "./close/archive.mjs";
 import { closeBrief } from "./close/brief.mjs";
+import { gatherCloseWarnings } from "./close/warnings.mjs";
 import { addedCompletedIds, checkSelfReport, isOwned, isSafeRelPath } from "./close/rules.mjs";
 import { addAfterRead } from "../reading/shelf-after.mjs";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
@@ -168,18 +169,24 @@ function cmdArchive(stagingArg, flags, json) {
   }
 }
 
-function cmdCheck(stagingArg, json) {
+async function cmdCheck(stagingArg, json) {
   const staging = resolve(stagingArg ?? fail("check 需要 <暂存目录>"));
   recoverInternal(workspaceOf(staging));
-  const { result } = gatherCheck(staging);
+  const { manifest, result } = gatherCheck(staging);
+  // warnings 是提醒不是校验（收课暂存才有）：不挡提交、不影响 ok。
+  const warnings =
+    (manifest.kind ?? "close") === "close" ? await gatherCloseWarnings(staging, manifest) : [];
   if (json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
   } else {
     for (const problem of result.problems) {
       process.stdout.write(`${problem.path}: [${problem.kind}] ${problem.detail}\n`);
     }
     for (const change of result.changes) {
       process.stdout.write(`${change.action === "create" ? "新增" : "修改"} ${change.path}\n`);
+    }
+    for (const warning of warnings) {
+      process.stdout.write(`提醒：${warning}\n`);
     }
     process.stdout.write(result.ok ? `check: 通过，${result.changes.length} 个文件待提交\n` : "check: 未通过\n");
   }
@@ -656,7 +663,7 @@ async function main() {
   if (command === "stage") await cmdStage(rest[0], rest[1], flags, json);
   else if (command === "add") cmdAdd(rest[0], rest[1], json);
   else if (command === "archive") cmdArchive(rest[0], flags, json);
-  else if (command === "check") cmdCheck(rest[0], json);
+  else if (command === "check") await cmdCheck(rest[0], json);
   else if (command === "commit") cmdCommit(rest[0], flags.label, json);
   else if (command === "abort") cmdAbort(rest[0]);
   else if (command === "after-read") cmdAfterRead(rest[0], flags, json);

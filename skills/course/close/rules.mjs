@@ -244,7 +244,7 @@ function linesOutsideAfter(text) {
 }
 
 /** 「## 课后读」一节里的非空行（不含标题）。节不存在返回 []。 */
-function afterSectionRows(text) {
+export function afterSectionRows(text) {
   const section = afterSection(text);
   if (section === null) return [];
   return section.lines.slice(section.start + 1, section.end).filter((line) => line.trim() !== "");
