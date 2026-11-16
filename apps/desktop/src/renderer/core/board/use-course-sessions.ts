@@ -125,6 +125,20 @@ export function useCourseSessions(
   // window in which a double click would start a duplicate session.
   const opening = useRef<Set<string>>(new Set());
   const [intro, setIntro] = useState<CourseIntroState | null>(null);
+  // The opening card belongs to a course session: once no course is active
+  // (陪读, a 自由 session, 总控), it must not hang over the next transcript.
+  const previousActiveCourse = useRef(activeCourse);
+  useEffect(() => {
+    const previous = previousActiveCourse.current;
+    previousActiveCourse.current = activeCourse;
+    // Only a course ending clears the card; on the first render there is no
+    // card yet, and starting a course sets its own card.
+    // Through a microtask so this effect never sets state synchronously (the
+    // project lint rule).
+    if (previous !== null && activeCourse === null) {
+      void Promise.resolve().then(() => setIntro(null));
+    }
+  }, [activeCourse]);
   const startedToday = startedTodayMap(settings.courseStartedOn, todayKey());
   // The latest transcript length, kept in a ref so the promise continuation
   // below reads the switched session's history instead of the stale closure.

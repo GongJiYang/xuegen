@@ -343,11 +343,9 @@ export const strings = {
         slug: string,
         chunk: { title: string; from: number; to: number },
       ): string =>
-        `/skill:reading 陪我读《${title}》（书房 ${slug}）${chunk.title} pp.${chunk.from}–${chunk.to}：` +
-        "先问我读到哪、哪里卡住，再讲难点、答疑。这是陪读：不记完成，不改书页、课程页和计划（读完我会在面板上勾）。",
+        `/skill:reading 陪读《${title}》（书房 ${slug}）${chunk.title} pp.${chunk.from}–${chunk.to}，按 reading 技能「陪读」一节做。`,
       accompanyAfterReadPrompt: (title: string, course: string): string =>
-        `/skill:reading 陪我读「${title}」（课程 ${course} 的课后读）：` +
-        "先问我读到哪、哪里卡住，再讲难点、答疑。这是陪读：不记完成，不改书页、课程页和计划（读完我会在面板上勾）。",
+        `/skill:reading 陪读「${title}」（课程 ${course} 的课后读），按 reading 技能「陪读」一节做。`,
       /** The 「读完了」 button while its undo window runs: 「撤销 · 7」. */
       undo: (left: number): string => `撤销 · ${left}`,
       /** Row-button hover text saying what the click changes. */

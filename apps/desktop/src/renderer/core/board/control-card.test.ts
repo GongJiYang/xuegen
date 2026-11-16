@@ -1155,3 +1155,23 @@ describe("lesson refs (总控 v3)", () => {
     expect(anki?.lessons).toBeUndefined();
   });
 });
+
+describe("陪读 prompt", () => {
+  it("books the 「陪读」 section of the reading skill for a 导读 chunk", () => {
+    expect(
+      strings.control.card.accompanyBookPrompt("Effective C（第 2 版）", "effective-c", {
+        title: "Ch1 起步",
+        from: 1,
+        to: 11,
+      }),
+    ).toBe(
+      "/skill:reading 陪读《Effective C（第 2 版）》（书房 effective-c）Ch1 起步 pp.1–11，按 reading 技能「陪读」一节做。",
+    );
+  });
+
+  it("books the 「陪读」 section for a 课后读 title", () => {
+    expect(strings.control.card.accompanyAfterReadPrompt("§3.1–3.2", "discrete-math-epp")).toBe(
+      "/skill:reading 陪读「§3.1–3.2」（课程 discrete-math-epp 的课后读），按 reading 技能「陪读」一节做。",
+    );
+  });
+});

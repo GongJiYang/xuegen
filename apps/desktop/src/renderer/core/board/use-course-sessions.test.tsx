@@ -4,7 +4,7 @@
  * production types only describe the parts these actions use.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import { DEFAULT_DESKTOP_SETTINGS, type ChatMessage, type DesktopSettings } from "@shared/protocol.js";
@@ -292,6 +292,44 @@ describe("useCourseSessions — opening card", () => {
     expect(actions?.intro).toBeNull();
     expect(controller.send).not.toHaveBeenCalled();
     expect(controller.sendCommand).toHaveBeenCalledWith(expect.stringContaining("少一点"));
+  });
+
+  it("clears the card when no course is active any more", async () => {
+    const controller = fakeController();
+    let setActiveCourse: ((slug: string | null) => void) | null = null;
+    function StateHarness() {
+      const [activeCourse, setChosenCourse] = useState<string | null>(null);
+      useEffect(() => {
+        setActiveCourse = setChosenCourse;
+      }, []);
+      const current = useCourseSessions(
+        controller,
+        DEFAULT_DESKTOP_SETTINGS,
+        vi.fn(),
+        readyCourses([studyCourse]),
+        null,
+        activeCourse,
+        setChosenCourse,
+        () => undefined,
+      );
+      useEffect(() => {
+        actions = current;
+      });
+      return null;
+    }
+    render(<StateHarness />);
+
+    await act(async () => {
+      actions?.handleStudy(studyCourse);
+      await Promise.resolve();
+    });
+    expect(actions?.intro).not.toBeNull();
+
+    await act(async () => {
+      setActiveCourse?.(null);
+      await Promise.resolve();
+    });
+    expect(actions?.intro).toBeNull();
   });
 
   it("clears the card on 新会话", async () => {
