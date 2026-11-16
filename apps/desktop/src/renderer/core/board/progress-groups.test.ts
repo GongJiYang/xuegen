@@ -13,6 +13,8 @@ function course(slug: string, done: number, total: number, last: string | null):
     lastRecord: last ? { date: last, seq: "01" } : null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   };
 }
 

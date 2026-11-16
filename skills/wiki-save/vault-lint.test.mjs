@@ -335,7 +335,7 @@ test("lintLinks：规则文档（AGENTS.md、README.md、wiki/prompts/）的占�
   }
 });
 
-test("退出码：无问题的库 exit 0，有问题的库 exit 1 且 --json 给出 problems", async () => {
+test("退出码：人类可读输出有问题 exit 1；--json 恒 exit 0（问题在 payload 里）", async () => {
   const clean = await makeVault();
   try {
     await writeFileAt(clean, "wiki/index.md", "# 索引\n\n[[knowledge/concepts/discrete-math/010-variables|变量]]\n");
@@ -359,7 +359,7 @@ test("退出码：无问题的库 exit 0，有问题的库 exit 1 且 --json 给
       await writeFileAt(bad, "wiki/index.md", "[[concepts/discrete-math/010-variables|变量]]\n");
       await writeFileAt(bad, "wiki/Bad Dir/concepts/discrete-math/010-variables.md", "# 变量\n");
       const failed = await lint([bad, "--json"]);
-      assert.equal(failed.code, 1);
+      assert.equal(failed.code, 0, "--json 有问题也 exit 0");
       const parsed = JSON.parse(failed.stdout);
       const kinds = parsed.problems.map((item) => item.kind);
       assert.ok(kinds.includes("link"), JSON.stringify(parsed.problems));

@@ -80,11 +80,8 @@ export function isOwnSessionDir(home: string, dir: string): boolean {
   }
 }
 
-export function listSessions(home: string, current: string): SessionMeta[] {
-  // A session that has not been saved yet has no file, but its folder is still
-  // the one to list: guard the folder (same realpath rule as isOwnSessionFile).
-  if (!current.endsWith(".jsonl") || !(isOwnSessionFile(home, current) || isOwnSessionDir(home, dirname(current)))) return [];
-  const dir = dirname(current);
+/** The `.jsonl` transcripts in one directory, newest first, capped at MAX_SESSIONS. */
+function listDir(dir: string): SessionMeta[] {
   let names: string[];
   try {
     names = readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
@@ -104,4 +101,55 @@ export function listSessions(home: string, current: string): SessionMeta[] {
     if (meta) metas.push(meta);
   }
   return metas.sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/** True when `current` is an own transcript or an unsaved session in an own folder. */
+function currentAllowed(home: string, current: string): boolean {
+  if (!current.endsWith(".jsonl")) return false;
+  return isOwnSessionFile(home, current) || isOwnSessionDir(home, dirname(current));
+}
+
+export function listSessions(home: string, current: string): SessionMeta[] {
+  // A session that has not been saved yet has no file, but its folder is still
+  // the one to list: guard the folder (same realpath rule as isOwnSessionFile).
+  if (!currentAllowed(home, current)) return [];
+  return listDir(dirname(current));
+}
+
+/**
+ * Sessions in the other folders under `<home>/sessions/` (not `current`'s),
+ * grouped by folder, groups sorted by their newest session first. `dir` is the
+ * folder name (Pi names session folders after the cwd, like
+ * `--Users-alice-projects-foo--`); `label` is the last segment of it ("foo").
+ * Folders that are not own session dirs (a symlink escaping `<home>/sessions`)
+ * and empty folders are skipped.
+ */
+export function listOtherSessions(
+  home: string,
+  current: string,
+): { dir: string; label: string; sessions: SessionMeta[] }[] {
+  if (!currentAllowed(home, current)) return [];
+  const root = resolve(home, "sessions");
+  let names: string[];
+  try {
+    names = readdirSync(root).filter((name) => isOwnSessionDir(home, join(root, name)));
+  } catch {
+    return [];
+  }
+  let currentDir: string;
+  try {
+    currentDir = realpathSync(dirname(current));
+  } catch {
+    return [];
+  }
+  const groups: { dir: string; label: string; sessions: SessionMeta[] }[] = [];
+  for (const name of names) {
+    const dir = join(root, name);
+    if (realpathSync(dir) === currentDir) continue;
+    const sessions = listDir(dir);
+    if (sessions.length === 0) continue;
+    const tail = name.replace(/^-+|-+$/g, "");
+    groups.push({ dir: name, label: tail.split("-").pop() ?? name, sessions });
+  }
+  return groups.sort((a, b) => (b.sessions[0]?.startedAt ?? 0) - (a.sessions[0]?.startedAt ?? 0));
 }

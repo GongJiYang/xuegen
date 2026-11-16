@@ -12,6 +12,8 @@ function course(slug: string): CourseSummary {
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   };
 }
 

@@ -12,4 +12,4 @@
 - `CommandInfo`：`/` 菜单的技能条目；`TeachingStyle` 与 `TEACHING_STYLE_LABELS`：讲解风格选项（含「默认」）。
 - `assertNever()`：联合类型穷尽检查。
 
-`data-protocol.ts`：数据通道（`DATA_CHANNEL`）的请求/响应类型与 `isDataRequest()` 守卫。请求按 `kind` 判别（`courses.list`、`reading.*`、`cards.*`、`anki.status`、`calendar.*`、`skills.*`），响应是 `{ok:true,data} | {ok:false,error,code}`。含学习周期的 cycle.day / cycle.month（CycleDay、CycleMonth）。
+`data-protocol.ts`：数据通道（`DATA_CHANNEL`）的请求/响应类型；`isDataRequest()` 守卫拆在 `data-guards.ts`（文件行数上限），由这里 re-export。请求按 `kind` 判别（`courses.list`、`reading.*`、`cards.*`、`anki.status`、`calendar.*`、`skills.*`、`check.*`、`prefs.*`、`course.stop/resume`），响应是 `{ok:true,data} | {ok:false,error,code}`。含学习周期的 cycle.day / cycle.month（CycleDay、CycleMonth）。

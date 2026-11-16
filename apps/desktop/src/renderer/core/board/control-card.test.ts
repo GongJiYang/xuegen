@@ -50,6 +50,8 @@ function courseSummary(slug: string, verified: boolean): CourseSummary {
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   };
 }
 

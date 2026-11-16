@@ -38,6 +38,10 @@ export interface CourseSummary {
   lastRecord: { date: string; seq: string } | null;
   nextSession: string | null;
   styleHint: string | null;
+  /** 停用课（Key Facts 有「状态：停用」行）不出现在周期与当天课表里。 */
+  archived: boolean;
+  /** 停用日期（`YYYY-MM-DD`），没停用为 null。 */
+  archivedOn: string | null;
   /** The course file's modification time (ms since epoch), from `course-state.mjs list`. */
   changedAt?: number;
   /** The course file's absolute path, from `course-state.mjs list`. */
@@ -530,6 +534,47 @@ export interface StudiedSpan {
   to: number;
 }
 
+/**
+ * One problem from `vault-lint.mjs --json` (`area: "vault"`) or
+ * `course-state.mjs verify --json` (`area: "courses"`), for the settings
+ * dialog's 库检查 section. `detail` never contains a path.
+ */
+export interface CheckProblem {
+  /** Which check produced it. */
+  area: "vault" | "courses";
+  /** Course slug (courses problems), or the linted entry's file name without
+   * directory/extension; null for directory/board problems. */
+  where: string | null;
+  kind: string;
+  detail: string;
+}
+
+/** The outcome of one `check.run`, persisted to `<home>/check-last.json`. */
+export interface CheckResult {
+  checkedAt: string;
+  vault: CheckProblem[];
+  courses: CheckProblem[];
+}
+
+/** What `course.stop` / `course.resume` did (`course-stop.mjs --json`). */
+export interface CourseStopResult {
+  slug: string;
+  action: "stop" | "resume";
+  date: string;
+  /** The first undone new lesson's date after a resume (null on stop or none left). */
+  firstLesson: string | null;
+}
+
+/**
+ * One subject's 「## 讲解偏好」 lines (`subject-prefs.mjs list --json`).
+ * `style` marks the 「默认风格：…」 line the renderer renders as a badge.
+ */
+export interface SubjectPrefs {
+  subject: string;
+  title: string;
+  lines: { text: string; style: boolean }[];
+}
+
 /** One session transcript, summarized for the session list (from the transcript file itself). */
 export interface SessionMeta {
   /** Absolute path of the `.jsonl` transcript. */
@@ -665,6 +710,13 @@ export type DataRequest =
   | { kind: "plan.undo"; since: string }
   | { kind: "sessions.list"; current: string }
   | { kind: "sessions.studied"; date: string }
+  | { kind: "check.run" }
+  | { kind: "check.last" }
+  | { kind: "sessions.others"; current: string }
+  | { kind: "course.stop"; slug: string }
+  | { kind: "course.resume"; slug: string }
+  | { kind: "prefs.list" }
+  | { kind: "prefs.remove"; subject: string; text: string }
   | { kind: "skills.list" }
   | { kind: "skills.setEnabled"; name: string; enabled: boolean }
   | { kind: "skills.fetch"; url: string }
@@ -723,6 +775,13 @@ export interface DataResponseMap {
   "plan.undo": PlanUndoResult;
   "sessions.list": SessionMeta[];
   "sessions.studied": StudiedSpan[];
+  "check.run": CheckResult;
+  "check.last": CheckResult | null;
+  "sessions.others": { dir: string; label: string; sessions: SessionMeta[] }[];
+  "course.stop": CourseStopResult;
+  "course.resume": CourseStopResult;
+  "prefs.list": SubjectPrefs[];
+  "prefs.remove": { subject: string; removed: string };
   "skills.list": SkillInfo[];
   "skills.setEnabled": DesktopSettings;
   "skills.fetch": { skills: { name: string; path: string }[] };
@@ -749,201 +808,15 @@ export type DataErrorCode =
   | "unknown";
 
 /** The success or failure envelope the data channel returns. */
-export type DataResponse =
-  | { ok: true; data: unknown }
-  | { ok: false; error: string; code: DataErrorCode };
+export type DataResponse = { ok: true; data: unknown } | { ok: false; error: string; code: DataErrorCode };
 
 /** The map a caller uses to type the result of a specific request. */
 export type DataResultFor<K extends DataRequest["kind"]> =
-  | { ok: true; data: DataResponseMap[K] }
-  | { ok: false; error: string; code: DataErrorCode };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-/** True for a real `YYYY-MM-DD` date (shape and calendar validity). */
-function isIsoDate(text: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
-  const time = Date.parse(`${text}T00:00:00Z`);
-  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === text;
-}
-
-/** True for a `YYYY-MM` month with month 01-12. */
-function isIsoMonth(text: string): boolean {
-  if (!/^\d{4}-\d{2}$/.test(text)) return false;
-  const month = Number(text.slice(5));
-  return month >= 1 && month <= 12;
-}
-
-function isPriority(value: unknown): value is ReadingPriority {
-  return value === "high" || value === "medium" || value === "low";
-}
-
-function isOutcome(value: unknown): value is ReadingOutcome {
-  return value === "next" || value === "postpone" || value === "done";
-}
-
-function isReadingDue(value: unknown): value is ReadingDue {
-  return value === "today" || value === "scheduled";
-}
+  { ok: true; data: DataResponseMap[K] } | { ok: false; error: string; code: DataErrorCode };
 
 /**
- * Runtime guard for renderer -> main data requests.
- *
- * The renderer is not fully trusted, so every request is validated here before
- * the main process touches the vault or the Anki socket.
+ * The runtime guard lives in `data-guards.ts` (split for the line cap); it is
+ * re-exported here so `import { isDataRequest } from "./data-protocol.js"`
+ * keeps working unchanged.
  */
-export function isDataRequest(value: unknown): value is DataRequest {
-  if (!isRecord(value)) return false;
-  switch (value.kind) {
-    case "courses.list":
-    case "reading.stats":
-    case "reading.sources":
-    case "reading.queue":
-    case "cards.stats":
-    case "anki.status":
-    case "skills.list":
-      return true;
-    case "terms.list":
-      return value.since === undefined || (typeof value.since === "string" && isIsoDate(value.since));
-    case "domain.subjects":
-      return true;
-    case "domain.glossary":
-      return typeof value.subject === "string" && /^[a-z0-9][a-z0-9-]*$/.test(value.subject);
-    case "wiki.read":
-      // The path is re-checked against `<vault>/wiki/` in the main process; here
-      // it only has to be a plausible absolute `.md` path.
-      return (
-        typeof value.path === "string" && value.path.startsWith("/") && value.path.endsWith(".md")
-      );
-    case "reading.today":
-      return typeof value.limit === "number" && Number.isInteger(value.limit) && value.limit >= 0;
-    case "reading.add":
-      return (
-        typeof value.source === "string" &&
-        isPriority(value.priority) &&
-        (value.due === undefined || isReadingDue(value.due))
-      );
-    case "reading.review":
-      return (
-        typeof value.slug === "string" &&
-        isOutcome(value.outcome) &&
-        (value.position === undefined || typeof value.position === "string")
-      );
-    case "shelf.today":
-      return typeof value.today === "string" && isIsoDate(value.today);
-    case "shelf.list":
-      // The range is optional but must be given as a pair of valid ISO dates with from ≤ to.
-      return (
-        (value.from === undefined) === (value.to === undefined) &&
-        (value.from === undefined ||
-          (typeof value.from === "string" &&
-            typeof value.to === "string" &&
-            isIsoDate(value.from) &&
-            isIsoDate(value.to) &&
-            value.from <= value.to))
-      );
-    case "shelf.done":
-      return (
-        typeof value.slug === "string" &&
-        /^[a-z0-9-]+$/.test(value.slug) &&
-        typeof value.today === "string" &&
-        isIsoDate(value.today)
-      );
-    case "shelf.afterDone":
-      return (
-        typeof value.book === "string" &&
-        /^[a-z0-9][a-z0-9-]*$/.test(value.book) &&
-        typeof value.index === "number" &&
-        Number.isInteger(value.index) &&
-        value.index >= 1 &&
-        value.index <= 999 &&
-        typeof value.today === "string" &&
-        isIsoDate(value.today)
-      );
-    case "shelf.extract":
-      return (
-        typeof value.slug === "string" &&
-        /^[a-z0-9-]+$/.test(value.slug) &&
-        typeof value.page === "number" &&
-        Number.isInteger(value.page) &&
-        value.page >= 1 &&
-        value.page <= 99999 &&
-        typeof value.text === "string" &&
-        value.text.trim().length > 0 &&
-        value.text.trim().length <= 500 &&
-        typeof value.today === "string" &&
-        isIsoDate(value.today)
-      );
-    case "shelf.card":
-      return (
-        typeof value.slug === "string" &&
-        /^[a-z0-9-]+$/.test(value.slug) &&
-        Array.isArray(value.indexes) &&
-        value.indexes.length > 0 &&
-        value.indexes.length <= 200 &&
-        value.indexes.every((index) => Number.isInteger(index) && index > 0) &&
-        typeof value.today === "string" &&
-        isIsoDate(value.today)
-      );
-    case "cards.add":
-      return (
-        typeof value.deck === "string" &&
-        typeof value.front === "string" &&
-        typeof value.back === "string"
-      );
-    case "cards.sync":
-      return typeof value.dryRun === "boolean";
-    case "calendar.month":
-      return typeof value.month === "string" && isIsoMonth(value.month);
-    case "calendar.write":
-      return typeof value.date === "string" && isIsoDate(value.date) && typeof value.text === "string";
-    case "cycle.day":
-    case "cycle.overview":
-      return typeof value.date === "string" && isIsoDate(value.date);
-    case "cycle.month":
-      return typeof value.month === "string" && isIsoMonth(value.month);
-    case "cycle.accept":
-      return typeof value.cycle === "string" && /^C\d+$/.test(value.cycle);
-    case "cycle.preview":
-      return (
-        typeof value.from === "string" &&
-        /^C\d+$/.test(value.from) &&
-        typeof value.start === "string" &&
-        isIsoDate(value.start) &&
-        Array.isArray(value.main) &&
-        value.main.length >= 1 &&
-        value.main.length <= 2 &&
-        value.main.every((slug) => typeof slug === "string" && /^[a-z0-9][a-z0-9-]*$/.test(slug))
-      );
-    case "subjects.list":
-      return typeof value.date === "string" && isIsoDate(value.date);
-    case "plan.undoable":
-    case "plan.undo":
-      // `since` is an ISO timestamp with timezone recorded when the answer
-      // started; Date.parse both validates the shape and rejects garbage.
-      return (
-        typeof value.since === "string" &&
-        value.since.length > 0 &&
-        !Number.isNaN(Date.parse(value.since))
-      );
-    case "sessions.list":
-      return typeof value.current === "string" && value.current.endsWith(".jsonl");
-    case "sessions.studied":
-      return typeof value.date === "string" && isIsoDate(value.date);
-    case "skills.setEnabled":
-      return typeof value.name === "string" && typeof value.enabled === "boolean";
-    case "skills.fetch":
-      return typeof value.url === "string";
-    case "skills.review":
-    case "skills.discard":
-      return typeof value.name === "string" && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value.name);
-    case "update.check":
-    case "update.download":
-    case "update.install":
-      return true;
-    default:
-      return false;
-  }
-}
+export { isDataRequest } from "./data-guards.js";

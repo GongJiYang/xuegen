@@ -242,6 +242,8 @@ describe("useCourseSessions — opening card", () => {
     lastRecord: { date: "2026-11-03", seq: "01" },
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   it("sets the card the instant 开始学习 is clicked, before sending", async () => {
@@ -329,6 +331,8 @@ describe("useCourseSessions — returning to a course", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   function settingsWith(courseStartedOn: Record<string, string>): DesktopSettings {
@@ -544,6 +548,8 @@ describe("useCourseSessions — stale remembered sessions", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   /** The session-file stamp for a local day at local noon, in the file-name format. */
@@ -607,6 +613,8 @@ describe("useCourseSessions — opening click lock", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
   const other = { ...course, slug: "algebra", title: "代数" } as CourseSummary;
 
@@ -719,6 +727,8 @@ describe("useCourseSessions — session-switch guard", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   /** A controller whose guard holds the switch instead of running it. */
@@ -857,6 +867,8 @@ describe("useCourseSessions — no resending an identical request", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   /** The session-file stamp for a local day at local noon, in the file-name format. */
@@ -1001,6 +1013,8 @@ describe("useCourseSessions — verifiedOn", () => {
     lastRecord: null,
     nextSession: "2.1",
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   } as CourseSummary;
 
   /** The session-file stamp for a local day at local noon, in the file-name format. */

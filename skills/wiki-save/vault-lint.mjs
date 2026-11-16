@@ -6,7 +6,7 @@
 // 另查：生成物不在规定位置、空目录、概念页没有编号、卡片页找不到同名概念页、
 // [[…]] 链接用了 Obsidian 后缀解析（不以 wiki/ 一级目录或库一级目录开头的）、
 // 断链（[[…]] 指向不存在的文件）、概念页 frontmatter（缺 frontmatter 或没有 sources:）。
-// 无第三方依赖。退出码：有问题 1，没有 0。
+// 无第三方依赖。退出码：人类可读输出有问题 1、没有 0；--json 恒为 0（问题在 payload 里），脚本自身出错仍非 0。
 // lintTree 的入参是库相对路径列表（POSIX 分隔；目录以 `/` 结尾），便于测试。
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
@@ -418,7 +418,9 @@ async function main() {
     for (const item of problems) process.stdout.write(`${item.path}: [${item.kind}] ${item.detail}\n`);
     process.stdout.write(`vault-lint: ${problems.length} 个问题\n`);
   }
-  process.exit(problems.length === 0 ? 0 : 1);
+  // --json 给机器读：问题在 payload 里，恒退出 0（出问题不等于跑失败）；
+  // 人类可读输出照旧「有问题 1」。
+  process.exit(json || problems.length === 0 ? 0 : 1);
 }
 
 // 只有直接运行时才进入 CLI；rename-vault.mjs 与测试 import 纯函数不触发 main。

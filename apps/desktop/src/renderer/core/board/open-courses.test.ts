@@ -20,6 +20,8 @@ function course(overrides: Partial<CourseSummary> & { slug: string; title: strin
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
     ...overrides,
   };
 }

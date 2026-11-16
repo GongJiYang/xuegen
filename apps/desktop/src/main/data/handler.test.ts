@@ -3,10 +3,11 @@
 // wiki.json and vault, then invoking the same handler the IPC layer calls.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { handleDataRequest, withToday } from "./handler.js";
+import { handleDataRequest } from "./handler.js";
+import { withToday } from "./scripts.js";
 
 const hasJj = (() => {
   try {
@@ -291,11 +292,22 @@ describe("handleDataRequest", () => {
         "",
       ].join("\n"),
     );
-    touch(join(vault, "wiki", "subjects", "demo.md"), ["# Demo 科目", "", "## Courses", "- [[courses/demo]] - Demo", ""].join("\n"));
+    touch(
+      join(vault, "wiki", "subjects", "demo.md"),
+      ["# Demo 科目", "", "## Courses", "- [[courses/demo]] - Demo", ""].join("\n"),
+    );
     const day = await handleDataRequest({ kind: "cycle.day", date: "2026-11-09" });
     expect(day.ok).toBe(true);
     if (day.ok) {
-      expect(day.data).toMatchObject({ cycle: "C1", week: 1, type: "深度", subject: "demo", course: null, lessons: [], overdue: [] });
+      expect(day.data).toMatchObject({
+        cycle: "C1",
+        week: 1,
+        type: "深度",
+        subject: "demo",
+        course: null,
+        lessons: [],
+        overdue: [],
+      });
     }
     const month = await handleDataRequest({ kind: "cycle.month", month: "2026-11" });
     expect(month.ok).toBe(true);
@@ -418,7 +430,12 @@ describe("handleDataRequest", () => {
       const data = preview.data as { days: { date: string; subject: string | null }[] };
       expect(data.days).toHaveLength(7);
       expect(data.days[0]).toMatchObject({ date: "2026-12-25", type: "整合", subject: null });
-      expect(data.days[3]).toMatchObject({ date: "2026-12-28", weekday: "周一", type: "深度", subject: "algo" });
+      expect(data.days[3]).toMatchObject({
+        date: "2026-12-28",
+        weekday: "周一",
+        type: "深度",
+        subject: "algo",
+      });
     }
 
     const missing = await handleDataRequest({ kind: "cycle.accept", cycle: "C9" });
@@ -456,7 +473,15 @@ describe("handleDataRequest", () => {
       expect(result.data).toMatchObject({
         date: "2026-11-09",
         cycle: null,
-        subjects: [{ slug: "demo-subject", title: "演示科目", main: false, courses: ["demo"], materials: [{ title: "演示书", mark: "none" }] }],
+        subjects: [
+          {
+            slug: "demo-subject",
+            title: "演示科目",
+            main: false,
+            courses: ["demo"],
+            materials: [{ title: "演示书", mark: "none" }],
+          },
+        ],
       });
     }
   });
@@ -613,6 +638,111 @@ describe("handleDataRequest", () => {
       else process.env.XUEGEN_DESKTOP_CWD = previous;
       rmSync(workspace, { recursive: true, force: true });
     }
+  });
+
+  it("check.last is null before any run; check.run runs both checks and persists the result", async () => {
+    expect(await handleDataRequest({ kind: "check.last" })).toEqual({ ok: true, data: null });
+    const result = await handleDataRequest({ kind: "check.run" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const data = result.data as {
+        checkedAt: string;
+        vault: { where: string | null; kind: string }[];
+        courses: { where: string | null; kind: string }[];
+      };
+      // The writable demo course page must surface as a not-readonly problem.
+      expect(data.courses.map((problem) => problem.kind)).toContain("not-readonly");
+      for (const problem of [...data.vault, ...data.courses]) {
+        expect(problem.where === null || !problem.where.includes("/")).toBe(true);
+      }
+      expect(await handleDataRequest({ kind: "check.last" })).toEqual(result);
+    }
+  });
+
+  it("sessions.others lists sessions from the other folders under <home>/sessions", async () => {
+    const mine = join(home, "sessions", "--Users-me-app--");
+    mkdirSync(mine, { recursive: true });
+    const current = join(mine, "2026-11-08T09-00-00-000Z_a.jsonl");
+    writeFileSync(current, "", "utf8");
+    const other = join(home, "sessions", "--Users-alice-foo--");
+    mkdirSync(other, { recursive: true });
+    writeFileSync(
+      join(other, "2026-11-07T10-00-00-000Z_s.jsonl"),
+      JSON.stringify({ type: "message", message: { role: "user", content: "别处的会话" } }),
+      "utf8",
+    );
+    const result = await handleDataRequest({ kind: "sessions.others", current });
+    expect(result).toEqual({
+      ok: true,
+      data: [
+        {
+          dir: "--Users-alice-foo--",
+          label: "foo",
+          sessions: [expect.objectContaining({ firstUser: "别处的会话" })],
+        },
+      ],
+    });
+  });
+
+  it("course.stop and course.resume toggle the 停用 line through the staging transaction", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "xuegen-data-ws-"));
+    const previous = process.env.XUEGEN_DESKTOP_CWD;
+    process.env.XUEGEN_DESKTOP_CWD = workspace;
+    const page = join(vault, "wiki", "courses", "demo.md");
+    try {
+      // The plan-staging transaction requires the wiki index and log to exist.
+      touch(join(vault, "wiki", "index.md"), "# 索引\n");
+      touch(join(vault, "wiki", "log.md"), "# 学习日志\n");
+      const stop = await handleDataRequest({ kind: "course.stop", slug: "demo" });
+      expect(stop).toEqual({
+        ok: true,
+        data: { slug: "demo", action: "stop", date: localDate(), firstLesson: null },
+      });
+      expect(readFileSync(page, "utf8")).toContain("状态：停用");
+      // A repeated stop fails without touching the vault again.
+      const again = await handleDataRequest({ kind: "course.stop", slug: "demo" });
+      expect(again.ok).toBe(false);
+      if (!again.ok) expect(again.error).toContain("这门课已经停用了");
+      const resume = await handleDataRequest({ kind: "course.resume", slug: "demo" });
+      expect(resume).toEqual({
+        ok: true,
+        data: { slug: "demo", action: "resume", date: localDate(), firstLesson: null },
+      });
+      expect(readFileSync(page, "utf8")).not.toContain("状态：停用");
+    } finally {
+      execFileSync("chmod", ["-R", "u+rwX", vault]);
+      if (previous === undefined) delete process.env.XUEGEN_DESKTOP_CWD;
+      else process.env.XUEGEN_DESKTOP_CWD = previous;
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it("prefs.list and prefs.remove read and trim the 讲解偏好 section", async () => {
+    touch(
+      join(vault, "wiki", "subjects", "demo.md"),
+      ["# 演示科目", "", "## 讲解偏好", "", "- 默认风格：细讲", "- 别用比喻", ""].join("\n"),
+    );
+    const list = await handleDataRequest({ kind: "prefs.list" });
+    expect(list).toEqual({
+      ok: true,
+      data: [
+        {
+          subject: "demo",
+          title: "演示科目",
+          lines: [
+            { text: "默认风格：细讲", style: true },
+            { text: "别用比喻", style: false },
+          ],
+        },
+      ],
+    });
+    const remove = await handleDataRequest({ kind: "prefs.remove", subject: "demo", text: "别用比喻" });
+    expect(remove).toEqual({ ok: true, data: { subject: "demo", removed: "别用比喻" } });
+    const page = join(vault, "wiki", "subjects", "demo.md");
+    expect(readFileSync(page, "utf8")).not.toContain("别用比喻");
+    const gone = await handleDataRequest({ kind: "prefs.remove", subject: "demo", text: "别用比喻" });
+    expect(gone.ok).toBe(false);
+    if (!gone.ok) expect(gone.error).toContain("这条偏好已经不在了");
   });
 
   it("anki.status reports not running when Anki is unreachable", async () => {
