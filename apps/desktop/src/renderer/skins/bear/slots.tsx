@@ -42,8 +42,8 @@ import { useFollowBottom } from "../../core/chat/use-follow-bottom.js";
 import { lastAssistantMessage } from "../../core/chat/last-assistant.js";
 import { thinkingFor } from "../../core/chat/thinking.js";
 import { assistantTurns } from "../../core/chat/turns.js";
-import { isAborted, translateModelError } from "../../core/chat/model-error.js";
 import { retryDisplayOf } from "../../core/chat/retry-state.js";
+import { AnswerStatus } from "./answer-status.js";
 import { bearMotion } from "./motion.js";
 import { PinRail } from "./pin-rail.js";
 import { ControlFeed } from "./control-feed.js";
@@ -64,31 +64,6 @@ export function ErrorDetail({ raw }: { raw: string }) {
   );
 }
 
-/**
- * An in-message error: the translated summary plus the raw detail.
- *
- * A user-initiated stop is not a failure, so it renders as a plain status line
- * (no alert role, no detail) — the 重试 button beside it offers the next step.
- * An automatic connection retry gets the same plain treatment, because there is
- * nothing for the user to do while Pi works through it.
- */
-function MessageError({ raw }: { raw: string }) {
-  const { summary, detail } = translateModelError(raw);
-  if (isAborted(raw)) {
-    return (
-      <div className="bear-message-stopped" role="status">
-        <p>{summary}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="bear-message-error" role="alert">
-      <p>{summary}</p>
-      {detail && <ErrorDetail raw={detail} />}
-    </div>
-  );
-}
-
 /** The one soft line an automatic retry leaves behind, or null when the error block applies. */
 function RetryLine({ message }: { message: ChatMessage }) {
   const display = retryDisplayOf(message);
@@ -100,7 +75,7 @@ function RetryLine({ message }: { message: ChatMessage }) {
   );
 }
 
-/** True when the message carries a real error block (and therefore offers 重试). */
+/** True when the message carries a real error block (and therefore the status line). */
 function showsError(message: ChatMessage): boolean {
   return message.errorMessage !== undefined && retryDisplayOf(message).kind === "error";
 }
@@ -275,14 +250,7 @@ export function AssistantMessage({
         <div key={index}>{renderContent(node, streaming)}</div>
       ))}
       {message.errorMessage && <RetryLine message={message} />}
-      {showsError(message) && <MessageError raw={message.errorMessage ?? ""} />}
-      {showsError(message) && (
-        <div className="bear-answer-foot">
-          <button type="button" title={strings.chat.retryTitle} onClick={onRetry}>
-            {strings.chat.retry}
-          </button>
-        </div>
-      )}
+      {showsError(message) && <AnswerStatus raw={message.errorMessage ?? ""} hasText={nodes.length > 0} onRetry={onRetry} />}
     </article>
   );
 }

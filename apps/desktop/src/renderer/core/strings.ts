@@ -57,7 +57,6 @@ export const strings = {
     showAllWindows: "显示全部侧窗",
     thinkingLevel: "思考强度",
     palette: "配色",
-    paletteTitle: "切换配色",
     copyAnswer: "复制本条回答（Markdown）",
     selectAll: "全选",
     todayDone: "今天学到这里",
@@ -71,7 +70,6 @@ export const strings = {
     dismiss: "关闭",
     copy: "复制 Markdown",
     copied: "已复制",
-    copyTitle: "复制原始 Markdown",
     thinking: "正在思考",
     activitySearching: (detail: string): string => `正在查资料：${detail}`,
     activityWorking: (detail: string): string => `正在动手：${detail}`,
@@ -91,6 +89,8 @@ export const strings = {
     errorDetail: "详情",
     retry: "重试",
     retryTitle: "重发上一条提问",
+    answerAgain: "重新回答",
+    askOn: "或直接接着问",
     /** A dropped connection that Pi is retrying on its own (no 重试 button). */
     retrying: (attempt: number, maxAttempts: number): string =>
       `连接中途断开，正在自动重试（第 ${attempt} / ${maxAttempts} 次）…`,
