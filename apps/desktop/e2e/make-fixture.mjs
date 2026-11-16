@@ -58,8 +58,8 @@ export async function makeFixture(root) {
   await writeFile(join(home, "wiki.json"), `${JSON.stringify({ root: vault }, null, 2)}\n`);
   // bodyScale is required by the settings validator; without it the whole file
   // falls back to defaults (Chicago) and the proof screenshots lose the planbook.
-  // 1 is the normal body size; anything above it is "zoomed in", not the default look.
-  await writeFile(join(home, "desktop.json"), `${JSON.stringify({ skin: "bear", bodyScale: 1 }, null, 2)}\n`);
+  // 2 = 用户真实设置（Bear 最大一档 24px），截图与用户实际所见一致。
+  await writeFile(join(home, "desktop.json"), `${JSON.stringify({ skin: "bear", bodyScale: 2 }, null, 2)}\n`);
   await writeFile(join(home, "settings.json"), "{}\n");
   return { root: target, vault, home };
 }
