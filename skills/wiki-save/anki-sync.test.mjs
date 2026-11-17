@@ -2,14 +2,14 @@
 // anki-sync.mjs 的测试：node:test + node:assert，无第三方依赖。
 // 纯函数直接 import；端到端在 os.tmpdir() 下建临时 Wiki，用 node:http 起假 AnkiConnect，
 // 不连真实 Anki、不碰真实库。
-import { test } from "node:test";
+import { test, skip } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { parseCardPage, toAnkiHtml, insertIds, normalizeFront } from "./anki-sync.mjs";
 
@@ -762,6 +762,163 @@ test("push：没有 HTTP_PROXY 时照旧直连 fetch，代理一个请求都收�
     await proxy.close();
     await anki.close();
     await rm(vault, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------- jj：写回 ID 的卡片页各记一笔
+
+const hasJj = (() => {
+  try {
+    execFileSync("jj", ["--version"], { encoding: "utf8" });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const jjTest = hasJj ? test : (name) => skip(`${name}（本机没有 jj，跳过）`);
+
+/** 本地当天日期（与提交说明里用的是同一天）。 */
+function localToday() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** 临时库 + 独立根目录（jj 配置写在库外）。 */
+async function makeJjVault() {
+  const root = await mkdtemp(join(tmpdir(), "anki-sync-jj-"));
+  const vault = join(root, "vault");
+  await mkdir(join(vault, "wiki"), { recursive: true });
+  return { root, vault };
+}
+
+/** 在临时库里 `jj git init` 并把当前文件提交成基线；返回 { env, jj }。 */
+async function initJj(vault, root) {
+  const config = join(root, "jj-config.toml");
+  await writeFile(config, 'user.name = "卡片测试"\nuser.email = "test@example.com"\n');
+  const env = { JJ_CONFIG: config };
+  const jj = (args) =>
+    execFileSync("jj", args, { cwd: vault, encoding: "utf8", env: { ...process.env, ...env } });
+  jj(["git", "init"]);
+  jj(["commit", "-m", "基线"]);
+  return { env, jj };
+}
+
+/** 最近一次提交（@-）的说明。 */
+function lastDescription(jj) {
+  return jj(["log", "-r", "@-", "--no-graph", "-T", "description"]).trim();
+}
+
+jjTest("jj：push 把写回 ID 的卡片页记一笔「卡片 <今天>」", async () => {
+  const { root, vault } = await makeJjVault();
+  const anki = await startAnki();
+  try {
+    await writeCard(
+      vault,
+      "mme/a.md",
+      `TARGET DECK\nMME\n\n${BLOCK("问一", "答一")}\n\n${BLOCK("问二", "答二")}\n`,
+    );
+    const { env, jj } = await initJj(vault, root);
+
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], env);
+    assert.equal(result.added, 2);
+    assert.equal(result.committed, "ok");
+
+    assert.equal(lastDescription(jj), `卡片 ${localToday()}`);
+    assert.doesNotMatch(jj(["st"]), /flashcards/, "卡片页已被提交，不该留在工作副本");
+  } finally {
+    await anki.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+jjTest("jj：只提交写回 ID 的卡片页，无关改动留在工作副本", async () => {
+  const { root, vault } = await makeJjVault();
+  const anki = await startAnki();
+  try {
+    await writeCard(vault, "mme/a.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    const { env, jj } = await initJj(vault, root);
+    // 和卡片无关的未提交改动（用户在 Obsidian 里写的）。
+    await writeFile(join(vault, "wiki", "log.md"), "# 手写未提交\n");
+
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], env);
+    assert.equal(result.committed, "ok");
+
+    const status = jj(["st"]);
+    assert.match(status, /wiki\/log\.md/, "无关改动仍在工作副本");
+    assert.doesNotMatch(status, /flashcards/, "卡片页已被提交");
+  } finally {
+    await anki.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+jjTest("jj：没有要同步的卡时不新增提交，committed: skipped", async () => {
+  const { root, vault } = await makeJjVault();
+  const anki = await startAnki();
+  try {
+    await writeCard(
+      vault,
+      "done/a.md",
+      `TARGET DECK\nMME\n\n${["START", "Basic", "问", "Back: 答", "<!--ID: 1794060104186-->", "END"].join("\n")}\n`,
+    );
+    const { env, jj } = await initJj(vault, root);
+
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url], env);
+    assert.equal(result.added, 0);
+    assert.equal(result.committed, "skipped");
+    assert.equal(lastDescription(jj), "基线", "不该新增 jj 提交");
+
+    // 没写过任何页时文字输出也不补「没有记进 jj」那行。
+    const stdout = await syncWithEnv(["push", vault, "--url", anki.url], env);
+    assert.doesNotMatch(stdout, /没有记进 jj/);
+  } finally {
+    await anki.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+jjTest("jj：--dry-run 不记 jj，输出里没有 committed", async () => {
+  const { root, vault } = await makeJjVault();
+  const anki = await startAnki();
+  try {
+    const { env, jj } = await initJj(vault, root);
+    // 基线之后才写的卡片页：dry-run 不该碰它，也不该为它提交。
+    await writeCard(vault, "dry/a.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+
+    const result = await syncJsonWithEnv(["push", vault, "--url", anki.url, "--dry-run"], env);
+    assert.equal(result.dryRun, true);
+    assert.equal("committed" in result, false, "dry-run 不该有 committed 字段");
+    assert.equal(lastDescription(jj), "基线", "不该新增 jj 提交");
+    assert.match(jj(["st"]), /flashcards/, "未提交的卡片页应仍在工作副本");
+  } finally {
+    await anki.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("非 jj 库：push 照常成功，committed: skipped，文字末尾补「（没有记进 jj：库不是 jj 仓库）」", async () => {
+  const anki = await startAnki();
+  const jsonVault = await makeVault();
+  const textVault = await makeVault();
+  try {
+    await writeCard(jsonVault, "a.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    const result = await syncJsonWithEnv(["push", jsonVault, "--url", anki.url], {});
+    assert.equal(result.added, 1);
+    assert.equal(result.committed, "skipped");
+
+    const file = await writeCard(textVault, "b.md", `TARGET DECK\nMME\n\n${BLOCK("问", "答")}\n`);
+    const stdout = await syncWithEnv(["push", textVault, "--url", anki.url], {});
+    assert.match(stdout, /新增 1/);
+    assert.ok(
+      stdout.trimEnd().endsWith("（没有记进 jj：库不是 jj 仓库）"),
+      `末尾应补一行原因：${stdout}`,
+    );
+    assert.match(await readFile(file, "utf8"), /<!--ID:/, "ID 照样回填");
+  } finally {
+    await anki.close();
+    await rm(jsonVault, { recursive: true, force: true });
+    await rm(textVault, { recursive: true, force: true });
   }
 });
 
