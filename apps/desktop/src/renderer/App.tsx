@@ -46,7 +46,7 @@ import { useControlFold } from "./core/board/use-control-fold.js";
 import { pinBoard } from "./core/chat/pin-board.js";
 import { routeDismiss } from "./core/chat/view-models.js";
 import { useSkills } from "./core/board/use-skills.js";
-import { useSkillsPanel } from "./core/board/use-skills-panel.js";
+import { useSkillsPanel, withCheckAsk } from "./core/board/use-skills-panel.js";
 import { useSlash } from "./core/commands/use-slash.js";
 import { type ToolFocus } from "./core/commands/run-command.js";
 import { useRunCommand } from "./core/commands/use-run-command.js";
@@ -256,7 +256,7 @@ export function App() {
     calendar,
     cycle,
     subjects,
-    skillsPanel,
+    skillsPanel: withCheckAsk(skillsPanel, skillsPanel.checkResult, control.isControl ? controller.send : null),
     todayPlan,
     tomorrowPlan,
     courseTitles,

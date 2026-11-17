@@ -5485,3 +5485,54 @@
   font-size: var(--fs-1);
   line-height: var(--lh-1);
 }
+[data-skin="bear"] .bear-skill-check {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--gray-4);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+}
+[data-skin="bear"] .bear-skill-check-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+[data-skin="bear"] .bear-skill-check-head .bear-link {
+  margin-left: auto;
+  color: var(--accent-11);
+  font-weight: 500;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-skill-check-row {
+  margin: var(--sp-2) 0 0;
+}
+[data-skin="bear"] .bear-skill-check-row .bear-muted,
+[data-skin="bear"] .bear-skill-check > p {
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-skill-check-mark {
+  display: inline-block;
+  width: 1.25em;
+}
+[data-skin="bear"] .bear-skill-check-row.is-ok .bear-skill-check-mark {
+  color: var(--done-11);
+}
+[data-skin="bear"] .bear-skill-check-row.is-bad .bear-skill-check-mark {
+  color: var(--warn-11);
+}
+[data-skin="bear"] .bear-skill-check-group ul {
+  margin: var(--sp-1) 0 0 1.25em;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-skill-check > .bear-link {
+  margin-top: var(--sp-2);
+  color: var(--accent-11);
+  font-weight: 500;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}

@@ -92,3 +92,97 @@ describe("Bear 技能 panel · 学根一行", () => {
     expect(screen.queryByRole("button", { name: strings.about.check })).toBeNull();
   });
 });
+
+const CHECK_NO_PROBLEMS = {
+  last: "上次 11-16 10:20",
+  button: "重新检查",
+  running: false,
+  status: null,
+  groups: [
+    { title: "库", hint: "断链、概念页来源、文件命名", count: 0, lines: [] },
+    { title: "课程", hint: "只读锁、完成标记、排期与记录对得上", count: 0, lines: [] },
+  ],
+  hasProblems: false,
+};
+
+const CHECK_WITH_PROBLEMS = {
+  ...CHECK_NO_PROBLEMS,
+  groups: [
+    { title: "库", hint: "断链、概念页来源、文件命名", count: 0, lines: [] },
+    {
+      title: "课程",
+      hint: "只读锁、完成标记、排期与记录对得上",
+      count: 2,
+      lines: ["ctm · 课程页不是只读", "课程看板和课程页对不上"],
+    },
+  ],
+  hasProblems: true,
+};
+
+describe("Bear 技能 panel · 库检查", () => {
+  it("shows the last check and both clean groups", () => {
+    const { container } = render(
+      <SkillsPanel {...baseProps({ check: { ...CHECK_NO_PROBLEMS, onRun: vi.fn() } })} />,
+    );
+    const slot = container.querySelector('[data-slot="skills-check"]');
+    if (!(slot instanceof HTMLElement)) throw new Error("no 库检查 block");
+    expect(within(slot).getByText("库检查")).toBeTruthy();
+    expect(within(slot).getByText("上次 11-16 10:20")).toBeTruthy();
+    const rows = [...slot.querySelectorAll(".bear-skill-check-row.is-ok")].map((row) => row.textContent);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("✓");
+    expect(rows[0]).toContain("库：没有问题");
+    expect(rows[0]).toContain("断链、概念页来源、文件命名");
+    expect(rows[1]).toContain("✓");
+    expect(rows[1]).toContain("课程：没有问题");
+    expect(rows[1]).toContain("只读锁、完成标记、排期与记录对得上");
+    expect(screen.queryByRole("button", { name: "交给总控 →" })).toBeNull();
+  });
+
+  it("opens the course problems and hands them to 总控 when connected", async () => {
+    const onAsk = vi.fn();
+    const { container } = render(
+      <SkillsPanel {...baseProps({ check: { ...CHECK_WITH_PROBLEMS, onRun: vi.fn(), onAsk } })} />,
+    );
+    const details = container.querySelector("details");
+    if (!(details instanceof HTMLDetailsElement)) throw new Error("no problem group");
+    expect(details.open).toBe(true);
+    expect(details.querySelector("summary")?.textContent).toContain("课程：2 个问题");
+    expect(within(details).getByText("ctm · 课程页不是只读")).toBeTruthy();
+    expect(within(details).getByText("课程看板和课程页对不上")).toBeTruthy();
+    const ask = screen.getByRole("button", { name: "交给总控 →" });
+    await userEvent.click(ask);
+    expect(onAsk).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no 交给总控 button without onAsk", () => {
+    render(<SkillsPanel {...baseProps({ check: { ...CHECK_WITH_PROBLEMS, onRun: vi.fn() } })} />);
+    expect(screen.queryByRole("button", { name: "交给总控 →" })).toBeNull();
+  });
+
+  it("runs the check and disables the button while running", async () => {
+    const onRun = vi.fn();
+    const { container, rerender } = render(
+      <SkillsPanel {...baseProps({ check: { ...CHECK_NO_PROBLEMS, onRun } })} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "重新检查" }));
+    expect(onRun).toHaveBeenCalledTimes(1);
+    rerender(
+      <SkillsPanel
+        {...baseProps({
+          check: { ...CHECK_NO_PROBLEMS, running: true, status: "正在检查…", onRun },
+        })}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "重新检查" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    const slot = container.querySelector('[data-slot="skills-check"]');
+    if (!(slot instanceof HTMLElement)) throw new Error("no 库检查 block");
+    expect(within(slot).getByRole("status").textContent).toBe("正在检查…");
+  });
+
+  it("has no 库检查 block without check", () => {
+    const { container } = render(<SkillsPanel {...baseProps()} />);
+    expect(container.querySelector('[data-slot="skills-check"]')).toBeNull();
+  });
+});

@@ -1,0 +1,43 @@
+/** 「技能与设置」里「库检查」一块的文案（logic-ui-1116.html A ③）。core/strings.ts 已到行数上限，所以单放。 */
+export const checkStrings = {
+  title: "库检查",
+  never: "还没检查过",
+  last: (when: string): string => `上次 ${when}`,
+  run: "检查",
+  rerun: "重新检查",
+  running: "正在检查…",
+  failed: (error: string): string => `检查失败：${error}`,
+  vault: "库",
+  vaultHint: "断链、概念页来源、文件命名",
+  courses: "课程",
+  coursesHint: "只读锁、完成标记、排期与记录对得上",
+  ok: "没有问题",
+  count: (n: number): string => `${n} 个问题`,
+  note: "只报告，不在这里改；要修就点「交给总控」，总控按问题改。",
+  ask: "交给总控 →",
+  askTitle: "库检查",
+  askIntro:
+    "/skill:course 库检查发现下面这些问题，逐条看看该怎么改（课程页只走 course_plan / course_close，库里别的页照 wiki-save 的规矩）：",
+  boardWhere: "（看板）",
+  kinds: {
+    // 库（vault-lint）
+    name: "文件或目录名不合规",
+    generated: "生成的文件放错了位置",
+    "empty-dir": "空目录",
+    "concept-number": "概念页缺三位编号",
+    "card-concept": "卡片页没有同名的概念页",
+    link: "有链接没写全（靠文件名猜）",
+    "broken-link": "有链接指向不存在的页",
+    frontmatter: "概念页缺来源",
+    // 课程（course-state verify）
+    "dir-writable": "课程目录不是只读",
+    "not-readonly": "课程页不是只读",
+    "no-marker": "课程页缺状态标记",
+    "missing-section": "课程页缺固定段落",
+    "no-week": "课程页缺「当前周」",
+    "board-missing": "课程看板不存在",
+    "board-stale": "课程看板和课程页对不上",
+    "board-not-readonly": "课程看板不是只读",
+  } as Record<string, string>,
+  unknown: "有一处要看",
+};

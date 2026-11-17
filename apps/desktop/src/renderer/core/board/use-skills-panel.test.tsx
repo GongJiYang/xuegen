@@ -28,7 +28,11 @@ describe("useSkillsPanel · about", () => {
     vi.spyOn(client, "subscribe").mockReturnValue(() => undefined);
     const data = vi
       .spyOn(client, "data")
-      .mockResolvedValue({ ok: true, data: { kind: "idle", current: "" } });
+      .mockImplementation(async (request) =>
+        request.kind === "check.last"
+          ? { ok: true as const, data: null }
+          : { ok: true as const, data: { kind: "idle" as const, current: "" } },
+      );
     const { result } = renderHook(() => useSkillsPanel(skillsResource(), () => undefined));
     expect(typeof result.current.about?.onCheck).toBe("function");
     act(() => result.current.about?.onCheck());
