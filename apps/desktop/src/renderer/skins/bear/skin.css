@@ -318,34 +318,9 @@
   line-height: var(--lh-2);
 }
 
-/* Assistant message and its foot row (copy / retry as soft text buttons). */
+/* Assistant message. */
 [data-skin="bear"] .bear-answer {
   margin: 1em 0;
-}
-[data-skin="bear"] .bear-answer-foot {
-  font-family: var(--font-ui);
-  font-size: var(--fs-2);
-  line-height: var(--lh-2);
-  color: var(--soft);
-  display: flex;
-  gap: 1em;
-}
-[data-skin="bear"] .bear-answer-foot button {
-  color: var(--soft);
-}
-[data-skin="bear"] .bear-answer-foot button:hover {
-  color: var(--ink);
-}
-
-/* In-message errors: danger for real failures, soft status for a user stop. */
-[data-skin="bear"] .bear-message-error {
-  color: var(--danger);
-}
-[data-skin="bear"] .bear-message-error pre {
-  color: var(--soft);
-}
-[data-skin="bear"] .bear-message-stopped {
-  color: var(--soft);
 }
 /* An automatic connection retry: one soft line (recovering or recovered). */
 [data-skin="bear"] .bear-message-retry {
@@ -353,6 +328,58 @@
   font-size: var(--fs-2);
   line-height: var(--lh-2);
   font-family: var(--font-ui);
+}
+
+/* Stop / error status at the end of an answer (retry-line mockup, user 11-16): UI type, never scales with the body. */
+[data-skin="bear"] .bear-answer-status {
+  margin: 12px 0 4px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-2);
+  line-height: var(--lh-2);
+  color: var(--gray-11);
+}
+[data-skin="bear"] .bear-answer-status[data-has-text] {
+  padding-top: 8px;
+  border-top: 1px solid var(--gray-4);
+}
+[data-skin="bear"] .bear-answer-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+[data-skin="bear"] .bear-answer-status-mark {
+  flex: none;
+  width: 12px;
+  text-align: center;
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-answer-status-sep {
+  color: var(--gray-8);
+}
+[data-skin="bear"] .bear-answer-status[data-kind="error"] .bear-answer-status-mark,
+[data-skin="bear"] .bear-answer-status-msg {
+  color: var(--danger);
+}
+[data-skin="bear"] .bear-answer-status-actions {
+  padding-left: 24px;
+}
+[data-skin="bear"] .bear-answer-status-link,
+[data-skin="bear"] .bear-answer-status-link:hover {
+  color: var(--accent-11);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-answer-status-link:hover {
+  text-decoration: underline;
+}
+[data-skin="bear"] .bear-answer-status-detail {
+  margin: 4px 0 0 24px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+  color: var(--gray-11);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 [data-skin="bear"] .bear-error-detail summary {
   cursor: pointer;
@@ -1895,7 +1922,7 @@
 [data-skin="bear"] .bear-turn-part[data-turn]:not([data-tools-open]):not([data-has-text]):not([data-turn-last]) {
   display: none;
 }
-[data-skin="bear"] .bear-turn-part[data-turn]:not([data-turn-last]) .bear-answer-foot {
+[data-skin="bear"] .bear-turn-part[data-turn]:not([data-turn-last]) .bear-answer-status-act {
   display: none;
 }
 

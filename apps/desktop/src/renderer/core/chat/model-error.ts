@@ -22,8 +22,8 @@ export const MODEL_ERROR_SUMMARIES = {
   /** Out-of-credit failures (HTTP 402 / `insufficient_balance`). */
   balance: "DeepSeek 余额不足：请充值，或在「模型」菜单换一个模型。",
   network: "连接中途断开了。",
-  /** A user-initiated stop; not a failure, so it reads as guidance. */
-  aborted: "已停止。可以继续提问，或点「重试」。",
+  /** A user-initiated stop; not a failure. The skin puts the next steps beside it. */
+  aborted: "已停止",
   generic: "模型出错了。",
 } as const;
 
