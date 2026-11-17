@@ -21,7 +21,8 @@ import type {
 } from "@shared/protocol.js";
 import { assertNever, withValidRetry } from "@shared/protocol.js";
 import { strings } from "../strings.js";
-import { MODEL_ERROR_SUMMARIES, isAborted, translateModelError } from "./model-error.js";
+import { MODEL_ERROR_SUMMARIES, translateModelError } from "./model-error.js";
+import { retryDisplayOf } from "./retry-state.js";
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -102,6 +103,13 @@ function withoutError(state: ChatState, error: string | undefined): ChatState {
   return { ...state, errors: state.errors.filter((entry) => errorKey(entry) !== key) };
 }
 
+/** Whether the last assistant message already shows this error (same kind) in its status line. */
+function lastAnswerShows(state: ChatState, error: string): boolean {
+  const last = [...state.messages].reverse().find((message) => message.role === "assistant");
+  if (last?.errorMessage === undefined || retryDisplayOf(last).kind !== "error") return false;
+  return errorKey(last.errorMessage) === errorKey(error);
+}
+
 function upsertMessage(state: ChatState, message: ChatMessage): ChatState {
   const index = state.messages.findIndex((entry) => entry.id === message.id);
   if (index === -1) return { ...state, messages: [...state.messages, message] };
@@ -172,9 +180,9 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       // that the failed attempt raised goes away while Pi retries, and comes
       // back only if the retries give up (the mapper then drops the marker).
       if (message.retry !== undefined) return withoutError(next, message.errorMessage);
-      // A user stop is guidance in the message itself, not a session-level error.
-      const error = message.errorMessage;
-      return error === undefined || isAborted(error) ? next : appendError(next, error);
+      // The answer shows its own error in its status line (11-17, error-once.html):
+      // the banner must not say it again, so drop one the `error` event raised.
+      return withoutError(next, message.errorMessage);
     }
     case "tool-call":
       return applyToolCall(state, event.messageId, event.call);
@@ -188,6 +196,9 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
     case "agent-status":
       return { ...state, agentStatus: event.status };
     case "error":
+      // Already shown at the end of the last answer: no second copy in the banner.
+      if (lastAnswerShows(state, event.error)) return state;
+      return appendError(state, event.error);
     case "fatal":
       return appendError(state, event.error);
     case "models-changed":
