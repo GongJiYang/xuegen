@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.17.0 — 2026-11-17
+
+- Skills: 收课 is faster and commits once — `course_close stage` returns a `brief` (what to tick, where the 课后读 goes, which records to archive), `archive` folds old learning records in one step, and `check` adds non-blocking `warnings` when a main-course close has no 课后读 yet or more than two learning records; the course skill has a pre-commit checklist so a close no longer turns into several 「收课」 commits that 撤销 can't fully undo.
+- Desktop: after 停止 or an error, the answer ends with one status line — 「■ 已停止 · 重新回答 · 或直接接着问」, or a red 「! …」 with 「重试 · 详情 ▸」 — instead of a body-sized sentence and a small grey 重试 (`answer-status.tsx`).
+- Desktop: 陪读 no longer shows the previous course's opening card, and asks the model to follow the reading skill's new 「陪读」 section (a plain-language map of the pages first, then read along; no quiz, no records).
+- Backend (no UI yet): `course-stop.mjs` stop / resume a course in one transaction, `subject-prefs.mjs` list / remove 讲解偏好, `check.run` runs vault-lint and course-state verify, `sessions.list` can list sessions from other folders.
+- Dev: CI is green again (locale-independent text ordering, `max-lines` baseline); `npm run proof` with a synthetic fixture library for screenshots.
+
 ## v0.16.0 — 2026-11-16
 
 - Desktop: 开课前回想一下 — on wide windows (panel ≥ 1480) the 总控 今天 card shows, beside the 上课 group, the concept pages saved in each course's previous lesson; clicking one opens it in the reader, and the footer links to the subject's 领域 page (`recall.ts`, `use-recall.ts`, Bear `recall-block.tsx`). Hidden on D1, on days without a main course, and when printing.
