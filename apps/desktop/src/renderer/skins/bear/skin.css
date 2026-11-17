@@ -772,6 +772,15 @@
   margin: 0.7em 0;
   font-size: 0.92em;
 }
+/* The caption is a screen-reader label (「数据表格」), not a line on the page —
+   in the chat as in the reader and the domain page. */
+[data-skin="bear"] .bear-table > caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 [data-skin="bear"] .bear-table th,
 [data-skin="bear"] .bear-table td {
   border: 1px solid var(--rule);
@@ -4494,8 +4503,7 @@
 [data-skin="bear"] .bear-reader-body > div {
   max-width: 62em;
 }
-/* A concept page reads like a page: a narrower measure, airier lines, and the
-   table caption (a screen-reader label) out of sight. */
+/* A concept page reads like a page: a narrower measure and airier lines. */
 [data-skin="bear"] .bear-reader-body.is-page {
   padding: var(--sp-5) var(--sp-6) var(--sp-7);
   line-height: 1.75;
@@ -4520,13 +4528,6 @@
   width: 100%;
   font-size: var(--fs-1);
   line-height: 1.55;
-}
-[data-skin="bear"] .bear-reader-body.is-page caption {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 [data-skin="bear"] .bear-reader-nav {
   display: flex;
@@ -5299,14 +5300,6 @@
   width: 100%;
   font-size: var(--fs-1);
   line-height: var(--lh-1);
-}
-/* The table caption is a screen-reader label, not a heading on the page. */
-[data-skin="bear"] .bear-dp-body caption {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 @container (max-width: 900px) {
   [data-skin="bear"] .bear-dp {

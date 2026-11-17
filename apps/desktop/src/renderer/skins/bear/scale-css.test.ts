@@ -115,4 +115,13 @@ describe("bear scale in CSS", () => {
       expect(rule(selector), `${selector} should set --fs-1`).toContain("font-size: var(--fs-1)");
     }
   });
+
+  it("keeps every Bear table caption for screen readers only", () => {
+    const body = rule(`${PREFIX}.bear-table > caption`);
+    expect(body).toMatch(/position:\s*absolute/);
+    expect(body).toMatch(/width:\s*1px/);
+    expect(body).toMatch(/height:\s*1px/);
+    expect(body).toMatch(/overflow:\s*hidden/);
+    expect(body).toMatch(/clip-path:\s*inset\(50%\)/);
+  });
 });
