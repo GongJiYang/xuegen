@@ -32,7 +32,7 @@ function Markdown({ markdown }: { markdown: string }) {
 function Table({ header, rows }: { header: string[]; rows: string[][] }) {
   return (
     <table className="bear-table">
-      <caption className="bear-muted">{strings.content.tableCaption}</caption>
+      <caption>{strings.content.tableCaption}</caption>
       <thead>
         <tr>
           {header.map((cell, index) => (
