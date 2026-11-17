@@ -9,7 +9,7 @@
  * Shift+Enter wraps, Escape stops a running answer (with the field's text left
  * untouched), the `/` menu takes over arrows/Enter/Escape while open, a `/skill:`
  * command inserts into the field, and an unknown `/xxx` is never sent to the
- * model. A stop puts the prompt just sent back into an empty field, and so does a
+ * model. A stop puts withdrawn queued messages back into an empty field, and so does a
  * confirmed session switch with the words it withdrew from the old queue.
  */
 
@@ -159,7 +159,7 @@ export function Composer({
     [hasText, value, onInput],
   );
 
-  /** Stop the answer and put the prompt just sent back into the field. */
+  /** Stop the answer and put withdrawn queued messages back into the field. */
   function stopAndRestore(): void {
     const back = onStop();
     if (!back) return;

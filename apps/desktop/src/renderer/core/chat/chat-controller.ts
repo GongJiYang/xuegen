@@ -53,12 +53,10 @@ export interface ChatController {
   /** A note put in front of the next prompt only, in place of the refresh note. */
   setOnceNote(note: string): void;
   /**
-   * Stop the running answer.
-   *
-   * Returns the text of the prompt just sent (the user's own words, without the
-   * style prefix or a refresh note), or null when there is no such prompt left —
-   * a skin puts it back into an empty composer so an accidental stop, or send,
-   * can be undone.
+   * Stop the running answer. Returns the user's own words of the messages still
+   * queued behind it (withdrawn from the conversation), or null when nothing was
+   * queued — a skin puts them back into the composer so they are not lost. The
+   * prompt being answered is not handed back: its answer ends with 「重新回答」.
    */
   stop(): string | null;
   /** Resend the most recent user message, after a stop or a failed answer. */

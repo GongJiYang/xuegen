@@ -6,7 +6,7 @@
  * When the `/` menu is open it floats above the field. A `/skill:<name>`
  * command inserts into the field for the user to finish; every other command is
  * handed to core through `onRunCommand`. Escape stops a running answer even with
- * text in the field, and a stop puts the prompt just sent back into an empty field.
+ * text in the field, and a stop puts withdrawn queued messages back into an empty field.
  */
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -86,7 +86,7 @@ export function Composer({
   }
 
   /**
-   * Stop the answer and put the prompt just sent back into the field.
+   * Stop the answer and put withdrawn queued messages back into the field.
    *
    * The field is left alone when it already has text: whatever the user is
    * writing now outranks the message being returned. The caret goes to the end

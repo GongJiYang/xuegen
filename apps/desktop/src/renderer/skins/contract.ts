@@ -477,11 +477,11 @@ export interface ComposerProps {
   /**
    * Stop the running answer.
    *
-   * Returns the queued messages the stop withdrew from the conversation (the
-   * user's own words, several joined by a blank line), or — when nothing was
-   * queued — the prompt that was just sent; null when there is none to give
-   * back. The skin puts it back into the field (in front of any draft), so an
-   * accidental send or stop can be undone and a withdrawn message is not lost.
+   * Returns the user's own words of the messages still queued behind it
+   * (withdrawn from the conversation, several joined by a blank line), or null
+   * when nothing was queued. The skin puts them back into the field (in front of
+   * any draft), so a withdrawn message is not lost. The prompt being answered is
+   * not handed back: its answer ends with 「重新回答」.
    */
   onStop(): string | null;
   /**
