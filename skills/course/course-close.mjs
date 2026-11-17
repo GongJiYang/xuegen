@@ -8,8 +8,9 @@
 // （rules.checkSubjectPreference）：用户 2026-11-08 要求课上说的「以后讲离散都…」
 // 当场记进本科目页，不该等到总控。这类提交用 --label 偏好，`undo` 只认「收课」，
 // 所以撤不到它。
-//   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]
+//   node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--today YYYY-MM-DD] [--json]
 //   node course-close.mjs add     <暂存目录> <库内相对路径> [--json]
+//   node course-close.mjs archive <暂存目录> [--keep N] [--json]
 //   node course-close.mjs check   <暂存目录> [--json]
 //   node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]
 //   node course-close.mjs abort   <暂存目录>
@@ -38,6 +39,9 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail } from "./close/fail.mjs";
+import { archiveRecords } from "./close/archive.mjs";
+import { closeBrief } from "./close/brief.mjs";
+import { gatherCloseWarnings } from "./close/warnings.mjs";
 import { addedCompletedIds, checkSelfReport, isOwned, isSafeRelPath } from "./close/rules.mjs";
 import { addAfterRead } from "../reading/shelf-after.mjs";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
@@ -91,23 +95,33 @@ export { parseDiffEntries } from "./close/jj.mjs";
 
 // ---- 命令 ----
 
-function cmdStage(vaultArg, slug, flags, json) {
+async function cmdStage(vaultArg, slug, flags, json) {
   const vault = resolve(vaultArg ?? fail("stage 需要 <vault>"));
   const workspace = resolve(flags.workspace ?? fail("stage 需要 --workspace <工作区>"));
   if (!slug) fail("stage 需要 <slug>");
+  if (flags.today && !/^\d{4}-\d{2}-\d{2}$/.test(flags.today)) fail("--today 要写成 YYYY-MM-DD");
   const staging = stageInternal(vault, slug, workspace, {
     kind: flags.kind ?? "close",
     isNew: flags.new === true,
     subject: flags.subject ?? null,
   });
+  if (json && (flags.kind ?? "close") === "close") {
+    let brief = null;
+    let briefError;
+    try {
+      brief = await closeBrief(staging, loadManifest(staging), flags.today ?? localDate());
+    } catch (error) {
+      briefError = error instanceof Error ? error.message : String(error);
+    }
+    const out = brief === null ? { staging, brief, briefError } : { staging, brief };
+    process.stdout.write(`${JSON.stringify(out)}\n`);
+    return;
+  }
   process.stdout.write(json ? `${JSON.stringify({ staging })}\n` : `${staging}\n`);
 }
 
-function cmdAdd(stagingArg, rel, json) {
-  const staging = resolve(stagingArg ?? fail("add 需要 <暂存目录>"));
-  if (!rel) fail("add 需要 <库内相对路径>");
-  recoverInternal(workspaceOf(staging));
-  const manifest = loadManifest(staging);
+/** add 的事务内核：校验路径归属与存在性、复制进暂存、记 manifest.base 并落盘。 */
+function addInternal(staging, manifest, rel) {
   if (!isOwned(rel, manifest.slug, manifest.subject, manifest.kind ?? "close", manifest.book ?? null)) {
     fail(`这个路径不属于本课：${rel}`);
   }
@@ -118,21 +132,61 @@ function cmdAdd(stagingArg, rel, json) {
   chmodSync(join(staging, rel), WRITABLE_FILE);
   manifest.base[rel] = sha256(src);
   saveManifest(staging, manifest);
+}
+
+function cmdAdd(stagingArg, rel, json) {
+  const staging = resolve(stagingArg ?? fail("add 需要 <暂存目录>"));
+  if (!rel) fail("add 需要 <库内相对路径>");
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  addInternal(staging, manifest, rel);
   process.stdout.write(json ? `${JSON.stringify({ added: rel })}\n` : `已暂存 ${rel}\n`);
 }
 
-function cmdCheck(stagingArg, json) {
+/**
+ * 收课归档（issue「收课提速」）：Learning Record 只留最新 keep 条，更早的整块原样
+ * 挪进 records/YYYY-MM.md 并写好归档行。库里已有的归档文件经 add 同一套校验复制进
+ * 暂存、记 manifest.base——不直接动正式库，随后照常 check/commit。
+ */
+function cmdArchive(stagingArg, flags, json) {
+  const staging = resolve(stagingArg ?? fail("archive 需要 <暂存目录>"));
+  recoverInternal(workspaceOf(staging));
+  const manifest = loadManifest(staging);
+  if ((manifest.kind ?? "close") !== "close") fail("archive 只用于收课暂存");
+  const keep = Number(flags.keep ?? 2);
+  if (!Number.isInteger(keep) || keep < 0) fail("--keep 要是非负整数");
+  const out = archiveRecords(staging, manifest, {
+    keep,
+    addToStaging: (rel) => addInternal(staging, manifest, rel),
+  });
+  saveManifest(staging, manifest);
+  if (json) {
+    process.stdout.write(`${JSON.stringify(out)}\n`);
+  } else if (out.moved.length === 0) {
+    process.stdout.write("不用归档\n");
+  } else {
+    process.stdout.write(`已归档 ${out.moved.length} 条：${out.moved.join("、")}\n`);
+  }
+}
+
+async function cmdCheck(stagingArg, json) {
   const staging = resolve(stagingArg ?? fail("check 需要 <暂存目录>"));
   recoverInternal(workspaceOf(staging));
-  const { result } = gatherCheck(staging);
+  const { manifest, result } = gatherCheck(staging);
+  // warnings 是提醒不是校验（收课暂存才有）：不挡提交、不影响 ok。
+  const warnings =
+    (manifest.kind ?? "close") === "close" ? await gatherCloseWarnings(staging, manifest) : [];
   if (json) {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
   } else {
     for (const problem of result.problems) {
       process.stdout.write(`${problem.path}: [${problem.kind}] ${problem.detail}\n`);
     }
     for (const change of result.changes) {
       process.stdout.write(`${change.action === "create" ? "新增" : "修改"} ${change.path}\n`);
+    }
+    for (const warning of warnings) {
+      process.stdout.write(`提醒：${warning}\n`);
     }
     process.stdout.write(result.ok ? `check: 通过，${result.changes.length} 个文件待提交\n` : "check: 未通过\n");
   }
@@ -574,8 +628,9 @@ function usage() {
     "暂存分两种：close（默认，课程会话收课）与 plan（总控建课/改计划，commit 记「计划」）。",
     "",
     "用法：",
-    "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--json]",
+    "  node course-close.mjs stage   <vault> <slug> --workspace <工作区> [--kind plan] [--new --subject <科目id>] [--today YYYY-MM-DD] [--json]",
     "  node course-close.mjs add     <暂存目录> <库内相对路径> [--json]",
+    "  node course-close.mjs archive <暂存目录> [--keep N] [--json]",
     "  node course-close.mjs check   <暂存目录> [--json]",
     "  node course-close.mjs commit  <暂存目录> [--label 收课|存档点|偏好|自报] [--json]",
     "  node course-close.mjs abort   <暂存目录>",
@@ -597,7 +652,7 @@ function usage() {
   ].join("\n");
 }
 
-function main() {
+async function main() {
   const { positional, flags } = parseArgs(process.argv.slice(2));
   const [command, ...rest] = positional;
   if (flags.help || !command) {
@@ -605,9 +660,10 @@ function main() {
     return;
   }
   const json = Boolean(flags.json);
-  if (command === "stage") cmdStage(rest[0], rest[1], flags, json);
+  if (command === "stage") await cmdStage(rest[0], rest[1], flags, json);
   else if (command === "add") cmdAdd(rest[0], rest[1], json);
-  else if (command === "check") cmdCheck(rest[0], json);
+  else if (command === "archive") cmdArchive(rest[0], flags, json);
+  else if (command === "check") await cmdCheck(rest[0], json);
   else if (command === "commit") cmdCommit(rest[0], flags.label, json);
   else if (command === "abort") cmdAbort(rest[0]);
   else if (command === "after-read") cmdAfterRead(rest[0], flags, json);
@@ -629,7 +685,7 @@ function isMain() {
 
 if (isMain()) {
   try {
-    main();
+    await main();
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
   }

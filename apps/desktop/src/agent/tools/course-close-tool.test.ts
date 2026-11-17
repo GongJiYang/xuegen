@@ -33,6 +33,7 @@ const COMPLETE: Record<CloseAction, Params> = {
     staging: "/home/learning/.close/discrete-math-epp-1",
     path: "wiki/knowledge/concepts/x.md",
   },
+  archive: { action: "archive", staging: "/home/learning/.close/discrete-math-epp-1" },
   check: { action: "check", staging: "/home/learning/.close/discrete-math-epp-1" },
   commit: { action: "commit", staging: "/home/learning/.close/discrete-math-epp-1" },
   abort: { action: "abort", staging: "/home/learning/.close/discrete-math-epp-1" },
@@ -71,6 +72,29 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
       "discrete-math-epp",
       "--workspace",
       CWD,
+      "--json",
+    ]);
+  });
+
+  it("stage passes --today when today is given", () => {
+    expect(
+      courseCloseArgs({ action: "stage", slug: "discrete-math-epp", today: "2026-11-16" }, VAULT, CWD),
+    ).toEqual([
+      "stage",
+      VAULT,
+      "discrete-math-epp",
+      "--workspace",
+      CWD,
+      "--today",
+      "2026-11-16",
+      "--json",
+    ]);
+  });
+
+  it("archive passes the staging directory, always with --json", () => {
+    expect(courseCloseArgs(COMPLETE.archive, VAULT, CWD)).toEqual([
+      "archive",
+      "/home/learning/.close/discrete-math-epp-1",
       "--json",
     ]);
   });
@@ -232,6 +256,7 @@ describe("courseCloseArgs — 一个动作一条 argv", () => {
       [{ action: "undo" }, /undo 缺少 slug/],
       [{ action: "add" }, /add 缺少 staging/],
       [{ action: "add", staging: "/home/learning/.close/discrete-math-epp-1" }, /add 缺少 path/],
+      [{ action: "archive" }, /archive 缺少 staging/],
       [{ action: "check" }, /check 缺少 staging/],
       [{ action: "commit" }, /commit 缺少 staging/],
       [{ action: "abort" }, /abort 缺少 staging/],
