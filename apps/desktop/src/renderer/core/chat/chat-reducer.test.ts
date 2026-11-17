@@ -301,7 +301,7 @@ describe("chatReducer retry clears the error banner", () => {
     expect(retrying.messages[0]?.retry).toEqual({ attempt: 1, maxAttempts: 3 });
   });
 
-  it("raises the banner again when the retries give up", () => {
+  it("shows a given-up failure on the answer only, not in the banner", () => {
     const errored = reduce(initialChatState, { type: "error", error: "terminated" });
     const retrying = reduce(errored, {
       type: "message-end",
@@ -309,7 +309,65 @@ describe("chatReducer retry clears the error banner", () => {
     });
     const givenUp = reduce(retrying, { type: "message-end", message: failed });
 
-    expect(givenUp.errors).toEqual(["terminated"]);
+    expect(givenUp.errors).toEqual([]);
+    expect(givenUp.messages[0]?.errorMessage).toBe("terminated");
     expect(givenUp.messages[0]?.retry).toBeUndefined();
+  });
+});
+
+describe("chatReducer shows an answer's error once", () => {
+  const errorMessage = "401 invalid_api_key";
+
+  it("drops the banner when the answer ends with the same error", () => {
+    const errored = reduce(initialChatState, { type: "error", error: errorMessage });
+    const ended = reduce(errored, {
+      type: "message-end",
+      message: { ...assistantMessage, streaming: false, errorMessage },
+    });
+
+    expect(ended.errors).toEqual([]);
+  });
+
+  it("does not raise a banner for an error the last answer already shows", () => {
+    const ended = reduce(initialChatState, {
+      type: "message-end",
+      message: { ...assistantMessage, streaming: false, errorMessage },
+    });
+    const errored = reduce(ended, { type: "error", error: errorMessage });
+
+    expect(errored.errors).toEqual([]);
+  });
+
+  it("keeps the banner for an error no answer shows", () => {
+    const noAnswer = reduce(initialChatState, { type: "error", error: "boom" });
+    expect(noAnswer.errors).toEqual(["boom"]);
+
+    const answered = reduce(initialChatState, {
+      type: "message-end",
+      message: { ...assistantMessage, streaming: false, markdown: "好的" },
+    });
+    const later = reduce(answered, { type: "error", error: "boom" });
+
+    expect(later.errors).toEqual(["boom"]);
+  });
+
+  it("keeps the banner for a different error than the answer's", () => {
+    const ended = reduce(initialChatState, {
+      type: "message-end",
+      message: { ...assistantMessage, streaming: false, errorMessage: "terminated" },
+    });
+    const errored = reduce(ended, { type: "error", error: "402 insufficient balance" });
+
+    expect(errored.errors).toEqual(["402 insufficient balance"]);
+  });
+
+  it("fatal still raises the banner", () => {
+    const ended = reduce(initialChatState, {
+      type: "message-end",
+      message: { ...assistantMessage, streaming: false, errorMessage: "boom" },
+    });
+    const fatal = reduce(ended, { type: "fatal", error: "boom" });
+
+    expect(fatal.errors).toEqual(["boom"]);
   });
 });

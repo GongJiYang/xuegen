@@ -27,7 +27,7 @@ export function noticesFor(state: ChatState): NoticeItem[] {
 
   for (const error of state.errors) {
     // A user-initiated stop is not an error: the message itself carries the
-    // "已停止" guidance and a 重试 button, so it must not raise an alert box.
+    // "已停止" guidance and a 重新回答 link, so it must not raise an alert box.
     if (isAborted(error)) continue;
     const { summary, detail } = translateModelError(error);
     notices.push(detail === null ? { tone: "error", text: summary } : { tone: "error", text: summary, detail });
