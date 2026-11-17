@@ -4,6 +4,7 @@
 // 无第三方依赖（AnkiConnect 用全局 fetch）。<vault> 为 Wiki 库根目录（含 wiki/ 子目录）；
 // 知识目录 = wiki/knowledge（与 flashcards.mjs 同一约定）。
 //   node anki-sync.mjs push <vault> [--dry-run] [--json] [--url http://127.0.0.1:8765]
+// 写回 ID 的卡片页各记一笔 jj（库是 jj 仓库时），失败不阻断。
 // 沙盒内直连 127.0.0.1:8765 会被 seatbelt 拦下（NO_PROXY 含 127.0.0.1，只有代理端口被放行），
 // 所以进程里有 HTTP_PROXY / http_proxy 且目标是本机地址时，不用 fetch，改经代理发
 // HTTP 正向代理的绝对 URL POST（见 postViaProxy）；没有代理变量时照旧直连。
@@ -12,6 +13,7 @@ import { readFile, writeFile, readdir, rename } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { jjCommit } from "../course/close/jj.mjs";
 
 const START_RE = /^START\s*$/;
 const END_RE = /^END\s*$/;
@@ -316,6 +318,12 @@ function short(text) {
   return flat.length > 60 ? `${flat.slice(0, 60)}…` : flat;
 }
 
+function localDate() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 function relativeToVault(vault, file) {
   const prefix = `${resolve(vault)}/`;
   const full = resolve(file);
@@ -478,6 +486,7 @@ async function commandPush(vault, options) {
   }
   result.presetMissing = await setupStudyPreset(url, decks);
 
+  const written = [];
   for (const page of pages) {
     const inserted = [];
     for (const item of page.pending) {
@@ -528,10 +537,14 @@ async function commandPush(vault, options) {
     }
     if (inserted.length > 0) {
       await writeAtomic(page.file, insertIds(page.text, inserted));
+      written.push(page.rel);
     }
   }
 
-  output(options, result, () => renderResult(result));
+  // 写回 ID 的卡片页各记一笔 jj：库不是 jj 仓库或 jj 失败都不阻断（返回 "skipped"/"failed: …"）。
+  result.committed = jjCommit(vault, `卡片 ${localDate()}`, written);
+
+  output(options, result, () => renderResult(result, written.length > 0));
 }
 
 function renderDryRun(result) {
@@ -544,7 +557,7 @@ function renderDryRun(result) {
   return `${lines.join("\n")}${renderTail(result)}`;
 }
 
-function renderResult(result) {
+function renderResult(result, wrotePages) {
   const lines = [
     `新增 ${result.added}｜关联 ${result.linked.length}｜重复 ${result.duplicates.length}｜失败 ${result.failed.length}｜跳过 ${result.skipped.length}`,
   ];
@@ -552,7 +565,16 @@ function renderResult(result) {
   for (const item of result.duplicates) lines.push(`重复：${item.file} 第${item.block}块「${item.front}」`);
   for (const item of result.failed) lines.push(`失败：${item.file} 第${item.block}块「${item.front}」${item.error}`);
   for (const item of result.skipped) lines.push(`跳过（${item.type}）：${item.file} 第${item.block}块「${item.front}」`);
-  return `${lines.join("\n")}${renderTail(result)}`;
+  return `${lines.join("\n")}${renderTail(result)}${commitNote(result.committed, wrotePages)}`;
+}
+
+// 文字输出尾巴：committed 非 ok 且这次真写过页时补一行原因；ok、或没写过页（skipped）时不加。
+function commitNote(committed, wrotePages) {
+  if (committed === "ok") return "";
+  if (committed === "skipped" && !wrotePages) return "";
+  const reason =
+    committed === "skipped" ? "库不是 jj 仓库" : String(committed).replace(/^failed:\s*/, "");
+  return `\n（没有记进 jj：${reason}）`;
 }
 
 function renderTail(result) {
@@ -581,6 +603,7 @@ function usage() {
     "push：把 <知识目录>/flashcards/ 下没有 <!--ID:--> 的 Basic 块写进 Anki，ID 回填到块内。",
     "      Anki 里已有同一张卡（addNote 报 duplicate）时，按正面唯一匹配回填那张卡的 ID（输出里记「关联」）。",
     "      块缺 END（下一个 START 前或文件末尾没 END）不进 Anki，列进 failed（错误为「缺少 END」）。",
+    "      写回 ID 的卡片页各记一笔 jj（库是 jj 仓库时），失败不阻断。",
     "--dry-run 只列出要同步的卡，不连 Anki、不写文件。",
   ].join("\n");
 }
