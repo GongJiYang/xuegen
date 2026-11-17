@@ -1,0 +1,73 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><title>停止 / 出错后的「重试」· 返修稿（11-16）</title>
+<style>
+:root{--g3:#232322;--g4:#2a2a29;--g6:#2e2e2c;--g7:#3e3e3b;--g8:#62625f;--g11:#a9a9a3;--g12:#ededeb;--a11:#6cc3ff;--danger:#ff8a8a;--paper:#161615;--hlb:#e0b25c}
+*{box-sizing:border-box}
+body{margin:0;background:#0e0e0d;font:14px/20px -apple-system,"PingFang SC",sans-serif;color:var(--g12)}
+.doc{max-width:1240px;margin:0 auto;padding:24px 28px 64px}
+h1{font-size:18px;margin:0 0 4px}h3{font-size:15px;margin:36px 0 6px}
+.note{color:var(--g11);margin:0 0 14px;max-width:110ch}.note b{color:var(--g12)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+.cap{font-size:12px;color:var(--g11);margin-bottom:6px}
+.chat{background:var(--paper);border:1px solid var(--g7);border-radius:10px;padding:16px 20px}
+.body{font:17px/1.75 "Songti SC",serif;color:var(--g12)}
+.quote{border-left:3px solid var(--g7);padding-left:14px;color:var(--g12);margin:8px 0 16px}
+.old-stop{font:17px/1.75 "Songti SC",serif;color:var(--g11);margin:4px 0}
+.old-btn{font-size:12px;color:var(--g11)}
+/* new */
+.st{display:flex;align-items:baseline;gap:12px;margin:12px 0 4px;padding-top:8px;border-top:1px solid var(--g4);font-size:14px;line-height:20px}
+.st .t{color:var(--g11)}
+.st .t.err{color:var(--danger)}
+.st .mark{color:var(--g8);width:12px;text-align:center}
+.st .mark.err{color:var(--danger)}
+.lk{color:var(--a11);font-weight:500}
+.sp{color:var(--g8)}
+.det{font-size:12px;line-height:16px;color:var(--g11);margin-left:24px}
+.chg{outline:1px dashed var(--hlb);outline-offset:4px;border-radius:3px}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:20px;margin-top:8px}
+th,td{border-bottom:1px solid var(--g6);padding:6px 10px;text-align:left;vertical-align:top}
+th{color:var(--g11);font-weight:500}
+</style>
+<div class="doc">
+<h1>停止 / 出错后的「重试」· 返修稿</h1>
+<p class="note">用户 11-16 截图：「已停止。可以继续提问，或点『重试』。」用的是正文的大号宋体，和回答本身分不开；「重试」单独一行、12px 灰字，看着像注释不像按钮。改成：回答末尾<b>一条细分隔线 + 一行界面字</b>，状态和动作在同一行，动作是蓝色链接。</p>
+
+<h3>① 自己点了停止</h3>
+<div class="pair">
+<div><div class="cap">现在</div><div class="chat body">
+  <div class="quote">假，取 1/2 就不成立，∀x，如果能被 6 整除的整数都能被 3 整除</div>
+  <div class="old-stop">已停止。可以继续提问，或点「重试」。</div>
+  <div class="old-btn">重试</div>
+</div></div>
+<div><div class="cap">改后</div><div class="chat">
+  <div class="body quote">假，取 1/2 就不成立，∀x，如果能被 6 整除的整数都能被 3 整除</div>
+  <div class="st chg"><span class="mark">■</span><span class="t">已停止</span><span class="sp">·</span><span class="lk">重新回答</span><span class="sp">·</span><span class="t">或直接接着问</span></div>
+</div></div>
+</div>
+
+<h3>② 真的出错（比如认证失败、余额不足、重试三次仍断）</h3>
+<div class="pair">
+<div><div class="cap">现在</div><div class="chat body">
+  <div class="old-stop" style="color:var(--danger)">模型认证失败：请在终端运行 xuegen login 重新登录。</div>
+  <div class="old-btn">▸ 详情</div>
+  <div class="old-btn">重试</div>
+</div></div>
+<div><div class="cap">改后</div><div class="chat">
+  <div class="st chg"><span class="mark err">!</span><span class="t err">模型认证失败：请在终端运行 xuegen login 重新登录。</span></div>
+  <div class="st" style="border:0;margin-top:0;padding-top:0"><span class="mark"></span><span class="lk">重试</span><span class="sp">·</span><span class="lk">详情 ▸</span></div>
+</div></div>
+</div>
+
+<h3>规格</h3>
+<table>
+<tr><th>项</th><th>值</th></tr>
+<tr><td>位置</td><td>回答末尾；上方 1px gray-4 分隔线，上下留白 8 / 12px；有回答文字时线在文字下面，没有文字时不画线</td></tr>
+<tr><td>字体</td><td>界面字（--font-ui）14/20，不跟正文缩放</td></tr>
+<tr><td>停止</td><td>「■ 已停止」gray-11（■ 用 gray-8，装饰）·「重新回答」accent-11 链接 ·「或直接接着问」gray-11</td></tr>
+<tr><td>出错</td><td>「!」+ 原来的中文说明，danger 色；第二行「重试」「详情 ▸」链接（详情展开在下方，12/16 灰）</td></tr>
+<tr><td>按钮文字</td><td>停止后叫<b>「重新回答」</b>（说清是重发上一条提问，不是「重试连接」）；出错后仍叫「重试」。悬停提示都写「重发上一条提问」</td></tr>
+<tr><td>只在最后一条</td><td>同现在：一轮里不是最后一段的不显示动作（`.bear-turn-part … :not([data-turn-last])`）</td></tr>
+<tr><td>键盘</td><td>链接是 button，Tab 能到，焦点环 accent-11（同其他链接）</td></tr>
+<tr><td>文案来源</td><td>`model-error.ts` 的 aborted 改成「已停止」；新增 `strings.chat.answerAgain`「重新回答」、`strings.chat.askOn`「或直接接着问」</td></tr>
+</table>
+<p class="note" style="margin-top:12px">只改 Bear（bare / chicago 只保证能编译）。改动文件：`skins/bear/slots.tsx`（MessageError + 底部动作合成一行）、`skin.css`（`.bear-answer-status`）、`core/chat/model-error.ts`、`core/strings.ts` 及测试。</p>
+</div>

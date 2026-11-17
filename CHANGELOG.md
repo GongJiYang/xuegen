@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.18.0 — 2026-11-17
+
+- Desktop: 技能与设置 has 库检查 — 「检查」 runs the vault and course checks and lists problems in plain words (no paths, no script names); in 总控 「交给总控 →」 hands them over (`core/check/*`, Bear `check-block.tsx`).
+- Desktop: 停止 no longer puts the prompt being answered back into the composer (the answer ends with 「重新回答」); words still queued behind it are handed back as before.
+- Desktop: an error is said once — at the end of the answer — instead of also in a banner at the top; agent restarts, login and errors no answer shows still use the banner.
+- Desktop: tables in the chat no longer show the screen-reader caption 「数据表格」.
+- Skills: `anki-sync push` records the card pages it wrote IDs into as one jj commit (「卡片 <日期>」), so made cards no longer sit uncommitted in the vault; course skill spells out how to rewrite 「本周」 when the week changes; wiki-save names a card page after its concept page.
+
 ## v0.17.0 — 2026-11-17
 
 - Skills: 收课 is faster and commits once — `course_close stage` returns a `brief` (what to tick, where the 课后读 goes, which records to archive), `archive` folds old learning records in one step, and `check` adds non-blocking `warnings` when a main-course close has no 课后读 yet or more than two learning records; the course skill has a pre-commit checklist so a close no longer turns into several 「收课」 commits that 撤销 can't fully undo.
