@@ -54,6 +54,7 @@ import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
 import type { AboutView } from "../core/update/about.js";
 import type { CheckView } from "../core/check/check-view.js";
+import type { PrefsView } from "../core/prefs/prefs-view.js";
 import type { PlanView } from "../core/board/planbook-nav.js";
 import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
@@ -566,15 +567,11 @@ export interface NoticeProps {
   onDismiss?: () => void;
 }
 
-export interface BoardPanelProps {
-  /** Batch 2 fills this; before then a skin renders an empty state. */
-  empty: true;
-}
+/** Batch 2 fills this; before then a skin renders an empty state. */
+export interface BoardPanelProps { empty: true }
 
-export interface NotesPanelProps {
-  /** Batch 3 fills this; before then a skin renders an empty state. */
-  empty: true;
-}
+/** Batch 3 fills this; before then a skin renders an empty state. */
+export interface NotesPanelProps { empty: true }
 
 /** The five tool windows the dock can open. */
 export type ToolId = "progress" | "reading" | "cards" | "calendar" | "skills";
@@ -759,6 +756,8 @@ export interface SkillsPanelProps extends ToolPanelProps {
   about?: AboutView & { onCheck(): void };
   /** 库检查（logic-ui-1116 A ③）; absent → the block is not shown. `onAsk` only in 总控. */
   check?: CheckView & { onRun(): void; onAsk?: () => void };
+  /** 讲解偏好（logic-ui-1116 A ⑥）; absent → not shown. */
+  prefs?: PrefsView & { onRemove(subject: string, text: string): void };
 }
 
 /** The day editor dialog: title, body, save path, save/cancel. */

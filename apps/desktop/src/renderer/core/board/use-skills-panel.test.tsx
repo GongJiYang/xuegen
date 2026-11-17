@@ -31,7 +31,9 @@ describe("useSkillsPanel · about", () => {
       .mockImplementation(async (request) =>
         request.kind === "check.last"
           ? { ok: true as const, data: null }
-          : { ok: true as const, data: { kind: "idle" as const, current: "" } },
+          : request.kind === "prefs.list"
+            ? { ok: true as const, data: [] }
+            : { ok: true as const, data: { kind: "idle" as const, current: "" } },
       );
     const { result } = renderHook(() => useSkillsPanel(skillsResource(), () => undefined));
     expect(typeof result.current.about?.onCheck).toBe("function");

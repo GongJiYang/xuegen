@@ -15,6 +15,7 @@ import type { AsyncState } from "./state.js";
 import { strings } from "../strings.js";
 import { useAbout } from "../update/use-about.js";
 import { useCheck } from "../check/use-check.js";
+import { usePrefs } from "../prefs/use-prefs.js";
 
 export { withCheckAsk } from "../check/check-view.js";
 import type { SkillsResource } from "./use-skills.js";
@@ -29,10 +30,12 @@ export function useSkillsPanel(
   const [review, setReview] = useState<AsyncState<SkillReview> | null>(null);
   const about = useAbout();
   const { result: checkResult, ...check } = useCheck();
+  const prefs = usePrefs();
 
   return {
     about,
     check,
+    prefs,
     skills: skills.resource.state,
     onToggle: (name, enabled) => {
       // The write returns the authoritative settings; apply them so the

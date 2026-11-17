@@ -11,6 +11,7 @@ import type { SkillsPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { skillLabel } from "../../core/board/skills-description.js";
 import { CheckBlock } from "./check-block.js";
+import { PrefsBlock } from "./prefs-block.js";
 
 export function SkillsPanel({
   skills,
@@ -25,6 +26,7 @@ export function SkillsPanel({
   studied,
   about,
   check,
+  prefs,
 }: SkillsPanelProps) {
   const [url, setUrl] = useState("");
   return (
@@ -59,6 +61,7 @@ export function SkillsPanel({
         </div>
       )}
       {check !== undefined && <CheckBlock check={check} />}
+      {prefs !== undefined && <PrefsBlock prefs={prefs} />}
       <div data-slot="skills-install">
         <h3>{strings.skills.installCaption}</h3>
         <p>
