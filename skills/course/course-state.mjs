@@ -4,7 +4,7 @@
 // 用法：
 //   node course-state.mjs lock <file...>            设为只读 0444
 //   node course-state.mjs unlock <file...>          临时放开为 0644（写入前）
-//   node course-state.mjs verify <coursesDir> [看板文件]   校验锁、标记与必要段落；看板是否过期
+//   node course-state.mjs verify <coursesDir> [看板文件] [--json]   校验锁、标记与必要段落；看板是否过期
 //   node course-state.mjs dashboard <coursesDir> <outFile> 生成只读看板
 //   node course-state.mjs list <coursesDir> [--json]       列出课程结构化状态
 import { readFile, writeFile, stat, chmod, mkdir } from "node:fs/promises";
@@ -112,31 +112,84 @@ async function setMode(files, wanted) {
   }
 }
 
-async function verify(coursesDir, dashboardFile) {
+/**
+ * 结构化问题：{ slug, kind, detail }。kind 是枚举词（dir-writable / not-readonly /
+ * no-marker / missing-section / no-week / board-missing / board-stale / board-not-readonly），
+ * slug 是课程 slug（目录与看板问题为 null），detail 是给界面看的说明、不含路径。
+ * 人类可读输出由 legacyLine 按 kind 拼回原来的句子（stderr 文案不变，机器消费走 --json）。
+ */
+function legacyLine(problem, ctx) {
+  const file = problem.slug === null ? null : join(ctx.coursesDir, `${problem.slug}.md`);
+  switch (problem.kind) {
+    case "dir-writable":
+      return `${ctx.coursesDir} 目录可写（${ctx.dirMode.toString(8)}），状态文件可被删除；应为 555`;
+    case "not-readonly":
+      return `${file} 权限为 ${ctx.fileModes.get(problem.slug).toString(8)}，应为 444（人为可写）`;
+    case "no-marker":
+      return `${file} 缺少 ${STATE_MARKER} 标记`;
+    case "missing-section":
+      return `${file} 缺少段落：${ctx.missingSections.get(problem.slug).join(", ")}`;
+    case "no-week":
+      return `${file} Key Facts 缺少「- 当前周：」`;
+    case "board-missing":
+      return `${ctx.dashboardFile} 不存在`;
+    case "board-stale":
+      return `${ctx.dashboardFile} 与状态源不一致（看板过期）`;
+    case "board-not-readonly":
+      return `${ctx.dashboardFile} 权限为 ${ctx.dashMode.toString(8)}，应为 444`;
+    default:
+      return problem.detail;
+  }
+}
+
+async function verify(coursesDir, dashboardFile, json = false) {
   const problems = [];
+  // legacyLine 重组原句用的上下文（权限位、缺哪些段落）。
+  const ctx = { coursesDir, dashboardFile, fileModes: new Map(), missingSections: new Map(), dirMode: 0, dashMode: 0 };
   // 缺标记的页也要读进来：否则删掉标记的课会被 listCourses 静默过滤，verify 报不出「缺少标记」。
   const courses = await loadCourses(coursesDir, { requireMarker: false });
-  const dirMode = await mode(coursesDir);
-  if (dirMode & 0o222) {
-    problems.push(`${coursesDir} 目录可写（${dirMode.toString(8)}），状态文件可被删除；应为 555`);
+  ctx.dirMode = await mode(coursesDir);
+  if (ctx.dirMode & 0o222) {
+    problems.push({ slug: null, kind: "dir-writable", detail: "课程目录可写，应为只读" });
   }
   for (const course of courses) {
     const file = join(coursesDir, `${course.slug}.md`);
     const fileMode = await mode(file);
-    if (fileMode !== READONLY_MODE) problems.push(`${file} 权限为 ${fileMode.toString(8)}，应为 444（人为可写）`);
-    if (!course.marked) problems.push(`${file} 缺少 ${STATE_MARKER} 标记`);
-    if (course.missingSections.length) problems.push(`${file} 缺少段落：${course.missingSections.join(", ")}`);
-    if (!course.currentWeek) problems.push(`${file} Key Facts 缺少「- 当前周：」`);
+    ctx.fileModes.set(course.slug, fileMode);
+    ctx.missingSections.set(course.slug, course.missingSections);
+    if (fileMode !== READONLY_MODE) {
+      problems.push({ slug: course.slug, kind: "not-readonly", detail: "课程页不是只读（应为只读）" });
+    }
+    if (!course.marked) {
+      problems.push({ slug: course.slug, kind: "no-marker", detail: "缺少课程状态标记" });
+    }
+    if (course.missingSections.length) {
+      problems.push({ slug: course.slug, kind: "missing-section", detail: `缺少段落：${course.missingSections.join("、")}` });
+    }
+    if (!course.currentWeek) {
+      problems.push({ slug: course.slug, kind: "no-week", detail: "Key Facts 缺少「当前周」" });
+    }
   }
   if (dashboardFile) {
     const expected = renderDashboard(courses, localDate());
     const actual = await readFile(dashboardFile, "utf8").catch(() => null);
-    if (actual === null) problems.push(`${dashboardFile} 不存在`);
-    else {
-      if (stripDate(actual) !== stripDate(expected)) problems.push(`${dashboardFile} 与状态源不一致（看板过期）`);
-      const dashMode = await mode(dashboardFile);
-      if (dashMode !== READONLY_MODE) problems.push(`${dashboardFile} 权限为 ${dashMode.toString(8)}，应为 444`);
+    if (actual === null) {
+      problems.push({ slug: null, kind: "board-missing", detail: "看板不存在" });
+    } else {
+      if (stripDate(actual) !== stripDate(expected)) {
+        problems.push({ slug: null, kind: "board-stale", detail: "看板和课程页对不上（过期）" });
+      }
+      ctx.dashMode = await mode(dashboardFile);
+      if (ctx.dashMode !== READONLY_MODE) {
+        problems.push({ slug: null, kind: "board-not-readonly", detail: "看板不是只读" });
+      }
     }
+  }
+  // --json：stdout 只写 {"problems":[…]}，有问题也退出 0（问题在 payload 里）；
+  // 脚本自身出错（目录不存在等）照旧由 loadCourses fail 非零退出。
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ problems }, null, 2)}\n`);
+    return;
   }
   for (const course of courses) {
     process.stdout.write(
@@ -144,7 +197,7 @@ async function verify(coursesDir, dashboardFile) {
     );
   }
   if (problems.length) {
-    for (const problem of problems) process.stderr.write(`course-state: ${problem}\n`);
+    for (const problem of problems) process.stderr.write(`course-state: ${legacyLine(problem, ctx)}\n`);
     process.exit(1);
   }
   process.stdout.write("verify: OK（只读锁、标记、段落一致性均通过）\n");
@@ -184,8 +237,10 @@ if (command === "lock" || command === "unlock") {
   if (args.length === 0) fail("list 需要 courses 目录");
   await listCommand(resolve(args[0]), args.includes("--json"));
 } else if (command === "verify") {
-  if (args.length === 0) fail("verify 需要 courses 目录");
-  await verify(resolve(args[0]), args[1] ? resolve(args[1]) : null);
+  // --json 是标志不是位置参数：第二个非 -- 参数才是看板文件。
+  const positional = args.filter((arg) => !arg.startsWith("--"));
+  if (positional.length === 0) fail("verify 需要 courses 目录");
+  await verify(resolve(positional[0]), positional[1] ? resolve(positional[1]) : null, args.includes("--json"));
 } else if (command === "dashboard") {
   if (args.length < 2) fail("dashboard 需要 courses 目录与输出文件");
   const courses = await loadCourses(resolve(args[0]));

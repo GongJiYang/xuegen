@@ -44,6 +44,8 @@ function course(slug: string, done: number, total: number): CourseSummary {
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
   };
 }
 

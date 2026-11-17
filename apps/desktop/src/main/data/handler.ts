@@ -11,15 +11,25 @@ import { join } from "node:path";
 import type { DataRequest, DataResponse } from "../../shared/data-protocol.js";
 import { assertNever, normalizeDesktopSettings } from "../../shared/protocol.js";
 import { readSettings, writeSettings } from "../settings.js";
-import { runScript, runScriptPlain } from "./scripts.js";
-import { generatedDir, readVaultRoot } from "./vault.js";
+import { runScript, withToday } from "./scripts.js";
+import { readVaultRoot } from "./vault.js";
 import { ankiUrlOverride, fetchAnkiStatus } from "./anki.js";
-import { SkillError, discardSkill, fetchSkill, listSkills, promotePendingSkill, reviewSkill } from "./skills.js";
+import {
+  SkillError,
+  discardSkill,
+  fetchSkill,
+  listSkills,
+  promotePendingSkill,
+  reviewSkill,
+} from "./skills.js";
 import { listReadingSources } from "./sources.js";
-import { listSessions } from "./sessions.js";
+import { listOtherSessions, listSessions } from "./sessions.js";
+import { checkRunResponse, lastCheck } from "./check.js";
+import { shelfAfterDone } from "./shelf-after-done.js";
 import { listStudied } from "./studied.js";
 import { readWikiPage } from "./wiki-page.js";
 import { planCommitsOf, planUndoResultOf } from "./plan-undo.js";
+import { courseStopRun, prefsRemoveRun } from "./course-actions.js";
 import { cycleAcceptOf, cyclePreviewOf } from "./cycle-next.js";
 import { resolveHome, resolveWorkspace } from "../../agent/environment.js";
 import { todayOverride } from "../today.js";
@@ -52,6 +62,10 @@ export async function handleDataRequest(request: DataRequest): Promise<DataRespo
       return { ok: true, data: await fetchAnkiStatus() };
     case "sessions.list":
       return { ok: true, data: listSessions(resolveHome(), request.current) };
+    case "sessions.others":
+      return { ok: true, data: listOtherSessions(resolveHome(), request.current) };
+    case "check.last":
+      return { ok: true, data: lastCheck(resolveHome()) };
     case "sessions.studied":
       return { ok: true, data: listStudied(resolveHome(), request.date) };
     case "skills.list":
@@ -84,6 +98,8 @@ async function handleScriptRequest(
       kind:
         | "anki.status"
         | "sessions.list"
+        | "sessions.others"
+        | "check.last"
         | "sessions.studied"
         | "skills.list"
         | "skills.setEnabled"
@@ -121,13 +137,10 @@ async function handleScriptRequest(
     case "domain.glossary":
       return runScript("domain/domain.mjs", ["glossary", vault.vault, request.subject, "--json"]);
     case "reading.today":
-      return runScript("reading/reading-queue.mjs", withToday([
-        "today",
-        vault.vault,
-        "--limit",
-        String(request.limit),
-        "--json",
-      ], today));
+      return runScript(
+        "reading/reading-queue.mjs",
+        withToday(["today", vault.vault, "--limit", String(request.limit), "--json"], today),
+      );
     case "reading.stats":
       return runScript("reading/reading-queue.mjs", withToday(["stats", vault.vault, "--json"], today));
     case "reading.sources":
@@ -135,38 +148,31 @@ async function handleScriptRequest(
     case "reading.queue":
       return runScript("reading/reading-queue.mjs", withToday(["list", vault.vault, "--json"], today));
     case "reading.add":
-      return runScript("reading/reading-queue.mjs", withToday([
-        "add",
-        vault.vault,
-        request.source,
-        "--priority",
-        request.priority,
-        "--due",
-        request.due,
-        "--json",
-      ], today));
+      return runScript(
+        "reading/reading-queue.mjs",
+        withToday(
+          [
+            "add",
+            vault.vault,
+            request.source,
+            "--priority",
+            request.priority,
+            "--due",
+            request.due,
+            "--json",
+          ],
+          today,
+        ),
+      );
     case "reading.review": {
       // `--position` is optional: omit it entirely (rather than passing an empty
       // value) so the script leaves the stored position untouched.
-      const args = [
-        "review",
-        vault.vault,
-        request.slug,
-        "--outcome",
-        request.outcome,
-        "--json",
-      ];
+      const args = ["review", vault.vault, request.slug, "--outcome", request.outcome, "--json"];
       if (request.position !== undefined) args.splice(args.length - 1, 0, "--position", request.position);
       return runScript("reading/reading-queue.mjs", withToday(args, today));
     }
     case "shelf.today":
-      return runScript("reading/bookshelf.mjs", [
-        "today",
-        vault.vault,
-        "--today",
-        request.today,
-        "--json",
-      ]);
+      return runScript("reading/bookshelf.mjs", ["today", vault.vault, "--today", request.today, "--json"]);
     case "shelf.list": {
       // The optional range asks the script for each book's `schedule` rows;
       // the protocol validator already guarantees from/to come as a pair.
@@ -185,32 +191,8 @@ async function handleScriptRequest(
         request.today,
         "--json",
       ]);
-    case "shelf.afterDone": {
-      // 「读完了」：只写书页 —— 勾 `## 课后读` 第 N 条并记进 `## 读书记录`；
-      // 之后照旧重建两份派生看板。每一步失败都直接返回它的失败响应。
-      const done = await runScript("reading/bookshelf.mjs", [
-        "after",
-        "done",
-        vault.vault,
-        request.book,
-        "--index",
-        String(request.index),
-        "--today",
-        request.today,
-        "--json",
-      ]);
-      if (!done.ok) return done;
-      const generated = generatedDir(vault.vault);
-      const courses = join(vault.vault, "wiki", "courses");
-      for (const step of [
-        runScriptPlain("course/course-state.mjs", ["dashboard", courses, join(generated, "courses.md")]),
-        runScriptPlain("course/render-board.mjs", [courses, join(generated, "courses.html")]),
-      ]) {
-        const rebuilt = await step;
-        if (!rebuilt.ok) return rebuilt;
-      }
-      return done;
-    }
+    case "shelf.afterDone":
+      return shelfAfterDone(vault.vault, request);
     case "shelf.extract":
       return runScript("reading/bookshelf.mjs", [
         "extract",
@@ -326,20 +308,26 @@ async function handleScriptRequest(
       if (!result.ok) return result;
       return { ok: true, data: planUndoResultOf(result.data) };
     }
+    // 库检查只在用户点「重新检查」时跑；结果另存 <home>/check-last.json 供 check.last 读。
+    case "check.run":
+      return checkRunResponse(vault.vault, resolveHome());
+    case "course.stop":
+    case "course.resume":
+      return courseStopRun(
+        vault.vault,
+        request.kind === "course.stop" ? "stop" : "resume",
+        request.slug,
+        today,
+      );
+    case "prefs.list":
+      return runScript("course/subject-prefs.mjs", ["list", vault.vault, "--json"]);
+    case "prefs.remove":
+      return prefsRemoveRun(vault.vault, request.subject, request.text);
     case "wiki.read":
       return readWikiPage(vault.vault, request.path);
     default:
       return assertNever(request);
   }
-}
-
-/**
- * Append `--today <day>` for a script call that accepts the flag, or leave the
- * args untouched when `day` is null — the script's own local-date default then
- * applies exactly as before.
- */
-export function withToday(args: string[], day: string | null): string[] {
-  return day === null ? args : [...args, "--today", day];
 }
 
 /** Toggle a skill; enabling a pending skill first moves it into `skills/`. */

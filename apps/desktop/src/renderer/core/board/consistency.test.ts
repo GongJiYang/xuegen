@@ -406,6 +406,8 @@ describe("同一份数据进四处视图", () => {
       lastRecord: null,
       nextSession: null,
       styleHint: null,
+      archived: false,
+      archivedOn: null,
     });
     const marks = (
       courses: CourseSummary[],

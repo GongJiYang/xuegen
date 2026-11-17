@@ -102,8 +102,8 @@ test(
       });
       assert.deepEqual(deepRaw, [], `raw/ 第二层以下不应报问题：${JSON.stringify(deepRaw, null, 2)}`);
 
-      // 退出码与问题数一致。
-      assert.equal(result.code, result.problems.length === 0 ? 0 : 1, `退出码应与问题数一致：${result.stdout}`);
+      // --json 恒退出 0：问题在 payload 里。
+      assert.equal(result.code, 0, `--json 应 exit 0：${result.stdout}`);
     } finally {
       await run("chmod", ["-R", "u+w", dir]).catch(() => {});
       await rm(dir, { recursive: true, force: true });
@@ -135,7 +135,7 @@ test("raw/ 分区：深层空目录与 .gitkeep 目录不报，第一二层分�
     await writeAt(vault, "wiki/index.md", "# 索引\n");
 
     const result = await lint([vault, "--json"]);
-    assert.equal(result.code, 1, `有问题的库应 exit 1：${result.stdout}${result.stderr}`);
+    assert.equal(result.code, 0, `--json 有问题也 exit 0：${result.stdout}${result.stderr}`);
     const paths = result.problems.map((item) => `${item.kind} ${item.path}`);
     assert.ok(paths.includes("empty-dir raw/empty-partition"), `raw/<d>/ 空目录要报：${JSON.stringify(paths)}`);
     assert.ok(paths.includes("empty-dir raw/books/epp"), `raw/<d>/<d>/ 空目录要报：${JSON.stringify(paths)}`);
@@ -204,7 +204,7 @@ test(
 
 // ---------------------------------------------------------------- 5. 同时有真问题时有问题的库仍全报
 
-test("--json 与人类可读输出一致：真问题（名字不合规、后缀链接）都列出且 exit 1", async () => {
+test("--json 与人类可读输出一致：真问题都列出；--json exit 0、人类可读 exit 1", async () => {
   const vault = await makeVault();
   try {
     await writeAt(vault, "wiki/index.md", "[[concepts/discrete-math/010-variables|后缀写法]]\n");
@@ -212,7 +212,7 @@ test("--json 与人类可读输出一致：真问题（名字不合规、后缀�
     await writeAt(vault, "wiki/Bad Dir/note.md", "# 名字不合规\n");
 
     const json = await lint([vault, "--json"]);
-    assert.equal(json.code, 1);
+    assert.equal(json.code, 0, "--json 有问题也 exit 0");
     const kinds = json.problems.map((item) => item.kind);
     assert.ok(kinds.includes("name"), JSON.stringify(json.problems));
     assert.ok(kinds.includes("link"), JSON.stringify(json.problems));

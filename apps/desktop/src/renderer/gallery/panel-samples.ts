@@ -53,7 +53,7 @@ export const SAMPLE_COURSES: CourseSummary[] = [
     overall: { done: 1, total: 5 },
     lastRecord: { date: "2026-10-16", seq: "01" },
     nextSession: "1.3 合一（unification），先复习单赋值。",
-    styleHint: null,
+    styleHint: null, archived: false, archivedOn: null,
   },
   {
     slug: "programming-paradigms",
@@ -63,7 +63,7 @@ export const SAMPLE_COURSES: CourseSummary[] = [
     overall: { done: 6, total: 6 },
     lastRecord: { date: "2026-11-03", seq: "01" },
     nextSession: "Erlang 进程模型",
-    styleHint: null,
+    styleHint: null, archived: false, archivedOn: null,
   },
 ];
 

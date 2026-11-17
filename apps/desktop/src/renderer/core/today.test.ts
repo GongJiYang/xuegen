@@ -19,6 +19,8 @@ function course(partial: Partial<CourseSummary> & { slug: string; title: string 
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
     ...partial,
   };
 }

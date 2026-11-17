@@ -95,13 +95,17 @@ export async function runScriptPlain(
   return { ok: true, data: null };
 }
 
+/**
+ * Append `--today <day>` for a script call that accepts the flag, or leave the
+ * args untouched when `day` is null — the script's own local-date default then
+ * applies exactly as before.
+ */
+export function withToday(args: string[], day: string | null): string[] {
+  return day === null ? args : [...args, "--today", day];
+}
+
 /** Build a user-facing error message from a failed script run. */
-function scriptError(
-  relative: string,
-  stderr: string,
-  error: ExecFileException,
-  timeoutMs: number,
-): string {
+function scriptError(relative: string, stderr: string, error: ExecFileException, timeoutMs: number): string {
   const detail = stderr.trim() || error.message;
   if (error.killed) return `脚本 ${relative} 超时（${timeoutMs / 1000} 秒）。`;
   return `脚本 ${relative} 执行失败：${detail}`;

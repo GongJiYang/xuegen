@@ -12,6 +12,8 @@ function course(partial: Partial<CourseSummary> = {}): CourseSummary {
     lastRecord: null,
     nextSession: null,
     styleHint: null,
+    archived: false,
+    archivedOn: null,
     ...partial,
   };
 }

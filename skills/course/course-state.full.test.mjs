@@ -332,6 +332,42 @@ test("verify：看板文件不存在时报「不存在」，缺段落与「当�
   }
 });
 
+test("verify --json：退出码 0（有问题也 0），stdout 只有 {problems}，kind 是枚举词、detail 不含路径", async () => {
+  // 课程页留 0644、目录留 0755：至少报出 not-readonly 与 dir-writable 两条。
+  const { root, coursesDir } = await makeWiki();
+  try {
+    const result = await state("verify", coursesDir, "--json");
+    assert.equal(result.code, 0, `有问题也 exit 0：${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /｜/, "json 模式不打印逐课摘要");
+    const payload = JSON.parse(result.stdout);
+    assert.ok(Array.isArray(payload.problems), "payload.problems 是数组");
+    const kinds = payload.problems.map((problem) => problem.kind);
+    assert.ok(kinds.includes("not-readonly"), JSON.stringify(payload.problems));
+    assert.ok(kinds.includes("dir-writable"), JSON.stringify(payload.problems));
+    for (const problem of payload.problems) {
+      assert.ok("slug" in problem && "kind" in problem && "detail" in problem, JSON.stringify(problem));
+      assert.ok(!problem.detail.includes("/"), `detail 不含路径：${problem.detail}`);
+    }
+    const kindsBySlug = Object.fromEntries(payload.problems.map((problem) => [problem.kind, problem.slug]));
+    assert.equal(kindsBySlug["dir-writable"], null, "目录问题的 slug 为 null");
+    assert.equal(kindsBySlug["not-readonly"], "demo", "课程页问题带课程 slug");
+
+    // 没有任何问题时同样只输出 {problems: []}。
+    const { root: root2, coursesDir: coursesDir2, dash } = await makeWiki();
+    try {
+      assert.equal((await state("dashboard", coursesDir2, dash)).ok, true);
+      await seal(coursesDir2, dash);
+      const clean = await state("verify", coursesDir2, dash, "--json");
+      assert.equal(clean.code, 0, clean.stderr);
+      assert.deepEqual(JSON.parse(clean.stdout), { problems: [] });
+    } finally {
+      await cleanup(root2);
+    }
+  } finally {
+    await cleanup(root);
+  }
+});
+
 // ---- 3. dashboard ----
 
 test("dashboard：输出到不存在的 wiki/_generated 时自动建目录，写出 444 看板", async () => {

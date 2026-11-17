@@ -227,6 +227,7 @@ export function parseCourse(text, slug, options = {}) {
     sections,
     marked: hasMarker(text),
     archived: isArchived(text),
+    archivedOn: archivedDate(text),
     missingSections: REQUIRED_SECTIONS.filter((name) => sectionLines(lines, `## ${name}`) === null),
     styleHint: null,
   };
@@ -260,6 +261,7 @@ export function toListEntry(course) {
     lastRecord: course.lastRecord,
     nextSession: course.nextSession,
     archived: course.archived,
+    archivedOn: course.archivedOn ?? null,
     styleHint: course.styleHint ?? null,
   };
 }

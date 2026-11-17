@@ -1,5 +1,5 @@
 {
-  "src/main/data/handler.ts": 333,
+  "src/main/data/handler.ts": 328,
   "src/renderer/App.tsx": 392,
   "src/renderer/core/board/consistency-fixture.ts": 319,
   "src/renderer/core/strings.ts": 1073,
@@ -17,6 +17,6 @@
   "src/renderer/skins/chicago/shell.tsx": 376,
   "src/renderer/skins/chicago/slots.tsx": 354,
   "src/renderer/skins/contract.ts": 568,
-  "src/shared/data-protocol.ts": 674,
+  "src/shared/data-protocol.ts": 543,
   "src/shared/protocol.ts": 338
 }

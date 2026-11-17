@@ -182,6 +182,7 @@ test("list --json：跳过无标记文件、按 slug 排序、字段完整", asy
   const ctm = entries[0];
   assert.deepEqual(Object.keys(ctm).sort(), [
     "archived",
+    "archivedOn",
     "changedAt",
     "file",
     "lastRecord",
