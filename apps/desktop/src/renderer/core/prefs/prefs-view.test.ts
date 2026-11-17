@@ -44,8 +44,20 @@ describe("prefsView", () => {
     expect(view.groups.map((group) => group.subject)).toEqual(["discrete-math", "ctm"]);
     expect(view.groups[0]?.title).toBe("离散数学");
     expect(view.groups[0]?.lines).toEqual([
-      { key: "discrete-math\n先用例子再定义", text: "先用例子再定义", style: false, removing: false },
-      { key: "discrete-math\n板书只写关键词", text: "板书只写关键词", style: true, removing: false },
+      {
+        key: "discrete-math\n先用例子再定义",
+        text: "先用例子再定义",
+        shown: "先用例子再定义",
+        style: false,
+        removing: false,
+      },
+      {
+        key: "discrete-math\n板书只写关键词",
+        text: "板书只写关键词",
+        shown: "板书只写关键词",
+        style: true,
+        removing: false,
+      },
     ]);
     expect(view.groups[1]?.lines[0]?.key).toBe("ctm\n多画图");
   });
@@ -60,9 +72,27 @@ describe("prefsView", () => {
     expect(view.groups[0]?.lines[1]).toEqual({
       key: "discrete-math\n板书只写关键词",
       text: "板书只写关键词",
+      shown: "板书只写关键词",
       style: true,
       removing: false,
     });
+  });
+
+  it("style 行去掉开头的「默认风格：」，原文不变", () => {
+    const styled: SubjectPrefs = {
+      subject: "discrete-math",
+      title: "离散数学",
+      lines: [
+        { text: "默认风格：细讲（2026-11-08 迁移…）", style: true },
+        { text: "默认风格:大白话", style: true },
+        { text: "先用例子再定义", style: false },
+      ],
+    };
+    const lines = prefsView([styled], null, {}).groups[0]?.lines ?? [];
+    expect(lines[0]?.shown).toBe("细讲（2026-11-08 迁移…）");
+    expect(lines[0]?.text).toBe("默认风格：细讲（2026-11-08 迁移…）");
+    expect(lines[1]?.shown).toBe("大白话");
+    expect(lines[2]?.shown).toBe(lines[2]?.text);
   });
 
   it("错误只落在对应科目上", () => {

@@ -26,7 +26,7 @@ export function PrefsBlock({ prefs }: { prefs: NonNullable<SkillsPanelProps["pre
             {group.lines.map((line) => (
               <li key={line.key}>
                 {line.style && <span className="bear-skill-prefs-tag">{prefsStrings.style}</span>}
-                <span>{line.text}</span>
+                <span>{line.shown}</span>
                 <button
                   type="button"
                   className="bear-link"

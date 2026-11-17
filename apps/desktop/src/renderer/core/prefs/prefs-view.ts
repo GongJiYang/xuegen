@@ -9,6 +9,7 @@ import { prefsStrings } from "./strings.js";
 export interface PrefLine {
   key: string;
   text: string;
+  shown: string;
   style: boolean;
   removing: boolean;
 }
@@ -27,13 +28,25 @@ export interface PrefsView {
   emptyText: string;
 }
 
+const STYLE_PREFIX = /^默认风格[：:]/;
+
+function shownText(text: string, style: boolean): string {
+  return style ? text.replace(STYLE_PREFIX, "").trim() : text;
+}
+
 function group(prefs: SubjectPrefs, pendingKey: string | null, error: string | undefined): PrefGroup {
   return {
     subject: prefs.subject,
     title: prefs.title,
     lines: prefs.lines.map((line) => {
       const key = `${prefs.subject}\n${line.text}`;
-      return { key, text: line.text, style: line.style, removing: key === pendingKey };
+      return {
+        key,
+        text: line.text,
+        shown: shownText(line.text, line.style),
+        style: line.style,
+        removing: key === pendingKey,
+      };
     }),
     error: error === undefined ? null : prefsStrings.failed(error),
   };
