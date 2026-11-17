@@ -88,7 +88,7 @@ describe("Bare composer", () => {
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
   });
 
-  it("puts the prompt just sent back into an empty field on stop", async () => {
+  it("puts what a stop hands back into an empty field", async () => {
     const onInput = vi.fn();
     const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);

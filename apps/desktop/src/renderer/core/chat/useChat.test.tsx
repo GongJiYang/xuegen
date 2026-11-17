@@ -242,7 +242,7 @@ describe("useChat openSession", () => {
   });
 });
 
-describe("useChat stop hands back the prompt just sent", () => {
+describe("useChat stop hands back only queued messages", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -288,7 +288,7 @@ describe("useChat stop hands back the prompt just sent", () => {
     };
   }
 
-  it("returns the text just sent, and only once", () => {
+  it("does not hand back the prompt being answered", () => {
     const bridge = setUp();
     act(() => {
       bridge.controller().send("你好");
@@ -297,7 +297,7 @@ describe("useChat stop hands back the prompt just sent", () => {
     act(() => {
       back = bridge.controller().stop();
     });
-    expect(back).toBe("你好");
+    expect(back).toBeNull();
     expect(bridge.sent).toHaveBeenCalledWith({ type: "abort" });
 
     let again: string | null = "not asked";
@@ -309,6 +309,9 @@ describe("useChat stop hands back the prompt just sent", () => {
 
   it("returns the user's own words, without the style prefix or refresh note", () => {
     const bridge = setUp();
+    act(() => {
+      bridge.emit(sessionState(true));
+    });
     act(() => {
       bridge.controller().setRefreshNote("[N]");
       bridge.controller().send("继续");
@@ -376,8 +379,7 @@ describe("useChat stop hands back the prompt just sent", () => {
     act(() => {
       bridge.controller().send("B");
     });
-    // B left the queue: the agent is answering it now, so a stop ends that turn
-    // and the old rule (hand back the last send) applies.
+    // B left the queue: the agent is answering it now, so a stop does not hand it back.
     act(() => {
       bridge.emit(sessionState(true, 0));
     });
@@ -385,10 +387,10 @@ describe("useChat stop hands back the prompt just sent", () => {
     act(() => {
       back = bridge.controller().stop();
     });
-    expect(back).toBe("B");
+    expect(back).toBeNull();
   });
 
-  it("hands back the last send when nothing was queued", () => {
+  it("hands back nothing when nothing was queued", () => {
     const bridge = setUp();
     act(() => {
       bridge.controller().send("A");
@@ -397,7 +399,7 @@ describe("useChat stop hands back the prompt just sent", () => {
     act(() => {
       back = bridge.controller().stop();
     });
-    expect(back).toBe("A");
+    expect(back).toBeNull();
   });
 
   it("does not hand back a command queued while answering", () => {

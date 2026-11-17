@@ -4,7 +4,7 @@
  * The 发送/停止 button follows the field's contents (not merely the streaming
  * flag), a double-click must not fire two sends, an Enter that only picks an IME
  * candidate never sends, Escape stops a running answer even with a draft in the
- * field (and puts the prompt just sent back into an empty field), the `/` menu
+ * field (and puts withdrawn queued messages back into an empty field), the `/` menu
  * takes arrows/Enter, and the 「正在回答：第 N 题」 banner / focusRequest wiring work.
  */
 
@@ -122,7 +122,7 @@ describe("Bear composer", () => {
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
   });
 
-  it("puts the prompt just sent back into an empty field on stop", async () => {
+  it("puts what a stop hands back into an empty field", async () => {
     const onInput = vi.fn();
     const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);
@@ -134,7 +134,7 @@ describe("Bear composer", () => {
     expect((field as HTMLTextAreaElement).selectionStart).toBe("hello".length);
   });
 
-  it("puts the prompt back from the ■ button too", async () => {
+  it("puts what a stop hands back from the ■ button too", async () => {
     const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop })} />);
     await userEvent.click(screen.getByRole("button", { name: strings.input.stop }));

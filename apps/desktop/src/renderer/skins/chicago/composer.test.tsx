@@ -4,7 +4,7 @@
  * The 发送/停止 button must follow the field's contents (not merely the streaming
  * flag), a double-click must not fire two sends, an Enter that only picks an IME
  * candidate never sends, and Escape stops a running answer even with a draft in
- * the field (putting the prompt just sent back into an empty field).
+ * the field (putting withdrawn queued messages back into an empty field).
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -108,7 +108,7 @@ describe("Chicago composer", () => {
     expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("还在写");
   });
 
-  it("puts the prompt just sent back into an empty field on stop", async () => {
+  it("puts what a stop hands back into an empty field", async () => {
     const onInput = vi.fn();
     const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop, onInput })} />);
@@ -120,7 +120,7 @@ describe("Chicago composer", () => {
     expect((field as HTMLTextAreaElement).selectionStart).toBe("hello".length);
   });
 
-  it("puts the prompt back from the 停止 button too", async () => {
+  it("puts what a stop hands back from the 停止 button too", async () => {
     const onStop = vi.fn(() => "hello");
     render(<Composer {...baseProps({ streaming: true, onStop })} />);
     await userEvent.click(screen.getByRole("button", { name: strings.input.stop }));

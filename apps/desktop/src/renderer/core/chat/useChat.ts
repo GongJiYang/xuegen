@@ -56,11 +56,7 @@ export function useChat(
     return once ?? refreshNoteRef.current;
   };
 
-  // The prompt last sent by `send`, remembered so `stop` can give it back. Cleared
-  // by `stop` itself and whenever a turn settles normally, so a stop never
-  // resurrects an earlier prompt that already got its answer.
-  const lastSentRef = useRef<string | null>(null);
-  /** Whether the last status snapshot reported a running turn (see `lastSentRef`). */
+  /** Whether the last status snapshot reported a running turn. */
   const streamingRef = useRef(false);
   // Messages sent while an answer runs, still waiting in Pi's queue, oldest first:
   // the user's own words, or null for a command / marked action (it holds a place
@@ -101,47 +97,28 @@ export function useChat(
     const queued = queuedSentRef.current;
     queuedSentRef.current = [];
     if (queued.length === 0) return null;
-    lastSentRef.current = null;
     const words = queued.filter((text): text is string => text !== null);
     return words.length > 0 ? words.join("\n\n") : null;
   }, []);
 
+  // Stop the answer and hand back only the words still queued; the one being
+  // answered keeps its half-saved answer (11-17: 重新回答 replaces handing it back).
   const stop = useCallback((): string | null => {
     client.send({ type: "abort", sessionId: sessionIdRef.current });
-    // Queued words first: the one being answered keeps its half-saved answer.
-    const hadQueued = queuedSentRef.current.length > 0;
-    const queued = withdrawQueued();
-    if (hadQueued) return queued;
-    const lastSent = lastSentRef.current;
-    lastSentRef.current = null;
-    return lastSent;
-  }, [withdrawQueued]);
-
-  // The switch guard's stop (batch-switch-carry): a confirmed switch never hands
-  // the answer in progress back — its reply is already half-saved — it only keeps
-  // the words that were still queued, for the new session's composer.
-  const stopForSwitch = useCallback((): string | null => {
-    client.send({ type: "abort", sessionId: sessionIdRef.current });
-    const queued = withdrawQueued();
-    lastSentRef.current = null;
-    return queued;
+    return withdrawQueued();
   }, [withdrawQueued]);
 
   // Every session switch goes through this guard so a mid-answer click asks
-  // first (batch-switch-guard): confirm stops the answer via `stopForSwitch` and
-  // runs the held switch on the settled snapshot below.
-  const switchGuard = useSwitchGuard({ streamingRef, stop: stopForSwitch });
+  // first (batch-switch-guard): confirm stops the answer via `stop` and runs the
+  // held switch on the settled snapshot below.
+  const switchGuard = useSwitchGuard({ streamingRef, stop: stop });
   const { onStateSnapshot } = switchGuard;
 
   useEffect(() => {
     const unsubscribe = client.subscribe((event: AgentToHostMessage) => {
       dispatch({ kind: "agent-event", event });
-      // A turn that ended on its own is no longer "the prompt just sent": drop it,
-      // so stopping during the next turn cannot put back an older message. A user
-      // abort clears `lastSentRef` in `stop` instead, before the agent replies.
       if (event.type === "state" || event.type === "ready") {
         const streaming = event.state.streaming;
-        if (streamingRef.current && !streaming) lastSentRef.current = null;
         // Pi takes queued messages in order, so the ones it has started are at the front.
         const queued = queuedSentRef.current;
         const left = streaming ? event.state.queuedFollowUps : 0;
@@ -192,7 +169,6 @@ export function useChat(
     // Text the UI sends for the user (开课 and other marked actions) is not theirs to edit.
     const own = splitActionMarker(trimmed).action === null ? trimmed : null;
     if (streamingRef.current) queuedSentRef.current = [...queuedSentRef.current, own];
-    lastSentRef.current = own;
     const note = takeNote();
     const body = note ? `${note} ${trimmed}` : trimmed;
     // The style marker rides on the wire only; the transcript strips it back into
@@ -205,7 +181,7 @@ export function useChat(
   }, []);
 
   // A command is not something the user typed into the field, so `stop` never
-  // puts it back: `lastSentRef` is set by `send` only.
+  // puts it back.
   const sendCommand = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
