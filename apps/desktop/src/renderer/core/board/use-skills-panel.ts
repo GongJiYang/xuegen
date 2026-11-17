@@ -8,12 +8,15 @@
  */
 
 import { useState } from "react";
-import type { SkillReview } from "@shared/data-protocol.js";
+import type { CheckResult, SkillReview } from "@shared/data-protocol.js";
 import type { DesktopSettings } from "@shared/protocol.js";
 import type { ShellPanels, SkillsPanelProps } from "../../skins/contract.js";
 import type { AsyncState } from "./state.js";
 import { strings } from "../strings.js";
 import { useAbout } from "../update/use-about.js";
+import { useCheck } from "../check/use-check.js";
+
+export { withCheckAsk } from "../check/check-view.js";
 import type { SkillsResource } from "./use-skills.js";
 
 /** Build the skills panel's view model and callbacks. */
@@ -21,13 +24,15 @@ export function useSkillsPanel(
   skills: SkillsResource,
   apply: (settings: DesktopSettings) => void,
   studied?: SkillsPanelProps["studied"],
-): ShellPanels["skills"] {
+): ShellPanels["skills"] & { checkResult: CheckResult | null } {
   const [fetchNotice, setFetchNotice] = useState<string | null>(null);
   const [review, setReview] = useState<AsyncState<SkillReview> | null>(null);
   const about = useAbout();
+  const { result: checkResult, ...check } = useCheck();
 
   return {
     about,
+    check,
     skills: skills.resource.state,
     onToggle: (name, enabled) => {
       // The write returns the authoritative settings; apply them so the
@@ -73,5 +78,6 @@ export function useSkillsPanel(
       void skills.discard(name);
     },
     ...(studied ? { studied } : {}),
+    checkResult,
   };
 }

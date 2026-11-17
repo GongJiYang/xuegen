@@ -53,6 +53,7 @@ import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
 import type { AboutView } from "../core/update/about.js";
+import type { CheckView } from "../core/check/check-view.js";
 import type { PlanView } from "../core/board/planbook-nav.js";
 import type { PanelTile, ShelfRow, UnplannedMaterial } from "../core/board/panel.js";
 import type { PlanDay, PlanWeek } from "../core/board/planbook.js";
@@ -384,9 +385,7 @@ export interface PlanChangesView {
   onUndo(): void;
 }
 
-export interface CourseIntroCardProps {
-  card: CourseIntro;
-}
+export interface CourseIntroCardProps { card: CourseIntro; }
 
 export interface UserMessageProps {
   message: ChatMessage;
@@ -758,6 +757,8 @@ export interface SkillsPanelProps extends ToolPanelProps {
   studied?: { on: boolean; onToggle(on: boolean): void };
   /** 「学根」一行：版本号 + 检查更新（logic-ui-1116.html A ②）。A skin may ignore it. */
   about?: AboutView & { onCheck(): void };
+  /** 库检查（logic-ui-1116 A ③）; absent → the block is not shown. `onAsk` only in 总控. */
+  check?: CheckView & { onRun(): void; onAsk?: () => void };
 }
 
 /** The day editor dialog: title, body, save path, save/cancel. */

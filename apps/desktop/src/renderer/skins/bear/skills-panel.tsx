@@ -10,6 +10,7 @@ import { useState } from "react";
 import type { SkillsPanelProps } from "../contract.js";
 import { strings } from "../../core/strings.js";
 import { skillLabel } from "../../core/board/skills-description.js";
+import { CheckBlock } from "./check-block.js";
 
 export function SkillsPanel({
   skills,
@@ -23,6 +24,7 @@ export function SkillsPanel({
   onDiscardReviewed,
   studied,
   about,
+  check,
 }: SkillsPanelProps) {
   const [url, setUrl] = useState("");
   return (
@@ -56,6 +58,7 @@ export function SkillsPanel({
           )}
         </div>
       )}
+      {check !== undefined && <CheckBlock check={check} />}
       <div data-slot="skills-install">
         <h3>{strings.skills.installCaption}</h3>
         <p>
