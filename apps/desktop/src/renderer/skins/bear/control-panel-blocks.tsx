@@ -4,6 +4,8 @@ import type { ControlPanelProps } from "../contract.js";
 import type { PlanView } from "../../core/board/planbook-nav.js";
 import type { CardsStats, CycleOverview } from "@shared/data-protocol.js";
 import { strings } from "../../core/strings.js";
+import type { CourseStopProps } from "../../core/course-stop/view.js";
+import { CourseMenu, StoppedList } from "./course-stop.js";
 
 export function Cards({ stats }: { stats: CardsStats | null }) {
   if (stats === null) return <p className="bear-cp-meta">{strings.panel.blockLoading}</p>;
@@ -44,7 +46,13 @@ export function progressLine(
   };
 }
 
-export function Progress({ overview }: { overview: CycleOverview | null }) {
+export function Progress({
+  overview,
+  courseStop,
+}: {
+  overview: CycleOverview | null;
+  courseStop?: CourseStopProps | undefined;
+}) {
   if (overview === null) return <p className="bear-cp-meta">{strings.panel.blockLoading}</p>;
   return (
     <div className="bear-cp-prog">
@@ -57,6 +65,14 @@ export function Progress({ overview }: { overview: CycleOverview | null }) {
               <span className="bear-cp-num">
                 {course.done} / {course.total}
               </span>
+              {courseStop !== undefined && (
+                <CourseMenu
+                  slug={course.slug}
+                  name={course.name}
+                  pending={courseStop.pending}
+                  onStop={courseStop.onStop}
+                />
+              )}
             </p>
             <div className="bear-cp-bar">
               <i style={{ width: `${course.total === 0 ? 0 : (course.done / course.total) * 100}%` }} />
@@ -67,6 +83,12 @@ export function Progress({ overview }: { overview: CycleOverview | null }) {
             })()}
           </div>
         ))}
+      {courseStop !== undefined && <StoppedList {...courseStop} />}
+      {courseStop?.error && courseStop.stopped.length === 0 && (
+        <p className="bear-cp-meta" role="status">
+          {courseStop.error}
+        </p>
+      )}
       {overview.cycle !== null && (
         <p className="bear-cp-meta bear-cp-route">
           {strings.panel.progressCycle(overview.cycle.cycle, overview.cycle.end, overview.cycle.plannedEnd)}

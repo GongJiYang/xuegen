@@ -231,7 +231,7 @@ export function ControlPanel(props: ControlPanelProps) {
           title={strings.panel.blockProgress}
           caption={strings.panel.blockProgressCaption}
         >
-          <Progress overview={props.overview} />
+          <Progress overview={props.overview} courseStop={props.courseStop} />
         </Block>
         <Block
           id="bear-cp-shelf"

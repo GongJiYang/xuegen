@@ -252,6 +252,38 @@ describe("useControlPlanbook 组装", () => {
     expect(hook.current().panelProps.day?.date).toBe(TODAY);
   });
 
+  it("panelProps.courseStop 读课程表里停用的课（logic-ui-1116 B）", async () => {
+    const courses = resource([
+      {
+        slug: "ctm",
+        title: "CTM",
+        weekLabel: null,
+        week: { done: 0, total: 0, tasks: [] },
+        overall: { done: 0, total: 0 },
+        lastRecord: null,
+        nextSession: null,
+        styleHint: null,
+        archived: true,
+        archivedOn: "2026-11-15",
+      },
+      {
+        slug: "ep",
+        title: "EP",
+        weekLabel: null,
+        week: { done: 0, total: 0, tasks: [] },
+        overall: { done: 0, total: 0 },
+        lastRecord: null,
+        nextSession: null,
+        styleHint: null,
+        archived: false,
+        archivedOn: null,
+      },
+    ]);
+    const hook = render(input({ courses }));
+    await settle();
+    expect(hook.current().panelProps.courseStop?.stopped).toEqual([{ slug: "ctm", name: "CTM", on: "11-15" }]);
+  });
+
   it('panelProps.onOpenShelf() 调 openTool("reading")（批 6b-2）', async () => {
     const openTool = vi.fn();
     const hook = render(input({ openTool }));
