@@ -102,13 +102,19 @@ function addLine(bucket: Bucket, text: string, call: ToolCallView): void {
 }
 
 function closeGroup(buckets: Map<string, Bucket>, step: number, text: string, call: ToolCallView): void {
-  const title = flowStrings.stepTitle(step, FLOW_STEPS["course.close"].steps[step] ?? "");
+  const title = shownTitle("course.close", step);
   addLine(bucketFor(buckets, `step:${step}`, title, false, step), text, call);
 }
 
 function openGroup(buckets: Map<string, Bucket>, step: number, text: string, call: ToolCallView): void {
-  const title = flowStrings.stepTitle(step, FLOW_STEPS["course.open"].steps[step] ?? "");
+  const title = shownTitle("course.open", step);
   addLine(bucketFor(buckets, `step:${step}`, title, false, step), text, call);
+}
+
+/** UI-facing step title; SKILL.md wording with banned words is replaced in flowStrings.shownStep. */
+export function shownTitle(flow: FlowId, step: number): string {
+  const title = flowStrings.shownStep[flow][step] ?? FLOW_STEPS[flow].steps[step] ?? "";
+  return flowStrings.stepTitle(step, title);
 }
 
 function addOther(buckets: Map<string, Bucket>, text: string, call: ToolCallView): void {

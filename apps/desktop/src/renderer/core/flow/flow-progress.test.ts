@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ToolCallView } from "@shared/protocol.js";
-import { flowOf, foldLabel, groupCalls, progressLine } from "./flow-progress.js";
+import { flowOf, foldLabel, groupCalls, progressLine, shownTitle } from "./flow-progress.js";
 
 const names = { ctm: "CTM" };
 
@@ -97,6 +97,26 @@ describe("foldLabel", () => {
   });
 });
 
+describe("shownTitle", () => {
+  const banned = ["辅助", "核心页", "讲后读"];
+
+  test("开课每一步的界面标题都不含禁用词", () => {
+    for (let step = 1; step <= 8; step += 1) {
+      const title = shownTitle("course.open", step);
+      for (const word of banned) expect(title).not.toContain(word);
+      expect(title.startsWith(`${step} · `)).toBe(true);
+    }
+  });
+
+  test("收课每一步的界面标题都不含禁用词", () => {
+    for (let step = 0; step <= 10; step += 1) {
+      const title = shownTitle("course.close", step);
+      for (const word of banned) expect(title).not.toContain(word);
+      expect(title.startsWith(`${step} · `)).toBe(true);
+    }
+  });
+});
+
 describe("groupCalls", () => {
   test("开课按步骤分组，讲课与内部分开", () => {
     const calls = [
@@ -122,12 +142,12 @@ describe("groupCalls", () => {
       },
       { title: "3 · 顺延排期", internal: false, lines: [{ text: "顺延排期", count: 1, calls: 1 }] },
       {
-        title: "4 · 查主项或辅助",
+        title: "4 · 查今天的周期",
         internal: false,
         lines: [{ text: "查今天的周期", count: 1, calls: 1 }],
       },
       {
-        title: "6 · 定核心页",
+        title: "6 · 定这节要读的页",
         internal: false,
         lines: [
           { text: "读原书 pp.145–154", count: 1, calls: 1 },

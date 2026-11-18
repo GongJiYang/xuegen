@@ -7,6 +7,11 @@ export const flowStrings = {
   partial: (name: string, n: number, ops: number): string => `${name} · 走到第 ${n} 步 · ${ops} 个操作`,
   ops: (n: number): string => `${n} 个操作`,
   stepTitle: (n: number, title: string): string => `${n} · ${title}`,
+  /** 界面上的步骤标题：SKILL.md 原文里有界面禁用词的步骤，这里换成对用户说的话。 */
+  shownStep: {
+    "course.open": { 4: "查今天的周期", 6: "定这节要读的页" },
+    "course.close": {},
+  } as Record<"course.open" | "course.close", Record<number, string>>,
   teaching: "讲课中",
   other: "其他",
   coursePage: (name: string): string => `读课程页 ${name}`,
