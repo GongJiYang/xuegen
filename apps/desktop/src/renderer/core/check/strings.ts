@@ -19,6 +19,8 @@ export const checkStrings = {
   askIntro:
     "/skill:course 库检查发现下面这些问题，逐条看看该怎么改（课程页只走 course_plan / course_close，库里别的页照 wiki-save 的规矩）：",
   boardWhere: "（看板）",
+  coursesWhere: "（课程目录）",
+  vaultWhere: "（库）",
   kinds: {
     // 库（vault-lint）
     name: "文件或目录名不合规",

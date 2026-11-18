@@ -28,11 +28,7 @@ import { bearBodyScale } from "./body-scale.js";
 import { MoreMenu } from "./menu.js";
 import { Notice } from "./slots.js";
 import { TodayPanel } from "./today-panel.js";
-import { ProgressPanel } from "./progress-panel.js";
-import { ReadingPanel } from "./reading-panel.js";
-import { CardsPanel } from "./cards-panel.js";
-import { CalendarPanel } from "./calendar-panel.js";
-import { SkillsPanel } from "./skills-panel.js";
+import { ToolPanel } from "./tool-panel.js";
 import { SessionsButton } from "./sessions-popover.js";
 import { SessionTabs } from "./session-tabs.js";
 import { useTabShortcuts } from "./use-tab-shortcuts.js";
@@ -309,7 +305,9 @@ export function Shell(props: ShellProps) {
               <RadixDialog.Close className="bear-drawer-close">{strings.panel.dialogClose}</RadixDialog.Close>
             </div>
             <div className="bear-tabpanels">
-              {dialogTool !== null && <ToolPanel tool={dialogTool} panels={panels} />}
+              {dialogTool !== null && (
+                <ToolPanel tool={dialogTool} panels={panels} onAsked={() => setDismissedFor(activeTool)} />
+              )}
             </div>
           </RadixDialog.Content>
         </RadixDialog.Portal>
@@ -352,7 +350,7 @@ export function Shell(props: ShellProps) {
                       </RadixTabs.Content>
                       {tools.map((tool) => (
                         <RadixTabs.Content key={tool.id} value={tool.id}>
-                          <ToolPanel tool={tool.id} panels={panels} />
+                          <ToolPanel tool={tool.id} panels={panels} onAsked={() => onDrawerOpenChange(false)} />
                         </RadixTabs.Content>
                       ))}
                     </div>
@@ -396,22 +394,4 @@ function SwitchGuard({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
       </div>
     </div>
   );
-}
-
-/** Render the body of whichever tool tab is selected. */
-function ToolPanel({ tool, panels }: { tool: ToolId; panels: ShellProps["panels"] }) {
-  switch (tool) {
-    case "progress":
-      return <ProgressPanel {...panels.progress} tool="progress" />;
-    case "reading":
-      return <ReadingPanel {...panels.reading} tool="reading" />;
-    case "cards":
-      return <CardsPanel {...panels.cards} tool="cards" />;
-    case "calendar":
-      return <CalendarPanel {...panels.calendar} tool="calendar" />;
-    case "skills":
-      return <SkillsPanel {...panels.skills} tool="skills" />;
-    default:
-      return null;
-  }
 }

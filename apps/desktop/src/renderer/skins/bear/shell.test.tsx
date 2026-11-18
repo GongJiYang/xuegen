@@ -14,6 +14,7 @@ import { Shell } from "./shell.js";
 import type { ShellProps, ToolDescriptor } from "../contract.js";
 import { contextUsageView } from "../../core/chat/context-usage.js";
 import { strings } from "../../core/strings.js";
+import { checkStrings } from "../../core/check/strings.js";
 import { SAMPLE_PANELS } from "../../gallery/panel-samples.js";
 import { SAMPLE_MODELS } from "../../gallery/samples.js";
 
@@ -211,6 +212,31 @@ describe("Bear Shell control-session dialog (批 6b-2)", () => {
     const dialog = screen.getByRole("dialog", { name: strings.tools.skills });
     expect(dialog.getAttribute("data-tool")).toBe("skills");
     expect(dialog.querySelector(".bear-dlg-cap")).toBeNull();
+  });
+
+  it("closes the 技能 dialog after 交给总控 (P3)", async () => {
+    const onAsk = vi.fn();
+    const panels: ShellProps["panels"] = {
+      ...SAMPLE_PANELS,
+      skills: {
+        ...SAMPLE_PANELS.skills,
+        check: {
+          last: "上次 11-17 10:20",
+          button: "重新检查",
+          running: false,
+          status: null,
+          groups: [{ title: "库", hint: "断链", count: 1, lines: ["有空目录"] }],
+          hasProblems: true,
+          onRun: vi.fn(),
+          onAsk,
+        },
+      },
+    };
+    const { rerender } = render(<Shell {...baseProps({ planbook: plan, activeTool: "reading", panels })} />);
+    rerender(<Shell {...baseProps({ planbook: plan, activeTool: "skills", panels })} />);
+    await userEvent.click(screen.getByRole("button", { name: checkStrings.ask }));
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog", { name: strings.tools.skills })).toBeNull();
   });
 
   it("reopens the 书房 dialog when the same tool is asked for again (批 6 返修)", async () => {

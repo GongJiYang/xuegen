@@ -11,7 +11,7 @@
   "src/renderer/skins/bear/composer.tsx": 301,
   "src/renderer/skins/bear/planbook.tsx": 350,
   "src/renderer/skins/bear/progress-panel.tsx": 517,
-  "src/renderer/skins/bear/shell.tsx": 352,
+  "src/renderer/skins/bear/shell.tsx": 334,
   "src/renderer/skins/bear/slots.tsx": 391,
   "src/renderer/skins/chicago/progress-panel.tsx": 303,
   "src/renderer/skins/chicago/shell.tsx": 376,
