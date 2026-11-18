@@ -10,6 +10,7 @@
 - `sources.ts`：`reading.sources` —— 列出库内 `raw/`、`clippings/` 下尚未入队的 `.md`/`.pdf`（按修改时间倒序，最多 50 条），供「加入阅读」输入框的候选。已在阅读页 `source` 里链接的原文会被排除。
 - `cycle-next.ts`：`cycle.mjs accept / preview` 的 JSON 输出 → `CycleAccept` / `CyclePreview`（逐字段守卫，坏输出降级）。
 - `plan-undo.ts`：`plan-undo.mjs list / undo` 的 JSON 输出 → `PlanCommit[]` / `PlanUndoResult`（「开周期」提交也在列）。
+- `history.ts`：`history.mjs list / undo` 的 JSON 输出 → `HistoryEntry[]` / `HistoryUndoResult`（「改动记录」的后端）。
 - `studied.ts`：`sessions.studied` —— 从 `<home>/sessions/`（含直接子目录）的会话文件里读出当天每门课的上课时段（开课/核实标记定课程，`studiedInTranscript` / `mergeStudied` 为纯函数，`listStudied` 是薄外壳）。
 
 不负责：模型调用、界面渲染、课程与阅读状态的解析逻辑（那些在 skill 脚本里）。
@@ -23,6 +24,8 @@
 - domain.glossary → skills/domain/domain.mjs glossary（只读）：一个科目的词表（按存库课次分组 + 领域小结）
 - plan.undoable → skills/course/plan-undo.mjs list（只读）：`--since` 是这一轮回答开始的时间，返回可撤销的「计划/顺延/开周期」提交
 - plan.undo → skills/course/plan-undo.mjs undo（写）：`--workspace` 取 `agent/environment.ts` 的 `resolveWorkspace()`；脚本输出经 `plan-undo.ts` 转成协议类型
+- history.list → skills/course/history.mjs list（只读）：`--days` 1–90，返回库内 jj 改动条目（verb/slug/added/可否撤销）
+- history.undo → skills/course/history.mjs undo（写）：`--ids` 撤一批条目；`--workspace` 同 plan.undo；脚本输出经 `history.ts` 转成协议类型
 - wiki.read → wiki-page.ts（只读，限 wiki/ 内的 .md）
 - shelf.today / shelf.list → skills/reading/bookshelf.mjs（today / list，只读）
 - shelf.done → skills/reading/bookshelf.mjs done（写书页 position/读书记录，读完自动开下一本并重写 index.md）

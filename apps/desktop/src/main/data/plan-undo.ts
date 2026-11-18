@@ -5,7 +5,9 @@
  * empty result instead of leaking `unknown` into the renderer.
  */
 
-import type { PlanCommit, PlanUndoResult } from "../../shared/data-protocol.js";
+import type { DataResponse, PlanCommit, PlanUndoResult } from "../../shared/data-protocol.js";
+import { resolveWorkspace } from "../../agent/environment.js";
+import { runScript } from "./scripts.js";
 
 function isPlanCommit(value: unknown): value is PlanCommit {
   if (typeof value !== "object" || value === null) return false;
@@ -37,4 +39,14 @@ export function planUndoResultOf(data: unknown): PlanUndoResult {
     keptNew: strings(record.keptNew),
     board: typeof record.board === "string" ? record.board : "skipped",
   };
+}
+
+/** `plan.undoable` / `plan.undo`: run `plan-undo.mjs` and map its JSON. */
+export async function planUndoRun(vault: string, since: string, undo: boolean): Promise<DataResponse> {
+  const args = undo
+    ? ["undo", vault, "--since", since, "--workspace", resolveWorkspace(), "--json"]
+    : ["list", vault, "--since", since, "--json"];
+  const result = await runScript("course/plan-undo.mjs", args);
+  if (!result.ok) return result;
+  return { ok: true, data: undo ? planUndoResultOf(result.data) : planCommitsOf(result.data) };
 }

@@ -28,10 +28,11 @@ import { checkRunResponse, lastCheck } from "./check.js";
 import { shelfAfterDone } from "./shelf-after-done.js";
 import { listStudied } from "./studied.js";
 import { readWikiPage } from "./wiki-page.js";
-import { planCommitsOf, planUndoResultOf } from "./plan-undo.js";
+import { planUndoRun } from "./plan-undo.js";
+import { historyRun } from "./history.js";
 import { courseStopRun, prefsRemoveRun } from "./course-actions.js";
 import { cycleAcceptOf, cyclePreviewOf } from "./cycle-next.js";
-import { resolveHome, resolveWorkspace } from "../../agent/environment.js";
+import { resolveHome } from "../../agent/environment.js";
 import { todayOverride } from "../today.js";
 
 /**
@@ -284,30 +285,12 @@ async function handleScriptRequest(
     }
     case "subjects.list":
       return runScript("cycle-plan/subjects.mjs", ["list", vault.vault, "--date", request.date, "--json"]);
-    case "plan.undoable": {
-      const result = await runScript("course/plan-undo.mjs", [
-        "list",
-        vault.vault,
-        "--since",
-        request.since,
-        "--json",
-      ]);
-      if (!result.ok) return result;
-      return { ok: true, data: planCommitsOf(result.data) };
-    }
-    case "plan.undo": {
-      const result = await runScript("course/plan-undo.mjs", [
-        "undo",
-        vault.vault,
-        "--since",
-        request.since,
-        "--workspace",
-        resolveWorkspace(),
-        "--json",
-      ]);
-      if (!result.ok) return result;
-      return { ok: true, data: planUndoResultOf(result.data) };
-    }
+    case "plan.undoable":
+    case "plan.undo":
+      return planUndoRun(vault.vault, request.since, request.kind === "plan.undo");
+    case "history.list":
+    case "history.undo":
+      return historyRun(vault.vault, request);
     // 库检查只在用户点「重新检查」时跑；结果另存 <home>/check-last.json 供 check.last 读。
     case "check.run":
       return checkRunResponse(vault.vault, resolveHome());

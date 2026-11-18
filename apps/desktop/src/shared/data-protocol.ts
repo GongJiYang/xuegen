@@ -11,6 +11,7 @@
  * hand-written guards below.
  */
 
+import type { HistoryEntry, HistoryUndoResult } from "./history.js";
 import type { DesktopSettings } from "./protocol.js";
 import type { UpdateStatus } from "./update.js";
 
@@ -708,6 +709,7 @@ export type DataRequest =
   | { kind: "subjects.list"; date: string }
   | { kind: "plan.undoable"; since: string }
   | { kind: "plan.undo"; since: string }
+  | { kind: "history.list"; days: number } | { kind: "history.undo"; ids: string[] }
   | { kind: "sessions.list"; current: string }
   | { kind: "sessions.studied"; date: string }
   | { kind: "check.run" }
@@ -773,6 +775,7 @@ export interface DataResponseMap {
   "subjects.list": SubjectsOverview;
   "plan.undoable": PlanCommit[];
   "plan.undo": PlanUndoResult;
+  "history.list": HistoryEntry[]; "history.undo": HistoryUndoResult;
   "sessions.list": SessionMeta[];
   "sessions.studied": StudiedSpan[];
   "check.run": CheckResult;

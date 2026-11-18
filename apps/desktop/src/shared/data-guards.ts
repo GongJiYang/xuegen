@@ -170,6 +170,15 @@ export function isDataRequest(value: unknown): value is DataRequest {
       return (
         typeof value.since === "string" && value.since.length > 0 && !Number.isNaN(Date.parse(value.since))
       );
+    case "history.list":
+      return typeof value.days === "number" && Number.isInteger(value.days) && value.days >= 1 && value.days <= 90;
+    case "history.undo":
+      return (
+        Array.isArray(value.ids) &&
+        value.ids.length >= 1 &&
+        value.ids.length <= 20 &&
+        value.ids.every((id) => typeof id === "string" && /^[0-9a-f]{8,64}$/.test(id))
+      );
     case "sessions.list":
       return typeof value.current === "string" && value.current.endsWith(".jsonl");
     case "sessions.others":
