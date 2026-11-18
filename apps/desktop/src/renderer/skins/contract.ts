@@ -49,6 +49,7 @@ import type { ControlCardRow, ControlCardView, LessonRef } from "../core/board/c
 import type { ShelfPanelView } from "../core/board/shelf-view.js";
 import type { SessionGroup, SessionRow } from "../core/board/session-list.js";
 import type { OpenCourseRow } from "../core/board/open-courses.js";
+import type { OtherSessionsView } from "../core/other-sessions/view.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
@@ -126,6 +127,8 @@ export interface SessionsView {
   courses?: OpenCourseRow[];
   /** Open a course's today session — the same as 「开课 →」 on the 总控 card. */
   onOpenCourse?: (slug: string) => void;
+  /** 「＋」 popover's 其他位置的会话 (Bear); absent = not shown. */
+  others?: OtherSessionsView;
 }
 
 /** One title-bar session tab (`docs/desktop/mockups/tabs.html`). */
@@ -435,9 +438,7 @@ export interface AssistantMessageProps {
   renderToolCall(call: ToolCallView): React.ReactNode;
 }
 
-export interface ToolActivityProps {
-  call: ToolCallView;
-}
+export interface ToolActivityProps { call: ToolCallView; }
 
 export interface ThinkingProps {
   /** Presentational only; the Shell/Thread decides when to mount it. */

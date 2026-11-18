@@ -75,3 +75,57 @@ describe("Bear 「＋」 popover — 开一门课", () => {
     expect(screen.queryByText(strings.sessions.openCourse)).toBeNull();
   });
 });
+
+describe("其他位置的会话", () => {
+  const row = {
+    file: "/s/p/b.jsonl",
+    time: "12:00",
+    kind: "free" as const,
+    slug: null,
+    tag: "自由",
+    title: "问",
+    count: 5,
+    current: false,
+  };
+  const others = {
+    count: 8,
+    groups: [{ date: "2026-11-04", label: "11-04 周三", rows: [row] }],
+    places: { [row.file]: "pi-learning" },
+  };
+
+  it("folds the other folders behind a toggle until it is opened", () => {
+    const view = sessions({ others });
+    render(<SessionsButton sessions={view} control={null} title={null} plus />);
+
+    const toggle = screen.getByRole("button", { name: /其他位置的会话 · 8 个/ });
+    expect(toggle.textContent).toBe("其他位置的会话 · 8 个 ▸");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("11-04 周三")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.textContent?.endsWith("▾")).toBe(true);
+    expect(screen.getByText("11-04 周三")).toBeTruthy();
+    expect(screen.getByText("5 条 · pi-learning")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("问"));
+    expect(view.onPick).toHaveBeenCalledTimes(1);
+    expect(view.onPick).toHaveBeenCalledWith(row.file);
+  });
+
+  it("shows no toggle without others or when they are empty", () => {
+    render(<SessionsButton sessions={sessions()} control={null} title={null} plus />);
+    expect(screen.queryByText(/其他位置的会话/)).toBeNull();
+
+    cleanup();
+    render(
+      <SessionsButton sessions={sessions({ others: { count: 0, groups: [], places: {} } })} control={null} title={null} plus />,
+    );
+    expect(screen.queryByText(/其他位置的会话/)).toBeNull();
+  });
+
+  it("hides the toggle while the list is loading", () => {
+    render(<SessionsButton sessions={sessions({ status: "loading", others })} control={null} title={null} plus />);
+    expect(screen.queryByText(/其他位置的会话/)).toBeNull();
+  });
+});

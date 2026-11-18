@@ -218,4 +218,35 @@ describe("listOtherSessions", () => {
     expect(groups[0]?.dir).toBe("--Users-alice--");
     expect(groups[0]?.label).toBe("alice");
   });
+
+  it("labels a folder by its newest transcript's cwd: 主目录 for the user's home, else the last path segment", () => {
+    const current = write("--Users-me-xuegen--", "2026-11-08T09-00-00-000Z_a.jsonl");
+    const other = (dir: string, name: string, cwd: string): string => {
+      const folder = join(sessionsDir, dir);
+      mkdirSync(folder, { recursive: true });
+      const file = join(folder, name);
+      writeFileSync(
+        file,
+        [
+          JSON.stringify({
+            type: "session",
+            version: 3,
+            id: "p",
+            timestamp: "2026-11-04T12:00:00.000Z",
+            cwd,
+          }),
+          JSON.stringify({ type: "message", message: { role: "user", content: "问" } }),
+        ].join("\n"),
+        "utf8",
+      );
+      return file;
+    };
+    other("--Users-gjy-pi-learning--", "2026-11-04T12-00-00-000Z_p.jsonl", "/Users/gjy/pi-learning");
+    other("--Users-gjy--", "2026-10-21T01-26-50-874Z_h.jsonl", "/Users/gjy");
+
+    const groups = listOtherSessions(home, current, "/Users/gjy");
+    const byDir = (dir: string) => groups.find((group) => group.dir === dir);
+    expect(byDir("--Users-gjy-pi-learning--")?.label).toBe("pi-learning");
+    expect(byDir("--Users-gjy--")?.label).toBe("主目录");
+  });
 });
