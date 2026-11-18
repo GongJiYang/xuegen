@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.19.0 — 2026-11-18
+
+- Desktop: 技能与设置 has 讲解偏好 — the 「以后讲 … 都 …」 preferences remembered in class, per subject, each with 「删掉」 (`core/prefs/*`, Bear `prefs-block.tsx`).
+- Desktop: 总进度 can stop a course — hover a course row for 「⋯」 →「停用这门课…」 with a confirm; stopped courses fold into 「已停用 N 门」 with 「恢复」, and the week table follows without a reload (`core/course-stop/*`, Bear `course-stop.tsx`).
+- Desktop: the 「＋」 session list ends with 「其他位置的会话 · N 个」 — sessions started from other folders, by day, each row naming its folder (「pi-learning」, 「主目录」); `sessions.others` now names a folder by the transcript's `cwd` instead of the last segment of the folder name (`core/other-sessions/*`).
+
 ## v0.18.0 — 2026-11-17
 
 - Desktop: 技能与设置 has 库检查 — 「检查」 runs the vault and course checks and lists problems in plain words (no paths, no script names); in 总控 「交给总控 →」 hands them over (`core/check/*`, Bear `check-block.tsx`).
