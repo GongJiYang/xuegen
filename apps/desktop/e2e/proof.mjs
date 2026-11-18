@@ -7,6 +7,7 @@
 //   npm run proof -- start --root /tmp/xg-e2e [--today 2026-11-17] [--port 9460]
 //   npm run proof -- shot <name> [--scheme light|dark] [--width 1920] [--js '<code>']
 //   npm run proof -- contrast [--scheme light|dark] [--width 1920]
+//   npm run proof -- overflow
 //   npm run proof -- eval '<code>'
 //   npm run proof -- stop --root /tmp/xg-e2e
 //
@@ -200,13 +201,22 @@ async function fixture() {
   console.log(`合成测试库：${made.vault}`);
 }
 
+async function overflow() {
+  const { send, close } = await connect();
+  const result = await evaluate(send, `const se = document.scrollingElement; return { overflow: se.scrollHeight - se.clientHeight };`);
+  close();
+  const px = result?.overflow ?? 0;
+  console.log(`文档溢出：${px}px`);
+  if (px > 0) process.exit(1);
+}
+
 async function run() {
   const { send, close } = await connect();
   console.log(JSON.stringify(await evaluate(send, positional[0] ?? "return document.title;"), null, 1));
   close();
 }
 
-const commands = { fixture, start, stop, shot, contrast, eval: run };
+const commands = { fixture, start, stop, shot, contrast, overflow, eval: run };
 if (!commands[command]) fail(`用法：proof.mjs <${Object.keys(commands).join("|")}> …（见文件开头）`);
 setTimeout(() => fail("超时"), command === "start" ? 150_000 : 40_000).unref();
 await commands[command]();

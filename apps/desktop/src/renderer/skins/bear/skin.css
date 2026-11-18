@@ -210,6 +210,10 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Contain absolutely positioned descendants (table captions, KaTeX MathML):
+     without it they overflow the document and the wheel outside the pane
+     scrolls the whole window (user 11-18). */
+  position: relative;
 }
 [data-skin="bear"] .bear-body {
   font-family: var(--font-body);
