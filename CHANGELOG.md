@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Backend (no UI yet): `history.mjs` lists the vault's jj changes in plain fields (verb, slug, pages added, whether it can still be undone) and undoes one or more of them — new pages kept, the rest restored, refused when touched again later; data channel `history.list` / `history.undo`.
+## v0.19.1 — 2026-11-18
+
+- Fix: scrolling the wheel outside the answer (side margins, 今日要点 rail, below the composer) no longer slides the whole window up over a big blank area — the thread pane now contains the absolutely positioned table captions and KaTeX MathML that were stretching the document (`.bear-pane { position: relative }`); `npm run proof -- overflow` checks it.
+- Desktop: 「交给总控 →」 in 技能与设置 closes the dialog (or drawer) so 总控's answer is in view; the problems it sends name where each one is — the page, else （看板）/（课程目录）/（库） instead of always （看板）.
+- Backend (no UI yet): `history.mjs` lists the vault's jj changes in plain fields (verb, slug, pages added, whether it can still be undone) and undoes one or more of them — new pages kept, the rest restored, `wiki/log.md` / `wiki/index.md` left as they are, refused when touched again later; data channel `history.list` / `history.undo`.
+- Dev: `core/flow/` turns tool calls into plain words and works out which step of 开课 / 收课 an answer is on (not wired into the thread yet).
 
 ## v0.19.0 — 2026-11-18
 
