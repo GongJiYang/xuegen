@@ -177,8 +177,8 @@ export function reduceAgentEvent(state: ChatState, event: AgentToHostMessage): C
       }
       const next = upsertMessage(state, message);
       // A retried connection is not a failure the user must act on: the banner
-      // that the failed attempt raised goes away while Pi retries, and comes
-      // back only if the retries give up (the mapper then drops the marker).
+      // that the failed attempt raised goes away while Pi retries; if the retries
+      // give up, the answer's status line says so (below), never the banner.
       if (message.retry !== undefined) return withoutError(next, message.errorMessage);
       // The answer shows its own error in its status line (11-17, error-once.html):
       // the banner must not say it again, so drop one the `error` event raised.

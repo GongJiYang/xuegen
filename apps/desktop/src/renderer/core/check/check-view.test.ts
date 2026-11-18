@@ -105,4 +105,19 @@ describe("checkAskPrompt", () => {
     expect(marker.action).toBe("ask");
     expect(marker.courseTitle).toBe("库检查");
   });
+
+  it("names the 课程目录 / 库 for problems without a page (P3)", () => {
+    const noPage: CheckResult = {
+      checkedAt: "2026-11-17T02:20:00.000Z",
+      vault: [{ area: "vault", where: null, kind: "empty-dir", detail: "有空目录" }],
+      courses: [
+        { area: "courses", where: null, kind: "board-stale", detail: "看板和课程页对不上（过期）" },
+        { area: "courses", where: null, kind: "dir-writable", detail: "课程目录可写" },
+      ],
+    };
+    const prompt = checkAskPrompt(noPage);
+    expect(prompt).toContain("- （看板）：board-stale，看板和课程页对不上（过期）");
+    expect(prompt).toContain("- （课程目录）：dir-writable，课程目录可写");
+    expect(prompt).toContain("- （库）：empty-dir，有空目录");
+  });
 });

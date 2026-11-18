@@ -62,10 +62,17 @@ export function checkView(result: CheckResult | null, running: boolean, error: s
   };
 }
 
+/** Where a problem sits in the prompt: its page, else the 看板 / 课程目录 / 库 it is about. */
+function whereOf(problem: CheckProblem): string {
+  if (problem.where !== null) return problem.where;
+  if (problem.area === "vault") return checkStrings.vaultWhere;
+  return problem.kind.startsWith("board-") ? checkStrings.boardWhere : checkStrings.coursesWhere;
+}
+
 /** 「交给总控」发进聊天的话：逐条问题（库在前），最后是照做的确认行。 */
 export function checkAskPrompt(result: CheckResult): string {
   const problems = [...result.vault, ...result.courses].map(
-    (problem) => `- ${problem.where ?? checkStrings.boardWhere}：${problem.kind}，${problem.detail}`,
+    (problem) => `- ${whereOf(problem)}：${problem.kind}，${problem.detail}`,
   );
   const text = [checkStrings.askIntro, ...problems, "", strings.panel.askConfirm].join("\n");
   return withActionMarker(text, "ask", { slug: "check", title: checkStrings.askTitle });
