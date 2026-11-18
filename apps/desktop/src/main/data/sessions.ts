@@ -9,7 +9,8 @@
  */
 
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import { homedir } from "node:os";
 import type { SessionMeta } from "../../shared/data-protocol.js";
 import { isOwnSessionFile } from "../../agent/session-file.js";
 import { textFromContent } from "../../agent/event-mapper.js";
@@ -116,17 +117,39 @@ export function listSessions(home: string, current: string): SessionMeta[] {
   return listDir(dirname(current));
 }
 
+/** The `cwd` in a transcript's first line (Pi's `session` header), or null when it has none. */
+function headerCwd(file: string): string | null {
+  try {
+    const head: unknown = JSON.parse(readFileSync(file, "utf8").split("\n", 1)[0] ?? "");
+    if (typeof head !== "object" || head === null) return null;
+    const { type, cwd } = head as { type?: unknown; cwd?: unknown };
+    return type === "session" && typeof cwd === "string" && cwd !== "" ? cwd : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 「主目录」 for the user's home, else the folder's last path segment (「pi-learning」). */
+function placeLabel(cwd: string, userHome: string): string {
+  if (resolve(cwd) === resolve(userHome)) return "主目录";
+  return basename(resolve(cwd)) || cwd;
+}
+
 /**
  * Sessions in the other folders under `<home>/sessions/` (not `current`'s),
  * grouped by folder, groups sorted by their newest session first. `dir` is the
  * folder name (Pi names session folders after the cwd, like
- * `--Users-alice-projects-foo--`); `label` is the last segment of it ("foo").
+ * `--Users-alice-projects-foo--`); `label` names the folder the sessions were
+ * started in: 「主目录」 for the user's home, else the last segment of the newest
+ * transcript's `cwd`; the folder name's last segment when no transcript has a
+ * `session` header.
  * Folders that are not own session dirs (a symlink escaping `<home>/sessions`)
  * and empty folders are skipped.
  */
 export function listOtherSessions(
   home: string,
   current: string,
+  userHome: string = homedir(),
 ): { dir: string; label: string; sessions: SessionMeta[] }[] {
   if (!currentAllowed(home, current)) return [];
   const root = resolve(home, "sessions");
@@ -155,8 +178,10 @@ export function listOtherSessions(
     if (real === currentDir) continue;
     const sessions = listDir(dir);
     if (sessions.length === 0) continue;
+    const cwd = headerCwd(sessions[0]?.file ?? "");
     const tail = name.replace(/^-+|-+$/g, "");
-    groups.push({ dir: name, label: tail.split("-").pop() ?? name, sessions });
+    const label = cwd === null ? (tail.split("-").pop() ?? name) : placeLabel(cwd, userHome);
+    groups.push({ dir: name, label, sessions });
   }
   return groups.sort((a, b) => (b.sessions[0]?.startedAt ?? 0) - (a.sessions[0]?.startedAt ?? 0));
 }

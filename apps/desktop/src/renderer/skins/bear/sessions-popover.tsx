@@ -4,7 +4,8 @@
  * The trigger keeps the original title text (and the 总控 avatar when the
  * control session is open) plus a small ▾; the content is a day-grouped list —
  * today / yesterday / MM-DD 周X — of 「时间 · tag · 标题 · N 条」 rows, with
- * ＋新会话 at the top right. Picking a row opens that transcript.
+ * ＋新会话 at the top right. Picking a row opens that transcript. Sessions started
+ * from other folders sit folded at the bottom (logic-ui-1116 C).
  */
 
 import {
@@ -18,11 +19,21 @@ import type { ControlView } from "../../core/board/bot-state.js";
 import type { OpenCourseRow } from "../../core/board/open-courses.js";
 import { useState } from "react";
 import type { SessionRow } from "../../core/board/session-list.js";
+import type { OtherSessionsView } from "../../core/other-sessions/view.js";
+import { otherSessionsStrings } from "../../core/other-sessions/strings.js";
 import { strings } from "../../core/strings.js";
 import { ControlBot } from "./control-bot.js";
 
 /** One 「时间 · tag · 标题 · N 条」 row, shared by the popover and the calendar's 这天的会话. */
-export function SessionRowButton({ row, onOpen }: { row: SessionRow; onOpen(file: string): void }) {
+export function SessionRowButton({
+  row,
+  place,
+  onOpen,
+}: {
+  row: SessionRow;
+  place?: string | undefined;
+  onOpen(file: string): void;
+}) {
   return (
     <button
       type="button"
@@ -32,7 +43,11 @@ export function SessionRowButton({ row, onOpen }: { row: SessionRow; onOpen(file
       <span className="bear-sessions-time">{row.time}</span>
       <span className="bear-sessions-tag" title={row.tag}>{row.tag}</span>
       <span className="bear-sessions-name">{row.title}</span>
-      <span className="bear-sessions-count">{strings.sessions.count(row.count)}</span>
+      <span className="bear-sessions-count">
+        {place === undefined
+          ? strings.sessions.count(row.count)
+          : otherSessionsStrings.place(strings.sessions.count(row.count), place)}
+      </span>
     </button>
   );
 }
@@ -74,6 +89,27 @@ function OpenCourses({ rows, onOpen }: { rows: OpenCourseRow[]; onOpen(slug: str
       {more &&
         other.map((row) => (
           <CourseRow key={row.slug} row={row} onOpen={onOpen} />
+        ))}
+    </section>
+  );
+}
+
+/** 「其他位置的会话 · N 个」: folded by default; open, the same day groups with each row's folder. */
+function OtherSessions({ view, onPick }: { view: OtherSessionsView; onPick(file: string): void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="bear-sessions-others">
+      <button type="button" className="bear-sessions-more" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {otherSessionsStrings.toggle(view.count)} {open ? "▾" : "▸"}
+      </button>
+      {open &&
+        view.groups.map((group) => (
+          <section key={group.date}>
+            <h5 className="bear-sessions-day">{group.label}</h5>
+            {group.rows.map((row) => (
+              <SessionRowButton key={row.file} row={row} place={view.places[row.file]} onOpen={onPick} />
+            ))}
+          </section>
         ))}
     </section>
   );
@@ -152,6 +188,9 @@ export function SessionsButton({
               ))}
             </section>
           ))}
+          {sessions.status === "ready" && sessions.others !== undefined && sessions.others.count > 0 && (
+            <OtherSessions view={sessions.others} onPick={sessions.onPick} />
+          )}
         </PopoverContent>
       </PopoverPortal>
     </Popover>
