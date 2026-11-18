@@ -58,12 +58,13 @@ describe("historyEntriesOf", () => {
 });
 
 describe("historyUndoResultOf", () => {
-  it("keeps the four protocol fields and drops the rest", () => {
+  it("keeps the five protocol fields and drops the rest", () => {
     expect(
       historyUndoResultOf({
         undone: ["a", "b"],
         restoreFiles: ["wiki/courses/epp.md"],
         keptNew: ["wiki/knowledge/concepts/demo/010-a.md"],
+        keptShared: ["wiki/log.md", "wiki/index.md"],
         jj: "ok",
         board: "ok",
       }),
@@ -71,6 +72,7 @@ describe("historyUndoResultOf", () => {
       undone: ["a", "b"],
       restoreFiles: ["wiki/courses/epp.md"],
       keptNew: ["wiki/knowledge/concepts/demo/010-a.md"],
+      keptShared: ["wiki/log.md", "wiki/index.md"],
       board: "ok",
     });
   });
@@ -80,10 +82,17 @@ describe("historyUndoResultOf", () => {
       undone: [],
       restoreFiles: [],
       keptNew: [],
+      keptShared: [],
       board: "skipped",
     });
     expect(
-      historyUndoResultOf({ undone: ["a", 3], restoreFiles: "x", keptNew: null, board: 42 }),
-    ).toEqual({ undone: ["a"], restoreFiles: [], keptNew: [], board: "skipped" });
+      historyUndoResultOf({
+        undone: ["a", 3],
+        restoreFiles: "x",
+        keptNew: null,
+        keptShared: 5,
+        board: 42,
+      }),
+    ).toEqual({ undone: ["a"], restoreFiles: [], keptNew: [], keptShared: [], board: "skipped" });
   });
 });

@@ -2,15 +2,16 @@
 // 「改动记录」的后端：把库根 jj 历史（::@）上的提交按描述第一个词分类成条目——
 // 动作 verb、对象 slug、新建的页数，并标出哪条还能撤：手工整理、撤销记录本身、
 // 只动看板的提交、之后（含工作副本）又被改过的提交都不可撤。
-// undo 把一批条目撤回到最早那条之前：新建的页保留（keptNew），其余文件恢复、
-// 课程页锁回只读、看板重画，再记一条「撤销 <原文>（等 N 条）」提交。无第三方依赖。
+// undo 把一批条目撤回到最早那条之前：新建的页保留（keptNew），公共日志/索引
+// 的行也保留（keptShared），其余文件恢复、课程页锁回只读、看板重画，
+// 再记一条「撤销 <原文>（等 N 条）」提交。无第三方依赖。
 //   node history.mjs list <库根> --days <N> [--json]
 //   node history.mjs undo <库根> --ids <id,id,…> --workspace <工作区> [--json]
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BOARD_RELS, refreshBoard } from "./close/board.mjs";
-import { localDate, lockCourse, recoverInternal } from "./close/durable.mjs";
+import { lockCourse, recoverInternal } from "./close/durable.mjs";
 import { fail } from "./close/fail.mjs";
 import { diffEntries, isJjRepo, jj, jjCommit } from "./close/jj.mjs";
 import { restoreFiles as restoreFromRev } from "./close/restore.mjs";
@@ -21,6 +22,9 @@ const VERBS = [
   "收课", "计划", "顺延", "开周期", "自报", "存档点", "偏好", "卡片", "停用", "恢复",
   "读书", "暂停", "排课后读", "课后读", "摘录", "制卡", "目标",
 ];
+
+// 只追加的公共文件：别的课也往里写，不算冲突、撤销时不恢复（留着那几行；新建页保留，索引行正好对得上）。
+const SHARED_RELS = new Set(["wiki/log.md", "wiki/index.md"]);
 
 // 描述（JSON 转义）、commit_id、提交时间（ISO 带时区，Date.parse 可解），一行一条。
 const LOG_TEMPLATE =
@@ -83,7 +87,7 @@ function entriesOf(vault, days) {
     const added = { concepts: 0, cards: 0 };
     for (const entry of diff) {
       for (const path of entry.paths) {
-        if (BOARD_RELS.has(path)) continue;
+        if (BOARD_RELS.has(path) || SHARED_RELS.has(path)) continue;
         paths.add(path);
         if (entry.status === "A") {
           if (path.includes("/concepts/")) added.concepts += 1;
@@ -101,7 +105,7 @@ function entriesOf(vault, days) {
     fail(`jj diff 失败：${error instanceof Error ? error.message : error}`);
   }
   const laterPaths = new Set(
-    dirty.flatMap((entry) => entry.paths.filter((path) => !BOARD_RELS.has(path))),
+    dirty.flatMap((entry) => entry.paths.filter((path) => !BOARD_RELS.has(path) && !SHARED_RELS.has(path))),
   );
   for (const entry of entries) {
     if (entry.manual || entry.verb.startsWith("撤销")) {
@@ -123,21 +127,27 @@ function entriesOf(vault, days) {
 }
 
 /** 批次动过的文件：同一路径以第一次出现为准，状态 A（新建）进 keptNew，其余进
- * restoreFiles；看板（BOARD_RELS）两边都不算（同 plan-undo 的 collectPaths）。 */
+ * restoreFiles；看板（BOARD_RELS）两边都不算（同 plan-undo 的 collectPaths）；
+ * 公共文件（SHARED_RELS）不恢复、不挡冲突，单列 keptShared 让界面说明「这几行留着」。 */
 function collectPaths(batch) {
   const keptNew = new Set();
   const restore = new Set();
+  const keptShared = new Set();
   const seen = new Set();
   for (const entry of batch) {
     for (const item of entry.diff) {
       for (const path of item.paths) {
+        if (SHARED_RELS.has(path)) {
+          keptShared.add(path);
+          continue;
+        }
         if (BOARD_RELS.has(path) || seen.has(path)) continue;
         seen.add(path);
         (item.status === "A" ? keptNew : restore).add(path);
       }
     }
   }
-  return { keptNew: [...keptNew], restoreFiles: [...restore] };
+  return { keptNew: [...keptNew], restoreFiles: [...restore], keptShared: [...keptShared] };
 }
 
 /**
@@ -234,7 +244,7 @@ function cmdUndo(vaultArg, flags, json) {
   batch.sort((a, b) => b.index - a.index);
   const commits = batch.map((item) => item.entry);
   const earliest = commits[0].id;
-  const { keptNew, restoreFiles } = collectPaths(commits);
+  const { keptNew, restoreFiles, keptShared } = collectPaths(commits);
   guardLaterCommits(vault, earliest, new Set(ids), new Set([...keptNew, ...restoreFiles]));
   // 全是新建页时没有可恢复的东西：不调 jj restore、不提交，直接输出（同 plan-undo）。
   let jjResult = "skipped";
@@ -261,6 +271,7 @@ function cmdUndo(vaultArg, flags, json) {
     undone: commits.map((entry) => entry.id),
     restoreFiles,
     keptNew,
+    keptShared,
     jj: jjResult,
     board: board === null ? "skipped" : board.ok ? "ok" : board.error,
   };
@@ -270,6 +281,9 @@ function cmdUndo(vaultArg, flags, json) {
     process.stdout.write(`已撤销 ${commits.length} 条改动，恢复 ${restoreFiles.length} 个文件\n`);
     for (const path of keptNew) {
       process.stdout.write(`这批新建的页面（保留，可询问后删除）：${path}\n`);
+    }
+    for (const path of keptShared) {
+      process.stdout.write(`日志 / 索引里的行保留：${path}\n`);
     }
     if (out.board !== "ok" && out.board !== "skipped") process.stdout.write(`看板未刷新：${out.board}\n`);
   }

@@ -287,6 +287,51 @@ jjTest("undo --ids a,b：两条同课同类提交一起撤，回到最早那条�
   }
 });
 
+jjTest("list/undo：wiki/log.md、wiki/index.md 是公共文件——别门课写了不挡撤销，撤销时内容保留", async () => {
+  const fixture = await makeRepo();
+  try {
+    // 基线之上先补 a、b 两门课与公共日志，让收课提交里它们是 M 而不是 A。
+    await writeFile(join(fixture.vault, "wiki", "courses", "a.md"), "# A 基线\n");
+    await writeFile(join(fixture.vault, "wiki", "courses", "b.md"), "# B 基线\n");
+    await writeFile(join(fixture.vault, "wiki", "log.md"), "# 日志\n");
+    fixture.jj(["commit", "-m", "基线补 a、b 与日志"]);
+    const idA = await commitFiles(
+      fixture,
+      {
+        "wiki/courses/a.md": "# A 收课\n",
+        "wiki/log.md": "# 日志\n\n- 收课 a\n",
+        "wiki/index.md": "# 索引\n\n- a\n",
+      },
+      "收课 a 2026-11-16",
+    );
+    const idB = await commitFiles(
+      fixture,
+      {
+        "wiki/courses/b.md": "# B 收课\n",
+        "wiki/log.md": "# 日志\n\n- 收课 a\n- 收课 b\n",
+        "wiki/index.md": "# 索引\n\n- a\n- b\n",
+      },
+      "收课 b 2026-11-17",
+    );
+    const listed = await cliJson(listArgs(fixture), { env: fixture.env });
+    const entryA = listed.entries.find((entry) => entry.id === idA);
+    const entryB = listed.entries.find((entry) => entry.id === idB);
+    assert.equal(entryA.undoable, true, "B 只动过公共文件与 b.md，不挡 A 的撤销");
+    assert.equal(entryB.undoable, true);
+    const logBefore = await readFile(join(fixture.vault, "wiki", "log.md"), "utf8");
+    const indexBefore = await readFile(join(fixture.vault, "wiki", "index.md"), "utf8");
+    const out = await cliJson(undoArgs(fixture, idA), { env: fixture.env });
+    assert.deepEqual([...out.keptShared].sort(), ["wiki/index.md", "wiki/log.md"]);
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "a.md"), "utf8"), "# A 基线\n");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "courses", "b.md"), "utf8"), "# B 收课\n");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "log.md"), "utf8"), logBefore, "公共日志逐字保留");
+    assert.equal(await readFile(join(fixture.vault, "wiki", "index.md"), "utf8"), indexBefore, "公共索引逐字保留");
+    assert.match(fixture.jj(["log", "--no-graph", "-T", 'description.first_line() ++ "\\n"']), /^撤销 收课 a 2026-11-16$/m);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 jjTest("list：库不在 jj 下 / --days 越界 → 中文报错", async () => {
   const root = await mkdtemp(join(tmpdir(), "history-nojj-"));
   try {

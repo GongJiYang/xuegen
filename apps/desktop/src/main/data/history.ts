@@ -49,6 +49,7 @@ export function historyUndoResultOf(data: unknown): HistoryUndoResult {
     undone: strings(record.undone),
     restoreFiles: strings(record.restoreFiles),
     keptNew: strings(record.keptNew),
+    keptShared: strings(record.keptShared),
     board: typeof record.board === "string" ? record.board : "skipped",
   };
 }

@@ -22,5 +22,7 @@ export interface HistoryUndoResult {
   undone: string[];
   restoreFiles: string[];
   keptNew: string[];
+  /** Append-only shared files (wiki/log.md, wiki/index.md) whose lines were kept, not restored. */
+  keptShared: string[];
   board: string;
 }
