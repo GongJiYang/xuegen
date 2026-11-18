@@ -4960,6 +4960,7 @@
   opacity: 0;
 }
 [data-skin="bear"] .bear-cc-rows li:hover .bear-cc-more,
+[data-skin="bear"] .bear-cp-row:hover .bear-cc-more,
 [data-skin="bear"] .bear-cc-more:focus-visible,
 [data-skin="bear"] .bear-cc-more[data-state="open"] {
   opacity: 1;

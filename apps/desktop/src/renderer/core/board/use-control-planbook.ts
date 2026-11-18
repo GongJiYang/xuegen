@@ -124,6 +124,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
   const courseStop = useCourseStop(
     courses.state.status === "ready" ? courses.state.value : null,
     () => {
+      plan.plan.reload();
       courses.reload();
       calendar.resource.reload();
       cycle.reload();
