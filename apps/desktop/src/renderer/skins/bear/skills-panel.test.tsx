@@ -186,3 +186,142 @@ describe("Bear 技能 panel · 库检查", () => {
     expect(container.querySelector('[data-slot="skills-check"]')).toBeNull();
   });
 });
+
+const PREFS_TWO_GROUPS = {
+  status: null,
+  empty: false,
+  emptyText: "还没有记下的偏好。课上说「以后讲 … 都 …」时会记在这里。",
+  groups: [
+    {
+      subject: "discrete-math",
+      title: "离散数学",
+      error: null,
+      lines: [
+        {
+          key: "discrete-math\n先用例子再定义",
+          text: "先用例子再定义",
+          shown: "先用例子再定义",
+          style: false,
+          removing: false,
+        },
+        {
+          key: "discrete-math\n板书只写关键词",
+          text: "板书只写关键词",
+          shown: "板书只写关键词",
+          style: true,
+          removing: false,
+        },
+      ],
+    },
+    {
+      subject: "ctm",
+      title: "CTM",
+      error: null,
+      lines: [
+        { key: "ctm\n多画图", text: "多画图", shown: "多画图", style: false, removing: false },
+      ],
+    },
+  ],
+};
+
+describe("Bear 技能 panel · 讲解偏好", () => {
+  it("shows the groups and removes one line by subject and text", async () => {
+    const onRemove = vi.fn();
+    const { container } = render(
+      <SkillsPanel {...baseProps({ prefs: { ...PREFS_TWO_GROUPS, onRemove } })} />,
+    );
+    const slot = container.querySelector('[data-slot="skills-prefs"]');
+    if (!(slot instanceof HTMLElement)) throw new Error("no 讲解偏好 block");
+    expect(within(slot).getByText("讲解偏好")).toBeTruthy();
+    expect(within(slot).getByText("离散数学")).toBeTruthy();
+    expect(within(slot).getByText("CTM")).toBeTruthy();
+    const buttons = within(slot).getAllByRole("button", { name: "删掉" });
+    expect(buttons).toHaveLength(3);
+    await userEvent.click(buttons[1] as HTMLElement);
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledWith("discrete-math", "板书只写关键词");
+  });
+
+  it("shows a style line's text once, without the 默认风格 prefix, and removes by the original text", async () => {
+    const onRemove = vi.fn();
+    const prefs = {
+      status: null,
+      empty: false,
+      emptyText: "还没有记下的偏好。课上说「以后讲 … 都 …」时会记在这里。",
+      groups: [
+        {
+          subject: "discrete-math",
+          title: "离散数学",
+          error: null,
+          lines: [
+            {
+              key: "discrete-math\n默认风格：细讲（2026-11-08 迁移…）",
+              text: "默认风格：细讲（2026-11-08 迁移…）",
+              shown: "细讲（2026-11-08 迁移…）",
+              style: true,
+              removing: false,
+            },
+          ],
+        },
+      ],
+      onRemove,
+    };
+    const { container } = render(<SkillsPanel {...baseProps({ prefs })} />);
+    const slot = container.querySelector('[data-slot="skills-prefs"]');
+    if (!(slot instanceof HTMLElement)) throw new Error("no 讲解偏好 block");
+    expect(within(slot).getAllByText("默认风格")).toHaveLength(1);
+    expect(within(slot).getByText("细讲（2026-11-08 迁移…）")).toBeTruthy();
+    expect(within(slot).queryByText("默认风格：细讲（2026-11-08 迁移…）")).toBeNull();
+    await userEvent.click(within(slot).getByRole("button", { name: "删掉" }));
+    expect(onRemove).toHaveBeenCalledWith("discrete-math", "默认风格：细讲（2026-11-08 迁移…）");
+  });
+
+  it("disables the removing line's button", () => {
+    const prefs = {
+      ...PREFS_TWO_GROUPS,
+      groups: [
+        {
+          ...PREFS_TWO_GROUPS.groups[0]!,
+          lines: [
+            {
+              key: "discrete-math\n先用例子再定义",
+              text: "先用例子再定义",
+              shown: "先用例子再定义",
+              style: false,
+              removing: true,
+            },
+          ],
+        },
+      ],
+    };
+    render(<SkillsPanel {...baseProps({ prefs: { ...prefs, onRemove: vi.fn() } })} />);
+    const button = screen.getByRole("button", { name: "正在删…" });
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: "删掉" })).toBeNull();
+  });
+
+  it("shows the empty text without remove buttons", () => {
+    render(
+      <SkillsPanel
+        {...baseProps({
+          prefs: {
+            status: null,
+            empty: true,
+            emptyText: "还没有记下的偏好。课上说「以后讲 … 都 …」时会记在这里。",
+            groups: [],
+            onRemove: vi.fn(),
+          },
+        })}
+      />,
+    );
+    expect(
+      screen.getByText("还没有记下的偏好。课上说「以后讲 … 都 …」时会记在这里。"),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "删掉" })).toBeNull();
+  });
+
+  it("has no 讲解偏好 block without prefs", () => {
+    const { container } = render(<SkillsPanel {...baseProps()} />);
+    expect(container.querySelector('[data-slot="skills-prefs"]')).toBeNull();
+  });
+});
