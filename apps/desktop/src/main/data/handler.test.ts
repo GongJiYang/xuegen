@@ -596,6 +596,32 @@ describe("handleDataRequest", () => {
     if (!notJj.ok) expect(notJj.error).toContain("撤销需要库在 jj 下");
   });
 
+  it("history.list passes the vault and --days through to history.mjs list", async () => {
+    // The vault here is not a jj repo, so a valid --days reaches the script's
+    // jj check and fails there — proof the arguments arrive.
+    const notJj = await handleDataRequest({ kind: "history.list", days: 30 });
+    expect(notJj.ok).toBe(false);
+    if (!notJj.ok) {
+      expect(notJj.code).toBe("script-failed");
+      expect(notJj.error).toContain("历史需要库在 jj 下");
+    }
+  });
+
+  it("history.undo passes --ids and resolveWorkspace() as --workspace to the script", async () => {
+    const workspace = mkdtempSync(join(tmpdir(), "xuegen-data-ws-"));
+    const previous = process.env.XUEGEN_DESKTOP_CWD;
+    process.env.XUEGEN_DESKTOP_CWD = workspace;
+    try {
+      const notJj = await handleDataRequest({ kind: "history.undo", ids: ["0123abcd"] });
+      expect(notJj.ok).toBe(false);
+      if (!notJj.ok) expect(notJj.error).toContain("历史需要库在 jj 下");
+    } finally {
+      if (previous === undefined) delete process.env.XUEGEN_DESKTOP_CWD;
+      else process.env.XUEGEN_DESKTOP_CWD = previous;
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it("plan.undo passes --since and resolveWorkspace() as --workspace to the script", async () => {
     const workspace = mkdtempSync(join(tmpdir(), "xuegen-data-ws-"));
     const previous = process.env.XUEGEN_DESKTOP_CWD;

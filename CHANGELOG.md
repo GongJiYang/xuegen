@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Backend (no UI yet): `history.mjs` lists the vault's jj changes in plain fields (verb, slug, pages added, whether it can still be undone) and undoes one or more of them — new pages kept, the rest restored, refused when touched again later; data channel `history.list` / `history.undo`.
+
 ## v0.19.0 — 2026-11-18
 
 - Desktop: 技能与设置 has 讲解偏好 — the 「以后讲 … 都 …」 preferences remembered in class, per subject, each with 「删掉」 (`core/prefs/*`, Bear `prefs-block.tsx`).
