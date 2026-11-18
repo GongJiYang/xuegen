@@ -4130,6 +4130,36 @@
 [data-skin="bear"] .bear-cp-prog .bear-cp-row:first-child {
   padding-top: 0;
 }
+[data-skin="bear"] .bear-cp-name .bear-cc-more {
+  margin-left: var(--sp-2);
+}
+[data-skin="bear"] .bear-cp-stopped {
+  margin: var(--sp-2) 0;
+}
+[data-skin="bear"] .bear-cp-stopped summary {
+  cursor: pointer;
+}
+[data-skin="bear"] .bear-cp-stopped ul {
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+[data-skin="bear"] .bear-cp-stopped li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  font-size: var(--fs-1);
+  line-height: var(--lh-1);
+}
+[data-skin="bear"] .bear-cp-stopped .bear-link {
+  margin-left: auto;
+  color: var(--accent-11);
+  font-weight: 500;
+}
+[data-skin="bear"] .bear-cs {
+  max-width: 28rem;
+}
 /* Breakpoints follow the panel's own width, not the window's: with the chat
    column open a 1440 window leaves the panel about 1050px (audit 11-13). */
 [data-skin="bear"] .bear-pb-area {
@@ -4930,6 +4960,7 @@
   opacity: 0;
 }
 [data-skin="bear"] .bear-cc-rows li:hover .bear-cc-more,
+[data-skin="bear"] .bear-cp-row:hover .bear-cc-more,
 [data-skin="bear"] .bear-cc-more:focus-visible,
 [data-skin="bear"] .bear-cc-more[data-state="open"] {
   opacity: 1;

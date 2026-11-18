@@ -52,6 +52,7 @@ import type { OpenCourseRow } from "../core/board/open-courses.js";
 import type { SlashCommand, SlashGroup } from "../core/commands/commands.js";
 import type { ResumePoint, TodayPlanItem } from "../core/today.js";
 import type { UpdateBarState } from "../core/update/use-update.js";
+import type { CourseStopProps } from "../core/course-stop/view.js";
 import type { AboutView } from "../core/update/about.js";
 import type { CheckView } from "../core/check/check-view.js";
 import type { PrefsView } from "../core/prefs/prefs-view.js";
@@ -926,6 +927,8 @@ export interface ControlPanelProps {
   /** 领域 row at the bottom (control-v3 ①): every subject, null while loading; absent hides the row. */
   domains?: { id: string; title: string; pages: number; terms: number }[] | null;
   onOpenDomain?: (id: string, title: string) => void;
+  /** 总进度里停用 / 恢复（logic-ui-1116 B）. */
+  courseStop?: CourseStopProps;
 }
 
 /** 领域页（domain.html）: the glossary on the left, the 领域小结 or a page in the middle. */

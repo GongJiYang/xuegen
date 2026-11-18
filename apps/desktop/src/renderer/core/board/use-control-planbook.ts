@@ -41,6 +41,7 @@ import type { useReading } from "./use-reading.js";
 import type { CycleResource } from "./use-cycle.js";
 import { courseTitleOf, verifyMessage } from "./use-shell-panels.js";
 import type { DomainSession } from "./use-domain-session.js";
+import { useCourseStop } from "../course-stop/use-course-stop.js";
 
 export interface ControlPlanbookInput {
   cycle: CycleResource;
@@ -120,6 +121,15 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
     isControl: control.isControl,
     fold,
   });
+  const courseStop = useCourseStop(
+    courses.state.status === "ready" ? courses.state.value : null,
+    () => {
+      plan.plan.reload();
+      courses.reload();
+      calendar.resource.reload();
+      cycle.reload();
+    },
+  );
   const bookNames = bookShorts(
     reading.shelf.list.state.status === "ready" ? reading.shelf.list.state.value : null,
   );
@@ -274,6 +284,7 @@ export function useControlPlanbook(input: ControlPlanbookInput): ControlPlanbook
           })),
     onOpenDomain: (id, title) => input.domainSession.open(id, title),
     ...(nextCycle === undefined ? {} : { nextCycle }),
+    courseStop,
   };
   return {
     panelShowCard: shownDay === null && plan.card !== null,

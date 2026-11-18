@@ -100,6 +100,9 @@ function mockClient(): void {
         return ok({ running: false });
       case "sessions.studied":
         return ok([]);
+      case "course.stop":
+      case "course.resume":
+        return ok(null);
       default:
         return Promise.resolve({ ok: false, code: "script-failed", error: `unexpected ${request.kind}` });
     }
@@ -250,6 +253,64 @@ describe("useControlPlanbook 组装", () => {
     expect(hook.current().panelProps.shownToday).toBe(true);
     expect(hook.current().panelShowCard).toBe(true);
     expect(hook.current().panelProps.day?.date).toBe(TODAY);
+  });
+
+  it("panelProps.courseStop 读课程表里停用的课（logic-ui-1116 B）", async () => {
+    const courses = resource([
+      {
+        slug: "ctm",
+        title: "CTM",
+        weekLabel: null,
+        week: { done: 0, total: 0, tasks: [] },
+        overall: { done: 0, total: 0 },
+        lastRecord: null,
+        nextSession: null,
+        styleHint: null,
+        archived: true,
+        archivedOn: "2026-11-15",
+      },
+      {
+        slug: "ep",
+        title: "EP",
+        weekLabel: null,
+        week: { done: 0, total: 0, tasks: [] },
+        overall: { done: 0, total: 0 },
+        lastRecord: null,
+        nextSession: null,
+        styleHint: null,
+        archived: false,
+        archivedOn: null,
+      },
+    ]);
+    const hook = render(input({ courses }));
+    await settle();
+    expect(hook.current().panelProps.courseStop?.stopped).toEqual([{ slug: "ctm", name: "CTM", on: "11-15" }]);
+  });
+
+  it("course.stop 成功后重读周表格，不刷新也能少掉那门课（返修 #28-2）", async () => {
+    const courses = resource([
+      {
+        slug: "ctm",
+        title: "CTM",
+        weekLabel: null,
+        week: { done: 0, total: 0, tasks: [] },
+        overall: { done: 0, total: 0 },
+        lastRecord: null,
+        nextSession: null,
+        styleHint: null,
+        archived: false,
+        archivedOn: null,
+      },
+    ]);
+    const hook = render(input({ courses }));
+    await settle();
+    // The week table's data is the cycle overview request made by usePlanbook.
+    const weekReads = () =>
+      clientMock.data.mock.calls.filter(([request]) => (request as { kind: string }).kind === "cycle.overview").length;
+    const before = weekReads();
+    act(() => hook.current().panelProps.courseStop?.onStop("ctm"));
+    await settle();
+    expect(weekReads()).toBe(before + 1);
   });
 
   it('panelProps.onOpenShelf() 调 openTool("reading")（批 6b-2）', async () => {
