@@ -249,3 +249,17 @@ test("lint：FEATURE-WIKI 不存在就跳过 feature-steps", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("steps.ts 的步骤标题与 SKILL.md 抽取一致", async () => {
+  const root = join(HERE, "..");
+  const flows = await collectFlows(root);
+  const source = await readFile(join(root, "apps/desktop/src/renderer/core/flow/steps.ts"), "utf8");
+  for (const id of ["course.open", "course.close"]) {
+    for (const { n, title } of flows[id].steps) {
+      assert.ok(
+        source.includes(`${n}: "${title}"`),
+        `${id} 第 ${n} 步「${title}」没出现在 steps.ts`,
+      );
+    }
+  }
+});

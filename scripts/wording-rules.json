@@ -203,6 +203,16 @@
       "file": "apps/desktop/src/renderer/core/board/planbook-items.ts",
       "word": "讲后读",
       "why": "数据格式：#讲后读- 标记与日历标题前缀「讲后读 · 」"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/flow/steps.ts",
+      "word": "辅助",
+      "why": "步骤标题照 skills/course/SKILL.md 第 4 步原文，feature-steps 测试核对一致"
+    },
+    {
+      "file": "apps/desktop/src/renderer/core/flow/steps.ts",
+      "word": "核心页",
+      "why": "步骤标题照 skills/course/SKILL.md 第 6 步原文，feature-steps 测试核对一致"
     }
   ]
 }
